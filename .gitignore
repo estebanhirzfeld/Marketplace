@@ -1,0 +1,13 @@
+node_modules
+.next
+.turbo
+dist
+build
+.env
+.env.*
+!.env.example
+coverage
+.nyc_output
+
+# Ignore custom folder
+stuff/

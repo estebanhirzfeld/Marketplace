@@ -1,0 +1,21 @@
+{
+  "name": "@marketplace/api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "fastify start -w -l info -P dist/index.js",
+    "start": "fastify start -l info dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@marketplace/shared-types": "workspace:*",
+    "fastify": "^4.26.2",
+    "fastify-cli": "^6.1.1",
+    "fastify-plugin": "^4.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.8",
+    "typescript": "^5.4.5"
+  }
+}
