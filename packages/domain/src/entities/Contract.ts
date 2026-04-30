@@ -1,17 +1,24 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 
-export type ContractType = 'initial' | 'tripartite';
+export type ContractType = 'buyer_nda' | 'seller_nda' | 'tripartite';
+export type PartyRole = 'buyer' | 'seller' | 'platform';
+
+export interface Signature {
+    role: PartyRole;
+    signed: boolean;
+    signedAt?: Date;
+    signatureIp?: string;
+}
 
 export interface ContractProps {
-    operationId: UniqueEntityID;
-    contractType: ContractType;
-    signaturitId?: string;
+    type: ContractType;
+    listingId: UniqueEntityID;
+    operationId?: UniqueEntityID;
+    signerId?: UniqueEntityID;
+    signatures: Signature[];
+    externalSignatureId?: string;
     fileUrl?: string;
-    signedBySeller: boolean;
-    signedByBuyer: boolean;
-    signedByPlatform: boolean;
-    signedAt?: Date;
 }
 
 export class Contract extends Entity<ContractProps> {
@@ -19,41 +26,101 @@ export class Contract extends Entity<ContractProps> {
         super(props, id, createdAt);
     }
 
-    /** Crea un contrato NUEVO — defaults seguros */
-    public static create(
-        props: Pick<ContractProps, 'operationId' | 'contractType'>
-    ): Contract {
+    // ── Factories ──────────────────────────────────────────
+
+    /** NDA entre el buyer y la plataforma — para ver datos reales del listing */
+    public static createBuyerNda(listingId: UniqueEntityID, signerId: UniqueEntityID): Contract {
         return new Contract({
-            ...props,
-            signedBySeller: false,
-            signedByBuyer: false,
-            signedByPlatform: false,
+            type: 'buyer_nda',
+            listingId,
+            signerId,
+            signatures: [
+                { role: 'buyer', signed: false },
+                { role: 'platform', signed: false },
+            ],
         });
     }
 
-    /** Rehidrata un contrato existente desde la DB — sin defaults, todo como vino */
-    public static reconstitute(
-        props: ContractProps,
-        id: UniqueEntityID,
-        createdAt: Date
-    ): Contract {
+    /** NDA entre el seller y la plataforma — para publicar el listing */
+    public static createSellerNda(listingId: UniqueEntityID, signerId: UniqueEntityID): Contract {
+        return new Contract({
+            type: 'seller_nda',
+            listingId,
+            signerId,
+            signatures: [
+                { role: 'seller', signed: false },
+                { role: 'platform', signed: false },
+            ],
+        });
+    }
+
+    /** Contrato tripartito — para cerrar la venta */
+    public static createTripartite(listingId: UniqueEntityID, operationId: UniqueEntityID): Contract {
+        return new Contract({
+            type: 'tripartite',
+            listingId,
+            operationId,
+            signatures: [
+                { role: 'buyer', signed: false },
+                { role: 'seller', signed: false },
+                { role: 'platform', signed: false },
+            ],
+        });
+    }
+
+    /** Rehidrata un contrato existente desde la DB */
+    public static reconstitute(props: ContractProps, id: UniqueEntityID, createdAt: Date): Contract {
         return new Contract(props, id, createdAt);
     }
 
-    public isFullySigned(): boolean {
-        if (this.props.contractType === 'tripartite') {
-            return this.props.signedBySeller && this.props.signedByBuyer && this.props.signedByPlatform;
+    // ── Comportamiento ─────────────────────────────────────
+
+    /** Firma el contrato para un rol específico. Tell, don't ask. */
+    public sign(role: PartyRole, ipAddress: string): void {
+        const signature = this.props.signatures.find(s => s.role === role);
+
+        if (!signature) {
+            throw new Error(`El rol "${role}" no es parte de este contrato.`);
         }
-        return this.props.signedBySeller && this.props.signedByPlatform;
+
+        if (signature.signed) {
+            throw new Error(`El rol "${role}" ya firmó este contrato.`);
+        }
+
+        signature.signed = true;
+        signature.signedAt = new Date();
+        signature.signatureIp = ipAddress;
     }
 
-    public signProvider(role: 'seller' | 'buyer' | 'platform'): void {
-        if (role === 'seller') this.props.signedBySeller = true;
-        if (role === 'buyer') this.props.signedByBuyer = true;
-        if (role === 'platform') this.props.signedByPlatform = true;
+    /** ¿Firmaron todos? No importa cuántos sean ni quiénes. */
+    public isFullySigned(): boolean {
+        return this.props.signatures.every(s => s.signed);
+    }
 
-        if (this.isFullySigned() && !this.props.signedAt) {
-            this.props.signedAt = new Date();
-        }
+    /** ¿Este rol ya firmó? */
+    public hasSignedBy(role: PartyRole): boolean {
+        return this.props.signatures.some(s => s.role === role && s.signed);
+    }
+
+    // ── Getters ────────────────────────────────────────────
+
+    public get type(): ContractType {
+        return this.props.type;
+    }
+
+    public get listingId(): UniqueEntityID {
+        return this.props.listingId;
+    }
+
+    public get operationId(): UniqueEntityID | undefined {
+        return this.props.operationId;
+    }
+
+    public get signerId(): UniqueEntityID | undefined {
+        return this.props.signerId;
+    }
+
+    public get signatures(): ReadonlyArray<Readonly<Signature>> {
+        return this.props.signatures;
     }
 }

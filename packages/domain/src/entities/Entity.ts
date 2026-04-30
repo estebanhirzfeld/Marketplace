@@ -34,4 +34,16 @@ export abstract class Entity<T> {
 
         return this._id.equals(object._id);
     }
+
+    /**
+     * Expone los datos de la entidad para la capa de persistencia.
+     * Solo deben usarlo los Mappers en packages/db — nunca en lógica de negocio.
+     */
+    public toSnapshot(): { id: string; createdAt: Date; props: T } {
+        return {
+            id: this._id.toString(),
+            createdAt: this._createdAt,
+            props: this.props,
+        };
+    }
 }

@@ -9,6 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@marketplace/db": "workspace:*",
     "@marketplace/shared-types": "workspace:*",
     "fastify": "^4.26.2",
     "fastify-cli": "^6.1.1",

@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Enums ──────────────────────────────────────────
+
+enum UserRole {
+  buyer
+  seller
+  admin
+}
+
+enum AssetType {
+  youtube
+  web
+  instagram
+  tiktok
+}
+
+enum ListingStatus {
+  draft
+  under_review
+  published
+  in_operation
+  sold
+  rejected
+}
+
+enum OperationStatus {
+  offer_sent
+  negotiating
+  contract_pending
+  contract_signed
+  transfer_in_progress
+  asset_in_custody
+  payment_pending
+  payment_received
+  completed
+  cancelled
+}
+
+enum ContractType {
+  buyer_nda
+  seller_nda
+  tripartite
+}
+
+// ── Models ─────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  fullName      String
+  phone         String?
+  country       String?
+  dni           String?
+  role          UserRole
+  isKycVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  listingsAsSeller   Listing[]
+  operationsAsBuyer  Operation[] @relation("BuyerOperations")
+  operationsAsSeller Operation[] @relation("SellerOperations")
+  contractsAsSigner  Contract[]
+
+  @@map("users")
+}
+
+model Listing {
+  id              String        @id @default(uuid())
+  sellerId        String
+  assetType       AssetType
+  assetData       Json
+  status          ListingStatus @default(draft)
+  askingPrice     Int
+  currency        String        @default("USD")
+  isBlind         Boolean       @default(true)
+  publishedAt     DateTime?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+
+  seller     User        @relation(fields: [sellerId], references: [id])
+  operations Operation[]
+  contracts  Contract[]
+
+  @@map("listings")
+}
+
+model Operation {
+  id               String          @id @default(uuid())
+  listingId        String
+  buyerId          String
+  sellerId         String
+  status           OperationStatus @default(offer_sent)
+  offerPrice       Int
+  finalPrice       Int?
+  buyerCommission  Int?
+  sellerCommission Int?
+  buyerPays        Int?
+  sellerReceives   Int?
+  platformEarns    Int?
+  currency         String          @default("USD")
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+
+  listing   Listing    @relation(fields: [listingId], references: [id])
+  buyer     User       @relation("BuyerOperations", fields: [buyerId], references: [id])
+  seller    User       @relation("SellerOperations", fields: [sellerId], references: [id])
+  contracts Contract[]
+
+  @@map("operations")
+}
+
+model Contract {
+  id                  String       @id @default(uuid())
+  type                ContractType
+  listingId           String
+  operationId         String?
+  signerId            String?
+  signatures          Json
+  externalSignatureId String?
+  fileUrl             String?
+  createdAt           DateTime     @default(now())
+
+  listing   Listing    @relation(fields: [listingId], references: [id])
+  operation Operation? @relation(fields: [operationId], references: [id])
+  signer    User?      @relation(fields: [signerId], references: [id])
+
+  @@unique([listingId, signerId, type])
+  @@map("contracts")
+}

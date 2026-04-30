@@ -1,7 +1,7 @@
 import { User } from '../entities/User';
 import { Listing } from '../entities/Listing';
 import { Operation } from '../entities/Operation';
-import { NDA } from '../entities/NDA';
+import { Contract } from '../entities/Contract';
 
 export interface IUserRepository {
     findById(id: string): Promise<User | null>;
@@ -21,7 +21,10 @@ export interface IOperationRepository {
     save(operation: Operation): Promise<void>;
 }
 
-export interface INdaRepository {
-    findByListingAndBuyer(listingId: string, buyerId: string): Promise<NDA | null>;
-    save(nda: NDA): Promise<void>;
+export interface IContractRepository {
+    findById(id: string): Promise<Contract | null>;
+    findByOperation(operationId: string): Promise<Contract[]>;
+    findByListingAndSigner(listingId: string, signerId: string): Promise<Contract | null>;
+    findAllByListing(listingId: string): Promise<Contract[]>;
+    save(contract: Contract): Promise<void>;
 }
