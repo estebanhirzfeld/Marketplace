@@ -48,4 +48,15 @@ export class SocialStrategy implements IAssetStrategy {
     public getConfidentialFields(): string[] {
         return ['profile_url', 'monthly_revenue_usd', 'raw_metrics'];
     }
+
+    public toJSON(): { assetType: string; assetData: Record<string, any> } {
+        return {
+            assetType: this.platform === AssetType.INSTAGRAM ? 'instagram' : 'tiktok',
+            assetData: {
+                followers: this.followers,
+                engagementRate: this.engagementRate,
+                platform: this.platform,
+            }
+        };
+    }
 }

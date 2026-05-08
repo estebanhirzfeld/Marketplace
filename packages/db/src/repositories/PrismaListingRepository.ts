@@ -19,16 +19,13 @@ export class PrismaListingRepository implements IListingRepository {
     async save(listing: Listing): Promise<void> {
         const { id, createdAt, props } = listing.toSnapshot();
 
-        // El mapper necesita assetType y assetData que vienen de la strategy.
-        // Al guardar, necesitamos serializar la strategy.
-        // Por ahora, usamos el assetType y assetData que ya están en el row si existe,
-        // o los que se pasen externamente.
-        const existing = await prisma.listing.findUnique({ where: { id } });
+        // Obtenemos assetType y assetData directo de la estrategia de dominio
+        const strategyJson = listing.toSnapshot().props.assetStrategy.toJSON();
 
         const data = ListingMapper.toPersistence(
             listing,
-            existing?.assetType ?? "youtube", // fallback — en producción vendría del use case
-            existing?.assetData as Record<string, any> ?? {}
+            strategyJson.assetType,
+            strategyJson.assetData
         );
 
         await prisma.listing.upsert({

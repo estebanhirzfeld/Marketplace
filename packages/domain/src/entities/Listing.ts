@@ -53,6 +53,10 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.calculateEstimatedPrice();
     }
 
+    public get askingPrice(): Money {
+        return this.props.askingPrice;
+    }
+
     // State transitions would trigger through XState machine normally,
     // but domain logic guarantees rules before allowing transition.
     public submitForReview(): void {

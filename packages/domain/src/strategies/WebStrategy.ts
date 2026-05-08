@@ -42,4 +42,15 @@ export class WebStrategy implements IAssetStrategy {
     public getConfidentialFields(): string[] {
         return ['domain', 'raw_metrics', 'organic_traffic_pct'];
     }
+
+    public toJSON(): { assetType: string; assetData: Record<string, any> } {
+        return {
+            assetType: 'web',
+            assetData: {
+                monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
+                currency: this.monthlyRevenueUsd.getCurrency(),
+                domainAuthority: this.domainAuthority,
+            }
+        };
+    }
 }

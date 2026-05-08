@@ -197,4 +197,19 @@ export class YouTubeStrategy implements IAssetStrategy {
       'has_strikes',
     ];
   }
+
+  public toJSON(): { assetType: string; assetData: Record<string, any> } {
+    return {
+      assetType: 'youtube',
+      assetData: {
+        monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
+        currency: this.monthlyRevenueUsd.getCurrency(),
+        subscribers: this.subscribers,
+        growthFactor: this.growthFactor,
+        isMonetized: this.isMonetized,
+        audienceTopCountry: this.audienceTopCountry,
+        hasNoFaceContent: this.hasNoFaceContent,
+      }
+    };
+  }
 }

@@ -34,4 +34,9 @@ export interface IAssetStrategy {
      * Retorna los nombres de los atributos que requieren NDA para ser vistos
      */
     getConfidentialFields(): string[];
+
+    /**
+     * Serializa la estrategia para persistencia
+     */
+    toJSON(): { assetType: string; assetData: Record<string, any> };
 }
