@@ -788,6 +788,7 @@ export const OperationScalarFieldEnum = {
   sellerReceives: 'sellerReceives',
   platformEarns: 'platformEarns',
   currency: 'currency',
+  negotiations: 'negotiations',
   completedAt: 'completedAt',
   createdAt: 'createdAt'
 } as const

@@ -10,11 +10,14 @@ import { YouTubeStrategy } from "@marketplace/domain/src/strategies/YouTubeStrat
 import { PrismaListingRepository } from "../src/repositories/PrismaListingRepository";
 import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { PrismaContractRepository } from "../src/repositories/PrismaContractRepository";
+import { Operation } from "@marketplace/domain/src/entities/Operation";
+import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
 import { prisma } from "../src/client";
 
 const userRepo = new PrismaUserRepository();
 const listingRepo = new PrismaListingRepository();
 const contractRepo = new PrismaContractRepository();
+const operationRepo = new PrismaOperationRepository();
 
 // ── Helpers ──────────────────────────────────────────────
 // Cada test debe crear su propia data. Estos helpers evitan
@@ -261,3 +264,93 @@ describe("PrismaContractRepository", () => {
         expect(result).toBeNull();
     });
 });
+
+// ═════════════════════════════════════════════════════════
+// Operation + Negotiations (JSON round-trip)
+// ═════════════════════════════════════════════════════════
+
+describe("PrismaOperationRepository", () => {
+    it("debería persistir una Operation con su oferta inicial y recuperarla", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-op@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-op@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(200000, "USD"),
+        });
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved).not.toBeNull();
+        expect(retrieved!.status).toBe("offer_sent");
+        expect(retrieved!.currentOfferPrice.getCents()).toBe(200000);
+        expect(retrieved!.pendingResponseFrom).toBe("seller");
+        expect(retrieved!.negotiations).toHaveLength(1);
+        expect(retrieved!.negotiations[0].proposedBy).toBe("buyer");
+    });
+
+    it("debería persistir contraofertas y recuperar el historial completo (UPDATE round-trip)", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-neg@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-neg@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        // 1. Crear con oferta del buyer
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(100000, "USD"), // $1000
+        });
+        await operationRepo.save(operation);
+
+        // 2. Seller contra-oferta
+        operation.counterOffer(Money.fromCents(200000, "USD"), "seller");
+        await operationRepo.save(operation);
+
+        const afterCounter = await operationRepo.findById(operation.id.toString());
+        expect(afterCounter!.status).toBe("negotiating");
+        expect(afterCounter!.negotiations).toHaveLength(2);
+        expect(afterCounter!.currentOfferPrice.getCents()).toBe(200000);
+        expect(afterCounter!.pendingResponseFrom).toBe("buyer");
+
+        // 3. Buyer contra-oferta
+        operation.counterOffer(Money.fromCents(150000, "USD"), "buyer");
+        await operationRepo.save(operation);
+
+        // 4. Seller acepta
+        operation.acceptCurrentOffer("seller");
+        await operationRepo.save(operation);
+
+        const afterAccept = await operationRepo.findById(operation.id.toString());
+        expect(afterAccept!.status).toBe("contract_pending");
+        expect(afterAccept!.finalPrice?.getCents()).toBe(150000);
+        expect(afterAccept!.negotiations).toHaveLength(3);
+
+        // Verificar que el historial tiene las fechas como Date
+        expect(afterAccept!.negotiations[0].proposedAt).toBeInstanceOf(Date);
+        expect(afterAccept!.negotiations[1].proposedAt).toBeInstanceOf(Date);
+        expect(afterAccept!.negotiations[2].proposedAt).toBeInstanceOf(Date);
+    });
+
+    it("debería devolver null si la Operation no existe", async () => {
+        const result = await operationRepo.findById(new UniqueEntityID().toString());
+        expect(result).toBeNull();
+    });
+});
+

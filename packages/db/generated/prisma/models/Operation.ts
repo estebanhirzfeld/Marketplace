@@ -96,6 +96,7 @@ export type OperationCountAggregateOutputType = {
   sellerReceives: number
   platformEarns: number
   currency: number
+  negotiations: number
   completedAt: number
   createdAt: number
   _all: number
@@ -172,6 +173,7 @@ export type OperationCountAggregateInputType = {
   sellerReceives?: true
   platformEarns?: true
   currency?: true
+  negotiations?: true
   completedAt?: true
   createdAt?: true
   _all?: true
@@ -277,6 +279,7 @@ export type OperationGroupByOutputType = {
   sellerReceives: number | null
   platformEarns: number | null
   currency: string
+  negotiations: runtime.JsonValue
   completedAt: Date | null
   createdAt: Date
   _count: OperationCountAggregateOutputType | null
@@ -318,6 +321,7 @@ export type OperationWhereInput = {
   sellerReceives?: Prisma.IntNullableFilter<"Operation"> | number | null
   platformEarns?: Prisma.IntNullableFilter<"Operation"> | number | null
   currency?: Prisma.StringFilter<"Operation"> | string
+  negotiations?: Prisma.JsonFilter<"Operation">
   completedAt?: Prisma.DateTimeNullableFilter<"Operation"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Operation"> | Date | string
   listing?: Prisma.XOR<Prisma.ListingScalarRelationFilter, Prisma.ListingWhereInput>
@@ -340,6 +344,7 @@ export type OperationOrderByWithRelationInput = {
   sellerReceives?: Prisma.SortOrderInput | Prisma.SortOrder
   platformEarns?: Prisma.SortOrderInput | Prisma.SortOrder
   currency?: Prisma.SortOrder
+  negotiations?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   listing?: Prisma.ListingOrderByWithRelationInput
@@ -365,6 +370,7 @@ export type OperationWhereUniqueInput = Prisma.AtLeast<{
   sellerReceives?: Prisma.IntNullableFilter<"Operation"> | number | null
   platformEarns?: Prisma.IntNullableFilter<"Operation"> | number | null
   currency?: Prisma.StringFilter<"Operation"> | string
+  negotiations?: Prisma.JsonFilter<"Operation">
   completedAt?: Prisma.DateTimeNullableFilter<"Operation"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Operation"> | Date | string
   listing?: Prisma.XOR<Prisma.ListingScalarRelationFilter, Prisma.ListingWhereInput>
@@ -387,6 +393,7 @@ export type OperationOrderByWithAggregationInput = {
   sellerReceives?: Prisma.SortOrderInput | Prisma.SortOrder
   platformEarns?: Prisma.SortOrderInput | Prisma.SortOrder
   currency?: Prisma.SortOrder
+  negotiations?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.OperationCountOrderByAggregateInput
@@ -413,6 +420,7 @@ export type OperationScalarWhereWithAggregatesInput = {
   sellerReceives?: Prisma.IntNullableWithAggregatesFilter<"Operation"> | number | null
   platformEarns?: Prisma.IntNullableWithAggregatesFilter<"Operation"> | number | null
   currency?: Prisma.StringWithAggregatesFilter<"Operation"> | string
+  negotiations?: Prisma.JsonWithAggregatesFilter<"Operation">
   completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Operation"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Operation"> | Date | string
 }
@@ -428,6 +436,7 @@ export type OperationCreateInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   listing: Prisma.ListingCreateNestedOneWithoutOperationsInput
@@ -450,6 +459,7 @@ export type OperationUncheckedCreateInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   contracts?: Prisma.ContractUncheckedCreateNestedManyWithoutOperationInput
@@ -466,6 +476,7 @@ export type OperationUpdateInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   listing?: Prisma.ListingUpdateOneRequiredWithoutOperationsNestedInput
@@ -488,6 +499,7 @@ export type OperationUncheckedUpdateInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contracts?: Prisma.ContractUncheckedUpdateManyWithoutOperationNestedInput
@@ -507,6 +519,7 @@ export type OperationCreateManyInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
 }
@@ -522,6 +535,7 @@ export type OperationUpdateManyMutationInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -540,6 +554,7 @@ export type OperationUncheckedUpdateManyInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -568,6 +583,7 @@ export type OperationCountOrderByAggregateInput = {
   sellerReceives?: Prisma.SortOrder
   platformEarns?: Prisma.SortOrder
   currency?: Prisma.SortOrder
+  negotiations?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -798,6 +814,7 @@ export type OperationCreateWithoutBuyerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   listing: Prisma.ListingCreateNestedOneWithoutOperationsInput
@@ -818,6 +835,7 @@ export type OperationUncheckedCreateWithoutBuyerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   contracts?: Prisma.ContractUncheckedCreateNestedManyWithoutOperationInput
@@ -844,6 +862,7 @@ export type OperationCreateWithoutSellerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   listing: Prisma.ListingCreateNestedOneWithoutOperationsInput
@@ -864,6 +883,7 @@ export type OperationUncheckedCreateWithoutSellerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   contracts?: Prisma.ContractUncheckedCreateNestedManyWithoutOperationInput
@@ -912,6 +932,7 @@ export type OperationScalarWhereInput = {
   sellerReceives?: Prisma.IntNullableFilter<"Operation"> | number | null
   platformEarns?: Prisma.IntNullableFilter<"Operation"> | number | null
   currency?: Prisma.StringFilter<"Operation"> | string
+  negotiations?: Prisma.JsonFilter<"Operation">
   completedAt?: Prisma.DateTimeNullableFilter<"Operation"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Operation"> | Date | string
 }
@@ -943,6 +964,7 @@ export type OperationCreateWithoutListingInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   buyer: Prisma.UserCreateNestedOneWithoutOperationsAsBuyerInput
@@ -963,6 +985,7 @@ export type OperationUncheckedCreateWithoutListingInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   contracts?: Prisma.ContractUncheckedCreateNestedManyWithoutOperationInput
@@ -1005,6 +1028,7 @@ export type OperationCreateWithoutContractsInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
   listing: Prisma.ListingCreateNestedOneWithoutOperationsInput
@@ -1026,6 +1050,7 @@ export type OperationUncheckedCreateWithoutContractsInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
 }
@@ -1057,6 +1082,7 @@ export type OperationUpdateWithoutContractsInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   listing?: Prisma.ListingUpdateOneRequiredWithoutOperationsNestedInput
@@ -1078,6 +1104,7 @@ export type OperationUncheckedUpdateWithoutContractsInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1095,6 +1122,7 @@ export type OperationCreateManyBuyerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
 }
@@ -1112,6 +1140,7 @@ export type OperationCreateManySellerInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
 }
@@ -1127,6 +1156,7 @@ export type OperationUpdateWithoutBuyerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   listing?: Prisma.ListingUpdateOneRequiredWithoutOperationsNestedInput
@@ -1147,6 +1177,7 @@ export type OperationUncheckedUpdateWithoutBuyerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contracts?: Prisma.ContractUncheckedUpdateManyWithoutOperationNestedInput
@@ -1165,6 +1196,7 @@ export type OperationUncheckedUpdateManyWithoutBuyerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1180,6 +1212,7 @@ export type OperationUpdateWithoutSellerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   listing?: Prisma.ListingUpdateOneRequiredWithoutOperationsNestedInput
@@ -1200,6 +1233,7 @@ export type OperationUncheckedUpdateWithoutSellerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contracts?: Prisma.ContractUncheckedUpdateManyWithoutOperationNestedInput
@@ -1218,6 +1252,7 @@ export type OperationUncheckedUpdateManyWithoutSellerInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1235,6 +1270,7 @@ export type OperationCreateManyListingInput = {
   sellerReceives?: number | null
   platformEarns?: number | null
   currency?: string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Date | string | null
   createdAt?: Date | string
 }
@@ -1250,6 +1286,7 @@ export type OperationUpdateWithoutListingInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   buyer?: Prisma.UserUpdateOneRequiredWithoutOperationsAsBuyerNestedInput
@@ -1270,6 +1307,7 @@ export type OperationUncheckedUpdateWithoutListingInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contracts?: Prisma.ContractUncheckedUpdateManyWithoutOperationNestedInput
@@ -1288,6 +1326,7 @@ export type OperationUncheckedUpdateManyWithoutListingInput = {
   sellerReceives?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   platformEarns?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   currency?: Prisma.StringFieldUpdateOperationsInput | string
+  negotiations?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1337,6 +1376,7 @@ export type OperationSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   sellerReceives?: boolean
   platformEarns?: boolean
   currency?: boolean
+  negotiations?: boolean
   completedAt?: boolean
   createdAt?: boolean
   listing?: boolean | Prisma.ListingDefaultArgs<ExtArgs>
@@ -1360,6 +1400,7 @@ export type OperationSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   sellerReceives?: boolean
   platformEarns?: boolean
   currency?: boolean
+  negotiations?: boolean
   completedAt?: boolean
   createdAt?: boolean
   listing?: boolean | Prisma.ListingDefaultArgs<ExtArgs>
@@ -1381,6 +1422,7 @@ export type OperationSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   sellerReceives?: boolean
   platformEarns?: boolean
   currency?: boolean
+  negotiations?: boolean
   completedAt?: boolean
   createdAt?: boolean
   listing?: boolean | Prisma.ListingDefaultArgs<ExtArgs>
@@ -1402,11 +1444,12 @@ export type OperationSelectScalar = {
   sellerReceives?: boolean
   platformEarns?: boolean
   currency?: boolean
+  negotiations?: boolean
   completedAt?: boolean
   createdAt?: boolean
 }
 
-export type OperationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "listingId" | "buyerId" | "sellerId" | "status" | "offerPrice" | "finalPrice" | "buyerCommission" | "sellerCommission" | "buyerPays" | "sellerReceives" | "platformEarns" | "currency" | "completedAt" | "createdAt", ExtArgs["result"]["operation"]>
+export type OperationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "listingId" | "buyerId" | "sellerId" | "status" | "offerPrice" | "finalPrice" | "buyerCommission" | "sellerCommission" | "buyerPays" | "sellerReceives" | "platformEarns" | "currency" | "negotiations" | "completedAt" | "createdAt", ExtArgs["result"]["operation"]>
 export type OperationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   listing?: boolean | Prisma.ListingDefaultArgs<ExtArgs>
   buyer?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1447,6 +1490,7 @@ export type $OperationPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     sellerReceives: number | null
     platformEarns: number | null
     currency: string
+    negotiations: runtime.JsonValue
     completedAt: Date | null
     createdAt: Date
   }, ExtArgs["result"]["operation"]>
@@ -1889,6 +1933,7 @@ export interface OperationFieldRefs {
   readonly sellerReceives: Prisma.FieldRef<"Operation", 'Int'>
   readonly platformEarns: Prisma.FieldRef<"Operation", 'Int'>
   readonly currency: Prisma.FieldRef<"Operation", 'String'>
+  readonly negotiations: Prisma.FieldRef<"Operation", 'Json'>
   readonly completedAt: Prisma.FieldRef<"Operation", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Operation", 'DateTime'>
 }

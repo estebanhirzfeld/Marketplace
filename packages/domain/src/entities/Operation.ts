@@ -14,6 +14,15 @@ export type OperationStatus =
     | 'completed'
     | 'cancelled';
 
+export type NegotiatingParty = 'buyer' | 'seller';
+
+export interface Negotiation {
+    amount: number;            // centavos — sin Money para serialización limpia
+    currency: string;
+    proposedBy: NegotiatingParty;
+    proposedAt: Date;
+}
+
 const COMMISSION_RATE = 5; // 5% a cada parte
 
 export interface OperationProps {
@@ -22,6 +31,7 @@ export interface OperationProps {
     sellerId: UniqueEntityID;
     status: OperationStatus;
     offerPrice: Money;
+    negotiations: Negotiation[];
     finalPrice?: Money;
     buyerCommission?: Money;
     sellerCommission?: Money;
@@ -40,13 +50,21 @@ export class Operation extends Entity<OperationProps> {
         }
     }
 
-    /** Crea una operación NUEVA — arranca en offer_sent */
+    // ── Factories ──────────────────────────────────────────
+
+    /** Crea una operación NUEVA — arranca en offer_sent con la oferta del buyer */
     public static create(
         props: Pick<OperationProps, 'listingId' | 'buyerId' | 'sellerId' | 'offerPrice'>
     ): Operation {
         return new Operation({
             ...props,
             status: 'offer_sent',
+            negotiations: [{
+                amount: props.offerPrice.getCents(),
+                currency: props.offerPrice.getCurrency(),
+                proposedBy: 'buyer',
+                proposedAt: new Date(),
+            }],
         });
     }
 
@@ -55,13 +73,13 @@ export class Operation extends Entity<OperationProps> {
         return new Operation(props, id, createdAt);
     }
 
+    // ── Comisiones ──────────────────────────────────────────
+
     /**
      * Modelo de comisión split 5%/5%:
      * - Buyer paga: finalPrice + 5% comisión
      * - Seller recibe: finalPrice - 5% comisión
      * - Plataforma gana: 5% buyer + 5% seller = 10% total sobre finalPrice
-     *
-     * Flujo: Buyer → Plataforma (buyerPays) → Plataforma retiene (platformEarns) → Seller (sellerReceives)
      */
     private calculateCommissionAndPayouts(): void {
         if (!this.props.finalPrice) return;
@@ -103,17 +121,70 @@ export class Operation extends Entity<OperationProps> {
         return this.props.platformEarns;
     }
 
-    // ── Transiciones de estado ───────────────────────────────
+    /** Historial completo de ofertas y contraofertas */
+    public get negotiations(): ReadonlyArray<Readonly<Negotiation>> {
+        return this.props.negotiations;
+    }
 
-    public acceptOffer(finalPrice: Money): void {
-        if (this.props.status !== 'offer_sent' && this.props.status !== 'negotiating') {
-            throw new Error('Solo se pueden aceptar ofertas en estado offer_sent o negotiating');
-        }
+    /** Precio que está actualmente sobre la mesa */
+    public get currentOfferPrice(): Money {
+        const last = this.props.negotiations[this.props.negotiations.length - 1];
+        return Money.fromCents(last.amount, last.currency);
+    }
 
-        this.props.finalPrice = finalPrice;
+    /** A quién le toca responder */
+    public get pendingResponseFrom(): NegotiatingParty {
+        const last = this.props.negotiations[this.props.negotiations.length - 1];
+        return last.proposedBy === 'buyer' ? 'seller' : 'buyer';
+    }
+
+    // ── Negociación ─────────────────────────────────────────
+
+    /**
+     * Contraoferta. Solo puede contra-ofertar quien NO hizo la última oferta.
+     * Buyer ofrece → Seller contra-oferta (o acepta, o cancela).
+     * Seller contra-oferta → Buyer contra-oferta (o acepta, o cancela).
+     */
+    public counterOffer(price: Money, by: NegotiatingParty): void {
+        this.assertCanNegotiate(by);
+
+        this.props.negotiations.push({
+            amount: price.getCents(),
+            currency: price.getCurrency(),
+            proposedBy: by,
+            proposedAt: new Date(),
+        });
+
+        this.props.status = 'negotiating';
+    }
+
+    /**
+     * Acepta el precio que está actualmente sobre la mesa.
+     * Solo puede aceptar quien NO hizo la última oferta.
+     */
+    public acceptCurrentOffer(by: NegotiatingParty): void {
+        this.assertCanNegotiate(by);
+
+        this.props.finalPrice = this.currentOfferPrice;
         this.calculateCommissionAndPayouts();
         this.props.status = 'contract_pending';
     }
+
+    private assertCanNegotiate(by: NegotiatingParty): void {
+        if (this.props.status !== 'offer_sent' && this.props.status !== 'negotiating') {
+            throw new Error(
+                `Solo se puede negociar en estado offer_sent o negotiating, estado actual: ${this.props.status}`
+            );
+        }
+
+        if (this.pendingResponseFrom !== by) {
+            throw new Error(
+                `No es el turno de ${by}. Le toca responder a ${this.pendingResponseFrom}.`
+            );
+        }
+    }
+
+    // ── Transiciones de estado ───────────────────────────────
 
     public signContract(): void {
         if (this.props.status !== 'contract_pending') {

@@ -106,6 +106,7 @@ model Operation {
   sellerReceives   Int?
   platformEarns    Int?
   currency         String          @default("USD")
+  negotiations     Json            @default("[]")
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 
