@@ -84,4 +84,18 @@ export class Listing extends Entity<ListingProps> {
         this.props.status = 'rejected';
         this.props.rejectionReason = reason;
     }
+
+    public markInOperation(): void {
+        if (this.props.status !== 'published') {
+            throw new Error("El listing debe estar publicado para entrar en operación.");
+        }
+        this.props.status = 'in_operation';
+    }
+
+    public markSold(): void {
+        if (this.props.status !== 'in_operation') {
+            throw new Error("El listing debe estar en operación para marcarse como vendido.");
+        }
+        this.props.status = 'sold';
+    }
 }
