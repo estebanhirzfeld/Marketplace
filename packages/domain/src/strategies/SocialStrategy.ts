@@ -49,9 +49,9 @@ export class SocialStrategy implements IAssetStrategy {
         return ['profile_url', 'monthly_revenue_usd', 'raw_metrics'];
     }
 
-    public toJSON(): { assetType: string; assetData: Record<string, any> } {
+    public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
         return {
-            assetType: this.platform === AssetType.INSTAGRAM ? 'instagram' : 'tiktok',
+            assetType: this.platform,
             assetData: {
                 followers: this.followers,
                 engagementRate: this.engagementRate,

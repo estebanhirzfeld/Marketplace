@@ -1,10 +1,12 @@
+import { ValidationError } from '../errors/DomainError';
+
 export class Money {
     private constructor(
         private readonly amount: number, // NOTE in smallest unit, e.g. cents if applicable, or keep as float with precise math. Let's use cents to avoid floating point issues.
         private readonly currency: string = 'USD'
     ) {
         if (!Number.isInteger(amount)) {
-            throw new Error("El monto debe estar en centavos (entero) para evitar errores de punto flotante.");
+            throw new ValidationError("El monto debe estar en centavos (entero) para evitar errores de punto flotante.");
         }
     }
 
@@ -30,14 +32,14 @@ export class Money {
 
     public add(other: Money): Money {
         if (this.currency !== other.currency) {
-            throw new Error("No se pueden sumar monedas distintas");
+            throw new ValidationError("No se pueden sumar monedas distintas");
         }
         return new Money(this.amount + other.amount, this.currency);
     }
 
     public subtract(other: Money): Money {
-        if (this.currency !== other.currency) throw new Error("Monedas distintas");
-        if (other.amount > this.amount) throw new Error("Saldo insuficiente");
+        if (this.currency !== other.currency) throw new ValidationError("Monedas distintas");
+        if (other.amount > this.amount) throw new ValidationError("Saldo insuficiente");
         return new Money(this.amount - other.amount, this.currency);
     }
 
@@ -54,7 +56,7 @@ export class Money {
     }
 
     public isGreaterThan(other: Money): boolean {
-        if (this.currency !== other.currency) throw new Error("Monedas distintas");
+        if (this.currency !== other.currency) throw new ValidationError("Monedas distintas");
         return this.amount > other.amount;
     }
 

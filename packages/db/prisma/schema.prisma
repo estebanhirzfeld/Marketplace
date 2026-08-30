@@ -39,10 +39,22 @@ enum OperationStatus {
   contract_signed
   transfer_in_progress
   asset_in_custody
-  payment_pending
   payment_received
   completed
   cancelled
+}
+
+enum NotificationType {
+  oferta_recibida
+  contraoferta_recibida
+  oferta_aceptada
+  oferta_cancelada
+  listing_aprobado
+  listing_rechazado
+  contrato_firmado
+  activo_en_custodia
+  pago_confirmado
+  operacion_completada
 }
 
 enum ContractType {
@@ -62,12 +74,14 @@ model User {
   dni           String?
   role          UserRole
   isKycVerified Boolean  @default(false)
+  passwordHash  String
   createdAt     DateTime @default(now())
 
   listingsAsSeller   Listing[]
   operationsAsBuyer  Operation[] @relation("BuyerOperations")
   operationsAsSeller Operation[] @relation("SellerOperations")
   contractsAsSigner  Contract[]
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -135,4 +149,22 @@ model Contract {
 
   @@unique([listingId, signerId, type])
   @@map("contracts")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  type        NotificationType
+  operationId String?
+  listingId   String?
+  amountCents Int?
+  currency    String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  // La bandeja se consulta siempre por usuario y ordenada por fecha.
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

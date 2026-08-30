@@ -2,6 +2,7 @@
 
 import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
+import { AssetType } from '@marketplace/shared-types';
 
 export class WebStrategy implements IAssetStrategy {
     constructor(
@@ -43,9 +44,9 @@ export class WebStrategy implements IAssetStrategy {
         return ['domain', 'raw_metrics', 'organic_traffic_pct'];
     }
 
-    public toJSON(): { assetType: string; assetData: Record<string, any> } {
+    public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
         return {
-            assetType: 'web',
+            assetType: AssetType.WEB,
             assetData: {
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),

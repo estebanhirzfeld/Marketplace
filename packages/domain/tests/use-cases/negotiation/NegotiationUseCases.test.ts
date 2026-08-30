@@ -10,6 +10,44 @@ import { Operation } from '../../../src/entities/Operation';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { Actor } from '../../../src/ports/Actor';
+import { IUnitOfWork, TransactionalRepositories } from '../../../src/ports/IUnitOfWork';
+import { IUserRepository, IContractRepository } from '../../../src/ports/Repositories';
+import { ForbiddenError } from '../../../src/errors/DomainError';
+import { UserRole } from '@marketplace/shared-types';
+
+function actorDe(id: UniqueEntityID | string, role = UserRole.BUYER): Actor {
+    return { id: typeof id === 'string' ? id : id.toString(), role };
+}
+
+/**
+ * AcceptOffer trabaja dentro de una transacción, así que recibe un Unit of
+ * Work en vez de repositorios sueltos. Este doble ejecuta el bloque en el acto
+ * con los repos que se le pasan; el rollback real se prueba en packages/db.
+ */
+function createFakeUnitOfWork(
+    operations: IOperationRepository,
+    listings: IListingRepository,
+): IUnitOfWork {
+    const users: IUserRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+    const contracts: IContractRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByOperation: vi.fn().mockResolvedValue([]),
+        findByListingAndSigner: vi.fn().mockResolvedValue(null),
+        findAllByListing: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+
+    return {
+        run<T>(work: (repos: TransactionalRepositories) => Promise<T>): Promise<T> {
+            return work({ users, listings, operations, contracts });
+        },
+    };
+}
 
 // ── Mock Factories ───────────────────────────────────────
 
@@ -17,6 +55,7 @@ function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}):
     return {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
+        findByParty: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -26,6 +65,8 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
     return {
         findById: vi.fn().mockResolvedValue(null),
         findPublished: vi.fn().mockResolvedValue([]),
+        findBySeller: vi.fn().mockResolvedValue([]),
+        findByStatus: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -70,9 +111,8 @@ describe('CreateOfferUseCase', () => {
         const useCase = new CreateOfferUseCase(operationRepo, listingRepo);
         const result = await useCase.execute({
             listingId: listing.id.toString(),
-            buyerId: buyerId.toString(),
             offerPrice: { cents: 800000, currency: 'USD' },
-        });
+        }, actorDe(buyerId));
 
         expect(result.status).toBe('offer_sent');
         expect(result.currentOfferPrice.getCents()).toBe(800000);
@@ -86,9 +126,8 @@ describe('CreateOfferUseCase', () => {
         const useCase = new CreateOfferUseCase(operationRepo, listingRepo);
         await expect(useCase.execute({
             listingId: 'nonexistent',
-            buyerId: new UniqueEntityID().toString(),
             offerPrice: { cents: 800000, currency: 'USD' },
-        })).rejects.toThrow('Listing no encontrado');
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Listing no encontrado');
     });
 
     it('debería fallar si el listing no está publicado', async () => {
@@ -107,9 +146,8 @@ describe('CreateOfferUseCase', () => {
         const useCase = new CreateOfferUseCase(operationRepo, listingRepo);
         await expect(useCase.execute({
             listingId: listing.id.toString(),
-            buyerId: new UniqueEntityID().toString(),
             offerPrice: { cents: 800000, currency: 'USD' },
-        })).rejects.toThrow('Solo se puede ofertar sobre listings publicados');
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Solo se puede ofertar sobre listings publicados');
     });
 
     it('debería fallar si el buyer es el seller', async () => {
@@ -124,9 +162,8 @@ describe('CreateOfferUseCase', () => {
         const useCase = new CreateOfferUseCase(operationRepo, listingRepo);
         await expect(useCase.execute({
             listingId: listing.id.toString(),
-            buyerId: sellerId.toString(), // mismo que el seller!
             offerPrice: { cents: 800000, currency: 'USD' },
-        })).rejects.toThrow('No podés ofertar sobre tu propio listing');
+        }, actorDe(sellerId))).rejects.toThrow('No podés ofertar sobre tu propio listing');
     });
 });
 
@@ -136,10 +173,11 @@ describe('CreateOfferUseCase', () => {
 
 describe('CounterOfferUseCase', () => {
     it('debería agregar una contraoferta', async () => {
+        const sellerId = new UniqueEntityID();
         const operation = Operation.create({
             listingId: new UniqueEntityID(),
             buyerId: new UniqueEntityID(),
-            sellerId: new UniqueEntityID(),
+            sellerId,
             offerPrice: Money.fromCents(100000, 'USD'),
         });
 
@@ -151,8 +189,7 @@ describe('CounterOfferUseCase', () => {
         await useCase.execute({
             operationId: operation.id.toString(),
             price: { cents: 150000, currency: 'USD' },
-            by: 'seller',
-        });
+        }, actorDe(sellerId, UserRole.SELLER));
 
         expect(operation.status).toBe('negotiating');
         expect(operation.currentOfferPrice.getCents()).toBe(150000);
@@ -166,14 +203,14 @@ describe('CounterOfferUseCase', () => {
         await expect(useCase.execute({
             operationId: 'nonexistent',
             price: { cents: 150000, currency: 'USD' },
-            by: 'seller',
-        })).rejects.toThrow('Operación no encontrada');
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Operación no encontrada');
     });
 
     it('debería fallar si no es el turno de quien contraoferta', async () => {
+        const buyerId = new UniqueEntityID();
         const operation = Operation.create({
             listingId: new UniqueEntityID(),
-            buyerId: new UniqueEntityID(),
+            buyerId,
             sellerId: new UniqueEntityID(),
             offerPrice: Money.fromCents(100000, 'USD'),
         }); // turno del seller
@@ -186,8 +223,25 @@ describe('CounterOfferUseCase', () => {
         await expect(useCase.execute({
             operationId: operation.id.toString(),
             price: { cents: 150000, currency: 'USD' },
-            by: 'buyer', // no es su turno
-        })).rejects.toThrow('No es el turno de buyer');
+        }, actorDe(buyerId))).rejects.toThrow('No es el turno de buyer');
+    });
+
+    it('rechaza a un tercero ajeno a la operación', async () => {
+        const operation = Operation.create({
+            listingId: new UniqueEntityID(),
+            buyerId: new UniqueEntityID(),
+            sellerId: new UniqueEntityID(),
+            offerPrice: Money.fromCents(100000, 'USD'),
+        });
+
+        const useCase = new CounterOfferUseCase(createMockOperationRepo({
+            findById: vi.fn().mockResolvedValue(operation),
+        }));
+
+        await expect(useCase.execute({
+            operationId: operation.id.toString(),
+            price: { cents: 150000, currency: 'USD' },
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow(ForbiddenError);
     });
 });
 
@@ -197,10 +251,11 @@ describe('CounterOfferUseCase', () => {
 
 describe('AcceptOfferUseCase', () => {
     it('debería aceptar la oferta y calcular comisiones', async () => {
+        const sellerId = new UniqueEntityID();
         const operation = Operation.create({
             listingId: new UniqueEntityID(),
             buyerId: new UniqueEntityID(),
-            sellerId: new UniqueEntityID(),
+            sellerId,
             offerPrice: Money.fromCents(200000, 'USD'),
         });
 
@@ -213,8 +268,8 @@ describe('AcceptOfferUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        const useCase = new AcceptOfferUseCase(operationRepo, listingRepo);
-        await useCase.execute(operation.id.toString(), 'seller');
+        const useCase = new AcceptOfferUseCase(createFakeUnitOfWork(operationRepo, listingRepo));
+        await useCase.execute(operation.id.toString(), actorDe(sellerId, UserRole.SELLER));
 
         expect(operation.status).toBe('contract_pending');
         expect(operation.finalPrice?.getCents()).toBe(200000);
@@ -247,8 +302,8 @@ describe('AcceptOfferUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        const useCase = new AcceptOfferUseCase(operationRepo, listingRepo);
-        await useCase.execute(op2.id.toString(), 'seller');
+        const useCase = new AcceptOfferUseCase(createFakeUnitOfWork(operationRepo, listingRepo));
+        await useCase.execute(op2.id.toString(), actorDe(sellerId, UserRole.SELLER));
 
         // op2 aceptada
         expect(op2.status).toBe('contract_pending');
@@ -260,10 +315,11 @@ describe('AcceptOfferUseCase', () => {
     });
 
     it('debería transicionar el listing a in_operation', async () => {
+        const sellerId = new UniqueEntityID();
         const operation = Operation.create({
             listingId: new UniqueEntityID(),
             buyerId: new UniqueEntityID(),
-            sellerId: new UniqueEntityID(),
+            sellerId,
             offerPrice: Money.fromCents(200000, 'USD'),
         });
 
@@ -276,8 +332,8 @@ describe('AcceptOfferUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        const useCase = new AcceptOfferUseCase(operationRepo, listingRepo);
-        await useCase.execute(operation.id.toString(), 'seller');
+        const useCase = new AcceptOfferUseCase(createFakeUnitOfWork(operationRepo, listingRepo));
+        await useCase.execute(operation.id.toString(), actorDe(sellerId, UserRole.SELLER));
 
         expect(listing.status).toBe('in_operation');
         expect(listingRepo.save).toHaveBeenCalledOnce();
@@ -290,9 +346,10 @@ describe('AcceptOfferUseCase', () => {
 
 describe('CancelOperationUseCase', () => {
     it('debería cancelar una operación en offer_sent', async () => {
+        const buyerId = new UniqueEntityID();
         const operation = Operation.create({
             listingId: new UniqueEntityID(),
-            buyerId: new UniqueEntityID(),
+            buyerId,
             sellerId: new UniqueEntityID(),
             offerPrice: Money.fromCents(100000, 'USD'),
         });
@@ -302,7 +359,7 @@ describe('CancelOperationUseCase', () => {
         });
 
         const useCase = new CancelOperationUseCase(operationRepo);
-        await useCase.execute(operation.id.toString());
+        await useCase.execute(operation.id.toString(), actorDe(buyerId));
 
         expect(operation.status).toBe('cancelled');
         expect(operationRepo.save).toHaveBeenCalledOnce();
@@ -312,7 +369,7 @@ describe('CancelOperationUseCase', () => {
         const operationRepo = createMockOperationRepo();
         const useCase = new CancelOperationUseCase(operationRepo);
 
-        await expect(useCase.execute('nonexistent'))
+        await expect(useCase.execute('nonexistent', actorDe(new UniqueEntityID())))
             .rejects.toThrow('Operación no encontrada');
     });
 
@@ -331,7 +388,7 @@ describe('CancelOperationUseCase', () => {
         });
 
         const useCase = new CancelOperationUseCase(operationRepo);
-        await expect(useCase.execute(operation.id.toString()))
+        await expect(useCase.execute(operation.id.toString(), actorDe(operation.toSnapshot().props.buyerId)))
             .rejects.toThrow('No se puede cancelar');
     });
 });
@@ -358,19 +415,41 @@ describe('GetSellerOffersUseCase', () => {
         const operationRepo = createMockOperationRepo({
             findByListing: vi.fn().mockResolvedValue([active, cancelled]),
         });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(createPublishedListing(sellerId)),
+        });
 
-        const useCase = new GetSellerOffersUseCase(operationRepo);
-        const result = await useCase.execute(listingId.toString());
+        const useCase = new GetSellerOffersUseCase(operationRepo, listingRepo);
+        const result = await useCase.execute(listingId.toString(), actorDe(sellerId, UserRole.SELLER));
 
         expect(result).toHaveLength(1);
         expect(result[0].id.toString()).toBe(active.id.toString());
     });
 
     it('debería devolver array vacío si no hay operaciones', async () => {
-        const operationRepo = createMockOperationRepo();
-        const useCase = new GetSellerOffersUseCase(operationRepo);
+        const sellerId = new UniqueEntityID();
+        const useCase = new GetSellerOffersUseCase(
+            createMockOperationRepo(),
+            createMockListingRepo({
+                findById: vi.fn().mockResolvedValue(createPublishedListing(sellerId)),
+            }),
+        );
 
-        const result = await useCase.execute('some-listing-id');
+        const result = await useCase.execute('some-listing-id', actorDe(sellerId, UserRole.SELLER));
         expect(result).toHaveLength(0);
+    });
+
+    // Preserva el carácter de licitación a sobre cerrado: un buyer no puede
+    // ver las ofertas rivales sobre el mismo listing.
+    it('rechaza a quien no es dueño del listing', async () => {
+        const useCase = new GetSellerOffersUseCase(
+            createMockOperationRepo(),
+            createMockListingRepo({
+                findById: vi.fn().mockResolvedValue(createPublishedListing(new UniqueEntityID())),
+            }),
+        );
+
+        await expect(useCase.execute('some-listing-id', actorDe(new UniqueEntityID())))
+            .rejects.toThrow(ForbiddenError);
     });
 });

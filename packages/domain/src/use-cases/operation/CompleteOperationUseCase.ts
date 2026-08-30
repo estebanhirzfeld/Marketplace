@@ -1,15 +1,21 @@
 import { IOperationRepository, IListingRepository } from '../../ports/Repositories';
+import { Actor, assertIsAdmin } from '../../ports/Actor';
+import { NotFoundError } from '../../errors/DomainError';
+import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
 
 export class CompleteOperationUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
+        private readonly avisos?: AvisosDeNegociacion,
     ) {}
 
-    async execute(operationId: string): Promise<void> {
+    async execute(operationId: string, actor: Actor): Promise<void> {
+        assertIsAdmin(actor);
+
         const operation = await this.operationRepo.findById(operationId);
         if (!operation) {
-            throw new Error('Operación no encontrada');
+            throw new NotFoundError('Operación no encontrada');
         }
 
         // 1. Completar la operación (dominio valida estado)
@@ -23,5 +29,7 @@ export class CompleteOperationUseCase {
             listing.markSold();
             await this.listingRepo.save(listing);
         }
+
+        await this.avisos?.operacionCompletada(operation);
     }
 }

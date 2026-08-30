@@ -35,6 +35,7 @@ async function createPersistedUser(overrides: {
         dni: overrides.dni,
         role: overrides.role,
         country: "AR",
+        passwordHash: 'hash-de-prueba',
     });
     await userRepo.save(user);
     return user;
@@ -92,6 +93,7 @@ describe("PrismaUserRepository", () => {
             dni: "12345678",
             role: UserRole.BUYER,
             country: "AR",
+            passwordHash: 'hash-de-prueba',
         });
         user.verifyKyc();
 
@@ -112,6 +114,7 @@ describe("PrismaUserRepository", () => {
             fullName: "Sin KYC",
             dni: "99999999",
             role: UserRole.SELLER,
+            passwordHash: 'hash-de-prueba',
         });
         await userRepo.save(user);
 

@@ -1,4 +1,5 @@
 import { Money } from '../value-objects/Money';
+import { AssetType } from '@marketplace/shared-types';
 
 export type MetricKey = 'followers' | 'revenue' | 'domainAuthority' | 'sessions' | 'subscribers' | 'engagement';
 
@@ -38,5 +39,5 @@ export interface IAssetStrategy {
     /**
      * Serializa la estrategia para persistencia
      */
-    toJSON(): { assetType: string; assetData: Record<string, any> };
+    toJSON(): { assetType: AssetType; assetData: Record<string, any> };
 }

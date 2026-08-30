@@ -1,46 +1,52 @@
 import { IOperationRepository, IListingRepository } from '../../ports/Repositories';
+import { Actor } from '../../ports/Actor';
 import { Operation } from '../../entities/Operation';
 import { Money } from '../../value-objects/Money';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
+import { ForbiddenError, InvalidStateError, NotFoundError } from '../../errors/DomainError';
+import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
 
 export interface CreateOfferInput {
     listingId: string;
-    buyerId: string;
     offerPrice: { cents: number; currency: string };
 }
 
+/**
+ * Ofertar no exige rol: cualquiera autenticado puede hacerlo, y al hacerlo pasa
+ * a ser el buyer de esa operación. Lo único prohibido es ofertar sobre el
+ * propio listing.
+ */
 export class CreateOfferUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
+        private readonly avisos?: AvisosDeNegociacion,
     ) {}
 
-    async execute(input: CreateOfferInput): Promise<Operation> {
-        // 1. Verificar que el listing existe y está publicado
+    async execute(input: CreateOfferInput, actor: Actor): Promise<Operation> {
         const listing = await this.listingRepo.findById(input.listingId);
         if (!listing) {
-            throw new Error('Listing no encontrado');
+            throw new NotFoundError('Listing no encontrado');
         }
         if (listing.status !== 'published') {
-            throw new Error('Solo se puede ofertar sobre listings publicados');
+            throw new InvalidStateError('Solo se puede ofertar sobre listings publicados');
         }
 
-        // 2. Verificar que el buyer no sea el seller
+        if (listing.isOwnedBy(actor.id)) {
+            throw new ForbiddenError('No podés ofertar sobre tu propio listing');
+        }
+
         const { props } = listing.toSnapshot();
-        if (props.sellerId.toString() === input.buyerId) {
-            throw new Error('No podés ofertar sobre tu propio listing');
-        }
 
-        // 3. Crear la operación (dominio inicializa negotiations)
         const operation = Operation.create({
             listingId: new UniqueEntityID(input.listingId),
-            buyerId: new UniqueEntityID(input.buyerId),
+            buyerId: new UniqueEntityID(actor.id),
             sellerId: props.sellerId,
             offerPrice: Money.fromCents(input.offerPrice.cents, input.offerPrice.currency),
         });
 
-        // 4. Persistir
         await this.operationRepo.save(operation);
+        await this.avisos?.ofertaRecibida(operation);
 
         return operation;
     }

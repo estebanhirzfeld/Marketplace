@@ -1,5 +1,6 @@
 import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
+import { AssetType } from '@marketplace/shared-types';
 
 interface YouTubeStrategyProps {
   monthlyRevenueUsd: Money;
@@ -198,9 +199,9 @@ export class YouTubeStrategy implements IAssetStrategy {
     ];
   }
 
-  public toJSON(): { assetType: string; assetData: Record<string, any> } {
+  public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
     return {
-      assetType: 'youtube',
+      assetType: AssetType.YOUTUBE,
       assetData: {
         monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
         currency: this.monthlyRevenueUsd.getCurrency(),

@@ -25,6 +25,11 @@ const listingRepo = new PrismaListingRepository();
 const operationRepo = new PrismaOperationRepository();
 const contractRepo = new PrismaContractRepository();
 
+// Todos los usuarios de ejemplo comparten la contraseña "marketplace1".
+// El hash está precomputado con BcryptPasswordHasher (12 rondas) para no
+// meter bcrypt como dependencia del paquete de persistencia.
+const SEED_PASSWORD_HASH = "$2b$12$OOHjL3L5b9XS8kboHqSwseWFpExdS6HMfUdXqVuwP7hQ7lhVcR8N2";
+
 async function main() {
   console.log("🌱 Iniciando Seed...");
 
@@ -40,7 +45,8 @@ async function main() {
     fullName: "Esteban Vendedor",
     dni: "20123456789",
     role: UserRole.SELLER,
-    country: "AR"
+    country: "AR",
+    passwordHash: SEED_PASSWORD_HASH,
   });
   seller.verifyKyc();
   await userRepo.save(seller);
@@ -75,7 +81,8 @@ async function main() {
     fullName: "Marcos Comprador",
     dni: "20998877665",
     role: UserRole.BUYER,
-    country: "ES"
+    country: "ES",
+    passwordHash: SEED_PASSWORD_HASH,
   });
   buyer.verifyKyc();
   await userRepo.save(buyer);

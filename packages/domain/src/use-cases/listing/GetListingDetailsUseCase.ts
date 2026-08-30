@@ -1,10 +1,11 @@
-import { IListingRepository } from '../../ports/Repositories';
-import { IContractRepository } from '../../ports/Repositories';
-import { Listing } from '../../entities/Listing';
+import { IListingRepository, IContractRepository } from '../../ports/Repositories';
+import { Actor } from '../../ports/Actor';
+import { ListingStatus } from '../../entities/Listing';
+import { NotFoundError } from '../../errors/DomainError';
 
 export interface ListingDetailView {
     id: string;
-    status: string;
+    status: ListingStatus;
     askingPrice: { cents: number; currency: string };
     estimatedPrice: { cents: number; currency: string };
     isBlind: boolean;
@@ -15,45 +16,32 @@ export interface ListingDetailView {
     createdAt: Date;
 }
 
+/**
+ * Lectura pública: el actor es opcional porque un visitante anónimo puede ver
+ * un listing. Lo que cambia con el actor es cuánto ve — un listing blind revela
+ * sus datos confidenciales solo a quien firmó el NDA, y siempre a su dueño.
+ */
 export class GetListingDetailsUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly contractRepo: IContractRepository,
     ) {}
 
-    async execute(listingId: string, requesterId?: string): Promise<ListingDetailView> {
+    async execute(listingId: string, actor?: Actor): Promise<ListingDetailView> {
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new Error('Listing no encontrado');
+            throw new NotFoundError('Listing no encontrado');
         }
 
         const { props } = listing.toSnapshot();
-        const strategyJson = props.assetStrategy.toJSON();
 
-        // ¿Debe ofuscarse?
-        let assetData = strategyJson.assetData;
-        let hiddenFields: string[] = [];
-
-        if (props.isBlind) {
-            const hasNda = requesterId
-                ? await this.buyerHasSignedNda(listingId, requesterId)
-                : false;
-
-            if (!hasNda) {
-                const publicFields = props.assetStrategy.getPublicFields();
-                const confidentialFields = props.assetStrategy.getConfidentialFields();
-                hiddenFields = confidentialFields;
-
-                // Filtrar: solo mantener los campos públicos
-                const filtered: Record<string, any> = {};
-                for (const field of publicFields) {
-                    if (field in assetData) {
-                        filtered[field] = assetData[field];
-                    }
-                }
-                assetData = filtered;
-            }
-        }
+        // El filtrado lo decide la entidad: una sola regla, un solo lugar.
+        const puedeVerTodo = await this.puedeVerTodo(
+            listing.isOwnedBy(actor?.id ?? ''),
+            listingId,
+            actor,
+        );
+        const datos = listing.datosDelActivo(puedeVerTodo);
 
         return {
             id: listing.id.toString(),
@@ -67,14 +55,22 @@ export class GetListingDetailsUseCase {
                 currency: listing.estimatedPrice.getCurrency(),
             },
             isBlind: props.isBlind,
-            assetData,
-            hiddenFields,
+            assetData: datos.assetData,
+            hiddenFields: datos.hiddenFields,
             createdAt: listing.toSnapshot().createdAt,
         };
     }
 
-    private async buyerHasSignedNda(listingId: string, buyerId: string): Promise<boolean> {
-        const contract = await this.contractRepo.findByListingAndSigner(listingId, buyerId);
+    private async puedeVerTodo(
+        esDuenio: boolean,
+        listingId: string,
+        actor?: Actor,
+    ): Promise<boolean> {
+        // El vendedor nunca necesita un NDA para ver su propio activo.
+        if (esDuenio) return true;
+        if (!actor) return false;
+
+        const contract = await this.contractRepo.findByListingAndSigner(listingId, actor.id);
         if (!contract) return false;
 
         return contract.type === 'buyer_nda' && contract.isFullySigned();

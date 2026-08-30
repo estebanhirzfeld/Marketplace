@@ -1,5 +1,6 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
+import { ForbiddenError, InvalidStateError } from '../errors/DomainError';
 
 export type ContractType = 'buyer_nda' | 'seller_nda' | 'tripartite';
 export type PartyRole = 'buyer' | 'seller' | 'platform';
@@ -80,16 +81,26 @@ export class Contract extends Entity<ContractProps> {
         const signature = this.props.signatures.find(s => s.role === role);
 
         if (!signature) {
-            throw new Error(`El rol "${role}" no es parte de este contrato.`);
+            throw new ForbiddenError(`El rol "${role}" no es parte de este contrato.`);
         }
 
         if (signature.signed) {
-            throw new Error(`El rol "${role}" ya firmó este contrato.`);
+            throw new InvalidStateError(`El rol "${role}" ya firmó este contrato.`);
         }
 
         signature.signed = true;
         signature.signedAt = new Date();
         signature.signatureIp = ipAddress;
+    }
+
+    /**
+     * Firma de la plataforma. Es automática: no es un punto de control sino un
+     * registro de auditoría de cuándo la plataforma se volvió parte. El control
+     * humano del escrow vive en ConfirmCustody, que es donde la plataforma
+     * efectivamente arriesga algo.
+     */
+    public signAsPlatform(): void {
+        this.sign('platform', 'system');
     }
 
     /** ¿Firmaron todos? No importa cuántos sean ni quiénes. */
