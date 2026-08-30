@@ -22,7 +22,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
     title: 'Traspaso · Compraventa de activos digitales con custodia',
     description:
-        'Comprá y vendé canales de YouTube y sitios web sin tener que confiar en un desconocido: recibimos el activo, lo revisamos, y recién ahí el comprador paga.',
+        'Canales de YouTube y sitios web. Recibimos el activo, lo revisamos, y recién ahí el comprador paga.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -11,38 +11,38 @@ const PASOS: Step[] = [
     {
         n: '01',
         title: 'Contrato firmado',
-        text: 'Las tres partes firman el mismo documento, con validez legal.',
+        text: 'Las tres partes firman el mismo documento.',
     },
     {
         n: '02',
-        title: 'El vendedor nos entrega el activo',
-        text: 'Nos pasa el canal o el sitio a nosotros, no al comprador.',
+        title: 'El vendedor lo entrega',
+        text: 'A la plataforma, no al comprador.',
     },
     {
         n: '03',
-        title: 'Lo revisamos',
-        text: 'Comprobamos que sea lo que decía la publicación. Recién acá le pedimos el pago al comprador.',
+        title: 'Lo verificamos',
+        text: 'Que sea lo que decía la publicación. Recién entonces se paga.',
         destacado: true,
     },
     {
         n: '04',
         title: 'Listo',
-        text: 'El comprador recibe el activo y el vendedor cobra.',
+        text: 'El comprador lo recibe y el vendedor cobra.',
     },
 ];
 
 const COBERTURA = [
     {
         parte: 'El vendedor',
-        text: 'No le entrega el canal a un desconocido que prometió pagarle: nos lo entrega a nosotros.',
+        text: 'No lo entrega a un desconocido que prometió pagarle.',
     },
     {
         parte: 'El comprador',
-        text: 'No paga por adelantado: pone la plata cuando el activo ya está en nuestras manos y revisado.',
+        text: 'No paga por adelantado: el activo ya está verificado y bajo custodia.',
     },
     {
         parte: 'Los dos',
-        text: 'Los números del activo son públicos, pero cuál es se sabe recién al firmar el acuerdo de confidencialidad.',
+        text: 'Los números son públicos; cuál es el activo, recién al firmar.',
     },
 ] as const;
 
@@ -78,17 +78,16 @@ export default async function Home() {
 
                         <Reveal delay={80}>
                             <h1 className="text-[42px] font-bold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[55px]">
-                                Comprá y vendé sin tener
+                                Primero el activo.
                                 <br />
-                                que confiar en un desconocido.
+                                Después el pago.
                             </h1>
                         </Reveal>
 
                         <Reveal delay={160}>
                             <p className="max-w-[470px] text-[16px] leading-relaxed text-[var(--color-tenue)] text-pretty">
-                                El vendedor nos entrega el canal o el sitio y nosotros lo
-                                revisamos. Recién ahí el comprador pone la plata. Ninguno de los
-                                dos tiene que dar el primer paso a ciegas.
+                                El vendedor nos entrega el activo a nosotros, no al comprador.
+                                Lo verificamos, y recién entonces el comprador paga.
                             </p>
                         </Reveal>
 

@@ -130,7 +130,7 @@ export default async function Listings(props: {
                             text={
                                 conFiltros
                                     ? 'Probá ampliar el rango de precio, bajar los mínimos o sacar el filtro de tipo.'
-                                    : 'Sé el primero: publicá tu canal o sitio y recibí ofertas con la plata protegida por la plataforma.'
+                                    : 'Sé el primero: publicá tu canal o sitio y recibí ofertas con el pago protegido por la plataforma.'
                             }
                             action={
                                 conFiltros ? (
