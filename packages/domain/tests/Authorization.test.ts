@@ -9,6 +9,10 @@ import { ForbiddenError } from '../src/errors/DomainError';
 import { assertIsAdmin } from '../src/ports/Actor';
 import { UserRole } from '@marketplace/shared-types';
 
+// Un contrato sin documento no se puede firmar; en estos tests alcanza
+// una huella cualquiera con forma válida.
+const HASH = 'a'.repeat(64);
+
 function unaOperacion(buyerId: UniqueEntityID, sellerId: UniqueEntityID): Operation {
     return Operation.create({
         listingId: new UniqueEntityID(),
@@ -122,6 +126,7 @@ describe('Listing.isOwnedBy / assertOwnedBy', () => {
 describe('Contract.signAsPlatform', () => {
     it('completa un NDA que el buyer ya firmó', () => {
         const nda = Contract.createBuyerNda(new UniqueEntityID(), new UniqueEntityID());
+        nda.attachDocument(HASH);
         nda.sign('buyer', '1.1.1.1');
 
         expect(nda.isFullySigned()).toBe(false);
@@ -134,6 +139,7 @@ describe('Contract.signAsPlatform', () => {
 
     it('registra la firma como automática, no como una IP de usuario', () => {
         const nda = Contract.createSellerNda(new UniqueEntityID(), new UniqueEntityID());
+        nda.attachDocument(HASH);
         nda.signAsPlatform();
 
         const firma = nda.signatures.find((s) => s.role === 'platform');
@@ -143,6 +149,7 @@ describe('Contract.signAsPlatform', () => {
 
     it('no permite firmar dos veces como plataforma', () => {
         const nda = Contract.createBuyerNda(new UniqueEntityID(), new UniqueEntityID());
+        nda.attachDocument(HASH);
         nda.signAsPlatform();
 
         expect(() => nda.signAsPlatform()).toThrow();

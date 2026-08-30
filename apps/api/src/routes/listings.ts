@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
+import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import type {
     ContractDto,
     CreateListingRequest,
@@ -9,6 +10,9 @@ import type {
     CreatedOperationDto,
     ListingDetailDto,
     ListingFiltersQuery,
+    AuthorizationUrlDto,
+    ChannelMetricsReportDto,
+    OwnershipVerificationDto,
     ListingSummaryDto,
     OfferSummaryDto,
     RejectListingRequest,
@@ -48,6 +52,8 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 isBlind: v.isBlind,
                 assetData: v.assetData,
                 hiddenFields: v.hiddenFields,
+                transferable: v.transferable,
+                transferableFrom: v.transferableFrom?.toISOString(),
                 createdAt: v.createdAt.toISOString(),
             })),
         );
@@ -63,7 +69,106 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
 
             // createdAt viaja como ISO string: JSON no tiene tipo fecha, y el
             // cliente móvil no debe adivinar el formato.
-            const dto: ListingDetailDto = { ...view, createdAt: view.createdAt.toISOString() };
+            const dto: ListingDetailDto = {
+                ...view,
+                ownership: view.ownership && {
+                    verifiedAt: view.ownership.verifiedAt.toISOString(),
+                    source: view.ownership.source,
+                    monthlyRevenueCents: view.ownership.monthlyRevenueCents,
+                },
+                transferableFrom: view.transferableFrom?.toISOString(),
+                createdAt: view.createdAt.toISOString(),
+            };
+            return reply.send(dto);
+        },
+    );
+
+    /**
+     * Contrasta lo declarado contra la API de YouTube. Solo el vendedor del
+     * activo o un admin: la dirección del canal es un dato reservado y el
+     * título que devuelve revelaría la identidad de un listing blind.
+     */
+    app.post<{ Params: IdParams; Reply: ChannelMetricsReportDto }>(
+        '/listings/:id/verificar-metricas',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.verifyChannelMetrics) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con YouTube todavía no está configurada.',
+                } as never);
+            }
+
+            const reporte = await c.verifyChannelMetrics.execute(
+                request.params.id,
+                actorOf(request),
+            );
+
+            return reply.send({ ...reporte, checkedAt: reporte.checkedAt.toISOString() });
+        },
+    );
+
+    /**
+     * Paso uno del consentimiento: la dirección a la que mandar al vendedor.
+     *
+     * `state` lleva el listing y la fuente para poder retomar al volver. No
+     * lleva nada secreto: viaja por la barra de direcciones del navegador.
+     */
+    app.get<{ Params: { id: string; fuente: string }; Reply: AuthorizationUrlDto }>(
+        '/listings/:id/autorizacion/:fuente',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.googleOAuth) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const { id, fuente } = request.params;
+            const scope = fuente === 'adsense' ? SCOPE_ADSENSE : SCOPE_YOUTUBE;
+
+            return reply.send({
+                url: c.googleOAuth.authorizationUrl(scope, `${fuente}:${id}`),
+            });
+        },
+    );
+
+    /**
+     * Paso dos: con el código que trajo el navegador, se le pregunta a Google
+     * qué controla esa cuenta y se compara contra lo publicado. El código se
+     * canjea, se usa una vez y se descarta: no se guarda ningún token.
+     */
+    app.post<{ Params: { id: string; fuente: string }; Body: { code: string } }>(
+        '/listings/:id/verificar/:fuente',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['code'],
+                    properties: { code: { type: 'string', minLength: 1 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            const { id, fuente } = request.params;
+            const uso = fuente === 'adsense' ? c.verifyWebsiteRevenue : c.verifyChannelOwnership;
+
+            if (!uso) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const constancia = await uso.execute(id, request.body.code, actorOf(request));
+
+            const dto: OwnershipVerificationDto = {
+                verifiedAt: constancia.verifiedAt.toISOString(),
+                source: constancia.source,
+                monthlyRevenueCents: constancia.monthlyRevenueCents,
+            };
             return reply.send(dto);
         },
     );

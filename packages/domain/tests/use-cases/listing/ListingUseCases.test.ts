@@ -353,6 +353,7 @@ describe('GetListingDetailsUseCase', () => {
 
         // Crear un NDA completamente firmado
         const nda = Contract.createBuyerNda(listing.id, buyerId);
+        nda.attachDocument('a'.repeat(64));
         nda.sign('buyer', '127.0.0.1');
         nda.signAsPlatform();
 
@@ -391,6 +392,7 @@ describe('GetListingDetailsUseCase', () => {
 
         // NDA firmado solo por buyer, falta platform
         const nda = Contract.createBuyerNda(listing.id, buyerId);
+        nda.attachDocument('a'.repeat(64));
         nda.sign('buyer', '127.0.0.1');
 
         const listingRepo = createMockListingRepo({

@@ -2,18 +2,41 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { MyListingDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
-import { actorActual } from '@/lib/sesion';
-import { Revelar } from '@/components/Revelar';
-import { FormularioPublicar } from '@/components/FormularioPublicar';
-import { EstadoListing } from '@/components/EstadoListing';
-import { Boton, Panel, Titulo, Vacio } from '@/components/ui';
-import { monto, etiquetaTipo } from '@/lib/formato';
-import { publicar, enviarARevision } from './acciones';
+import { currentActor } from '@/lib/session';
+import { Reveal } from '@/components/Reveal';
+import { PublishListingForm } from '@/components/PublishListingForm';
+import { ListingStatusBadge } from '@/components/ListingStatusBadge';
+import { Button, Panel, Heading, EmptyState } from '@/components/ui';
+import { money, assetTypeLabel } from '@/lib/format';
+import { publishListing, startVerification, submitForReview } from './actions';
 
 export const metadata = { title: 'Vender · Traspaso' };
 
-export default async function Vender() {
-    if (!(await actorActual())) redirect('/ingresar');
+/**
+ * El resultado de la vuelta del consentimiento de Google. Llega por la
+ * dirección porque la vuelta la maneja un route handler, que redirige acá.
+ */
+const RESULTADOS: Record<string, { text: string; ok: boolean }> = {
+    ok: { text: 'Listo: quedó comprobado que controlás el activo.', ok: true },
+    'sin-control': {
+        text: 'Esa cuenta de Google no controla el activo que publicaste. Si es un canal con Cuenta de Marca, elegila al iniciar sesión.',
+        ok: false,
+    },
+    cancelada: { text: 'Cancelaste la verificación. Podés volver a intentarla cuando quieras.', ok: false },
+    'no-configurada': { text: 'La verificación con Google todavía no está configurada.', ok: false },
+    invalida: { text: 'No pudimos identificar qué activo se estaba verificando.', ok: false },
+    error: { text: 'No pudimos completar la verificación. Probá de nuevo.', ok: false },
+};
+
+export default async function Vender({
+    searchParams,
+}: {
+    // En Next 16 `searchParams` es una promesa: el acceso sincrónico se eliminó.
+    searchParams: Promise<{ verificacion?: string }>;
+}) {
+    if (!(await currentActor())) redirect('/ingresar');
+
+    const resultado = RESULTADOS[(await searchParams).verificacion ?? ''];
 
     let listings: MyListingDto[] = [];
     try {
@@ -24,25 +47,37 @@ export default async function Vender() {
 
     return (
         <div className="mx-auto max-w-[1400px] px-6 py-16 sm:px-12">
-            <Revelar>
-                <Titulo sub="Publicá un activo y recibí ofertas. Cobrás cuando el traspaso está hecho, no antes.">
+            <Reveal>
+                <Heading sub="Publicá un activo y recibí ofertas. Cobrás cuando el traspaso está hecho, no antes.">
                     Vender
-                </Titulo>
-            </Revelar>
+                </Heading>
+            </Reveal>
+
+            {resultado && (
+                <div
+                    className={`mt-6 rounded-[var(--radius-chico)] border p-4 text-[13px] leading-relaxed ${
+                        resultado.ok
+                            ? 'border-[var(--color-acento)]/40 text-[var(--color-acento)]'
+                            : 'border-[var(--color-alerta)]/40 text-[var(--color-alerta)]'
+                    }`}
+                >
+                    {resultado.text}
+                </div>
+            )}
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-                <Revelar>
-                    <Panel titulo="NUEVO ACTIVO">
-                        <FormularioPublicar accion={publicar} />
+                <Reveal>
+                    <Panel title="NUEVO ACTIVO">
+                        <PublishListingForm action={publishListing} />
                     </Panel>
-                </Revelar>
+                </Reveal>
 
-                <Revelar retraso={100}>
-                    <Panel titulo="MIS ACTIVOS">
+                <Reveal delay={100}>
+                    <Panel title="MIS ACTIVOS">
                         {listings.length === 0 ? (
-                            <Vacio
-                                titulo="Todavía no publicaste nada"
-                                texto="Cargá tu primer activo con el formulario de la izquierda. Nace como borrador: nadie lo ve hasta que lo envíes a revisión."
+                            <EmptyState
+                                title="Todavía no publicaste nada"
+                                text="Cargá tu primer activo con el formulario de la izquierda. Nace como borrador: nadie lo ve hasta que lo envíes a revisión."
                             />
                         ) : (
                             <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
@@ -50,17 +85,17 @@ export default async function Vender() {
                                     <div key={l.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0">
                                         <div className="flex items-center justify-between gap-3">
                                             <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-apagado)]">
-                                                {etiquetaTipo(l.assetType)}
+                                                {assetTypeLabel(l.assetType)}
                                             </span>
-                                            <EstadoListing estado={l.status} />
+                                            <ListingStatusBadge state={l.status} />
                                         </div>
 
                                         <div className="flex flex-wrap items-baseline justify-between gap-3">
                                             <span className="font-mono text-[19px] font-bold text-[var(--color-acento)]">
-                                                {monto(l.askingPrice)}
+                                                {money(l.askingPrice)}
                                             </span>
                                             <span className="text-[12px] text-[var(--color-apagado)]">
-                                                Estimado: <span className="font-mono">{monto(l.estimatedPrice)}</span>
+                                                Estimado: <span className="font-mono">{money(l.estimatedPrice)}</span>
                                             </span>
                                         </div>
 
@@ -70,12 +105,56 @@ export default async function Vender() {
                                             </p>
                                         )}
 
+                                        {l.ownership ? (
+                                            <p className="text-[12px] leading-relaxed text-[var(--color-acento)]">
+                                                Titularidad comprobada con{' '}
+                                                {l.ownership.source === 'adsense' ? 'AdSense' : 'YouTube'} el{' '}
+                                                {new Date(l.ownership.verifiedAt).toLocaleDateString('es-AR')}
+                                                {l.ownership.monthlyRevenueCents !== undefined && (
+                                                    <>
+                                                        {' '}· ingreso comprobado{' '}
+                                                        <span className="font-mono">
+                                                            {money({
+                                                                cents: l.ownership.monthlyRevenueCents,
+                                                                currency: 'USD',
+                                                            })}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                                                Verificá que controlás el activo: es lo que le prueba al
+                                                comprador que sos quien puede venderlo.
+                                            </p>
+                                        )}
+
                                         <div className="flex flex-wrap gap-2.5">
+                                            {!l.ownership && (
+                                                <form
+                                                    action={startVerification.bind(
+                                                        null,
+                                                        l.id,
+                                                        l.assetType === 'web' ? 'adsense' : 'youtube',
+                                                    )}
+                                                >
+                                                    <Button
+                                                        type="submit"
+                                                        variant="secundario"
+                                                        className="px-4 py-2 text-[13px]"
+                                                    >
+                                                        {l.assetType === 'web'
+                                                            ? 'Verificar con AdSense'
+                                                            : 'Verificar con YouTube'}
+                                                    </Button>
+                                                </form>
+                                            )}
+
                                             {(l.status === 'draft' || l.status === 'rejected') && (
-                                                <form action={enviarARevision.bind(null, l.id)}>
-                                                    <Boton type="submit" variante="secundario" className="px-4 py-2 text-[13px]">
+                                                <form action={submitForReview.bind(null, l.id)}>
+                                                    <Button type="submit" variant="secundario" className="px-4 py-2 text-[13px]">
                                                         Enviar a revisión
-                                                    </Boton>
+                                                    </Button>
                                                 </form>
                                             )}
                                             {(l.status === 'published' || l.status === 'in_operation') && (
@@ -83,7 +162,7 @@ export default async function Vender() {
                                                     href={`/vender/${l.id}/ofertas`}
                                                     className="rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-4 py-2 text-[13px] font-medium transition-colors hover:border-[var(--color-tenue)]"
                                                 >
-                                                    Ver ofertas
+                                                    Ver offers
                                                 </Link>
                                             )}
                                             <Link
@@ -98,7 +177,7 @@ export default async function Vender() {
                             </div>
                         )}
                     </Panel>
-                </Revelar>
+                </Reveal>
             </div>
         </div>
     );

@@ -6,6 +6,7 @@ import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
+import { Operation } from '@marketplace/domain/src/entities/Operation';
 import { Email } from '@marketplace/domain/src/value-objects/Email';
 import { Money } from '@marketplace/domain/src/value-objects/Money';
 import { UniqueEntityID } from '@marketplace/domain/src/value-objects/UniqueEntityID';
@@ -14,6 +15,7 @@ import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import {
     PrismaUserRepository,
     PrismaListingRepository,
+    PrismaOperationRepository,
 } from '@marketplace/db';
 
 /**
@@ -78,6 +80,7 @@ async function tokenDe(email: string): Promise<string> {
 }
 
 async function limpiar() {
+    await prisma.report.deleteMany();
     await prisma.notification.deleteMany();
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
@@ -805,6 +808,567 @@ describe('Avisos', () => {
         expect(res.statusCode).toBe(403);
     });
 
+});
+
+describe('Documento del contrato', () => {
+    /**
+     * Antes el documento se generaba, se hasheaba y nadie lo veía. Firmar algo
+     * que no se puede leer es apenas mejor que firmar nada.
+     */
+    async function unNdaFirmado() {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        await crearUsuario('buyer@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id, true);
+        const token = await tokenDe('buyer@test.com');
+
+        const firma = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/nda`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        return { contractId: firma.json().id, token };
+    }
+
+    it('el firmante puede leer el documento y su huella coincide', async () => {
+        const { contractId, token } = await unNdaFirmado();
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/contracts/${contractId}/documento`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const doc = res.json();
+
+        expect(doc.text).toContain('ACUERDO DE CONFIDENCIALIDAD');
+        expect(doc.hash).toMatch(/^[0-9a-f]{64}$/);
+        expect(doc.signed).toBe(true);
+
+        // Lo que se regenera es exactamente lo que se firmó.
+        expect(doc.matches).toBe(true);
+        expect(doc.signedHash).toBe(doc.hash);
+    });
+
+    it('el documento arranca con el aviso de borrador', async () => {
+        const { contractId, token } = await unNdaFirmado();
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/contracts/${contractId}/documento`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(res.json().text.startsWith('DOCUMENTO EN BORRADOR')).toBe(true);
+    });
+
+    it('403 para quien no es parte del acuerdo', async () => {
+        const { contractId } = await unNdaFirmado();
+        await crearUsuario('ajeno@test.com', UserRole.BUYER);
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/contracts/${contractId}/documento`,
+            headers: { authorization: `Bearer ${await tokenDe('ajeno@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('401 sin sesión', async () => {
+        const { contractId } = await unNdaFirmado();
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/contracts/${contractId}/documento`,
+        });
+
+        expect(res.statusCode).toBe(401);
+    });
+});
+
+/**
+ * Confirmar la custodia dejó de ser un botón: el admin declara qué verificó.
+ * La ruta se probó aparte del resto de los pasos porque es la única con cuerpo.
+ */
+describe('POST /operations/:id/custody', () => {
+    async function unaOperacionEnTransferencia(): Promise<string> {
+        const buyer = await crearUsuario('buyer-cust@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-cust@test.com', UserRole.SELLER);
+        await crearUsuario('admin-cust@test.com', UserRole.ADMIN);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer();
+        await new PrismaOperationRepository().save(operation);
+
+        return operation.id.toString();
+    }
+
+    const verificacion = {
+        isPrimaryOwner: true,
+        accessSecured: true,
+        metrics: { suscriptores: 55000 },
+        notes: 'Sin strikes activos.',
+    };
+
+    async function confirmar(id: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/operations/${id}/custody`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('registra la constancia y la devuelve en el detalle', async () => {
+        const id = await unaOperacionEnTransferencia();
+
+        const res = await confirmar(id, 'admin-cust@test.com', verificacion);
+        expect(res.statusCode).toBe(204);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe('buyer-cust@test.com')}` },
+        });
+
+        const cuerpo = detalle.json();
+        expect(cuerpo.status).toBe('asset_in_custody');
+        expect(cuerpo.custody.metrics.suscriptores).toBe(55000);
+        expect(cuerpo.custody.verifiedAt).toEqual(expect.any(String));
+    });
+
+    /**
+     * El hallazgo de la investigación llega hasta acá: mientras la plataforma
+     * sea propietaria pero no principal, el vendedor puede expulsarla. Declarar
+     * la custodia ahí habilitaría el pedido de pago sobre un activo que todavía
+     * puede volverse atrás.
+     */
+    it('409 si la plataforma todavía no es propietaria principal', async () => {
+        const id = await unaOperacionEnTransferencia();
+
+        const res = await confirmar(id, 'admin-cust@test.com', {
+            ...verificacion,
+            isPrimaryOwner: false,
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    it('400 si falta declarar qué se verificó', async () => {
+        const id = await unaOperacionEnTransferencia();
+
+        const res = await confirmar(id, 'admin-cust@test.com', {});
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('403 si quien confirma no es admin', async () => {
+        const id = await unaOperacionEnTransferencia();
+
+        const res = await confirmar(id, 'seller-cust@test.com', verificacion);
+
+        expect(res.statusCode).toBe(403);
+    });
+});
+
+/**
+ * El acceso de la plataforma al activo: lo único que habilita firmar el
+ * tripartito, y lo único de todo el flujo que ninguna API puede comprobar.
+ */
+describe('POST y DELETE /admin/listings/:id/acceso', () => {
+    const DIA = 24 * 60 * 60 * 1000;
+
+    async function unListingPublicado(): Promise<string> {
+        const seller = await crearUsuario('seller-acc@test.com', UserRole.SELLER);
+        await crearUsuario('admin-acc@test.com', UserRole.ADMIN);
+        const listing = await crearListingPublicado(seller.id);
+        return listing.id.toString();
+    }
+
+    async function registrar(id: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/admin/listings/${id}/acceso`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('registra el acceso y el listing queda transferible pasado el plazo', async () => {
+        const id = await unListingPublicado();
+
+        const res = await registrar(id, 'admin-acc@test.com', {
+            accessSince: new Date(Date.now() - 9 * DIA).toISOString(),
+        });
+        expect(res.statusCode).toBe(204);
+
+        const detalle = await app.inject({ method: 'GET', url: `/listings/${id}` });
+        expect(detalle.json().transferable).toBe(true);
+    });
+
+    it('dentro del plazo devuelve la fecha en que va a poder transferirse', async () => {
+        const id = await unListingPublicado();
+
+        await registrar(id, 'admin-acc@test.com', {
+            accessSince: new Date(Date.now() - 2 * DIA).toISOString(),
+        });
+
+        const cuerpo = (await app.inject({ method: 'GET', url: `/listings/${id}` })).json();
+        expect(cuerpo.transferable).toBe(false);
+        expect(cuerpo.transferableFrom).toEqual(expect.any(String));
+    });
+
+    it('sin acceso registrado no promete ninguna fecha', async () => {
+        const id = await unListingPublicado();
+
+        const cuerpo = (await app.inject({ method: 'GET', url: `/listings/${id}` })).json();
+        expect(cuerpo.transferable).toBe(false);
+        expect(cuerpo.transferableFrom).toBeUndefined();
+    });
+
+    it('400 si la fecha de acceso es futura', async () => {
+        const id = await unListingPublicado();
+
+        const res = await registrar(id, 'admin-acc@test.com', {
+            accessSince: new Date(Date.now() + DIA).toISOString(),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().code).toBe('VALIDATION');
+    });
+
+    it('403 si quien registra no es admin', async () => {
+        const id = await unListingPublicado();
+
+        const res = await registrar(id, 'seller-acc@test.com', {
+            accessSince: new Date(Date.now() - DIA).toISOString(),
+        });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('revocar devuelve el listing a no transferible', async () => {
+        const id = await unListingPublicado();
+        await registrar(id, 'admin-acc@test.com', {
+            accessSince: new Date(Date.now() - 9 * DIA).toISOString(),
+        });
+
+        const res = await app.inject({
+            method: 'DELETE',
+            url: `/admin/listings/${id}/acceso`,
+            headers: { authorization: `Bearer ${await tokenDe('admin-acc@test.com')}` },
+        });
+        expect(res.statusCode).toBe(204);
+
+        const cuerpo = (await app.inject({ method: 'GET', url: `/listings/${id}` })).json();
+        expect(cuerpo.transferable).toBe(false);
+        expect(cuerpo.transferableFrom).toBeUndefined();
+    });
+});
+
+/**
+ * La verificación contra YouTube. En los tests no hay `YOUTUBE_API_KEY`, así
+ * que el contenedor la deja apagada: la ruta tiene que decirlo con claridad en
+ * vez de fallar con un 500, y la autorización se resuelve antes de necesitar
+ * la clave para nada.
+ */
+describe('POST /listings/:id/verificar-metricas', () => {
+    it('503 mientras la integración no esté configurada', async () => {
+        const seller = await crearUsuario('seller-yt@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/verificar-metricas`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-yt@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('401 sin sesión', async () => {
+        const seller = await crearUsuario('seller-yt2@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/verificar-metricas`,
+        });
+
+        expect(res.statusCode).toBe(401);
+    });
+});
+
+/**
+ * El consentimiento de Google. En los tests no hay cliente de OAuth
+ * configurado, así que ambas rutas tienen que decirlo con claridad —503, no un
+ * 500— y la autenticación tiene que resolverse antes de necesitarlo.
+ */
+describe('Verificación de titularidad con Google', () => {
+    async function unListing(): Promise<string> {
+        const seller = await crearUsuario('seller-own@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        return listing.id.toString();
+    }
+
+    it('503 al pedir la dirección de autorización sin credenciales', async () => {
+        const id = await unListing();
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/listings/${id}/autorizacion/youtube`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-own@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('503 al completar la verificación sin credenciales', async () => {
+        const id = await unListing();
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/youtube`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-own@test.com')}` },
+            payload: { code: 'un-codigo' },
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('400 si no viene el código', async () => {
+        const id = await unListing();
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/youtube`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-own@test.com')}` },
+            payload: {},
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('401 sin sesión', async () => {
+        const id = await unListing();
+
+        const res = await app.inject({ method: 'GET', url: `/listings/${id}/autorizacion/youtube` });
+
+        expect(res.statusCode).toBe(401);
+    });
+});
+
+/**
+ * Las denuncias y el legajo. Lo que se prueba acá es quién puede abrir una,
+ * cuándo, y —lo más importante— que el denunciado vea la misma evidencia que
+ * quien lo denunció.
+ */
+describe('Denuncias y legajo', () => {
+    const DETALLE = 'El canal factura mucho menos de lo que decía la publicación al momento de la oferta.';
+
+    async function unaOperacionFirmada(): Promise<string> {
+        const seller = await crearUsuario('seller-den@test.com', UserRole.SELLER);
+        const buyer = await crearUsuario('buyer-den@test.com', UserRole.BUYER);
+        await crearUsuario('ajeno-den@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        await new PrismaOperationRepository().save(operation);
+
+        return operation.id.toString();
+    }
+
+    async function denunciar(operationId: string, email: string) {
+        return app.inject({
+            method: 'POST',
+            url: '/reports',
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload: { operationId, reason: 'ingreso_falso', detail: DETALLE },
+        });
+    }
+
+    it('el comprador denuncia y queda asentado contra el vendedor', async () => {
+        const id = await unaOperacionFirmada();
+
+        const res = await denunciar(id, 'buyer-den@test.com');
+
+        expect(res.statusCode).toBe(201);
+        expect(res.json().status).toBe('open');
+        expect(res.json().miRol).toBe('denunciante');
+    });
+
+    it('400 si el detalle es demasiado corto para sostener nada', async () => {
+        const id = await unaOperacionFirmada();
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/reports',
+            headers: { authorization: `Bearer ${await tokenDe('buyer-den@test.com')}` },
+            payload: { operationId: id, reason: 'otro', detail: 'me estafaron' },
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('403 si quien denuncia no es parte de la operación', async () => {
+        const id = await unaOperacionFirmada();
+
+        const res = await denunciar(id, 'ajeno-den@test.com');
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    /**
+     * La prueba que le da sentido al sistema: el denunciado accede al mismo
+     * legajo. Un reclamo que la otra parte no puede ver ni responder no sirve.
+     */
+    it('el denunciado ve el mismo legajo que quien lo denunció', async () => {
+        const id = await unaOperacionFirmada();
+        const reportId = (await denunciar(id, 'buyer-den@test.com')).json().id;
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/reports/${reportId}/legajo`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-den@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const legajo = res.json();
+        expect(legajo.reporter.fullName).toEqual(expect.any(String));
+        expect(legajo.reported.fullName).toEqual(expect.any(String));
+        expect(legajo.negotiations.length).toBeGreaterThan(0);
+    });
+
+    it('403 si un tercero pide el legajo', async () => {
+        const id = await unaOperacionFirmada();
+        const reportId = (await denunciar(id, 'buyer-den@test.com')).json().id;
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/reports/${reportId}/legajo`,
+            headers: { authorization: `Bearer ${await tokenDe('ajeno-den@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('la denuncia aparece en la lista de las dos partes', async () => {
+        const id = await unaOperacionFirmada();
+        await denunciar(id, 'buyer-den@test.com');
+
+        for (const [email, rol] of [
+            ['buyer-den@test.com', 'denunciante'],
+            ['seller-den@test.com', 'denunciado'],
+        ]) {
+            const res = await app.inject({
+                method: 'GET',
+                url: '/me/reports',
+                headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            });
+
+            expect(res.json()).toHaveLength(1);
+            expect(res.json()[0].miRol).toBe(rol);
+        }
+    });
+
+    it('solo quien la abrió puede cerrarla', async () => {
+        const id = await unaOperacionFirmada();
+        const reportId = (await denunciar(id, 'buyer-den@test.com')).json().id;
+
+        const rechazado = await app.inject({
+            method: 'POST',
+            url: `/reports/${reportId}/cerrar`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-den@test.com')}` },
+            payload: { reason: 'Que se cierre.' },
+        });
+        expect(rechazado.statusCode).toBe(403);
+
+        const aceptado = await app.inject({
+            method: 'POST',
+            url: `/reports/${reportId}/cerrar`,
+            headers: { authorization: `Bearer ${await tokenDe('buyer-den@test.com')}` },
+            payload: { reason: 'Nos arreglamos.' },
+        });
+        expect(aceptado.statusCode).toBe(204);
+    });
+});
+
+/**
+ * El webhook de MercadoPago. Siempre responde 200: devolver un 500 haría que
+ * la pasarela reintente indefinidamente un aviso que no vamos a poder procesar.
+ */
+describe('POST /webhooks/mercadopago', () => {
+    it('acepta el aviso sin autenticación de usuario: lo llama MercadoPago', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: { type: 'payment', data: { id: '1234567890' } },
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('responde 200 aunque el aviso venga sin identificador', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: { type: 'payment' },
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('ignora los avisos que no son de pago', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: { type: 'plan', data: { id: '1' } },
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+});
+
+describe('POST /operations/:id/checkout', () => {
+    it('503 mientras MercadoPago no esté configurado', async () => {
+        const seller = await crearUsuario('seller-mp@test.com', UserRole.SELLER);
+        const buyer = await crearUsuario('buyer-mp@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'USD'),
+        });
+        await new PrismaOperationRepository().save(operation);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/operations/${operation.id.toString()}/checkout`,
+            headers: { authorization: `Bearer ${await tokenDe('buyer-mp@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
 });
 
 describe('GET /health', () => {

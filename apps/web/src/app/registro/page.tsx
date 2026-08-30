@@ -1,17 +1,17 @@
-import { FormularioAuth } from '@/components/FormularioAuth';
-import { registrar } from './acciones';
+import { AuthForm } from '@/components/AuthForm';
+import { registerUser } from './actions';
 
 export const metadata = { title: 'Crear cuenta · Traspaso' };
 
 export default function Registro() {
     return (
-        <FormularioAuth
-            accion={registrar}
-            titulo="Crear cuenta"
+        <AuthForm
+            action={registerUser}
+            title="Crear cuenta"
             bajada="Con una sola cuenta podés comprar y vender. Verificás tu identidad recién cuando vayas a publicar o firmar."
             conNombre
             textoBoton="Crear cuenta"
-            pie={{ texto: '¿Ya tenés cuenta?', enlace: 'Ingresá', href: '/ingresar' }}
+            pie={{ text: '¿Ya tenés cuenta?', enlace: 'Ingresá', href: '/ingresar' }}
         />
     );
 }

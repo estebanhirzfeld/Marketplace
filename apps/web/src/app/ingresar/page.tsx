@@ -1,16 +1,16 @@
-import { FormularioAuth } from '@/components/FormularioAuth';
-import { ingresar } from './acciones';
+import { AuthForm } from '@/components/AuthForm';
+import { logIn } from './actions';
 
 export const metadata = { title: 'Ingresar · Traspaso' };
 
 export default function Ingresar() {
     return (
-        <FormularioAuth
-            accion={ingresar}
-            titulo="Ingresar"
+        <AuthForm
+            action={logIn}
+            title="Ingresar"
             bajada="Entrá para ofertar, publicar activos y seguir tus operaciones."
             textoBoton="Ingresar"
-            pie={{ texto: '¿Todavía no tenés cuenta?', enlace: 'Creá una', href: '/registro' }}
+            pie={{ text: '¿Todavía no tenés cuenta?', enlace: 'Creá una', href: '/registro' }}
         />
     );
 }

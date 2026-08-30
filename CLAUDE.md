@@ -82,6 +82,6 @@ Known gap: `payment_pending` exists in the `OperationStatus` union and the Prism
 ## Conventions
 
 - TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; `packages/db/tests/integration.test.ts` hits a real database — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
-- Code, comments, docs, and error messages in this repo are Spanish. Match the surrounding file.
+- **Identifiers are English; prose is Spanish.** Every name the compiler sees — functions, methods, classes, interfaces, type aliases, object and DTO properties, variables, React components, server actions, file names — is in English. Comments, error messages, UI copy and the `docs/` write-ups are in Spanish. Match the surrounding file.
 - Conventional commits. Never add `Co-Authored-By` or AI attribution.
 - Each completed phase gets a write-up in `docs/fase-*.md`.

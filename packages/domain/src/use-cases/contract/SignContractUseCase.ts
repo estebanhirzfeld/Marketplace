@@ -1,7 +1,14 @@
-import { IContractRepository, IOperationRepository, IUserRepository } from '../../ports/Repositories';
+import {
+    IContractRepository,
+    IListingRepository,
+    IOperationRepository,
+    IUserRepository,
+} from '../../ports/Repositories';
+import { generateDocument } from '../../contracts/ContractGenerator';
+import { ContractDataBuilder } from '../../contracts/ContractDataBuilder';
 import { Actor } from '../../ports/Actor';
 import { NotFoundError, InvalidStateError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 /**
  * Firma del contrato tripartito que cierra la venta.
@@ -16,7 +23,9 @@ export class SignContractUseCase {
         private readonly contractRepo: IContractRepository,
         private readonly operationRepo: IOperationRepository,
         private readonly userRepo: IUserRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly listingRepo: IListingRepository,
+        private readonly armador: ContractDataBuilder,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(contractId: string, ipAddress: string, actor: Actor): Promise<void> {
@@ -44,6 +53,25 @@ export class SignContractUseCase {
         // El rol se deriva; lanza ForbiddenError si el actor no es parte.
         const role = operation.partyFor(actor.id);
 
+        // El tripartito es el punto de no retorno: después de firmarlo la
+        // cancelación deja de ser legal. Si la plataforma todavía no puede
+        // tomar la custodia del activo, nadie debería quedar comprometido.
+        // Los NDA no pasan por acá a propósito: obligan a callar, no a comprar.
+        if (contract.type === 'tripartite') {
+            const listing = await this.listingRepo.findById(operation.listingId.toString());
+            if (!listing) {
+                throw new NotFoundError('Listing no encontrado');
+            }
+            listing.assertCanBeTransferred();
+        }
+
+        // Sin documento no hay nada que firmar. Se arma con los datos reales
+        // de la operación, así que el texto es reproducible desde la base.
+        if (!contract.documentHash) {
+            const { hash } = await generateDocument(await this.armador.para(contract));
+            contract.attachDocument(hash);
+        }
+
         contract.sign(role, ipAddress);
 
         // Un tripartito lo firman buyer y seller en dos pasos separados. La
@@ -59,7 +87,7 @@ export class SignContractUseCase {
         if (contract.isFullySigned() && operation.status === 'contract_pending') {
             operation.signContract();
             await this.operationRepo.save(operation);
-            await this.avisos?.contratoFirmado(operation);
+            await this.avisos?.contractSigned(operation);
         }
     }
 }

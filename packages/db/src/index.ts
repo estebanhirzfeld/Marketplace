@@ -18,3 +18,5 @@ export { PrismaNotificationRepository } from "./repositories/PrismaNotificationR
 
 // Unit of Work
 export { PrismaUnitOfWork } from "./PrismaUnitOfWork";
+export { PrismaReportRepository } from "./repositories/PrismaReportRepository";
+export { ReportMapper } from "./mappers/ReportMapper";

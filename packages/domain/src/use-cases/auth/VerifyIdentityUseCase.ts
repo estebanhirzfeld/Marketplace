@@ -25,7 +25,7 @@ export class VerifyIdentityUseCase {
         }
 
         // La entidad valida la forma del documento y lanza si ya está verificada.
-        user.verificarIdentidad(input);
+        user.verifyIdentity(input);
 
         await this.userRepo.save(user);
         return user;

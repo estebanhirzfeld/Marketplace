@@ -53,8 +53,8 @@ describe('createAssetStrategy — round-trip con toJSON', () => {
 
     it.each(plataformasSociales)(
         'reconstruye una SocialStrategy de %s sin pérdida',
-        (plataforma) => {
-            const original = new SocialStrategy(120000, 4.5, plataforma);
+        (platform) => {
+            const original = new SocialStrategy(120000, 4.5, platform);
 
             const json = original.toJSON();
             const reconstruida = createAssetStrategy(json.assetType, json.assetData);

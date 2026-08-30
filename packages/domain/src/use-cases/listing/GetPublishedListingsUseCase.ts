@@ -10,6 +10,8 @@ export interface ListingSummaryView {
     isBlind: boolean;
     assetData: Record<string, unknown>;
     hiddenFields: string[];
+    transferable: boolean;
+    transferableFrom?: Date;
     createdAt: Date;
 }
 
@@ -41,12 +43,12 @@ export class GetPublishedListingsUseCase {
 
         return listings.map((listing) => {
             const { id, createdAt, props } = listing.toSnapshot();
-            const datos = listing.datosDelActivo(false);
+            const data = listing.assetDataFor(false);
 
             return {
                 id,
                 status: props.status,
-                assetType: datos.assetType,
+                assetType: data.assetType,
                 askingPrice: {
                     cents: props.askingPrice.getCents(),
                     currency: props.askingPrice.getCurrency(),
@@ -56,8 +58,10 @@ export class GetPublishedListingsUseCase {
                     currency: listing.estimatedPrice.getCurrency(),
                 },
                 isBlind: props.isBlind,
-                assetData: datos.assetData,
-                hiddenFields: datos.hiddenFields,
+                assetData: data.assetData,
+                hiddenFields: data.hiddenFields,
+                transferable: listing.isReadyToTransfer(),
+                transferableFrom: listing.transferableFrom(),
                 createdAt,
             };
         });

@@ -76,13 +76,19 @@ export class User extends Entity<UserProps> {
      * no su existencia real. Integrar un proveedor (Renaper, Didit) es trabajo
      * de infraestructura y va detrás de un puerto, no acá.
      */
-    public verificarIdentidad(datos: { dni: string; phone?: string; country?: string }): void {
+    /*
+     * TODO: verificar la identidad contra una fuente y no solo el formato del
+     * DNI. RENAPER o un proveedor como Didit. Es la pieza que más sostiene el
+     * modelo de seguridad de la plataforma, que es disuasivo: cuanto más caro
+     * sea presentarse con una identidad falsa, menos incentivo tiene el fraude.
+     */
+    public verifyIdentity(data: { dni: string; phone?: string; country?: string }): void {
         if (this.props.isKycVerified) {
             throw new InvalidStateError('Tu identidad ya está verificada.');
         }
 
         // Se acepta con puntos o guiones y se guarda normalizado.
-        const dni = datos.dni.replace(/[.\s-]/g, '');
+        const dni = data.dni.replace(/[.\s-]/g, '');
 
         if (dni === '') {
             throw new ValidationError('Ingresá tu número de documento.');
@@ -92,8 +98,8 @@ export class User extends Entity<UserProps> {
         }
 
         this.props.dni = dni;
-        if (datos.phone) this.props.phone = datos.phone;
-        if (datos.country) this.props.country = datos.country;
+        if (data.phone) this.props.phone = data.phone;
+        if (data.country) this.props.country = data.country;
 
         this.verifyKyc();
     }

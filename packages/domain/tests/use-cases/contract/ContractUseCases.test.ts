@@ -16,8 +16,13 @@ import { Email } from '../../../src/value-objects/Email';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
-import { ForbiddenError } from '../../../src/errors/DomainError';
+import { ForbiddenError, InvalidStateError } from '../../../src/errors/DomainError';
+import { ContractDataBuilder } from '../../../src/contracts/ContractDataBuilder';
 import { UserRole } from '@marketplace/shared-types';
+
+// Un contrato sin documento no se puede firmar; en estos tests alcanza
+// una huella cualquiera con forma válida.
+const HASH = 'a'.repeat(64);
 
 // ── Mock Factories ───────────────────────────────────────
 
@@ -62,6 +67,24 @@ function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepo
     };
 }
 
+/**
+ * El armador necesita los tres repositorios. Se construye con los mismos
+ * mocks que el use case, así el documento se genera con los mismos datos.
+ */
+function unArmador(over: {
+    user?: User;
+    listing?: Listing;
+    operation?: Operation;
+} = {}): ContractDataBuilder {
+    return new ContractDataBuilder(
+        createMockUserRepo({ findById: vi.fn().mockResolvedValue(over.user ?? unUsuario(true)) }),
+        createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(over.listing ?? createPublishedListing()),
+        }),
+        createMockOperationRepo({ findById: vi.fn().mockResolvedValue(over.operation ?? null) }),
+    );
+}
+
 function unUsuario(kycVerificado: boolean): User {
     const user = User.create({
         email: Email.create('firmante@example.com'),
@@ -95,6 +118,20 @@ function createPublishedListing(sellerId = new UniqueEntityID()) {
     return listing;
 }
 
+/**
+ * Un listing cuyo acceso la plataforma tiene hace más de la ventana de espera
+ * de YouTube. Es la precondición del tripartito, así que los tests que no
+ * prueban el candado arrancan de acá.
+ */
+function unListingTransferible(sellerId = new UniqueEntityID()): Listing {
+    const listing = createPublishedListing(sellerId);
+    listing.registerPlatformAccess({
+        verifiedBy: new UniqueEntityID(),
+        accessSince: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    });
+    return listing;
+}
+
 // ═════════════════════════════════════════════════════════
 // SignNdaUseCase
 // ═════════════════════════════════════════════════════════
@@ -109,6 +146,7 @@ describe('SignNdaUseCase', () => {
             contractRepo,
             createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            unArmador(),
         );
 
         const nda = await useCase.execute(listing.id.toString(), '192.168.1.1', actorDe(buyerId));
@@ -130,6 +168,7 @@ describe('SignNdaUseCase', () => {
             createMockContractRepo(),
             createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            unArmador(),
         );
 
         const nda = await useCase.execute(listing.id.toString(), '192.168.1.1', actorDe(sellerId));
@@ -143,6 +182,7 @@ describe('SignNdaUseCase', () => {
         const listing = createPublishedListing();
         const buyerId = new UniqueEntityID();
         const existingNda = Contract.createBuyerNda(listing.id, buyerId);
+        existingNda.attachDocument(HASH);
 
         const useCase = new SignNdaUseCase(
             createMockContractRepo({
@@ -150,6 +190,7 @@ describe('SignNdaUseCase', () => {
             }),
             createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            unArmador(),
         );
 
         const nda = await useCase.execute(listing.id.toString(), '192.168.1.1', actorDe(buyerId));
@@ -165,6 +206,7 @@ describe('SignNdaUseCase', () => {
             createMockContractRepo(),
             createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(false)) }),
+            unArmador(),
         );
 
         await expect(
@@ -177,6 +219,7 @@ describe('SignNdaUseCase', () => {
             createMockContractRepo(),
             createMockListingRepo(),
             createMockUserRepo(),
+            unArmador(),
         );
 
         await expect(
@@ -214,6 +257,8 @@ describe('SignContractUseCase', () => {
             contractRepo,
             createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operation) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(unListingTransferible()) }),
+            unArmador({ operation }),
         );
 
         await useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId));
@@ -238,6 +283,8 @@ describe('SignContractUseCase', () => {
             createMockContractRepo({ findById: vi.fn().mockResolvedValue(contract) }),
             operationRepo,
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(unListingTransferible()) }),
+            unArmador({ operation }),
         );
 
         // El buyer firma primero: se suma también la plataforma.
@@ -260,6 +307,8 @@ describe('SignContractUseCase', () => {
             createMockContractRepo({ findById: vi.fn().mockResolvedValue(contract) }),
             createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operation) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(unListingTransferible()) }),
+            unArmador({ operation }),
         );
 
         await expect(
@@ -272,6 +321,8 @@ describe('SignContractUseCase', () => {
             createMockContractRepo(),
             createMockOperationRepo(),
             createMockUserRepo(),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(unListingTransferible()) }),
+            unArmador(),
         );
 
         await expect(
@@ -288,6 +339,8 @@ describe('SignContractUseCase', () => {
             createMockContractRepo({ findById: vi.fn().mockResolvedValue(contract) }),
             createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operation) }),
             createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(unListingTransferible()) }),
+            unArmador({ operation }),
         );
 
         await useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId));
@@ -295,5 +348,87 @@ describe('SignContractUseCase', () => {
         await expect(
             useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId)),
         ).rejects.toThrow('ya firmó');
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// El candado de transferibilidad sobre el tripartito
+// ═════════════════════════════════════════════════════════
+
+/**
+ * Firmar el tripartito es el punto de no retorno: después de eso la
+ * cancelación deja de ser legal. Como el traspaso de un canal no se puede
+ * automatizar y YouTube impone 7 días de espera antes de permitir el cambio de
+ * propietario principal, comprometer a las partes antes de que la plataforma
+ * pueda tomar la custodia las ata a una operación que no se puede cerrar.
+ */
+describe('SignContractUseCase — el tripartito exige un activo transferible', () => {
+    function armarFirma(listing: Listing) {
+        const buyerId = new UniqueEntityID();
+        const operation = unaOperacionEnContractPending(buyerId, new UniqueEntityID());
+        const contract = Contract.createTripartite(listing.id, operation.id);
+
+        const useCase = new SignContractUseCase(
+            createMockContractRepo({ findById: vi.fn().mockResolvedValue(contract) }),
+            createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operation) }),
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            unArmador({ listing, operation }),
+        );
+
+        return { useCase, contract, buyerId };
+    }
+
+    it('frena la firma si la plataforma no tiene acceso al activo', async () => {
+        const { useCase, contract, buyerId } = armarFirma(createPublishedListing());
+
+        await expect(
+            useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId)),
+        ).rejects.toThrow(InvalidStateError);
+
+        expect(contract.isFullySigned()).toBe(false);
+    });
+
+    it('frena la firma dentro de la ventana de espera de la plataforma del activo', async () => {
+        const listing = createPublishedListing();
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        });
+
+        const { useCase, contract, buyerId } = armarFirma(listing);
+
+        await expect(
+            useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId)),
+        ).rejects.toThrow(InvalidStateError);
+    });
+
+    it('deja firmar cuando el plazo ya se cumplió', async () => {
+        const { useCase, contract, buyerId } = armarFirma(unListingTransferible());
+
+        await useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId));
+
+        expect(contract.hasSignedBy('buyer')).toBe(true);
+    });
+
+    /**
+     * El NDA del comprador obliga a callar, no a comprar. Bloquearlo no
+     * compraría seguridad y le impediría a un interesado evaluar el activo,
+     * que es justo lo que necesita antes de ofertar.
+     */
+    it('no bloquea el NDA del comprador sobre un listing sin acceso registrado', async () => {
+        const listing = createPublishedListing();
+        const buyerId = new UniqueEntityID();
+
+        const useCase = new SignNdaUseCase(
+            createMockContractRepo(),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            unArmador({ listing }),
+        );
+
+        const nda = await useCase.execute(listing.id.toString(), '1.1.1.1', actorDe(buyerId));
+
+        expect(nda.isFullySigned()).toBe(true);
     });
 });

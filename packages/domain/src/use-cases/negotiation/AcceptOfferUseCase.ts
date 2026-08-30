@@ -1,7 +1,7 @@
 import { IUnitOfWork } from '../../ports/IUnitOfWork';
 import { Actor } from '../../ports/Actor';
 import { Operation, NegotiatingParty } from '../../entities/Operation';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -16,7 +16,7 @@ import { NotFoundError } from '../../errors/DomainError';
 export class AcceptOfferUseCase {
     constructor(
         private readonly uow: IUnitOfWork,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<void> {
@@ -36,12 +36,12 @@ export class AcceptOfferUseCase {
             const listingId = props.listingId.toString();
             const todas = await repos.operations.findByListing(listingId);
 
-            const canceladas: Operation[] = [];
+            const cancelled: Operation[] = [];
             for (const op of todas) {
                 if (op.id.toString() !== operationId && op.status !== 'cancelled') {
                     op.cancel();
                     await repos.operations.save(op);
-                    canceladas.push(op);
+                    cancelled.push(op);
                 }
             }
 
@@ -51,13 +51,13 @@ export class AcceptOfferUseCase {
                 await repos.listings.save(listing);
             }
 
-            return { operation, by, canceladas };
+            return { operation, by, cancelled };
         });
 
         // Los avisos salen DESPUÉS de que la transacción confirmó. Mandarlos
         // adentro significaría avisar de una aceptación que todavía puede
         // revertirse, y no hay forma de retirar un aviso ya enviado.
-        await this.avisos?.ofertaAceptada(resultado.operation, resultado.by as NegotiatingParty);
-        await this.avisos?.ofertasCanceladasPorCascada(resultado.canceladas);
+        await this.avisos?.offerAccepted(resultado.operation, resultado.by as NegotiatingParty);
+        await this.avisos?.offersCancelledByCascade(resultado.cancelled);
     }
 }

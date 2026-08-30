@@ -8,6 +8,7 @@ import type {
     MyListingDto,
     MyOperationDto,
     OperationDetailDto,
+    RegisterPlatformAccessRequest,
 } from '@marketplace/api-contract';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
 import { Operation } from '@marketplace/domain/src/entities/Operation';
@@ -36,6 +37,13 @@ function aMyListingDto(listing: Listing): MyListingDto {
         },
         isBlind: props.isBlind,
         rejectionReason: props.rejectionReason,
+        ownership: listing.ownershipVerification && {
+            verifiedAt: listing.ownershipVerification.verifiedAt.toISOString(),
+            source: listing.ownershipVerification.source,
+            monthlyRevenueCents: listing.ownershipVerification.monthlyRevenueCents,
+        },
+        transferable: listing.isReadyToTransfer(),
+        transferableFrom: listing.transferableFrom()?.toISOString(),
         createdAt: createdAt.toISOString(),
     };
 }
@@ -106,20 +114,20 @@ function aNotificationDto(n: Notification): NotificationDto {
 }
 
 export function registerMeRoutes(app: FastifyInstance, c: Container): void {
-    app.get<{ Querystring: { soloNoLeidas?: boolean }; Reply: NotificationsDto }>(
+    app.get<{ Querystring: { onlyUnread?: boolean }; Reply: NotificationsDto }>(
         '/me/notifications',
         {
             preHandler: [authenticate],
             schema: {
                 querystring: {
                     type: 'object',
-                    properties: { soloNoLeidas: { type: 'boolean' } },
+                    properties: { onlyUnread: { type: 'boolean' } },
                 },
             },
         },
         async (request, reply) => {
             const actor = actorOf(request);
-            const avisos = await c.misAvisos.execute(actor, request.query.soloNoLeidas === true);
+            const avisos = await c.misAvisos.execute(actor, request.query.onlyUnread === true);
 
             return reply.send({
                 items: avisos.map(aNotificationDto),
@@ -163,7 +171,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
             },
         },
         async (request, reply) => {
-            const user = await c.verificarIdentidad.execute(request.body, actorOf(request));
+            const user = await c.verifyIdentity.execute(request.body, actorOf(request));
             return reply.send(aPerfilDto(user));
         },
     );
@@ -193,6 +201,43 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         async (request, reply) => {
             const listings = await c.listingsParaRevisar.execute(actorOf(request));
             return reply.send(listings.map(aMyListingDto));
+        },
+    );
+
+    /**
+     * El acceso de la plataforma al activo. Es manual y no automatizable: la
+     * API de YouTube no expone quiénes son los propietarios de un canal, así
+     * que solo un admin puede atestiguarlo. De la fecha registrada se deriva
+     * cuándo el activo queda transferible.
+     */
+    app.post<{ Params: IdParams; Body: RegisterPlatformAccessRequest }>(
+        '/admin/listings/:id/acceso',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['accessSince'],
+                    properties: {
+                        accessSince: { type: 'string', format: 'date-time' },
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.registerPlatformAccess.execute(request.params.id, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /** Cuando el vendedor expulsó a la plataforma. Ninguna API nos lo avisa. */
+    app.delete<{ Params: IdParams }>(
+        '/admin/listings/:id/acceso',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.revokePlatformAccess.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
         },
     );
 
@@ -227,7 +272,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     proposedBy: n.proposedBy,
                     proposedAt: n.proposedAt.toISOString(),
                 })),
+                payment: props.payment && {
+                    ...props.payment,
+                    confirmedAt: props.payment.confirmedAt.toISOString(),
+                },
                 contracts: contratos.map(aContractDto),
+                custody: props.custodyVerification && {
+                    ...props.custodyVerification,
+                    verifiedBy: props.custodyVerification.verifiedBy.toString(),
+                    verifiedAt: props.custodyVerification.verifiedAt.toISOString(),
+                },
                 createdAt: createdAt.toISOString(),
             };
 

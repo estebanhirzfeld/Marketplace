@@ -3,11 +3,21 @@ import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
 import { AssetType } from '@marketplace/shared-types';
 
+/*
+ * TODO: decisión de producto pendiente sobre Instagram y TikTok. TikTok prohíbe
+ * explícitamente transferir una cuenta en sus términos, e Instagram parece
+ * hacer lo mismo aunque no pudo verificarse contra la fuente oficial. Si es
+ * así, el problema no es que no haya API: es que el activo no se puede
+ * entregar de forma legítima. Hay que leer los términos y resolver si el
+ * marketplace los incluye o se acota a YouTube y sitios web.
+ */
 export class SocialStrategy implements IAssetStrategy {
     constructor(
         private readonly followers: number,
         private readonly engagementRate: number, // percentage e.g. 5.5
-        private readonly platform: AssetType.INSTAGRAM | AssetType.TIKTOK
+        private readonly platform: AssetType.INSTAGRAM | AssetType.TIKTOK,
+        /** La dirección del perfil identifica al activo: es lo único reservado. */
+        private readonly profileUrl: string = ''
     ) { }
 
     public calculateEstimatedPrice(): Money {
@@ -42,11 +52,21 @@ export class SocialStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['platform', 'niche', 'followers', 'avg_engagement_rate', 'is_verified'];
+        return ['platform', 'followers', 'engagementRate'];
+    }
+
+    /**
+     * Cero, pero por una razón distinta a la de un sitio web: estas
+     * plataformas no ofrecen ningún mecanismo de traspaso, así que no hay
+     * ventana que esperar porque no hay traspaso previsto. El riesgo de estos
+     * activos está en los términos de servicio, no en el calendario.
+     */
+    public transferWaitingDays(): number {
+        return 0;
     }
 
     public getConfidentialFields(): string[] {
-        return ['profile_url', 'monthly_revenue_usd', 'raw_metrics'];
+        return ['profileUrl'];
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -56,6 +76,7 @@ export class SocialStrategy implements IAssetStrategy {
                 followers: this.followers,
                 engagementRate: this.engagementRate,
                 platform: this.platform,
+                profileUrl: this.profileUrl,
             }
         };
     }

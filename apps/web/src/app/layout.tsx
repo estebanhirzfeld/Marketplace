@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import { AvisoKyc } from '@/components/AvisoKyc';
+import { KycNotice } from '@/components/KycNotice';
 import './globals.css';
 
 const sans = Space_Grotesk({
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html lang="es" className={`${sans.variable} ${mono.variable}`}>
             <body className="flex min-h-screen flex-col">
                 <Navbar />
-                <AvisoKyc />
+                <KycNotice />
                 <main className="flex-1">{children}</main>
                 <Footer />
             </body>

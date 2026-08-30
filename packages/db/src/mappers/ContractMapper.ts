@@ -25,7 +25,7 @@ function parseSignatures(raw: PrismaContract["signatures"]): Signature[] {
             throw new Error("Firma corrupta: se esperaba un objeto.");
         }
 
-        const { role, signed, signedAt, signatureIp } = entry as Record<string, unknown>;
+        const { role, signed, signedAt, signatureIp, documentHash } = entry as Record<string, unknown>;
 
         if (!isPartyRole(role)) {
             throw new Error(`Rol de firma desconocido en la base: ${String(role)}`);
@@ -36,6 +36,7 @@ function parseSignatures(raw: PrismaContract["signatures"]): Signature[] {
             signed: signed === true,
             signedAt: typeof signedAt === "string" ? new Date(signedAt) : undefined,
             signatureIp: typeof signatureIp === "string" ? signatureIp : undefined,
+            documentHash: typeof documentHash === "string" ? documentHash : undefined,
         };
     });
 }
@@ -47,6 +48,7 @@ function serializeSignatures(signatures: readonly Signature[]) {
         signed: s.signed,
         signedAt: s.signedAt?.toISOString() ?? null,
         signatureIp: s.signatureIp ?? null,
+        documentHash: s.documentHash ?? null,
     }));
 }
 
@@ -58,6 +60,7 @@ export class ContractMapper {
             operationId: raw.operationId ? new UniqueEntityID(raw.operationId) : undefined,
             signerId: raw.signerId ? new UniqueEntityID(raw.signerId) : undefined,
             signatures: parseSignatures(raw.signatures),
+            documentHash: raw.documentHash ?? undefined,
             externalSignatureId: raw.externalSignatureId ?? undefined,
             fileUrl: raw.fileUrl ?? undefined,
         };
@@ -79,6 +82,7 @@ export class ContractMapper {
             operationId: props.operationId?.toString() ?? null,
             signerId: props.signerId?.toString() ?? null,
             signatures: serializeSignatures(props.signatures),
+            documentHash: props.documentHash ?? null,
             externalSignatureId: props.externalSignatureId ?? null,
             fileUrl: props.fileUrl ?? null,
             createdAt,

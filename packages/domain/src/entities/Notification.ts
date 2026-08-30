@@ -18,7 +18,8 @@ export type NotificationType =
     | 'contrato_firmado'
     | 'activo_en_custodia'
     | 'pago_confirmado'
-    | 'operacion_completada';
+    | 'operacion_completada'
+    | 'denuncia_recibida';
 
 export interface NotificationProps {
     /** A quién se le avisa. */
@@ -63,7 +64,7 @@ export class Notification extends Entity<NotificationProps> {
     }
 
     /** Marcar dos veces no es un error: es la misma intención repetida. */
-    public marcarLeida(): void {
+    public markAsRead(): void {
         if (this.props.readAt) return;
         this.props.readAt = new Date();
     }

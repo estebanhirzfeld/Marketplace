@@ -7,7 +7,9 @@ import { AssetType } from '@marketplace/shared-types';
 export class WebStrategy implements IAssetStrategy {
     constructor(
         private readonly monthlyRevenueUsd: Money,
-        private readonly domainAuthority: number
+        private readonly domainAuthority: number,
+        /** El dominio identifica al activo: es lo único reservado. */
+        private readonly domain: string = ''
     ) { }
 
     public calculateEstimatedPrice(): Money {
@@ -37,11 +39,16 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['niche', 'monthly_sessions', 'monthly_revenue_usd', 'domain_authority', 'monetization_type', 'cms'];
+        return ['monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
+    }
+
+    /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
+    public transferWaitingDays(): number {
+        return 0;
     }
 
     public getConfidentialFields(): string[] {
-        return ['domain', 'raw_metrics', 'organic_traffic_pct'];
+        return ['domain'];
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -51,6 +58,7 @@ export class WebStrategy implements IAssetStrategy {
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
                 domainAuthority: this.domainAuthority,
+                domain: this.domain,
             }
         };
     }

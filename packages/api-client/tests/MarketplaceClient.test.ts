@@ -141,7 +141,13 @@ describe('MarketplaceClient — respuestas', () => {
         const { impl } = fetchQueDevuelve(204);
         const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
 
-        await expect(client.confirmCustody('op-1')).resolves.toBeUndefined();
+        await expect(
+            client.confirmCustody('op-1', {
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: { suscriptores: 55000 },
+            }),
+        ).resolves.toBeUndefined();
     });
 });
 

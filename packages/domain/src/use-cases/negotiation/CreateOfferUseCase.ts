@@ -4,7 +4,7 @@ import { Operation } from '../../entities/Operation';
 import { Money } from '../../value-objects/Money';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ForbiddenError, InvalidStateError, NotFoundError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 export interface CreateOfferInput {
     listingId: string;
@@ -20,7 +20,7 @@ export class CreateOfferUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(input: CreateOfferInput, actor: Actor): Promise<Operation> {
@@ -46,7 +46,7 @@ export class CreateOfferUseCase {
         });
 
         await this.operationRepo.save(operation);
-        await this.avisos?.ofertaRecibida(operation);
+        await this.avisos?.offerReceived(operation);
 
         return operation;
     }

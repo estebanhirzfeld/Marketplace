@@ -12,12 +12,15 @@ import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { PrismaContractRepository } from "../src/repositories/PrismaContractRepository";
 import { Operation } from "@marketplace/domain/src/entities/Operation";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
+import { Report } from "@marketplace/domain/src/entities/Report";
+import { PrismaReportRepository } from "../src/repositories/PrismaReportRepository";
 import { prisma } from "../src/client";
 
 const userRepo = new PrismaUserRepository();
 const listingRepo = new PrismaListingRepository();
 const contractRepo = new PrismaContractRepository();
 const operationRepo = new PrismaOperationRepository();
+const reportRepo = new PrismaReportRepository();
 
 // ── Helpers ──────────────────────────────────────────────
 // Cada test debe crear su propia data. Estos helpers evitan
@@ -67,6 +70,7 @@ async function createPersistedListing(sellerId: UniqueEntityID): Promise<Listing
 
 beforeEach(async () => {
     // Respetar orden de FKs al limpiar
+    await prisma.report.deleteMany();
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
@@ -74,6 +78,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+    await prisma.report.deleteMany();
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
@@ -192,6 +197,135 @@ describe("PrismaListingRepository", () => {
 // Contract + Signatures (Tell, Don't Ask)
 // ═════════════════════════════════════════════════════════
 
+/**
+ * La constancia de acceso vive en una columna Json. `accessSince` es la fecha
+ * de la que depende todo el cálculo del plazo, así que si vuelve como string
+ * en vez de Date el listing queda transferible o bloqueado por accidente.
+ */
+describe("PrismaListingRepository — constancia de acceso", () => {
+    const DIA = 24 * 60 * 60 * 1000;
+
+    it("debería persistir la constancia con las fechas como Date", async () => {
+        const seller = await createPersistedUser({
+            email: "seller-acceso@test.com",
+            role: UserRole.SELLER,
+        });
+        const admin = await createPersistedUser({
+            email: "admin-acceso@test.com",
+            role: UserRole.ADMIN,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        const sinAcceso = await listingRepo.findById(listing.id.toString());
+        expect(sinAcceso!.platformAccess).toBeUndefined();
+        expect(sinAcceso!.isReadyToTransfer()).toBe(false);
+
+        listing.registerPlatformAccess({
+            verifiedBy: admin.id,
+            accessSince: new Date(Date.now() - 9 * DIA),
+            notes: "Invitada como propietaria de la Cuenta de Marca.",
+        });
+        await listingRepo.save(listing);
+
+        const conAcceso = await listingRepo.findById(listing.id.toString());
+        const constancia = conAcceso!.platformAccess;
+
+        expect(constancia).toBeDefined();
+        expect(constancia!.verifiedBy.toString()).toBe(admin.id.toString());
+        expect(constancia!.verifiedAt).toBeInstanceOf(Date);
+        expect(constancia!.accessSince).toBeInstanceOf(Date);
+        expect(constancia!.notes).toBe("Invitada como propietaria de la Cuenta de Marca.");
+        // Nueve días sobre una ventana de siete: ya se cumplió.
+        expect(conAcceso!.isReadyToTransfer()).toBe(true);
+    });
+
+    /**
+     * Revocar tiene que vaciar la columna de verdad. Con `undefined` Prisma
+     * dejaría el update sin tocar el campo y la constancia sobreviviría a su
+     * propia revocación.
+     */
+    it("debería borrar la constancia al revocar el acceso", async () => {
+        const seller = await createPersistedUser({
+            email: "seller-revoca@test.com",
+            role: UserRole.SELLER,
+        });
+        const admin = await createPersistedUser({
+            email: "admin-revoca@test.com",
+            role: UserRole.ADMIN,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        listing.registerPlatformAccess({
+            verifiedBy: admin.id,
+            accessSince: new Date(Date.now() - 9 * DIA),
+        });
+        await listingRepo.save(listing);
+
+        listing.revokePlatformAccess();
+        await listingRepo.save(listing);
+
+        const revocado = await listingRepo.findById(listing.id.toString());
+        expect(revocado!.platformAccess).toBeUndefined();
+        expect(revocado!.isReadyToTransfer()).toBe(false);
+    });
+});
+
+/**
+ * La constancia de titularidad guarda el ingreso comprobado cuando la fuente lo
+ * expone. Si el número no sobrevive el viaje a la columna Json, el comprador ve
+ * el declarado creyendo que es el comprobado.
+ */
+describe("PrismaListingRepository — constancia de titularidad", () => {
+    it("debería persistir la constancia con la fecha como Date", async () => {
+        const seller = await createPersistedUser({
+            email: "seller-own@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        const sinConstancia = await listingRepo.findById(listing.id.toString());
+        expect(sinConstancia!.isOwnershipVerified()).toBe(false);
+
+        listing.registerOwnershipVerification({
+            verifiedBy: seller.id,
+            assetId: "UCq-Fj5jknLsUf-MWSy4_brA",
+            source: "youtube",
+        });
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+        const constancia = guardado!.ownershipVerification;
+
+        expect(guardado!.isOwnershipVerified()).toBe(true);
+        expect(constancia!.verifiedAt).toBeInstanceOf(Date);
+        expect(constancia!.assetId).toBe("UCq-Fj5jknLsUf-MWSy4_brA");
+        expect(constancia!.source).toBe("youtube");
+        // YouTube no expone el ingreso: la constancia no puede inventarlo.
+        expect(constancia!.monthlyRevenueCents).toBeUndefined();
+    });
+
+    it("debería persistir el ingreso comprobado que devuelve AdSense", async () => {
+        const seller = await createPersistedUser({
+            email: "seller-ads@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        listing.registerOwnershipVerification({
+            verifiedBy: seller.id,
+            assetId: "ejemplo.com",
+            source: "adsense",
+            monthlyRevenueCents: 78_450,
+        });
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.ownershipVerification!.monthlyRevenueCents).toBe(78_450);
+        expect(guardado!.ownershipVerification!.source).toBe("adsense");
+    });
+});
+
 describe("PrismaContractRepository", () => {
     it("debería persistir un Contract con sus firmas y recuperar el estado correcto", async () => {
         const user = await createPersistedUser({
@@ -202,7 +336,10 @@ describe("PrismaContractRepository", () => {
 
         // Crear NDA con UniqueEntityID — no con string
         const nda = Contract.createBuyerNda(listing.id, user.id);
-        nda.sign("buyer", "192.168.0.1");
+        // Sin documento adjunto la entidad rechaza cualquier firma.
+        nda.attachDocument("a".repeat(64));
+        // Un contrato sin documento no se puede firmar.
+                nda.sign("buyer", "192.168.0.1");
 
         await contractRepo.save(nda);
         const retrieved = await contractRepo.findById(nda.id.toString());
@@ -232,7 +369,10 @@ describe("PrismaContractRepository", () => {
 
         // 1. Crear y guardar con 0 firmas
         const nda = Contract.createBuyerNda(listing.id, user.id);
-        await contractRepo.save(nda);
+        // Sin documento adjunto la entidad rechaza cualquier firma.
+        nda.attachDocument("a".repeat(64));
+        // Un contrato sin documento no se puede firmar.
+                await contractRepo.save(nda);
 
         const beforeSign = await contractRepo.findById(nda.id.toString());
         expect(beforeSign!.hasSignedBy("buyer")).toBe(false);
@@ -351,9 +491,157 @@ describe("PrismaOperationRepository", () => {
         expect(afterAccept!.negotiations[2].proposedAt).toBeInstanceOf(Date);
     });
 
+    /**
+     * La constancia de custodia vive en una columna Json, así que el Date se
+     * guarda como string ISO. Si no se revive al leer, `verifiedAt` vuelve
+     * como texto y nadie se entera hasta que alguien la formatea.
+     */
+    it("debería persistir la verificación de custodia con la fecha como Date", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-cust@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-cust@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+        const admin = await createPersistedUser({
+            email: "admin-cust@test.com",
+            role: UserRole.ADMIN,
+        });
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(500000, "USD"),
+        });
+        await operationRepo.save(operation);
+
+        // Sin custodia todavía, la columna queda vacía.
+        const sinCustodia = await operationRepo.findById(operation.id.toString());
+        expect(sinCustodia!.custodyVerification).toBeUndefined();
+
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        operation.initiateTransfer();
+        operation.confirmAssetCustody({
+            verifiedBy: admin.id,
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: { suscriptores: 55000, vistas: 1200000 },
+            notes: "Sin strikes activos.",
+        });
+        await operationRepo.save(operation);
+
+        const conCustodia = await operationRepo.findById(operation.id.toString());
+        const registro = conCustodia!.custodyVerification;
+
+        expect(conCustodia!.status).toBe("asset_in_custody");
+        expect(registro).toBeDefined();
+        expect(registro!.verifiedBy.toString()).toBe(admin.id.toString());
+        expect(registro!.verifiedAt).toBeInstanceOf(Date);
+        expect(registro!.isPrimaryOwner).toBe(true);
+        expect(registro!.accessSecured).toBe(true);
+        expect(registro!.metrics.suscriptores).toBe(55000);
+        expect(registro!.notes).toBe("Sin strikes activos.");
+    });
+
     it("debería devolver null si la Operation no existe", async () => {
         const result = await operationRepo.findById(new UniqueEntityID().toString());
         expect(result).toBeNull();
     });
 });
 
+// ═════════════════════════════════════════════════════════
+// Denuncias
+// ═════════════════════════════════════════════════════════
+
+describe("PrismaReportRepository", () => {
+    async function unaOperacionFirmada() {
+        const buyer = await createPersistedUser({
+            email: "buyer-rep@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-rep@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1_500_000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        await operationRepo.save(operation);
+
+        return { operation, buyer, seller };
+    }
+
+    it("debería persistir una denuncia y recuperarla", async () => {
+        const { operation, buyer, seller } = await unaOperacionFirmada();
+
+        const report = Report.create({
+            operationId: operation.id,
+            reportedBy: buyer.id,
+            reporterRole: "buyer",
+            reportedUserId: seller.id,
+            reason: "ingreso_falso",
+            detail: "El canal factura mucho menos de lo que decía la publicación.",
+        });
+        await reportRepo.save(report);
+
+        const guardada = await reportRepo.findById(report.id.toString());
+
+        expect(guardada!.status).toBe("open");
+        expect(guardada!.reason).toBe("ingreso_falso");
+        expect(guardada!.reporterRole).toBe("buyer");
+        expect(guardada!.reportedUserId.toString()).toBe(seller.id.toString());
+    });
+
+    /** Las dos puntas: el denunciado también la ve en su listado. */
+    it("debería encontrarla desde cualquiera de las dos partes", async () => {
+        const { operation, buyer, seller } = await unaOperacionFirmada();
+
+        const report = Report.create({
+            operationId: operation.id,
+            reportedBy: buyer.id,
+            reporterRole: "buyer",
+            reportedUserId: seller.id,
+            reason: "otro",
+            detail: "Algo no cerró en esta operación y quiero dejarlo asentado.",
+        });
+        await reportRepo.save(report);
+
+        expect(await reportRepo.findByUser(buyer.id.toString())).toHaveLength(1);
+        expect(await reportRepo.findByUser(seller.id.toString())).toHaveLength(1);
+    });
+
+    it("debería persistir el cierre con su motivo", async () => {
+        const { operation, buyer, seller } = await unaOperacionFirmada();
+
+        const report = Report.create({
+            operationId: operation.id,
+            reportedBy: buyer.id,
+            reporterRole: "buyer",
+            reportedUserId: seller.id,
+            reason: "otro",
+            detail: "Algo no cerró en esta operación y quiero dejarlo asentado.",
+        });
+        await reportRepo.save(report);
+
+        report.close("Nos arreglamos entre las partes.");
+        await reportRepo.save(report);
+
+        const guardada = await reportRepo.findById(report.id.toString());
+
+        expect(guardada!.status).toBe("closed");
+        expect(guardada!.closedAt).toBeInstanceOf(Date);
+        expect(guardada!.closedReason).toBe("Nos arreglamos entre las partes.");
+    });
+});

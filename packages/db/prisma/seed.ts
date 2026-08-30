@@ -9,6 +9,8 @@ import { Listing } from "@marketplace/domain/src/entities/Listing";
 import { YouTubeStrategy } from "@marketplace/domain/src/strategies/YouTubeStrategy";
 import { Operation } from "@marketplace/domain/src/entities/Operation";
 import { Contract } from "@marketplace/domain/src/entities/Contract";
+import { ContractDataBuilder } from "@marketplace/domain/src/contracts/ContractDataBuilder";
+import { generateDocument } from "@marketplace/domain/src/contracts/ContractGenerator";
 import { PrismaUserRepository } from "../src/repositories/PrismaUserRepository";
 import { PrismaListingRepository } from "../src/repositories/PrismaListingRepository";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
@@ -39,7 +41,21 @@ async function main() {
   await prisma.listing.deleteMany();
   await prisma.user.deleteMany();
 
-  // 2. Crear Seller
+  // 2. Crear el admin de la plataforma. Es quien atestigua la custodia y el
+  // acceso a los activos: sin él ninguno de los dos flujos se puede demostrar.
+  const admin = User.create({
+    email: Email.create("admin@traspaso.com"),
+    fullName: "Administración Traspaso",
+    dni: "20111222333",
+    role: UserRole.ADMIN,
+    country: "AR",
+    passwordHash: SEED_PASSWORD_HASH,
+  });
+  admin.verifyKyc();
+  await userRepo.save(admin);
+  console.log("✅ Admin creado");
+
+  // 3. Crear Seller
   const seller = User.create({
     email: Email.create("esteban.seller@example.com"),
     fullName: "Esteban Vendedor",
@@ -59,7 +75,8 @@ async function main() {
     growthFactor: 1.1,
     isMonetized: true,
     hasNoFaceContent: true,
-    audienceTopCountry: "US"
+    audienceTopCountry: "US",
+    channelUrl: "https://youtube.com/@midudev"
   });
 
   const listing = Listing.create({
@@ -72,10 +89,19 @@ async function main() {
   (listing as any).props.status = "published";
   (listing as any).props.publishedAt = new Date();
   
-  await listingRepo.save(listing);
-  console.log("✅ Listing creado");
+  // La plataforma tiene el acceso desde hace más de la ventana de YouTube, así
+  // que el listing arranca transferible. Sin esto el tripartito no se puede
+  // firmar y la demo termina en la negociación.
+  listing.registerPlatformAccess({
+    verifiedBy: admin.id,
+    accessSince: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000),
+    notes: "Invitada como propietaria de la Cuenta de Marca.",
+  });
 
-  // 4. Crear Buyer
+  await listingRepo.save(listing);
+  console.log("✅ Listing creado (transferible)");
+
+  // 5. Crear Buyer
   const buyer = User.create({
     email: Email.create("marcos.buyer@example.com"),
     fullName: "Marcos Comprador",
@@ -88,7 +114,7 @@ async function main() {
   await userRepo.save(buyer);
   console.log("✅ Buyer creado");
 
-  // 5. Crear Operación con Negociación
+  // 6. Crear Operación con Negociación
   const operation = Operation.create({
     listingId: listing.id,
     buyerId: buyer.id,
@@ -103,8 +129,17 @@ async function main() {
   await operationRepo.save(operation);
   console.log("✅ Operación creada con historial de negociación");
 
-  // 6. Crear un NDA firmado para el Buyer
+  // 7. Crear un NDA firmado para el Buyer.
+  //
+  // El documento se genera con el mismo armador que usa la aplicación en vez
+  // de firmar una huella inventada: así la huella firmada coincide con la que
+  // se regenera al abrirlo, y la pantalla del contrato no aparece avisando que
+  // el documento cambió después de la firma.
+  const armador = new ContractDataBuilder(userRepo, listingRepo, operationRepo);
   const nda = Contract.createBuyerNda(listing.id, buyer.id);
+  const { hash } = await generateDocument(await armador.para(nda));
+  nda.attachDocument(hash);
+
   nda.sign("buyer", "192.168.1.10");
   // La plataforma también firma
   nda.sign("platform", "127.0.0.1");

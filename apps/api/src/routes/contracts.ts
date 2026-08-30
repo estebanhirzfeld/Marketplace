@@ -1,10 +1,20 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
+import type { ContractDocumentDto } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
 
 export function registerContractRoutes(app: FastifyInstance, c: Container): void {
+    app.get<{ Params: IdParams; Reply: ContractDocumentDto }>(
+        '/contracts/:id/documento',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const doc = await c.documentoDelContrato.execute(request.params.id, actorOf(request));
+            return reply.send(doc);
+        },
+    );
+
     app.post<{ Params: IdParams }>(
         '/contracts/:id/sign',
         { preHandler: [authenticate] },

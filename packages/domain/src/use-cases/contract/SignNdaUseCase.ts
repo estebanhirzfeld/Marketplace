@@ -3,6 +3,8 @@ import { Actor } from '../../ports/Actor';
 import { Contract } from '../../entities/Contract';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { NotFoundError } from '../../errors/DomainError';
+import { generateDocument } from '../../contracts/ContractGenerator';
+import { ContractDataBuilder } from '../../contracts/ContractDataBuilder';
 
 /**
  * Firma del NDA que desbloquea los datos confidenciales de un listing blind.
@@ -23,6 +25,7 @@ export class SignNdaUseCase {
         private readonly contractRepo: IContractRepository,
         private readonly listingRepo: IListingRepository,
         private readonly userRepo: IUserRepository,
+        private readonly armador: ContractDataBuilder,
     ) {}
 
     async execute(listingId: string, ipAddress: string, actor: Actor): Promise<Contract> {
@@ -49,6 +52,13 @@ export class SignNdaUseCase {
             nda = esDuenio
                 ? Contract.createSellerNda(listingRef, signerRef)
                 : Contract.createBuyerNda(listingRef, signerRef);
+        }
+
+        // El documento se genera y se adjunta antes de firmar: la entidad
+        // rechaza una firma sobre un contrato sin documento.
+        if (!nda.documentHash) {
+            const { hash } = await generateDocument(await this.armador.para(nda));
+            nda.attachDocument(hash);
         }
 
         // La entidad valida si este rol ya firmó.

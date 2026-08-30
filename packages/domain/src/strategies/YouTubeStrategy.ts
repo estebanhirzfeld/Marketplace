@@ -9,6 +9,8 @@ interface YouTubeStrategyProps {
   isMonetized: boolean;
   audienceTopCountry?: string;
   hasNoFaceContent?: boolean;
+  /** Dirección del canal. Es lo que identifica al activo, así que es reservado. */
+  channelUrl?: string;
 }
 
 export class YouTubeStrategy implements IAssetStrategy {
@@ -24,6 +26,7 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly isMonetized: boolean;
   private readonly audienceTopCountry: string;
   private readonly hasNoFaceContent: boolean;
+  private readonly channelUrl: string;
 
   constructor({
     monthlyRevenueUsd,
@@ -32,6 +35,7 @@ export class YouTubeStrategy implements IAssetStrategy {
     isMonetized,
     audienceTopCountry = 'AR',
     hasNoFaceContent = false,
+    channelUrl = '',
   }: YouTubeStrategyProps) {
     this.monthlyRevenueUsd = monthlyRevenueUsd;
     this.subscribers = subscribers;
@@ -39,6 +43,7 @@ export class YouTubeStrategy implements IAssetStrategy {
     this.isMonetized = isMonetized;
     this.audienceTopCountry = audienceTopCountry;
     this.hasNoFaceContent = hasNoFaceContent;
+    this.channelUrl = channelUrl;
   }
 
   // -------------------------------------------------------------------
@@ -99,76 +104,132 @@ export class YouTubeStrategy implements IAssetStrategy {
   // Métricas verificables vía API
   // -------------------------------------------------------------------
 
+  /**
+   * "To become primary owner, you must have been an owner for 7 days or more."
+   * Hasta que ese cambio se completa el vendedor sigue siendo propietario
+   * principal y conserva la facultad de expulsar a la plataforma.
+   */
+  /** Vacío mientras el vendedor no la haya cargado. */
+  public getChannelUrl(): string {
+    return this.channelUrl;
+  }
+
+  public transferWaitingDays(): number {
+    return 7;
+  }
+
+  /*
+   * TODO: pedirle a Google el scope `youtubepartner-channel-audit`. Devuelve
+   * `overallGoodStanding`, `communityGuidelinesGoodStanding`,
+   * `copyrightStrikesGoodStanding` y `contentIdClaimsGoodStanding`, que es
+   * exactamente lo que hoy el vendedor declara a mano. Es un scope restringido
+   * pensado para MCNs y la aprobación no está garantizada.
+   */
+
+  /**
+   * `revenue` NO está acá, y es deliberado.
+   *
+   * La documentación de YouTube Analytics es explícita: las métricas de
+   * ingresos no están disponibles en los reportes de canal, solo en los de
+   * content owner, que exigen ser un MCN certificado. El ingreso mensual es
+   * justo el dato que fija el precio en `calculateEstimatedPrice()` y es el
+   * único que la plataforma no puede comprobar: sigue siendo una declaración
+   * jurada del vendedor y hay que presentarlo como tal.
+   */
   public getVerifiableMetrics(): MetricKey[] {
-    return ['subscribers', 'revenue'];
+    return ['subscribers'];
   }
 
   // -------------------------------------------------------------------
-  // Snapshot de métricas — se llama 3 veces:
-  //   1. Al publicar el listing
-  //   2. Al aceptar la oferta (antes del contrato)
-  //   3. Al recibir el canal en la plataforma (antes de transferir al buyer)
+  // Snapshot de métricas
   // -------------------------------------------------------------------
 
+  /**
+   * TODO: eliminar. Quedó reemplazado por `IYouTubeChannelReader`, que es un
+   * puerto del dominio con su adaptador en `apps/api` y no una estrategia
+   * haciendo HTTP. Sigue acá solo porque `IAssetStrategy` lo declara; sacarlo
+   * es tocar la interfaz y las otras dos implementaciones.
+   */
   public async captureMetricsSnapshot(): Promise<Record<MetricKey, number>> {
-    // TODO: reemplazar con llamada real a YouTube Data API
-    // GET https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true
-    throw new Error('captureMetricsSnapshot() no implementado — requiere YouTube OAuth token');
+    throw new Error(
+      'captureMetricsSnapshot() está obsoleto: usar IYouTubeChannelReader.',
+    );
   }
 
   // -------------------------------------------------------------------
   // Pasos de transferencia
   // -------------------------------------------------------------------
 
+  /**
+   * El traspaso de un canal no se puede automatizar: no existe endpoint para
+   * cambiar propietarios y todo se hace desde la interfaz de Cuentas de Marca.
+   * La lista describe un proceso manual con dos esperas de 7 días, una por
+   * cada cambio de propietario principal, y por eso el cierre tiene un piso
+   * realista de dos semanas.
+   */
   public getTransferSteps(): TransferStep[] {
     return [
       {
         id: '1',
-        description: 'Seller convierte el canal a Brand Account si no lo es',
+        description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
         requiredActor: 'seller',
         automated: false,
       },
       {
         id: '2',
-        description: 'Seller invita a la plataforma como Propietario Principal',
+        description: 'El vendedor invita a la plataforma como propietaria del canal',
         requiredActor: 'seller',
         automated: false,
       },
       {
         id: '3',
-        description: 'Plataforma verifica ownership, emails de recuperación y snapshot de métricas',
+        // Verificar la titularidad por API es posible con un OAuth del
+        // vendedor (`channels.list` con `mine=true`), pero todavía no está
+        // implementado: hasta que lo esté, esto lo hace una persona.
+        description: 'La plataforma verifica la titularidad, los accesos de recuperación y toma una foto de las métricas',
         requiredActor: 'platform',
-        automated: true, // captureMetricsSnapshot() + YouTube API ownership check
+        automated: false,
       },
       {
         id: '4',
-        description: 'Plataforma invita al buyer como Propietario Principal',
+        // La espera que la investigación encontró y que faltaba acá: mientras
+        // no se complete, el vendedor sigue siendo propietario principal y
+        // conserva la facultad de expulsar a la plataforma.
+        description: 'Pasados 7 días desde la invitación, la plataforma se convierte en propietaria principal y toma la custodia',
         requiredActor: 'platform',
         automated: false,
       },
       {
         id: '5',
-        description: 'Buyer acepta invitación — inicia período de congelamiento de 7 días de YouTube',
+        description: 'El comprador transfiere el dinero, que queda retenido por la plataforma',
         requiredActor: 'buyer',
         automated: false,
       },
       {
         id: '6',
-        description: 'Buyer completa checklist de seguridad (emails, teléfonos, AdSense)',
-        requiredActor: 'buyer',
+        description: 'La plataforma invita al comprador como propietario del canal',
+        requiredActor: 'platform',
         automated: false,
       },
       {
         id: '7',
-        description: 'Buyer confirma recepción conforme — fondos liberados al seller',
+        description: 'El comprador acepta la invitación e inicia su propia espera de 7 días',
         requiredActor: 'buyer',
         automated: false,
       },
       {
         id: '8',
-        description: 'Plataforma elimina al seller del canal y cierra la operación',
+        description: 'El comprador se convierte en propietario principal y asegura sus accesos (correos, teléfonos, AdSense)',
+        requiredActor: 'buyer',
+        automated: false,
+      },
+      {
+        id: '9',
+        // Estaba marcado como automatizable y no lo es: quitar a un
+        // propietario se hace a mano en la interfaz de Cuentas de Marca.
+        description: 'La plataforma quita al vendedor del canal, le liquida su parte y cierra la operación',
         requiredActor: 'platform',
-        automated: true,
+        automated: false,
       },
     ];
   }
@@ -177,26 +238,29 @@ export class YouTubeStrategy implements IAssetStrategy {
   // Campos públicos y confidenciales (blind listing)
   // -------------------------------------------------------------------
 
+  /**
+   * Los nombres son los de `assetData`, no una lista aparte. Cuando eran una
+   * lista aparte en otra convención de nombres, ninguno coincidía y el
+   * filtrado de los listings blind se quedaba sin campos que dejar pasar.
+   */
   public getPublicFields(): string[] {
     return [
-      'niche',
       'subscribers',
-      'monthly_revenue_usd',
-      'language',
-      'content_type',
-      'is_monetized',
-      'has_no_face_content',
-      'audience_top_country',
+      'monthlyRevenueUsdCents',
+      'currency',
+      'isMonetized',
+      'growthFactor',
+      'audienceTopCountry',
+      'hasNoFaceContent',
     ];
   }
 
+  /**
+   * Un listing blind muestra los números y esconde la identidad: con las
+   * métricas alcanza para valuar, y hace falta el NDA para saber qué canal es.
+   */
   public getConfidentialFields(): string[] {
-    return [
-      'channel_url',
-      'channel_id',
-      'raw_metrics',
-      'has_strikes',
-    ];
+    return ['channelUrl'];
   }
 
   public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -210,6 +274,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         isMonetized: this.isMonetized,
         audienceTopCountry: this.audienceTopCountry,
         hasNoFaceContent: this.hasNoFaceContent,
+        channelUrl: this.channelUrl,
       }
     };
   }

@@ -1,3 +1,4 @@
+import { Report } from '../entities/Report';
 import { User } from '../entities/User';
 import { Listing } from '../entities/Listing';
 import { Operation } from '../entities/Operation';
@@ -48,4 +49,12 @@ export interface IContractRepository {
     findByListingAndSigner(listingId: string, signerId: string): Promise<Contract | null>;
     findAllByListing(listingId: string): Promise<Contract[]>;
     save(contract: Contract): Promise<void>;
+}
+
+export interface IReportRepository {
+    findById(id: string): Promise<Report | null>;
+    /** Las denuncias en las que el usuario es parte, denuncie o sea denunciado. */
+    findByUser(userId: string): Promise<Report[]>;
+    findByOperation(operationId: string): Promise<Report[]>;
+    save(report: Report): Promise<void>;
 }

@@ -1,6 +1,6 @@
 import { IListingRepository, IContractRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
-import { ListingStatus } from '../../entities/Listing';
+import { ListingStatus, OwnershipVerification } from '../../entities/Listing';
 import { NotFoundError } from '../../errors/DomainError';
 
 export interface ListingDetailView {
@@ -13,6 +13,9 @@ export interface ListingDetailView {
     assetData: Record<string, any>;
     /** Qué campos están ocultos (para que el frontend sepa qué blurrear) */
     hiddenFields: string[];
+    ownership?: OwnershipVerification;
+    transferable: boolean;
+    transferableFrom?: Date;
     createdAt: Date;
 }
 
@@ -41,7 +44,7 @@ export class GetListingDetailsUseCase {
             listingId,
             actor,
         );
-        const datos = listing.datosDelActivo(puedeVerTodo);
+        const data = listing.assetDataFor(puedeVerTodo);
 
         return {
             id: listing.id.toString(),
@@ -55,8 +58,10 @@ export class GetListingDetailsUseCase {
                 currency: listing.estimatedPrice.getCurrency(),
             },
             isBlind: props.isBlind,
-            assetData: datos.assetData,
-            hiddenFields: datos.hiddenFields,
+            assetData: data.assetData,
+            hiddenFields: data.hiddenFields,
+            transferable: listing.isReadyToTransfer(),
+            transferableFrom: listing.transferableFrom(),
             createdAt: listing.toSnapshot().createdAt,
         };
     }
