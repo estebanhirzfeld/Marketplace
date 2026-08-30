@@ -1,0 +1,16 @@
+{
+  "name": "@marketplace/api-contract",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@marketplace/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
