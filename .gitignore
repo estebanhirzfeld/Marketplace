@@ -3,11 +3,29 @@ node_modules
 .turbo
 dist
 build
-.env
-.env.*
-!.env.example
 coverage
 .nyc_output
 
-# Ignore custom folder
+# ── Secretos ────────────────────────────────────────────
+# Nunca se suben. `make env-check` verifica que existan localmente.
+.env
+.env.*
+!.env.example
+
+# ── Generados ───────────────────────────────────────────
+# El cliente de Prisma se regenera con `make install` o `make db-generate`,
+# y turbo.json lo encadena antes de cualquier build. Tenerlo versionado solo
+# ensucia los diffs con miles de líneas que nadie escribió.
+packages/db/generated/
+
+# El canvas de diseño publicado pesa ~2,5 MB porque lleva el editor embebido.
+# Las fuentes son los .dc.html y canvas.json, que sí se versionan.
+design/*.html
+!design/*.dc.html
+
+# ── Ruido de herramientas ───────────────────────────────
+.DS_Store
+.atl/.skill-registry.cache.json
+
+# Carpeta de material de trabajo, fuera del proyecto
 stuff/
