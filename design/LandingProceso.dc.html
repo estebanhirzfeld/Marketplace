@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #CFF245; text-decoration: none; }
+    a:hover { color: #E4FF7A; }
+  </style>
+</helmet>
+
+<div style="font-family: 'Space Grotesk', -apple-system, sans-serif; background: #0B0C0E; color: #E8E9EA; min-height: 1360px; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; border-bottom: 1px solid #1E2126;">
+    <div style="display: flex; align-items: center; gap: 44px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#CFF245" stroke-width="2" stroke-linecap="round"><path d="M4 18l6-7 4 4 6-9"/></svg>
+        <div style="font-weight: 700; font-size: 17px; letter-spacing: -0.02em;">TRASPASO</div>
+      </div>
+      <div style="display: flex; gap: 26px; font-size: 13px; color: #8C939C;">
+        <div style="color: #E8E9EA;">Mercado</div><div>Cómo funciona</div><div>Vender</div>
+      </div>
+    </div>
+    <div style="padding: 8px 16px; background: #CFF245; color: #0B0C0E; font-size: 13px; font-weight: 700; border-radius: 3px;">Ingresar</div>
+  </div>
+
+  <div style="padding: 66px 48px; border-bottom: 1px solid #1E2126;">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <div style="width: 6px; height: 6px; background: #CFF245; border-radius: 50%;"></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #CFF245;">CUSTODIA ACTIVA</div>
+        </div>
+        <div style="font-size: 52px; font-weight: 700; line-height: 1.05; letter-spacing: -0.035em; text-wrap: pretty;">El activo entra en custodia.<br>Después se paga.</div>
+        <div style="font-size: 16px; line-height: 1.6; color: #8C939C; max-width: 470px; text-wrap: pretty;">Recibimos el canal antes de que el comprador transfiera un peso. El vendedor cobra cuando la titularidad ya cambió de manos. Nadie adelanta nada a ciegas.</div>
+        <div style="display: flex; gap: 12px; margin-top: 6px;"><div style="padding: 13px 26px; background: #CFF245; color: #0B0C0E; font-size: 14px; font-weight: 700; border-radius: 3px;">Explorar mercado</div><div style="padding: 13px 26px; border: 1px solid #2A2E35; font-size: 14px; font-weight: 500; border-radius: 3px;">Publicar activo</div></div>
+      </div>
+      <div style="background: #141619; border: 1px solid #1E2126; border-radius: 5px; overflow: hidden;">
+        <div style="padding: 14px 20px; border-bottom: 1px solid #1E2126;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #8C939C;">QUÉ PROTEGE A CADA PARTE</div>
+        </div>
+        <div style="padding: 22px 20px; display: flex; flex-direction: column; gap: 20px;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 14px; font-weight: 500; color: #CFF245;">Al vendedor</div>
+            <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">No entrega su canal a un desconocido: lo entrega a la plataforma, que responde por el pago.</div>
+          </div>
+          <div style="height: 1px; background: #1E2126;"></div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 14px; font-weight: 500; color: #CFF245;">Al comprador</div>
+            <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">No paga contra una promesa: paga cuando el activo ya está en custodia y verificado.</div>
+          </div>
+          <div style="height: 1px; background: #1E2126;"></div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 14px; font-weight: 500; color: #CFF245;">A los dos</div>
+            <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">Los datos sensibles del activo se revelan solo tras firmar el NDA.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="padding: 52px 48px; border-bottom: 1px solid #1E2126; display: flex; flex-direction: column; gap: 22px;">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #6B7280;">CÓMO FUNCIONA UNA OPERACIÓN</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+        <div style="background: #141619; border: 1px solid #1E2126; border-radius: 5px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #6B7280;">01</div>
+          <div style="font-size: 16px; font-weight: 500;">Contrato firmado</div>
+          <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">Comprador, vendedor y plataforma quedan obligados por el mismo documento.</div>
+        </div>
+        <div style="background: #141619; border: 1px solid #1E2126; border-radius: 5px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #6B7280;">02</div>
+          <div style="font-size: 16px; font-weight: 500;">Transferencia del activo</div>
+          <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">El vendedor cede la titularidad del canal a la plataforma.</div>
+        </div>
+        <div style="background: #141619; border: 1px solid #1E2126; border-radius: 5px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #CFF245;">03</div>
+          <div style="font-size: 16px; font-weight: 500;">Activo en custodia</div>
+          <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">El punto que cambia todo: recién acá se le pide el pago al comprador.</div>
+        </div>
+        <div style="background: #141619; border: 1px solid #1E2126; border-radius: 5px; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #6B7280;">04</div>
+          <div style="font-size: 16px; font-weight: 500;">Operación cerrada</div>
+          <div style="font-size: 13px; color: #8C939C; line-height: 1.5;">El comprador recibe el activo; el vendedor, su liquidación.</div>
+        </div>
+    </div>
+  </div>
+  <div style="padding: 46px 48px; border-bottom: 1px solid #1E2126; display: flex; align-items: center; justify-content: space-between; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="font-size: 28px; font-weight: 700; letter-spacing: -0.02em;">5 % al comprador, 5 % al vendedor.</div>
+      <div style="font-size: 15px; color: #8C939C;">Sin costo de publicación ni cargos ocultos. Se cobra solo si la operación se cierra.</div>
+    </div>
+    <div style="padding: 13px 26px; background: #CFF245; color: #0B0C0E; font-size: 14px; font-weight: 700; border-radius: 3px;">Empezar</div>
+  </div>
+  <div style="padding: 40px 48px; display: flex; flex-direction: column; gap: 12px; align-items: center; border-bottom: 1px solid #1E2126;">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #3A3F45;">— RESERVADO PARA PRUEBA SOCIAL —</div>
+    <div style="font-size: 13px; color: #4A5057; text-align: center; max-width: 420px; line-height: 1.5;">Acá entra "200+ operaciones cerradas" cuando existan de verdad. Hoy la sección no se renderiza.</div>
+  </div>
+  <div style="margin-top: auto; border-top: 1px solid #1E2126; padding: 32px 48px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CFF245" stroke-width="2" stroke-linecap="round"><path d="M4 18l6-7 4 4 6-9"/></svg>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6B7280;">TRASPASO · CUSTODIA DE ACTIVOS DIGITALES</div>
+    </div>
+    <div style="display: flex; gap: 26px; font-size: 12px; color: #6B7280;">
+      <div>Proceso</div><div>Comisiones</div><div>Confidencialidad</div><div>Términos</div><div>Contacto</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
