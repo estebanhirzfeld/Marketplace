@@ -1,1 +1,123 @@
 @import "tailwindcss";
+
+/**
+ * Identidad B — "terminal de operaciones".
+ *
+ * Los tokens viven acá y en ningún otro lado: cambiar la identidad visual del
+ * producto entero debería ser editar este bloque, no perseguir hex sueltos por
+ * los componentes.
+ */
+@theme {
+  --color-fondo: #0b0c0e;
+  --color-superficie: #141619;
+  --color-superficie-alta: #16191d;
+  --color-borde: #1e2126;
+  --color-borde-sutil: #1a1d21;
+  --color-borde-fuerte: #2a2e35;
+
+  --color-tinta: #e8e9ea;
+  --color-tenue: #8c939c;
+  --color-apagado: #6b7280;
+  --color-fantasma: #4a5057;
+
+  --color-acento: #cff245;
+  --color-acento-claro: #e4ff7a;
+  --color-alerta: #e8a33d;
+  --color-error: #f87171;
+
+  /* Las variables --fuente-* las inyecta next/font desde el layout. */
+  --font-sans: var(--fuente-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--fuente-mono), ui-monospace, "SF Mono", monospace;
+
+  --radius-chico: 3px;
+  --radius-medio: 5px;
+  --radius-grande: 8px;
+
+  /* Salida expo: arranca rápido y frena largo. */
+  --ease-salida: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Pasa de largo y vuelve — para hover, no para entradas. */
+  --ease-rebote: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html {
+  background: var(--color-fondo);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-fondo);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Movimiento ─────────────────────────────────────────────
+   El problema que resuelve: sin esto las secciones "pasan de largo".
+   Cada bloque entra cuando el usuario llega a él, no todo junto al cargar. */
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes trazar-linea {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes latir {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* El elemento arranca invisible y solo aparece cuando entra en pantalla.
+   `[data-visible]` lo enciende el observador del componente Revelar. */
+[data-revelar] {
+  opacity: 0;
+}
+
+[data-revelar][data-visible] {
+  animation: subir 0.75s var(--ease-salida) both;
+  animation-delay: var(--retraso, 0ms);
+}
+
+[data-trazo] {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+[data-trazo][data-visible] {
+  animation: trazar-linea 1.2s var(--ease-salida) 0.15s both;
+}
+
+.late {
+  animation: latir 2.4s ease-in-out infinite;
+}
+
+/* Quien pidió menos movimiento recibe menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  [data-revelar],
+  [data-revelar][data-visible],
+  [data-trazo],
+  [data-trazo][data-visible],
+  .late {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}
