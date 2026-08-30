@@ -173,7 +173,6 @@ describe('CompleteOperationUseCase', () => {
                 isMonetized: true,
             }),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: false,
         });
         listing.submitForReview();
         listing.approve();

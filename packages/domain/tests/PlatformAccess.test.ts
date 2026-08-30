@@ -34,7 +34,6 @@ function unCanal(): Listing {
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: false,
     });
 }
 
@@ -43,7 +42,6 @@ function unSitioWeb(): Listing {
         sellerId: new UniqueEntityID(),
         assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 30),
         askingPrice: Money.fromCents(900000, 'USD'),
-        isBlind: false,
     });
 }
 

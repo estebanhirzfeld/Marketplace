@@ -35,7 +35,6 @@ function aMyListingDto(listing: Listing): MyListingDto {
             cents: listing.estimatedPrice.getCents(),
             currency: listing.estimatedPrice.getCurrency(),
         },
-        isBlind: props.isBlind,
         rejectionReason: props.rejectionReason,
         ownership: listing.ownershipVerification && {
             verifiedAt: listing.ownershipVerification.verifiedAt.toISOString(),

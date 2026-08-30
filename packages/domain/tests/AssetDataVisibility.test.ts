@@ -13,7 +13,7 @@ import { YouTubeStrategy } from '../src/strategies/YouTubeStrategy';
  * para que haya un solo lugar donde consultarla.
  */
 
-function unListing(isBlind: boolean): Listing {
+function unListing(): Listing {
     return Listing.create({
         sellerId: new UniqueEntityID(),
         assetStrategy: new YouTubeStrategy({
@@ -21,23 +21,45 @@ function unListing(isBlind: boolean): Listing {
             subscribers: 55000,
             isMonetized: true,
             audienceTopCountry: 'US',
+            channelUrl: 'https://youtube.com/@midudev',
         }),
         askingPrice: Money.fromCents(1500000, 'USD'),
-        isBlind,
     });
 }
 
 describe('Listing.assetDataFor', () => {
-    it('un listing no-blind muestra todo, sin campos ocultos', () => {
-        const data = unListing(false).assetDataFor(false);
+    /**
+     * La identidad del activo se reserva SIEMPRE, sea el listing blind o no.
+     *
+     * Antes el filtro se salteaba entero cuando el listing no era confidencial,
+     * así que un listing común publicaba la dirección del canal a cualquiera
+     * que entrara al mercado sin sesión. Eso no lo puede decidir quien publica:
+     * qué es reservado lo declara la estrategia del activo, y la dirección lo
+     * es porque es lo que lo identifica.
+     */
+    it('reserva la identidad del activo siempre', () => {
+        const data = unListing().assetDataFor(false);
 
-        expect(data.hiddenFields).toHaveLength(0);
+        expect(data.assetData).not.toHaveProperty('channelUrl');
+        expect(data.hiddenFields).toContain('channelUrl');
+    });
+
+    it('sigue mostrando sus métricas públicas', () => {
+        const data = unListing().assetDataFor(false);
+
         expect(data.assetData.subscribers).toBe(55000);
         expect(data.assetData.monthlyRevenueUsdCents).toBe(120000);
     });
 
+    it('con permiso muestra también la identidad', () => {
+        const data = unListing().assetDataFor(true);
+
+        expect(data.assetData).toHaveProperty('channelUrl');
+        expect(data.hiddenFields).toHaveLength(0);
+    });
+
     it('un listing blind sin permiso solo expone los campos públicos', () => {
-        const data = unListing(true).assetDataFor(false);
+        const data = unListing().assetDataFor(false);
 
         expect(data.hiddenFields.length).toBeGreaterThan(0);
         for (const campo of data.hiddenFields) {
@@ -46,14 +68,14 @@ describe('Listing.assetDataFor', () => {
     });
 
     it('un listing blind con permiso muestra todo', () => {
-        const data = unListing(true).assetDataFor(true);
+        const data = unListing().assetDataFor(true);
 
         expect(data.hiddenFields).toHaveLength(0);
         expect(data.assetData.subscribers).toBe(55000);
     });
 
     it('los campos ocultos son exactamente los que la strategy declara confidenciales', () => {
-        const listing = unListing(true);
+        const listing = unListing();
         const esperados = listing
             .toSnapshot()
             .props.assetStrategy.getConfidentialFields();
@@ -62,7 +84,7 @@ describe('Listing.assetDataFor', () => {
     });
 
     it('nunca revela un campo que la strategy no declaró público', () => {
-        const listing = unListing(true);
+        const listing = unListing();
         const publicos = listing.toSnapshot().props.assetStrategy.getPublicFields();
 
         for (const clave of Object.keys(listing.assetDataFor(false).assetData)) {
@@ -71,7 +93,7 @@ describe('Listing.assetDataFor', () => {
     });
 
     it('expone el tipo de activo, que nunca es confidencial', () => {
-        expect(unListing(true).assetDataFor(false).assetType).toBe('youtube');
+        expect(unListing().assetDataFor(false).assetType).toBe('youtube');
     });
 });
 

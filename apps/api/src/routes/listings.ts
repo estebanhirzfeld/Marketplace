@@ -28,11 +28,17 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 querystring: {
                     type: 'object',
                     properties: {
-                        assetType: { type: 'string' },
+                        assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        currency: { type: 'string', enum: ['ARS', 'USD'] },
                         // `coerceTypes` de Fastify convierte el string del query
                         // a número; sin el schema llegarían como texto.
                         minPrice: { type: 'integer', minimum: 0 },
                         maxPrice: { type: 'integer', minimum: 0 },
+                        minSubscribers: { type: 'integer', minimum: 0 },
+                        onlyMonetized: { type: 'boolean' },
+                        minDomainAuthority: { type: 'integer', minimum: 0, maximum: 100 },
+                        sort: { type: 'string', enum: ['price', 'created', 'published', 'estimated'] },
+                        direction: { type: 'string', enum: ['asc', 'desc'] },
                     },
                 },
             },
@@ -49,12 +55,12 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 assetType: v.assetType,
                 askingPrice: v.askingPrice,
                 estimatedPrice: v.estimatedPrice,
-                isBlind: v.isBlind,
                 assetData: v.assetData,
                 hiddenFields: v.hiddenFields,
                 transferable: v.transferable,
                 transferableFrom: v.transferableFrom?.toISOString(),
                 createdAt: v.createdAt.toISOString(),
+                publishedAt: v.publishedAt?.toISOString(),
             })),
         );
     },
@@ -180,7 +186,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
             schema: {
                 body: {
                     type: 'object',
-                    required: ['assetType', 'assetData', 'askingPrice', 'isBlind'],
+                    required: ['assetType', 'assetData', 'askingPrice'],
                     properties: {
                         assetType: { type: 'string' },
                         // Sin schema: la forma de assetData depende del tipo de
@@ -195,7 +201,6 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                                 currency: { type: 'string' },
                             },
                         },
-                        isBlind: { type: 'boolean' },
                     },
                 },
             },

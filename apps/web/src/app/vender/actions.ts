@@ -20,6 +20,10 @@ export async function publishListing(
 
     const assetType = String(form.get('assetType') ?? 'youtube');
     const price = Number(form.get('precio'));
+
+    // Se acota a lo que el formulario ofrece: una moneda cualquiera llegaría
+    // hasta Money y de ahí a la comisión, sin que nadie la hubiera decidido.
+    const moneda = form.get('moneda') === 'ARS' ? 'ARS' : 'USD';
     const ingreso = Number(form.get('ingreso'));
 
     if (!Number.isFinite(price) || price <= 0) {
@@ -55,7 +59,6 @@ export async function publishListing(
             assetType,
             assetData,
             askingPrice: { cents: Math.round(price * 100), currency: 'USD' },
-            isBlind: form.get('blind') === 'on',
         });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };

@@ -27,10 +27,8 @@ export function percentage(n: number): string {
 }
 
 const TIPOS: Record<string, string> = {
-    youtube: 'YOUTUBE',
+    youtube: 'CANAL DE YOUTUBE',
     web: 'SITIO WEB',
-    instagram: 'INSTAGRAM',
-    tiktok: 'TIKTOK',
 };
 
 export function assetTypeLabel(assetType: string): string {
@@ -44,12 +42,12 @@ export function assetTypeLabel(assetType: string): string {
  */
 export function cardMetrics(
     assetType: string,
-    form: Record<string, unknown>,
+    data: Record<string, unknown>,
 ): Array<[string, string]> {
-    const num = (k: string) => (typeof form[k] === 'number' ? formatNumber(form[k] as number) : '—');
+    const num = (k: string) => (typeof data[k] === 'number' ? formatNumber(data[k] as number) : '—');
     const dinero = (k: string) =>
-        typeof form[k] === 'number'
-            ? money({ cents: form[k] as number, currency: String(form.currency ?? 'USD') })
+        typeof data[k] === 'number'
+            ? money({ cents: data[k] as number, currency: String(data.currency ?? 'USD') })
             : '—';
 
     // La primera fila es el título de la tarjeta; el resto, métricas.
@@ -59,25 +57,13 @@ export function cardMetrics(
                 ['titulo', 'Canal de YouTube'],
                 ['suscriptores', num('subscribers')],
                 ['ingreso/mes', dinero('monthlyRevenueUsdCents')],
-                ['país', String(form.audienceTopCountry ?? '—')],
+                ['país', String(data.audienceTopCountry ?? '—')],
             ];
         case 'web':
             return [
                 ['titulo', 'Sitio web'],
                 ['autoridad', num('domainAuthority')],
                 ['ingreso/mes', dinero('monthlyRevenueUsdCents')],
-            ];
-        case 'instagram':
-        case 'tiktok':
-            return [
-                ['titulo', assetType === 'instagram' ? 'Cuenta de Instagram' : 'Cuenta de TikTok'],
-                ['seguidores', num('followers')],
-                [
-                    'engagement',
-                    typeof form.engagementRate === 'number'
-                        ? percentage(form.engagementRate as number)
-                        : '—',
-                ],
             ];
         default:
             return [['titulo', 'Activo digital']];

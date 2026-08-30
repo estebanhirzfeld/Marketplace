@@ -18,7 +18,7 @@ export async function KycNotice() {
                 <div className="flex items-center gap-2.5">
                     <LockIcon tamano={13} />
                     <span className="text-[13px] text-[var(--color-alerta)]">
-                        Tu identidad no está verificada: todavía no podés publishListing activos ni firmar.
+                        Todavía no verificaste tu identidad, así que no podés publicar activos ni firmar.
                     </span>
                 </div>
                 <Link

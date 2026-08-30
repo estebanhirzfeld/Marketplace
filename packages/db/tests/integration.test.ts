@@ -60,7 +60,6 @@ async function createPersistedListing(sellerId: UniqueEntityID): Promise<Listing
         sellerId,
         assetStrategy: createYouTubeStrategy(),
         askingPrice: Money.fromCents(1000000, "USD"),
-        isBlind: true,
     });
     await listingRepo.save(listing);
     return listing;
@@ -158,7 +157,6 @@ describe("PrismaListingRepository", () => {
             sellerId: seller.id, // UniqueEntityID, no string
             assetStrategy: strategy,
             askingPrice: Money.fromCents(1000000, "USD"),
-            isBlind: true,
         });
 
         await listingRepo.save(listing);

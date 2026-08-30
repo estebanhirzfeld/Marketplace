@@ -69,7 +69,7 @@ export function CustodyVerificationForm({
             {!ready && (
                 <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
                     Faltan las dos confirmaciones. Sin ellas la custodia no es efectiva y no
-                    corresponde pedirle el pago al buyer.
+                    corresponde pedirle el pago al comprador.
                 </p>
             )}
         </form>

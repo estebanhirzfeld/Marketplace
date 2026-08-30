@@ -21,7 +21,7 @@ function assertPuedeVerificar(listing: Listing, actor: Actor): void {
 async function cargar(repo: IListingRepository, listingId: string, actor: Actor): Promise<Listing> {
     const listing = await repo.findById(listingId);
     if (!listing) {
-        throw new NotFoundError('Listing no encontrado');
+        throw new NotFoundError('Activo no encontrado');
     }
     assertPuedeVerificar(listing, actor);
     return listing;

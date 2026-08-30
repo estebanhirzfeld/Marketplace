@@ -31,7 +31,6 @@ function unListing(sellerId: UniqueEntityID): Listing {
             isMonetized: true,
         }),
         askingPrice: Money.fromFloat(24_000),
-        isBlind: false,
     });
 }
 

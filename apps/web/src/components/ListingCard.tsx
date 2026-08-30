@@ -43,7 +43,7 @@ export function ListingCard({
             </div>
 
             {/* Decir cuántos campos faltan es más honesto que ocultar el hueco:
-                el buyer sabe qué está mirando a medias antes de entrar. */}
+                el comprador sabe qué está mirando a medias antes de entrar. */}
             {listing.hiddenFields.length > 0 && (
                 <span className="text-[11px] text-[var(--color-apagado)]">
                     {listing.hiddenFields.length}{' '}

@@ -62,8 +62,8 @@ describe('Errores de dominio', () => {
 
     describe('Mensaje y diagnóstico', () => {
         it('preserva el mensaje recibido', () => {
-            const error = new NotFoundError('Listing no encontrado');
-            expect(error.message).toBe('Listing no encontrado');
+            const error = new NotFoundError('Activo no encontrado');
+            expect(error.message).toBe('Activo no encontrado');
         });
 
         // Los 29 asserts existentes usan toThrow('mensaje'). Este test protege

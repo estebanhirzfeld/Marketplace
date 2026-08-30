@@ -74,7 +74,6 @@ function unListingPublicado(sellerId: UniqueEntityID): Listing {
             isMonetized: true,
         }),
         askingPrice: Money.fromFloat(24_000),
-        isBlind: false,
     });
     listing.submitForReview();
     listing.approve();
@@ -105,7 +104,6 @@ describe('Clasificación de errores de dominio', () => {
                     isMonetized: true,
                 }),
                 askingPrice: Money.fromFloat(12_000),
-                isBlind: false,
             });
             listing.submitForReview();
 

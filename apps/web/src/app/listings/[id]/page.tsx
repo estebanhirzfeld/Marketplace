@@ -16,6 +16,10 @@ import { signNda, makeOffer } from './actions';
 import { registerPlatformAccess, revokePlatformAccess } from '../../admin/actions';
 
 /** Nombres legibles para las claves crudas que devuelve la strategy. */
+/**
+ * Las claves son las de `assetData`, tal como las emite cada estrategia. Si
+ * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
+ */
 const ETIQUETAS: Record<string, string> = {
     subscribers: 'Suscriptores',
     monthlyRevenueUsdCents: 'Ingreso mensual',
@@ -24,14 +28,9 @@ const ETIQUETAS: Record<string, string> = {
     isMonetized: 'Monetizado',
     audienceTopCountry: 'País principal de la audiencia',
     hasNoFaceContent: 'Contenido sin rostro',
+    channelUrl: 'Dirección del canal',
     domainAuthority: 'Autoridad de dominio',
-    followers: 'Seguidores',
-    engagementRate: 'Engagement',
-    platform: 'Plataforma',
-    channel_url: 'URL del canal',
-    channel_id: 'ID del canal',
-    raw_metrics: 'Métricas crudas',
-    has_strikes: 'Tiene strikes',
+    domain: 'Dominio',
 };
 
 function readableValue(key: string, value: unknown): string {
@@ -89,7 +88,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
             </Reveal>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-                {/* Datos del asset */}
+                {/* Datos del activo */}
                 <Reveal>
                     <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
@@ -102,8 +101,8 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                                 </div>
                             ))}
 
-                            {/* Los campos ocultos se muestran como rows ciegas: el
-                                buyer ve qué le falta, no un vacío inexplicable. */}
+                            {/* Los campos ocultos se muestran como filas ciegas: el
+                                comprador ve qué le falta, no un vacío inexplicable. */}
                             {listing.hiddenFields.map((campo) => (
                                 <div key={campo} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
@@ -157,11 +156,11 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             ) : (
                                 <div className="flex flex-col gap-4">
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Necesitás una cuenta para makeOffer. Crearla es gratis y no te
+                                        Necesitás una cuenta para ofertar. Crearla es gratis y no te
                                         compromete a nada.
                                     </p>
                                     <ButtonLink href="/ingresar" className="w-full">
-                                        Ingresar para makeOffer
+                                        Ingresar para ofertar
                                     </ButtonLink>
                                 </div>
                             )}

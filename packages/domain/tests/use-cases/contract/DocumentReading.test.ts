@@ -90,7 +90,6 @@ function unListing(): Listing {
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: false,
     });
     l.submitForReview();
     l.approve();

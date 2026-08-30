@@ -2,11 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { IAssetStrategy } from '../src/strategies/IAssetStrategy';
 import { YouTubeStrategy } from '../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../src/strategies/WebStrategy';
-import { SocialStrategy } from '../src/strategies/SocialStrategy';
 import { Listing } from '../src/entities/Listing';
 import { Money } from '../src/value-objects/Money';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
-import { AssetType } from '@marketplace/shared-types';
 
 /**
  * El contrato entre lo que una estrategia DECLARA y lo que efectivamente
@@ -31,10 +29,6 @@ const ESTRATEGIAS: Array<[string, IAssetStrategy]> = [
         }),
     ],
     ['Web', new WebStrategy(Money.fromCents(80000, 'USD'), 42, 'ejemplo.com')],
-    [
-        'Social',
-        new SocialStrategy(90000, 3.2, AssetType.INSTAGRAM, 'https://instagram.com/ejemplo'),
-    ],
 ];
 
 describe.each(ESTRATEGIAS)('%s — contrato de campos', (_nombre, estrategia) => {
@@ -77,7 +71,6 @@ describe.each(ESTRATEGIAS)('%s — el filtrado real de un listing blind', (_nomb
             sellerId: new UniqueEntityID(),
             assetStrategy: estrategia,
             askingPrice: Money.fromCents(1_000_000, 'USD'),
-            isBlind: true,
         });
     }
 

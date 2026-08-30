@@ -97,10 +97,27 @@ export class MarketplaceClient {
     // ── Listings ─────────────────────────────────────────
 
     listings(filtros?: ListingFiltersQuery): Promise<ListingSummaryDto[]> {
+        // Cada criterio se escribe explícitamente: un spread del objeto
+        // recibido mandaría a la API cualquier clave que llegara del llamador.
         const query = new URLSearchParams();
-        if (filtros?.assetType) query.set('assetType', filtros.assetType);
-        if (filtros?.minPrice !== undefined) query.set('minPrice', String(filtros.minPrice));
-        if (filtros?.maxPrice !== undefined) query.set('maxPrice', String(filtros.maxPrice));
+        const texto = (clave: keyof ListingFiltersQuery) => {
+            const v = filtros?.[clave];
+            if (v !== undefined && v !== '') query.set(clave, String(v));
+        };
+
+        for (const clave of [
+            'assetType',
+            'currency',
+            'minPrice',
+            'maxPrice',
+            'minSubscribers',
+            'onlyMonetized',
+            'minDomainAuthority',
+            'sort',
+            'direction',
+        ] as const) {
+            texto(clave);
+        }
 
         const sufijo = query.toString() === '' ? '' : `?${query.toString()}`;
         return this.request('GET', `/listings${sufijo}`, { anonimo: true });

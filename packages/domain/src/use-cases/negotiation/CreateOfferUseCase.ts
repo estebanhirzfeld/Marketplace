@@ -26,14 +26,14 @@ export class CreateOfferUseCase {
     async execute(input: CreateOfferInput, actor: Actor): Promise<Operation> {
         const listing = await this.listingRepo.findById(input.listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
         if (listing.status !== 'published') {
-            throw new InvalidStateError('Solo se puede ofertar sobre listings publicados');
+            throw new InvalidStateError('Solo se puede ofertar sobre activos publicados');
         }
 
         if (listing.isOwnedBy(actor.id)) {
-            throw new ForbiddenError('No podés ofertar sobre tu propio listing');
+            throw new ForbiddenError('No podés ofertar sobre tu propio activo');
         }
 
         const { props } = listing.toSnapshot();

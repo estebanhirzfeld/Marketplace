@@ -25,7 +25,7 @@ export class RegisterPlatformAccessUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         const accessSince = new Date(input.accessSince);
@@ -58,7 +58,7 @@ export class RevokePlatformAccessUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         listing.revokePlatformAccess();

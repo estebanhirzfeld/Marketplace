@@ -44,7 +44,7 @@ export function OfferForm({
                     <span className="font-mono">{fmt(money || 0)}</span>
                 </div>
                 <div className="flex justify-between text-[13px]">
-                    <span className="text-[var(--color-tenue)]">Comisión de la platform (5 %)</span>
+                    <span className="text-[var(--color-tenue)]">Comisión de la plataforma (5 %)</span>
                     <span className="font-mono">{fmt((money || 0) * COMISION)}</span>
                 </div>
                 <div className="mt-1 flex justify-between border-t border-[var(--color-borde)] pt-2.5 text-[14px]">
@@ -60,8 +60,8 @@ export function OfferForm({
             </Button>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Ofertar no compromete el pago: recién transferís cuando el asset esté en custodia
-                de la platform.
+                Ofertar no compromete el pago: recién transferís cuando el activo ya esté en
+                custodia de la plataforma.
             </p>
         </form>
     );

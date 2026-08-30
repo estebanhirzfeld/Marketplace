@@ -11,12 +11,12 @@ import { Alert, Panel } from './ui';
 export function ContractDocumentPanel({ doc }: { doc: ContractDocumentDto }) {
     return (
         <div className="flex flex-col gap-4">
-            {/* Que el text vigente no sea el signed es lo más grave que puede
+            {/* Que el texto vigente no sea el firmado es lo más grave que puede
                 informar esta pantalla: va arriba de todo. */}
             {!doc.matches && (
                 <Alert>
-                    El text que ves ahora no matches con el que se firmó. Alguno de los form de
-                    la operación cambió después de la firma. No avances sin revisarlo.
+                    El texto que ves ahora no coincide con el que se firmó: algún dato de la
+                    operación cambió después. No avances sin revisarlo.
                 </Alert>
             )}
 

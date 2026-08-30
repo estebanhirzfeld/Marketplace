@@ -51,8 +51,8 @@ export function TransferStatus({
     if (transferable) {
         return (
             <Block accent title="Transferencia inmediata">
-                La platform ya tiene el acceso necesario para tomar la custodia de este asset. Si
-                cerrás la compra hoy, la transferencia no queda esperando ningún plazo externo.
+                La plataforma ya tiene el acceso que necesita para tomar la custodia de este
+                activo. Si cerrás la compra hoy, la entrega no queda esperando ningún plazo.
             </Block>
         );
     }
@@ -60,8 +60,8 @@ export function TransferStatus({
     if (transferableFrom) {
         return (
             <Block title={`Transferible desde el ${fechaCorta(transferableFrom)}`}>
-                El seller ya cedió el acceso, pero la platform del asset impone una espera antes
-                de permitir el cambio de titularidad. Podés makeOffer y negociar from ahora; el
+                El vendedor ya cedió el acceso, pero YouTube exige esperar siete días antes de
+                permitir el cambio de titularidad. Podés ofertar y negociar desde ahora: el
                 contrato se firma cuando se cumple ese plazo.
             </Block>
         );
@@ -69,9 +69,9 @@ export function TransferStatus({
 
     return (
         <Block title="El acceso todavía no está cedido">
-            El seller aún no le dio acceso al asset a la platform. Podés makeOffer y negociar, pero
-            el contrato no se va a poder firmar hasta que lo haga y se cumpla el plazo de espera de su
-            platform —siete días en el caso de YouTube.
+            El vendedor todavía no le dio acceso al activo a la plataforma. Podés ofertar y
+            negociar, pero el contrato no se va a poder firmar hasta que lo haga y se cumpla el
+            plazo de espera que exige YouTube.
         </Block>
     );
 }

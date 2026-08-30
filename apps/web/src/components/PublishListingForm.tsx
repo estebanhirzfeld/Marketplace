@@ -2,14 +2,13 @@
 
 import { useActionState, useState } from 'react';
 import { Alert, Button, Field } from './ui';
+import { PAISES_CPM_ALTO, PAISES_RESTO } from './paises';
 
 type State = { error?: string; ok?: boolean };
 
 const TIPOS = [
     { value: 'youtube', text: 'Canal de YouTube', metrica: 'Suscriptores' },
     { value: 'web', text: 'Sitio web', metrica: 'Autoridad de dominio' },
-    { value: 'instagram', text: 'Instagram', metrica: 'Seguidores' },
-    { value: 'tiktok', text: 'TikTok', metrica: 'Seguidores' },
 ] as const;
 
 /**
@@ -28,11 +27,6 @@ const IDENTIDAD = {
         placeholder: 'ejemplo.com',
         hint: 'Solo lo ve quien firme el NDA.',
     },
-    social: {
-        label: 'Dirección del perfil',
-        placeholder: 'https://instagram.com/tuPerfil',
-        hint: 'Solo la ve quien firme el NDA.',
-    },
 } as const;
 
 export function PublishListingForm({
@@ -42,15 +36,15 @@ export function PublishListingForm({
 }) {
     const [state, submit, pending] = useActionState(action, {});
     const [type, setTipo] = useState<string>('youtube');
+    const [moneda, setMoneda] = useState<string>('USD');
 
     const actual = TIPOS.find((t) => t.value === type) ?? TIPOS[0];
-    const esSocial = type === 'instagram' || type === 'tiktok';
-    const identidad = IDENTIDAD[esSocial ? 'social' : (type as 'youtube' | 'web')] ?? IDENTIDAD.youtube;
+    const identidad = IDENTIDAD[type as 'youtube' | 'web'] ?? IDENTIDAD.youtube;
 
     return (
         <form action={submit} className="flex flex-col gap-4">
             <label className="flex flex-col gap-2">
-                <span className="text-[13px] text-[var(--color-tenue)]">Tipo de asset</span>
+                <span className="text-[13px] text-[var(--color-tenue)]">Tipo de activo</span>
                 <select
                     name="assetType"
                     value={type}
@@ -74,13 +68,33 @@ export function PublishListingForm({
             <Field label={actual.metrica} name="metrica" type="number" min={0} required />
             <Field label="Ingreso mensual (USD)" name="ingreso" type="number" min={0} step="0.01" required />
 
-            {esSocial && (
-                <Field label="Engagement (%)" name="engagement" type="number" min={0} step="0.1" />
-            )}
-
             {type === 'youtube' && (
                 <>
-                    <Field label="País principal de la audiencia" name="pais" defaultValue="AR" maxLength={2} hint="Código de dos letras: AR, US, ES…" />
+                    <label className="flex flex-col gap-1.5">
+                        <span className="text-[13px] text-[var(--color-tenue)]">
+                            País principal de la audiencia
+                        </span>
+                        <select
+                            name="pais"
+                            defaultValue="AR"
+                            className="h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none focus:border-[var(--color-acento)]"
+                        >
+                            <optgroup label="Publicidad mejor paga">
+                                {PAISES_CPM_ALTO.map((p) => (
+                                    <option key={p.codigo} value={p.codigo}>{p.nombre}</option>
+                                ))}
+                            </optgroup>
+                            <optgroup label="Resto">
+                                {PAISES_RESTO.map((p) => (
+                                    <option key={p.codigo} value={p.codigo}>{p.nombre}</option>
+                                ))}
+                            </optgroup>
+                        </select>
+                        <span className="text-[12px] text-[var(--color-apagado)]">
+                            De dónde viene la mayor parte de tus vistas. Influye en la estimación:
+                            la publicidad se paga distinto según el país.
+                        </span>
+                    </label>
                     <label className="flex items-center gap-2.5 text-[14px]">
                         <input type="checkbox" name="monetizado" defaultChecked className="accent-[var(--color-acento)]" />
                         El canal está monetizado
@@ -88,17 +102,39 @@ export function PublishListingForm({
                 </>
             )}
 
-            <Field label="Precio pedido (USD)" name="precio" type="number" min={1} required />
-
-            <label className="flex items-start gap-2.5 text-[14px]">
-                <input type="checkbox" name="blind" defaultChecked className="mt-1 accent-[var(--color-acento)]" />
-                <span>
-                    Publicación confidencial
-                    <span className="mt-0.5 block text-[13px] text-[var(--color-tenue)]">
-                        La URL y las métricas crudas se muestran solo a quien firme el NDA.
-                    </span>
+            <div className="flex flex-col gap-1.5">
+                <span className="text-[13px] text-[var(--color-tenue)]">Precio pedido</span>
+                <div className="flex gap-2.5">
+                    <input
+                        name="precio"
+                        type="number"
+                        min={1}
+                        step="0.01"
+                        required
+                        className="h-11 flex-1 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none transition-colors focus:border-[var(--color-acento)]"
+                    />
+                    <select
+                        name="moneda"
+                        value={moneda}
+                        onChange={(e) => setMoneda(e.target.value)}
+                        className="h-11 w-24 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3 text-[14px] outline-none focus:border-[var(--color-acento)]"
+                    >
+                        <option value="USD">USD</option>
+                        <option value="ARS">ARS</option>
+                    </select>
+                </div>
+                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                    {moneda === 'USD'
+                        ? 'Si el comprador paga en pesos, la conversión se hace al tipo de cambio del día en que se paga.'
+                        : 'El precio queda fijado en pesos. Si el comprador paga en otra moneda, la conversión se hace al tipo de cambio del día en que se paga.'}
                 </span>
-            </label>
+            </div>
+
+            <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-3.5 text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                Todos los activos se publican de forma confidencial. La dirección del activo se le
+                muestra únicamente a quien firme el acuerdo de confidencialidad; las métricas se
+                ven desde el principio, para que se pueda evaluar sin saber de qué activo se trata.
+            </p>
 
             {state.error && <Alert>{state.error}</Alert>}
             {state.ok && (

@@ -83,7 +83,6 @@ async function main() {
     sellerId: seller.id,
     assetStrategy: strategy,
     askingPrice: Money.fromCents(1500000, "USD"), // $15,000
-    isBlind: false
   });
   // Lo ponemos en publicado para que se vea real
   (listing as any).props.status = "published";

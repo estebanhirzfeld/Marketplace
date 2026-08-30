@@ -35,10 +35,10 @@ export default async function Verificar() {
                                 <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
                                     Tu identidad ya está verificada con el documento{' '}
                                     <span className="font-mono text-[var(--color-tinta)]">{perfil.dni}</span>.
-                                    Podés publishListing activos y firmar contratos.
+                                    Ya podés publicar activos y firmar contratos.
                                 </p>
                                 <div className="flex flex-wrap gap-3">
-                                    <ButtonLink href="/vender">Publicar un asset</ButtonLink>
+                                    <ButtonLink href="/vender">Publicar un activo</ButtonLink>
                                     <ButtonLink href="/listings" variant="secundario">Ver el mercado</ButtonLink>
                                 </div>
                             </div>
@@ -53,7 +53,7 @@ export default async function Verificar() {
                         <div className="flex flex-col gap-5">
                             <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
                                 Acá se mueven activos de miles de dólares entre desconocidos. Antes
-                                de que alguien firme algo con value legal, necesitamos saber quién es.
+                                de que alguien firme algo con valor legal, necesitamos saber quién es.
                             </p>
 
                             <div className="flex flex-col gap-2.5">
@@ -73,7 +73,7 @@ export default async function Verificar() {
                                     NO LA REQUIERE
                                 </span>
                                 <p className="mt-2 text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                    Navegar el mercado, makeOffer y negociar contraofertas. El KYC
+                                    Navegar el mercado, ofertar y negociar contraofertas. El KYC
                                     custodia instrumentos legales, no la navegación.
                                 </p>
                             </div>

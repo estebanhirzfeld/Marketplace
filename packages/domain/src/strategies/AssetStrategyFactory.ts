@@ -2,7 +2,6 @@ import { AssetType } from '@marketplace/shared-types';
 import { IAssetStrategy } from './IAssetStrategy';
 import { YouTubeStrategy } from './YouTubeStrategy';
 import { WebStrategy } from './WebStrategy';
-import { SocialStrategy } from './SocialStrategy';
 import { Money } from '../value-objects/Money';
 import { ValidationError } from '../errors/DomainError';
 
@@ -41,14 +40,6 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 textoOpcional(assetData, 'domain', ''),
             );
 
-        case AssetType.INSTAGRAM:
-        case AssetType.TIKTOK:
-            return new SocialStrategy(
-                entero(assetData, 'followers'),
-                readNumber(assetData, 'engagementRate'),
-                assetType === AssetType.INSTAGRAM ? AssetType.INSTAGRAM : AssetType.TIKTOK,
-                textoOpcional(assetData, 'profileUrl', ''),
-            );
 
         default:
             throw new ValidationError(`Tipo de activo desconocido: ${assetType}`);

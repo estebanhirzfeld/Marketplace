@@ -111,7 +111,6 @@ function createPublishedListing(sellerId = new UniqueEntityID()) {
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1000000, 'USD'),
-        isBlind: true,
     });
     listing.submitForReview();
     listing.approve();
@@ -224,7 +223,7 @@ describe('SignNdaUseCase', () => {
 
         await expect(
             useCase.execute('nonexistent', '127.0.0.1', actorDe(new UniqueEntityID())),
-        ).rejects.toThrow('Listing no encontrado');
+        ).rejects.toThrow('Activo no encontrado');
     });
 });
 

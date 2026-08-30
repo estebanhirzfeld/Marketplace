@@ -125,7 +125,6 @@ export interface ListingSummaryDto {
     assetType: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
-    isBlind: boolean;
     /**
      * En la grilla los campos confidenciales nunca vienen, ni siquiera con el
      * NDA firmado: el desbloqueo pertenece al detalle.
@@ -144,6 +143,8 @@ export interface ListingSummaryDto {
      */
     transferableFrom?: string;
     createdAt: string;
+    /** Cuándo salió al mercado. Distinta de `createdAt`. */
+    publishedAt?: string;
 }
 
 export interface ListingDetailDto {
@@ -151,7 +152,6 @@ export interface ListingDetailDto {
     status: ListingStatusDto;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
-    isBlind: boolean;
     /** Filtrado a los campos públicos si el listing es blind y no hay NDA. */
     assetData: Record<string, unknown>;
     /** Qué campos quedaron ocultos, para que la UI sepa qué difuminar. */
@@ -173,11 +173,36 @@ export interface ListingDetailDto {
 }
 
 /** Criterios de búsqueda del mercado. Todos opcionales. */
+export type ListingCurrencyDto = 'ARS' | 'USD';
+
+/**
+ * Por qué se ordena el mercado. `created` es la antigüedad del activo en la
+ * plataforma y `published` la de la publicación: son dos fechas distintas
+ * porque un activo puede pasar días en borrador o en revisión. `estimated` es
+ * la proyección que calcula la plataforma, no un dato declarado.
+ */
+export type ListingSortDto = 'price' | 'created' | 'published' | 'estimated';
+
+export type SortDirectionDto = 'asc' | 'desc';
+
 export interface ListingFiltersQuery {
     assetType?: string;
-    /** En centavos, igual que el resto del sistema. */
+    /** Obligatoria si se acota el rango: comparar centavos de monedas
+     *  distintas no significa nada. */
+    currency?: ListingCurrencyDto;
+    /** En centavos de la moneda elegida, igual que el resto del sistema. */
     minPrice?: number;
     maxPrice?: number;
+
+    /** Solo canales de YouTube. */
+    minSubscribers?: number;
+    onlyMonetized?: boolean;
+
+    /** Solo sitios web. */
+    minDomainAuthority?: number;
+
+    sort?: ListingSortDto;
+    direction?: SortDirectionDto;
 }
 
 /**
@@ -240,7 +265,6 @@ export interface CreateListingRequest {
     assetType: string;
     assetData: Record<string, unknown>;
     askingPrice: MoneyDto;
-    isBlind: boolean;
 }
 
 export interface CreatedListingDto {
@@ -310,7 +334,6 @@ export interface MyListingDto {
     assetType: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
-    isBlind: boolean;
     rejectionReason?: string;
     ownership?: OwnershipVerificationDto;
     /**

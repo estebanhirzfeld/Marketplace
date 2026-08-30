@@ -10,7 +10,6 @@ export interface CreateListingInput {
     assetType: string;
     assetData: Record<string, unknown>;
     askingPrice: { cents: number; currency: string };
-    isBlind: boolean;
 }
 
 /**
@@ -30,7 +29,7 @@ export class CreateListingUseCase {
     async execute(input: CreateListingInput, actor: Actor): Promise<Listing> {
         const seller = await this.userRepo.findById(actor.id);
         if (!seller) {
-            throw new NotFoundError('Seller no encontrado');
+            throw new NotFoundError('Vendedor no encontrado');
         }
 
         // Lanza ValidationError si el tipo o los campos del activo no cierran.
@@ -40,7 +39,6 @@ export class CreateListingUseCase {
             sellerId: new UniqueEntityID(actor.id),
             assetStrategy,
             askingPrice: Money.fromCents(input.askingPrice.cents, input.askingPrice.currency),
-            isBlind: input.isBlind,
         });
 
         await this.listingRepo.save(listing);

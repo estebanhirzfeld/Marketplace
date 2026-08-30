@@ -40,7 +40,7 @@ export class VerifyChannelMetricsUseCase {
     async execute(listingId: string, actor: Actor): Promise<ChannelMetricsReport> {
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         // La dirección del canal es un dato reservado, así que consultarla no

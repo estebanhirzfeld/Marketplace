@@ -60,7 +60,7 @@ export class SignContractUseCase {
         if (contract.type === 'tripartite') {
             const listing = await this.listingRepo.findById(operation.listingId.toString());
             if (!listing) {
-                throw new NotFoundError('Listing no encontrado');
+                throw new NotFoundError('Activo no encontrado');
             }
             listing.assertCanBeTransferred();
         }

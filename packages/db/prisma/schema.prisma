@@ -19,8 +19,6 @@ enum UserRole {
 enum AssetType {
   youtube
   web
-  instagram
-  tiktok
 }
 
 enum ListingStatus {
@@ -96,7 +94,6 @@ model Listing {
   status          ListingStatus @default(draft)
   askingPrice     Int
   currency        String        @default("USD")
-  isBlind         Boolean       @default(true)
   publishedAt     DateTime?
   rejectionReason String?
   platformAccess  Json?

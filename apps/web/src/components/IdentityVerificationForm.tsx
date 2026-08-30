@@ -16,7 +16,7 @@ export function IdentityVerificationForm({
         return (
             <div className="flex flex-col gap-4">
                 <div className="rounded-[var(--radius-chico)] border border-[var(--color-acento)]/40 px-4 py-3 text-[14px] text-[var(--color-acento)]">
-                    Identidad verificada. Ya podés publishListing activos y firmar.
+                    Identidad verificada. Ya podés publicar activos y firmar contratos.
                 </div>
             </div>
         );

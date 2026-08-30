@@ -64,7 +64,6 @@ export interface ListingProps {
     assetStrategy: IAssetStrategy;
     status: ListingStatus;
     askingPrice: Money;
-    isBlind: boolean;
     publishedAt?: Date;
     rejectionReason?: string;
     platformAccess?: PlatformAccessRecord;
@@ -112,22 +111,27 @@ export class Listing extends Entity<ListingProps> {
     /**
      * Qué datos del activo se muestran, y cuáles quedan ocultos.
      *
-     * La decisión vive acá y no en un use case porque es una regla del
-     * negocio: un listing blind expone solo lo que su strategy declara
-     * público. Antes estaba dentro de GetListingDetailsUseCase, así que la
-     * ruta del listado la salteaba sin que nada lo advirtiera.
+     * Todo activo está blindado, sin excepción: expone solo lo que su strategy
+     * declara público. Antes era una opción de quien publicaba, y eso
+     * significaba que un descuido bastaba para dejar la identidad del activo
+     * a la vista de cualquiera. Ahora la entidad no tiene forma de
+     * representar un listing no blindado.
      *
-     * `revelarConfidenciales` lo decide quien llama: el dueño siempre puede,
-     * un comprador solo con el NDA firmado.
+     * La decisión vive acá y no en un use case porque es una regla del
+     * negocio: dentro de GetListingDetailsUseCase, la ruta del listado la
+     * salteaba sin que nada lo advirtiera.
+     *
+     * `revealConfidential` lo decide quien llama: el dueño siempre puede, un
+     * comprador solo con el NDA firmado.
      */
-    public assetDataFor(revelarConfidenciales: boolean): {
+    public assetDataFor(revealConfidential: boolean): {
         assetType: string;
         assetData: Record<string, unknown>;
         hiddenFields: string[];
     } {
         const { assetType, assetData } = this.props.assetStrategy.toJSON();
 
-        if (!this.props.isBlind || revelarConfidenciales) {
+        if (revealConfidential) {
             return { assetType, assetData, hiddenFields: [] };
         }
 
@@ -262,7 +266,7 @@ export class Listing extends Entity<ListingProps> {
 
     public assertOwnedBy(actorId: string): void {
         if (!this.isOwnedBy(actorId)) {
-            throw new ForbiddenError('No sos el vendedor de este listing.');
+            throw new ForbiddenError('No sos el vendedor de este activo.');
         }
     }
 
@@ -270,14 +274,14 @@ export class Listing extends Entity<ListingProps> {
     // but domain logic guarantees rules before allowing transition.
     public submitForReview(): void {
         if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
-            throw new InvalidStateError("Solo los listings en draft o rejected pueden ser enviados a revisión.");
+            throw new InvalidStateError("Solo un activo en borrador o rechazado puede enviarse a revisión.");
         }
         this.props.status = 'under_review';
     }
 
     public approve(): void {
         if (this.props.status !== 'under_review') {
-            throw new InvalidStateError("El listing debe estar en revisión para ser aprobado.");
+            throw new InvalidStateError("El activo debe estar en revisión para ser aprobado.");
         }
         this.props.status = 'published';
         this.props.publishedAt = new Date();
@@ -285,7 +289,7 @@ export class Listing extends Entity<ListingProps> {
 
     public reject(reason: string): void {
         if (this.props.status !== 'under_review') {
-            throw new InvalidStateError("El listing debe estar en revisión para ser rechazado.");
+            throw new InvalidStateError("El activo debe estar en revisión para ser rechazado.");
         }
         if (!reason || reason.trim() === '') {
             throw new ValidationError("Debe proveer un motivo de rechazo.");
@@ -296,14 +300,14 @@ export class Listing extends Entity<ListingProps> {
 
     public markInOperation(): void {
         if (this.props.status !== 'published') {
-            throw new InvalidStateError("El listing debe estar publicado para entrar en operación.");
+            throw new InvalidStateError("El activo debe estar publicado para entrar en operación.");
         }
         this.props.status = 'in_operation';
     }
 
     public markSold(): void {
         if (this.props.status !== 'in_operation') {
-            throw new InvalidStateError("El listing debe estar en operación para marcarse como vendido.");
+            throw new InvalidStateError("El activo debe estar en operación para marcarse como vendido.");
         }
         this.props.status = 'sold';
     }

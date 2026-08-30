@@ -18,11 +18,40 @@ export interface IUserRepository {
  * llamador inventaba la suya y el repositorio pasaba el objeto crudo a Prisma,
  * lo que dejaba que un filtro arbitrario del cliente llegara a la consulta.
  */
+export type ListingCurrency = 'ARS' | 'USD';
+
+/**
+ * Por qué se ordena el mercado.
+ *
+ * `created` es la antigüedad del activo en la plataforma y `published` la de
+ * la publicación: son dos fechas distintas porque un listing puede pasar días
+ * en borrador o en revisión antes de salir. `estimated` es la proyección que
+ * calcula la estrategia del activo, no un dato guardado.
+ */
+export type ListingSort = 'price' | 'created' | 'published' | 'estimated';
+
+export type SortDirection = 'asc' | 'desc';
+
 export interface ListingFilters {
     assetType?: string;
-    /** Precio pedido, en centavos. */
+    /**
+     * Moneda del precio pedido. Es obligatoria si se acota el rango: comparar
+     * centavos de monedas distintas no significa nada.
+     */
+    currency?: ListingCurrency;
+    /** Precio pedido, en centavos de la moneda elegida. */
     minPrice?: number;
     maxPrice?: number;
+
+    /** Solo canales de YouTube. */
+    minSubscribers?: number;
+    onlyMonetized?: boolean;
+
+    /** Solo sitios web. */
+    minDomainAuthority?: number;
+
+    sort?: ListingSort;
+    direction?: SortDirection;
 }
 
 export interface IListingRepository {

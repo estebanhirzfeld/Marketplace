@@ -54,7 +54,7 @@ export function PlatformAccessForm({
                 {confirmingRevocation ? (
                     <div className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
                         <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                            Borrar la record devuelve el asset a no transferible y reinicia el
+                            Borrar la constancia devuelve el activo a no transferible y reinicia el
                             conteo: si más adelante se recupera el acceso, los días vuelven a
                             contarse from cero.
                         </p>
@@ -86,7 +86,7 @@ export function PlatformAccessForm({
                         onClick={() => setConfirmandoRevocacion(true)}
                         className="px-4 py-2 text-[13px]"
                     >
-                        La platform perdió el acceso
+                        La plataforma perdió el acceso
                     </Button>
                 )}
             </div>
@@ -98,7 +98,7 @@ export function PlatformAccessForm({
             {estadoRegistrar.error && <Alert>{estadoRegistrar.error}</Alert>}
 
             <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-medium">Con acceso from</span>
+                <span className="text-[13px] font-medium">Con acceso desde</span>
                 <input
                     type="date"
                     name="accessSince"
@@ -108,7 +108,7 @@ export function PlatformAccessForm({
                     className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 font-mono text-[13px] outline-none focus:border-[var(--color-acento)]"
                 />
                 <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                    El día en que la platform quedó con acceso, no el de hoy. El plazo de espera se
+                    El día en que la plataforma quedó con acceso, no el de hoy. El plazo de espera se
                     cuenta from esta date.
                 </span>
             </label>

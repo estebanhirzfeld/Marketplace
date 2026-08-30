@@ -1,6 +1,7 @@
 import { Reveal } from '@/components/Reveal';
 import { Timeline } from '@/components/Timeline';
 import { LockIcon } from '@/components/LockIcon';
+import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
 import {
     Alert,
@@ -58,6 +59,34 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 const DIA = 24 * 60 * 60 * 1000;
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
+
+/** Avisos de muestra, ya redactados como los redacta el servidor. */
+const AVISOS_DE_MUESTRA = [
+    {
+        id: '1',
+        title: 'Te contraofertaron',
+        body: 'La propuesta sobre la mesa ahora es USD 13.500. Te toca responder.',
+        href: '/operaciones',
+        when: 'hace 12 min',
+        read: false,
+    },
+    {
+        id: '2',
+        title: 'El activo está en custodia',
+        body: 'Verificamos el activo. Te toca transferir USD 15.750.',
+        href: '/operaciones',
+        when: 'hace 3 h',
+        read: false,
+    },
+    {
+        id: '3',
+        title: 'Tu activo se publicó',
+        body: 'Pasó la revisión y ya está visible en el mercado.',
+        href: '/listings',
+        when: 'ayer',
+        read: true,
+    },
+];
 
 export default function Sistema() {
     return (
@@ -126,7 +155,7 @@ export default function Sistema() {
                             <span className="font-mono text-[10px] text-[var(--color-alerta)]">NDA</span>
                         </span>
                         <span className="text-[14px] text-[var(--color-tenue)]">
-                            Logo un asset cuyos form sensibles están ocultos hasta firmar.
+                            Marca un activo cuyos datos sensibles están ocultos hasta firmar.
                         </span>
                     </div>
                 </Section>
@@ -142,7 +171,7 @@ export default function Sistema() {
                     <div className="grid gap-4 lg:grid-cols-2">
                         <Panel title="PANEL CON TÍTULO">
                             <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                Contenedor por defecto de cualquier bloque de form.
+                                Contenedor por defecto de cualquier bloque de contenido.
                             </p>
                         </Panel>
                         <div className="flex flex-col gap-4">
@@ -180,7 +209,7 @@ export default function Sistema() {
 
                     <div className="mt-8 flex flex-col gap-2.5 border-t border-[var(--color-borde)] pt-6">
                         <p className="max-w-[620px] text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                            En la grilla el mismo state se reduce a un sello. El tercer caso no
+                            En la grilla el mismo estado se reduce a un sello. El tercer caso no
                             dibuja nada: la mayoría de los activos están así y un cartel de “no
                             disponible” repetido en cada tarjeta sería solo ruido.
                         </p>
@@ -190,6 +219,29 @@ export default function Sistema() {
                             <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-borde-fuerte)]">
                                 (sin sello)
                             </span>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Avisos"
+                    note="La campana del navbar. Abre un desplegable con las novedades recientes y un enlace a la bandeja completa: un aviso suele leerse de un vistazo —te toca responder, se firmó el contrato— y mandar a otra pantalla para leer una línea es más fricción de la que el contenido justifica. Hacé clic para verlo abierto."
+                >
+                    <div className="flex flex-wrap items-start gap-16">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CON AVISOS SIN LEER</div>
+                            <NotificationDropdown items={AVISOS_DE_MUESTRA} unread={2} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TODO LEÍDO</div>
+                            <NotificationDropdown
+                                items={AVISOS_DE_MUESTRA.map((a) => ({ ...a, read: true }))}
+                                unread={0}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN AVISOS</div>
+                            <NotificationDropdown items={[]} unread={0} />
                         </div>
                     </div>
                 </Section>

@@ -48,7 +48,6 @@ function unCanalPublicado(channelUrl = 'https://youtube.com/@canaldeprueba'): Li
             channelUrl,
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: true,
     });
 }
 
@@ -57,7 +56,6 @@ function unSitio(domain = 'ejemplo.com'): Listing {
         sellerId: SELLER_ID,
         assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 42, domain),
         askingPrice: Money.fromCents(900_000, 'USD'),
-        isBlind: true,
     });
 }
 

@@ -219,7 +219,7 @@ export class Operation extends Entity<OperationProps> {
     /** Para los pasos que solo le corresponden a quien entrega el activo. */
     public assertIsSeller(actorId: string): void {
         if (this.partyFor(actorId) !== 'seller') {
-            throw new ForbiddenError('Solo el seller de la operación puede hacer esto.');
+            throw new ForbiddenError('Solo el vendedor de la operación puede hacer esto.');
         }
     }
 

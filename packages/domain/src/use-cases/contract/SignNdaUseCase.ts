@@ -31,7 +31,7 @@ export class SignNdaUseCase {
     async execute(listingId: string, ipAddress: string, actor: Actor): Promise<Contract> {
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         // Firmar es un acto con valor legal: exige identidad verificada.

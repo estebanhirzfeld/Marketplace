@@ -14,7 +14,7 @@ export class RejectListingUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         // La validación de reason no-vacío vive en la entidad

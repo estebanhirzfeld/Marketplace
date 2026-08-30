@@ -14,7 +14,7 @@ export class ApproveListingUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         listing.approve();

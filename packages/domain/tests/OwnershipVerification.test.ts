@@ -26,7 +26,6 @@ function unCanal(): Listing {
             channelUrl: 'https://youtube.com/@canaldeprueba',
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: true,
     });
 }
 

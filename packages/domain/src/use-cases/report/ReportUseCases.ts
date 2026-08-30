@@ -208,7 +208,7 @@ export class GetEvidenceDossierUseCase {
 
         const listing = await this.listingRepo.findById(operation.listingId.toString());
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         const [reporter, reported] = await Promise.all([

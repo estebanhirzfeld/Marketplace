@@ -8,7 +8,6 @@ export interface ListingDetailView {
     status: ListingStatus;
     askingPrice: { cents: number; currency: string };
     estimatedPrice: { cents: number; currency: string };
-    isBlind: boolean;
     /** Datos del activo — filtrados si es blind y no hay NDA */
     assetData: Record<string, any>;
     /** Qué campos están ocultos (para que el frontend sepa qué blurrear) */
@@ -33,7 +32,7 @@ export class GetListingDetailsUseCase {
     async execute(listingId: string, actor?: Actor): Promise<ListingDetailView> {
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         const { props } = listing.toSnapshot();
@@ -57,7 +56,6 @@ export class GetListingDetailsUseCase {
                 cents: listing.estimatedPrice.getCents(),
                 currency: listing.estimatedPrice.getCurrency(),
             },
-            isBlind: props.isBlind,
             assetData: data.assetData,
             hiddenFields: data.hiddenFields,
             transferable: listing.isReadyToTransfer(),

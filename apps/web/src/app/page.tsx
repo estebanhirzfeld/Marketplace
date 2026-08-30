@@ -78,7 +78,7 @@ export default async function Home() {
 
                         <Reveal delay={80}>
                             <h1 className="text-[42px] font-bold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[55px]">
-                                El asset entra en custodia.
+                                El activo entra en custodia.
                                 <br />
                                 Después se paga.
                             </h1>
@@ -86,8 +86,8 @@ export default async function Home() {
 
                         <Reveal delay={160}>
                             <p className="max-w-[470px] text-[16px] leading-relaxed text-[var(--color-tenue)] text-pretty">
-                                Recibimos el canal antes de que el buyer transfiera un peso. El
-                                seller cobra cuando la titularidad ya cambió de manos. Nadie
+                                Recibimos el canal antes de que el comprador transfiera un peso. El
+                                vendedor cobra cuando la titularidad ya cambió de manos. Nadie
                                 adelanta nada a ciegas.
                             </p>
                         </Reveal>
@@ -104,7 +104,7 @@ export default async function Home() {
                                     href="/vender"
                                     className="rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-6 py-3.5 text-[14px] font-medium transition-colors hover:border-[var(--color-tenue)]"
                                 >
-                                    Publicar asset
+                                    Publicar mi activo
                                 </Link>
                             </div>
                         </Reveal>
@@ -234,7 +234,7 @@ export default async function Home() {
                             </p>
                             <p className="mt-1 flex items-center gap-2 text-[13px] text-[var(--color-alerta)]">
                                 <LockIcon />
-                                Los form sensibles del asset se muestran solo bajo NDA.
+                                Los datos que identifican al activo se muestran solo bajo NDA.
                             </p>
                         </div>
                     </Reveal>

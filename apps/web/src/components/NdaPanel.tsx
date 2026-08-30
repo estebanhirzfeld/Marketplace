@@ -7,10 +7,15 @@ import { LockIcon } from './LockIcon';
 type State = { error?: string };
 
 /**
- * El bloque que convierte un listing blind en uno legible.
+ * El bloque que revela los datos que identifican al activo.
  *
- * Los campos ocultos se listan por nombre: el usuario ve exactamente qué está
- * comprando a ciegas antes de decidir si firma.
+ * La confidencialidad no es una preferencia del vendedor sino cómo funciona la
+ * plataforma: todos los activos se publican así, sin excepción. El texto no
+ * puede sugerir que fue una elección, porque haría pensar que hay
+ * publicaciones abiertas y esta no lo es.
+ *
+ * Los campos reservados se listan con su nombre legible para que se entienda
+ * qué se está mirando a medias antes de decidir si firmar.
  */
 export function NdaPanel({
     action,
@@ -33,8 +38,9 @@ export function NdaPanel({
             </div>
 
             <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                El seller eligió no exponer públicamente los form que identifican el asset.
-                Firmá el acuerdo de confidencialidad para verlos.
+                Las métricas de este activo son públicas, pero los datos que dicen cuál es se
+                reservan hasta que firmes el acuerdo de confidencialidad. Es así en todas las
+                publicaciones: protege al vendedor de que le copien el activo sin comprarlo.
             </p>
 
             {hiddenFields.length > 0 && (
@@ -59,7 +65,7 @@ export function NdaPanel({
             </form>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Firmar requiere tener la identidad verificada. Queda registrada la date y la IP.
+                Firmar requiere tener la identidad verificada. No te compromete a comprar.
             </p>
         </div>
     );

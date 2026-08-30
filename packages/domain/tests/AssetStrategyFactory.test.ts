@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { createAssetStrategy } from '../src/strategies/AssetStrategyFactory';
 import { YouTubeStrategy } from '../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../src/strategies/WebStrategy';
-import { SocialStrategy } from '../src/strategies/SocialStrategy';
 import { Money } from '../src/value-objects/Money';
 import { ValidationError } from '../src/errors/DomainError';
 import { AssetType } from '@marketplace/shared-types';
@@ -46,27 +45,19 @@ describe('createAssetStrategy — round-trip con toJSON', () => {
             .toBe(original.calculateEstimatedPrice().getCents());
     });
 
-    const plataformasSociales: Array<AssetType.INSTAGRAM | AssetType.TIKTOK> = [
-        AssetType.INSTAGRAM,
-        AssetType.TIKTOK,
-    ];
-
-    it.each(plataformasSociales)(
-        'reconstruye una SocialStrategy de %s sin pérdida',
-        (platform) => {
-            const original = new SocialStrategy(120000, 4.5, platform);
-
-            const json = original.toJSON();
-            const reconstruida = createAssetStrategy(json.assetType, json.assetData);
-
-            expect(reconstruida.toJSON()).toEqual(json);
-            expect(reconstruida.calculateEstimatedPrice().getCents())
-                .toBe(original.calculateEstimatedPrice().getCents());
-        },
-    );
 });
 
 describe('createAssetStrategy — validación de entrada', () => {
+    /**
+     * Instagram y TikTok fueron tipos válidos y dejaron de serlo: sus términos
+     * prohíben transferir una cuenta, así que el activo no se puede entregar
+     * de forma legítima. Una fila vieja con ese tipo tiene que fallar y no
+     * reconstruirse a medias.
+     */
+    it.each(['instagram', 'tiktok'])('rechaza %s, que salió del catálogo', (tipo) => {
+        expect(() => createAssetStrategy(tipo, { followers: 1000 })).toThrow(ValidationError);
+    });
+
     it('rechaza un tipo de activo desconocido', () => {
         expect(() => createAssetStrategy('podcast', {}))
             .toThrow(ValidationError);

@@ -53,7 +53,7 @@ async function crearUsuario(
     return user;
 }
 
-async function crearListingPublicado(sellerId: UniqueEntityID, isBlind = false): Promise<Listing> {
+async function crearListingPublicado(sellerId: UniqueEntityID): Promise<Listing> {
     const listing = Listing.create({
         sellerId,
         assetStrategy: new YouTubeStrategy({
@@ -62,7 +62,6 @@ async function crearListingPublicado(sellerId: UniqueEntityID, isBlind = false):
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1500000, 'USD'),
-        isBlind,
     });
     listing.submitForReview();
     listing.approve();
@@ -276,7 +275,6 @@ describe('Mapeo de errores de dominio a HTTP', () => {
                 isMonetized: true,
             }),
             askingPrice: Money.fromCents(1500000, 'USD'),
-            isBlind: false,
         });
         await listingRepo.save(draft);
 
@@ -309,7 +307,7 @@ describe('Flujo blind sobre HTTP', () => {
     it('un anónimo ve el listing filtrado y tras firmar el NDA lo ve completo', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, true);
+        const listing = await crearListingPublicado(seller.id);
         const url = `/listings/${listing.id.toString()}`;
 
         const anonimo = await app.inject({ method: 'GET', url });
@@ -344,14 +342,13 @@ describe('GET /listings — no filtra datos confidenciales', () => {
      */
     it('un listing blind expone solo campos públicos, aun sin sesión', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
-        await crearListingPublicado(seller.id, true);
+        await crearListingPublicado(seller.id);
 
         const res = await app.inject({ method: 'GET', url: '/listings' });
 
         expect(res.statusCode).toBe(200);
         const [listing] = res.json();
 
-        expect(listing.isBlind).toBe(true);
         expect(listing.hiddenFields.length).toBeGreaterThan(0);
 
         // Ninguna clave confidencial puede estar presente.
@@ -364,23 +361,28 @@ describe('GET /listings — no filtra datos confidenciales', () => {
         expect(listing.assetType).toBe('youtube');
     });
 
-    it('un listing no confidencial expone todo y no declara campos ocultos', async () => {
+    /**
+     * Todo activo está blindado, así que el mercado abierto muestra las
+     * métricas y nunca la identidad. Es la ruta que más importa: se consulta
+     * sin sesión.
+     */
+    it('expone las métricas y reserva la identidad en el mercado abierto', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
-        await crearListingPublicado(seller.id, false);
+        await crearListingPublicado(seller.id);
 
         const res = await app.inject({ method: 'GET', url: '/listings' });
         const [listing] = res.json();
 
-        expect(listing.isBlind).toBe(false);
-        expect(listing.hiddenFields).toHaveLength(0);
         expect(listing.assetData.monthlyRevenueUsdCents).toBe(120000);
+        expect(listing.assetData).not.toHaveProperty('channelUrl');
+        expect(listing.hiddenFields).toContain('channelUrl');
     });
 });
 
 describe('GET /listings — filtros', () => {
     it('filtra por tipo de activo', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
-        await crearListingPublicado(seller.id, false);
+        await crearListingPublicado(seller.id);
 
         const conYoutube = await app.inject({ method: 'GET', url: '/listings?assetType=youtube' });
         const conWeb = await app.inject({ method: 'GET', url: '/listings?assetType=web' });
@@ -391,20 +393,101 @@ describe('GET /listings — filtros', () => {
 
     it('filtra por rango de precio en centavos', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
-        await crearListingPublicado(seller.id, false); // 1.500.000 centavos
+        await crearListingPublicado(seller.id); // 1.500.000 centavos
 
-        const dentro = await app.inject({ method: 'GET', url: '/listings?minPrice=1000000&maxPrice=2000000' });
-        const fuera = await app.inject({ method: 'GET', url: '/listings?minPrice=2000000' });
+        const dentro = await app.inject({
+            method: 'GET',
+            url: '/listings?currency=USD&minPrice=1000000&maxPrice=2000000',
+        });
+        const fuera = await app.inject({ method: 'GET', url: '/listings?currency=USD&minPrice=2000000' });
 
         expect(dentro.json()).toHaveLength(1);
         expect(fuera.json()).toHaveLength(0);
     });
 
     it('400 si el rango está invertido', async () => {
-        const res = await app.inject({ method: 'GET', url: '/listings?minPrice=900000&maxPrice=100000' });
+        const res = await app.inject({
+            method: 'GET',
+            url: '/listings?currency=USD&minPrice=900000&maxPrice=100000',
+        });
 
         expect(res.statusCode).toBe(400);
         expect(res.json().code).toBe('VALIDATION');
+    });
+
+    /** Comparar centavos de monedas distintas no significa nada. */
+    it('400 si se acota el precio sin decir en qué moneda', async () => {
+        const res = await app.inject({ method: 'GET', url: '/listings?minPrice=100000' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().code).toBe('VALIDATION');
+    });
+
+    it('filtra por moneda', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        await crearListingPublicado(seller.id); // en USD
+
+        const enDolares = await app.inject({ method: 'GET', url: '/listings?currency=USD' });
+        const enPesos = await app.inject({ method: 'GET', url: '/listings?currency=ARS' });
+
+        expect(enDolares.json()).toHaveLength(1);
+        expect(enPesos.json()).toHaveLength(0);
+    });
+
+    it('filtra los canales por suscriptores', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        await crearListingPublicado(seller.id); // 55.000 suscriptores
+
+        const alcanza = await app.inject({
+            method: 'GET',
+            url: '/listings?assetType=youtube&minSubscribers=10000',
+        });
+        const noAlcanza = await app.inject({
+            method: 'GET',
+            url: '/listings?assetType=youtube&minSubscribers=90000',
+        });
+
+        expect(alcanza.json()).toHaveLength(1);
+        expect(noAlcanza.json()).toHaveLength(0);
+    });
+
+    /**
+     * Ignorarlo en silencio devolvería una lista vacía sin explicar por qué,
+     * que para quien busca es peor que un error.
+     */
+    it('400 si se filtra por suscriptores sobre sitios web', async () => {
+        const res = await app.inject({
+            method: 'GET',
+            url: '/listings?assetType=web&minSubscribers=1000',
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('acepta los criterios de ordenamiento del contrato', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        await crearListingPublicado(seller.id);
+
+        for (const sort of ['price', 'created', 'published', 'estimated']) {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/listings?sort=${sort}&direction=asc`,
+            });
+            expect(res.statusCode).toBe(200);
+        }
+    });
+
+    it('400 ante un criterio de orden inventado', async () => {
+        const res = await app.inject({ method: 'GET', url: '/listings?sort=loQueSea' });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    /** Instagram y TikTok salieron del catálogo: ya no son tipos válidos. */
+    it('400 si se pide un tipo de activo que salió de la plataforma', async () => {
+        const res = await app.inject({ method: 'GET', url: '/listings?assetType=instagram' });
+
+        expect(res.statusCode).toBe(400);
     });
 
     /**
@@ -415,7 +498,7 @@ describe('GET /listings — filtros', () => {
      */
     it('ignora un parámetro que no está en el contrato', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
-        await crearListingPublicado(seller.id, false);
+        await crearListingPublicado(seller.id);
 
         const res = await app.inject({ method: 'GET', url: '/listings?sellerId=cualquiera' });
 
@@ -441,7 +524,6 @@ describe('POST /listings', () => {
                     isMonetized: true,
                 },
                 askingPrice: { cents: 1500000, currency: 'USD' },
-                isBlind: true,
             },
         });
 
@@ -462,7 +544,6 @@ describe('POST /listings', () => {
                 assetType: 'podcast',
                 assetData: {},
                 askingPrice: { cents: 1500000, currency: 'USD' },
-                isBlind: false,
             },
         });
 
@@ -481,7 +562,6 @@ describe('POST /listings', () => {
                 assetType: 'youtube',
                 assetData: { monthlyRevenueUsdCents: 120000, isMonetized: true },
                 askingPrice: { cents: 1500000, currency: 'USD' },
-                isBlind: false,
             },
         });
 
@@ -497,7 +577,6 @@ describe('POST /listings', () => {
                 assetType: 'youtube',
                 assetData: {},
                 askingPrice: { cents: 1, currency: 'USD' },
-                isBlind: false,
             },
         });
 
@@ -513,7 +592,7 @@ describe('Verificación de identidad', () => {
      */
     it('un usuario nuevo arranca sin verificar y no puede firmar', async () => {
         const seller = await crearUsuario('otro@test.com', UserRole.SELLER);
-        const listing = await crearListingPublicado(seller.id, true);
+        const listing = await crearListingPublicado(seller.id);
         await crearUsuario('nuevo@test.com', UserRole.BUYER, false);
         const token = await tokenDe('nuevo@test.com');
 
@@ -534,7 +613,7 @@ describe('Verificación de identidad', () => {
 
     it('verificar la identidad desbloquea la firma', async () => {
         const seller = await crearUsuario('otro@test.com', UserRole.SELLER);
-        const listing = await crearListingPublicado(seller.id, true);
+        const listing = await crearListingPublicado(seller.id);
         await crearUsuario('nuevo@test.com', UserRole.BUYER, false);
         const token = await tokenDe('nuevo@test.com');
 
@@ -606,7 +685,7 @@ describe('Convergencia de la negociación', () => {
     async function unaNegociacionAbierta() {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, false);
+        const listing = await crearListingPublicado(seller.id);
         const tokenBuyer = await tokenDe('buyer@test.com');
 
         const oferta = await app.inject({
@@ -718,7 +797,7 @@ describe('Avisos', () => {
     it('ofertar le deja un aviso al vendedor, no al comprador', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, false);
+        const listing = await crearListingPublicado(seller.id);
 
         await app.inject({
             method: 'POST',
@@ -747,7 +826,7 @@ describe('Avisos', () => {
     it('marcar leído baja el contador', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, false);
+        const listing = await crearListingPublicado(seller.id);
         const tokenSeller = await tokenDe('seller@test.com');
 
         await app.inject({
@@ -784,7 +863,7 @@ describe('Avisos', () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
         await crearUsuario('curioso@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, false);
+        const listing = await crearListingPublicado(seller.id);
 
         await app.inject({
             method: 'POST',
@@ -818,7 +897,7 @@ describe('Documento del contrato', () => {
     async function unNdaFirmado() {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
         await crearUsuario('buyer@test.com', UserRole.BUYER);
-        const listing = await crearListingPublicado(seller.id, true);
+        const listing = await crearListingPublicado(seller.id);
         const token = await tokenDe('buyer@test.com');
 
         const firma = await app.inject({

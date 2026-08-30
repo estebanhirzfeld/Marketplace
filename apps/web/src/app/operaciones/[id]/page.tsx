@@ -148,19 +148,19 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                     </div>
                                     {op.buyerPays && (
                                         <div className="flex justify-between">
-                                            <span className="text-[var(--color-tenue)]">El buyer paga</span>
+                                            <span className="text-[var(--color-tenue)]">El comprador paga</span>
                                             <span className="font-mono">{money(op.buyerPays)}</span>
                                         </div>
                                     )}
                                     {op.sellerReceives && (
                                         <div className="flex justify-between">
-                                            <span className="text-[var(--color-tenue)]">El seller recibe</span>
+                                            <span className="text-[var(--color-tenue)]">El vendedor recibe</span>
                                             <span className="font-mono">{money(op.sellerReceives)}</span>
                                         </div>
                                     )}
                                     {op.platformEarns && (
                                         <div className="flex justify-between border-t border-[var(--color-borde)] pt-2.5">
-                                            <span className="text-[var(--color-tenue)]">Comisión de la platform</span>
+                                            <span className="text-[var(--color-tenue)]">Comisión de la plataforma</span>
                                             <span className="font-mono text-[var(--color-acento)]">
                                                 {money(op.platformEarns)}
                                             </span>
@@ -191,7 +191,7 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                         </Reveal>
                     )}
 
-                    {/* Acciones disponibles según state y posición */}
+                    {/* Acciones disponibles según el estado y la posición */}
                     <Reveal delay={160}>
                         <Panel title="QUÉ PODÉS HACER">
                             <div className="flex flex-col gap-5">
@@ -251,8 +251,8 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                 {isAdmin && op.status === 'transfer_in_progress' && (
                                     <div className="flex flex-col gap-3">
                                         <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            Punto de control: al registerUser la custodia se le pide el
-                                            pago al buyer. Queda record de qué verificaste.
+                                            Punto de control: al registrar la custodia se le pide el
+                                            pago al comprador. Queda constancia de qué verificaste.
                                         </p>
                                         <CustodyVerificationForm
                                             action={confirmCustody.bind(null, id)}
@@ -320,7 +320,7 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
 
                                 {op.status === 'completed' && (
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        La operación se cerró. El buyer tiene el asset y el seller
+                                        La operación se cerró. El comprador tiene el activo y el vendedor
                                         cobró su parte.
                                     </p>
                                 )}

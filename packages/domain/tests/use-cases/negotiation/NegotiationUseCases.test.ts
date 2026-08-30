@@ -86,7 +86,6 @@ function createPublishedListing(sellerId?: UniqueEntityID) {
         sellerId: sellerId ?? new UniqueEntityID(),
         assetStrategy: createTestStrategy(),
         askingPrice: Money.fromCents(1000000, 'USD'),
-        isBlind: false,
     });
     listing.submitForReview();
     listing.approve();
@@ -127,7 +126,7 @@ describe('CreateOfferUseCase', () => {
         await expect(useCase.execute({
             listingId: 'nonexistent',
             offerPrice: { cents: 800000, currency: 'USD' },
-        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Listing no encontrado');
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Activo no encontrado');
     });
 
     it('debería fallar si el listing no está publicado', async () => {
@@ -135,7 +134,6 @@ describe('CreateOfferUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: false,
         }); // status = draft
 
         const listingRepo = createMockListingRepo({
@@ -147,7 +145,7 @@ describe('CreateOfferUseCase', () => {
         await expect(useCase.execute({
             listingId: listing.id.toString(),
             offerPrice: { cents: 800000, currency: 'USD' },
-        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Solo se puede ofertar sobre listings publicados');
+        }, actorDe(new UniqueEntityID()))).rejects.toThrow('Solo se puede ofertar sobre activos publicados');
     });
 
     it('debería fallar si el buyer es el seller', async () => {
@@ -163,7 +161,7 @@ describe('CreateOfferUseCase', () => {
         await expect(useCase.execute({
             listingId: listing.id.toString(),
             offerPrice: { cents: 800000, currency: 'USD' },
-        }, actorDe(sellerId))).rejects.toThrow('No podés ofertar sobre tu propio listing');
+        }, actorDe(sellerId))).rejects.toThrow('No podés ofertar sobre tu propio activo');
     });
 });
 

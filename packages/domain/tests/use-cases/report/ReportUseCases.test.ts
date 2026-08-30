@@ -104,7 +104,6 @@ function unListing(): Listing {
             channelUrl: 'https://youtube.com/@canaldeprueba',
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: true,
     });
     l.submitForReview();
     l.approve();

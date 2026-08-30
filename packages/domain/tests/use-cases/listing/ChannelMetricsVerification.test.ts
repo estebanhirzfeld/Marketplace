@@ -59,7 +59,6 @@ function unCanal(over: { subscribers?: number; channelUrl?: string } = {}): List
             channelUrl: over.channelUrl ?? 'https://youtube.com/@canaldeprueba',
         }),
         askingPrice: Money.fromCents(1_500_000, 'USD'),
-        isBlind: true,
     });
 }
 
@@ -139,7 +138,6 @@ describe('VerifyChannelMetricsUseCase — lo que no se puede verificar', () => {
             sellerId: SELLER_ID,
             assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 42, 'ejemplo.com'),
             askingPrice: Money.fromCents(900_000, 'USD'),
-            isBlind: false,
         });
 
         await expect(armar(web).execute('l1', ADMIN)).rejects.toThrow(ValidationError);

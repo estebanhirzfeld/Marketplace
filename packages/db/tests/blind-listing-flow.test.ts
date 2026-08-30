@@ -64,7 +64,6 @@ async function crearListingBlindPublicado(sellerId: UniqueEntityID): Promise<Lis
             audienceTopCountry: "US",
         }),
         askingPrice: Money.fromCents(1500000, "USD"),
-        isBlind: true,
     });
     listing.submitForReview();
     listing.approve();
@@ -101,7 +100,6 @@ describe("Flujo blind: NDA desbloquea los datos confidenciales", () => {
 
         const vista = await getDetails.execute(listing.id.toString());
 
-        expect(vista.isBlind).toBe(true);
         expect(vista.hiddenFields.length).toBeGreaterThan(0);
         for (const campo of vista.hiddenFields) {
             expect(vista.assetData).not.toHaveProperty(campo);

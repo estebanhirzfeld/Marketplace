@@ -67,11 +67,6 @@ export default async function Admin() {
                                         </div>
 
                                         <div className="flex flex-col items-end gap-1.5">
-                                            {l.isBlind && (
-                                                <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-alerta)]">
-                                                    CONFIDENCIAL
-                                                </span>
-                                            )}
                                             <Link
                                                 href={`/listings/${l.id}`}
                                                 className="text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"

@@ -18,7 +18,7 @@ export class SubmitListingForReviewUseCase {
     async execute(listingId: string, actor: Actor): Promise<void> {
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         listing.assertOwnedBy(actor.id);
