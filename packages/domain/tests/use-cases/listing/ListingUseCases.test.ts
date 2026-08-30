@@ -5,6 +5,8 @@ import { ApproveListingUseCase } from '../../../src/use-cases/listing/ApproveLis
 import { RejectListingUseCase } from '../../../src/use-cases/listing/RejectListingUseCase';
 import { GetListingDetailsUseCase } from '../../../src/use-cases/listing/GetListingDetailsUseCase';
 import { IListingRepository, IUserRepository, IContractRepository } from '../../../src/ports/Repositories';
+import { Actor } from '../../../src/ports/Actor';
+import { ForbiddenError } from '../../../src/errors/DomainError';
 import { User } from '../../../src/entities/User';
 import { Listing } from '../../../src/entities/Listing';
 import { Contract } from '../../../src/entities/Contract';
@@ -15,6 +17,8 @@ import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { UserRole } from '@marketplace/shared-types';
 
 // ── Mock Factories ───────────────────────────────────────
+
+// TODO REVIEW: Why null param on mocks
 
 function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepository {
     return {
@@ -29,6 +33,8 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
     return {
         findById: vi.fn().mockResolvedValue(null),
         findPublished: vi.fn().mockResolvedValue([]),
+        findBySeller: vi.fn().mockResolvedValue([]),
+        findByStatus: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -50,9 +56,28 @@ function createTestSeller() {
         email: Email.create('seller@test.com'),
         fullName: 'Seller Test',
         role: UserRole.SELLER,
+        passwordHash: 'hash-de-prueba',
     });
     return seller;
 }
+
+function createVerifiedUser(role = UserRole.SELLER): User {
+    const user = User.create({
+        email: Email.create('verificado@test.com'),
+        fullName: 'Usuario Verificado',
+        dni: '20123456789',
+        role,
+        passwordHash: 'hash-de-prueba',
+    });
+    user.verifyKyc();
+    return user;
+}
+
+function actorDe(id: UniqueEntityID | string, role = UserRole.SELLER): Actor {
+    return { id: typeof id === 'string' ? id : id.toString(), role };
+}
+
+const ADMIN: Actor = { id: 'admin-id', role: UserRole.ADMIN };
 
 function createTestStrategy() {
     return new YouTubeStrategy({
@@ -80,11 +105,10 @@ describe('CreateListingUseCase', () => {
         const useCase = new CreateListingUseCase(listingRepo, userRepo);
 
         const result = await useCase.execute({
-            sellerId: seller.id.toString(),
-            assetStrategy: createTestStrategy(),
+            ...createTestStrategy().toJSON(),
             askingPrice: { cents: 1000000, currency: 'USD' },
             isBlind: true,
-        });
+        }, actorDe(seller.id));
 
         expect(result.status).toBe('draft');
         expect(result.askingPrice.getCents()).toBe(1000000);
@@ -98,11 +122,10 @@ describe('CreateListingUseCase', () => {
         const useCase = new CreateListingUseCase(listingRepo, userRepo);
 
         await expect(useCase.execute({
-            sellerId: 'nonexistent-id',
-            assetStrategy: createTestStrategy(),
+            ...createTestStrategy().toJSON(),
             askingPrice: { cents: 1000000, currency: 'USD' },
             isBlind: true,
-        })).rejects.toThrow('Seller no encontrado');
+        }, actorDe('nonexistent-id'))).rejects.toThrow('Seller no encontrado');
 
         expect(listingRepo.save).not.toHaveBeenCalled();
     });
@@ -114,8 +137,9 @@ describe('CreateListingUseCase', () => {
 
 describe('SubmitListingForReviewUseCase', () => {
     it('debería transicionar un listing de draft a under_review', async () => {
+        const sellerId = new UniqueEntityID();
         const listing = Listing.create({
-            sellerId: new UniqueEntityID(),
+            sellerId,
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
             isBlind: true,
@@ -125,8 +149,11 @@ describe('SubmitListingForReviewUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        const useCase = new SubmitListingForReviewUseCase(listingRepo);
-        await useCase.execute(listing.id.toString());
+        const useCase = new SubmitListingForReviewUseCase(
+            listingRepo,
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(createVerifiedUser()) }),
+        );
+        await useCase.execute(listing.id.toString(), actorDe(sellerId));
 
         expect(listing.status).toBe('under_review');
         expect(listingRepo.save).toHaveBeenCalledOnce();
@@ -134,10 +161,51 @@ describe('SubmitListingForReviewUseCase', () => {
 
     it('debería fallar si el listing no existe', async () => {
         const listingRepo = createMockListingRepo();
-        const useCase = new SubmitListingForReviewUseCase(listingRepo);
+        const useCase = new SubmitListingForReviewUseCase(listingRepo, createMockUserRepo());
 
-        await expect(useCase.execute('nonexistent'))
+        await expect(useCase.execute('nonexistent', actorDe(new UniqueEntityID())))
             .rejects.toThrow('Listing no encontrado');
+    });
+
+    it('debería rechazar a quien no es dueño del listing', async () => {
+        const listing = Listing.create({
+            sellerId: new UniqueEntityID(),
+            assetStrategy: createTestStrategy(),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+            isBlind: true,
+        });
+
+        const useCase = new SubmitListingForReviewUseCase(
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(createVerifiedUser()) }),
+        );
+
+        await expect(useCase.execute(listing.id.toString(), actorDe(new UniqueEntityID())))
+            .rejects.toThrow(ForbiddenError);
+    });
+
+    it('debería rechazar a un dueño sin KYC verificado', async () => {
+        const sellerId = new UniqueEntityID();
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: createTestStrategy(),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+            isBlind: true,
+        });
+        const sinKyc = User.create({
+            email: Email.create('sinkyc@test.com'),
+            fullName: 'Sin KYC',
+            role: UserRole.SELLER,
+            passwordHash: 'hash-de-prueba',
+        });
+
+        const useCase = new SubmitListingForReviewUseCase(
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(sinKyc) }),
+        );
+
+        await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
+            .rejects.toThrow(ForbiddenError);
     });
 });
 
@@ -160,7 +228,7 @@ describe('ApproveListingUseCase', () => {
         });
 
         const useCase = new ApproveListingUseCase(listingRepo);
-        await useCase.execute(listing.id.toString());
+        await useCase.execute(listing.id.toString(), ADMIN);
 
         expect(listing.status).toBe('published');
         expect(listingRepo.save).toHaveBeenCalledOnce();
@@ -179,7 +247,7 @@ describe('ApproveListingUseCase', () => {
         });
 
         const useCase = new ApproveListingUseCase(listingRepo);
-        await expect(useCase.execute(listing.id.toString()))
+        await expect(useCase.execute(listing.id.toString(), ADMIN))
             .rejects.toThrow('El listing debe estar en revisión para ser aprobado');
     });
 });
@@ -203,7 +271,7 @@ describe('RejectListingUseCase', () => {
         });
 
         const useCase = new RejectListingUseCase(listingRepo);
-        await useCase.execute(listing.id.toString(), 'Métricas insuficientes');
+        await useCase.execute(listing.id.toString(), 'Métricas insuficientes', ADMIN);
 
         expect(listing.status).toBe('rejected');
         expect(listingRepo.save).toHaveBeenCalledOnce();
@@ -223,7 +291,7 @@ describe('RejectListingUseCase', () => {
         });
 
         const useCase = new RejectListingUseCase(listingRepo);
-        await expect(useCase.execute(listing.id.toString(), ''))
+        await expect(useCase.execute(listing.id.toString(), '', ADMIN))
             .rejects.toThrow('Debe proveer un motivo de rechazo');
     });
 });
@@ -270,8 +338,7 @@ describe('GetListingDetailsUseCase', () => {
         const contractRepo = createMockContractRepo(); // findByListingAndSigner devuelve null
 
         const useCase = new GetListingDetailsUseCase(listingRepo, contractRepo);
-        const buyerId = new UniqueEntityID().toString();
-        const result = await useCase.execute(listing.id.toString(), buyerId);
+        const result = await useCase.execute(listing.id.toString(), actorDe(new UniqueEntityID(), UserRole.BUYER));
 
         expect(result.hiddenFields.length).toBeGreaterThan(0);
         // Los campos confidenciales NO deben estar en assetData
@@ -287,7 +354,7 @@ describe('GetListingDetailsUseCase', () => {
         // Crear un NDA completamente firmado
         const nda = Contract.createBuyerNda(listing.id, buyerId);
         nda.sign('buyer', '127.0.0.1');
-        nda.sign('platform', '127.0.0.1');
+        nda.signAsPlatform();
 
         const listingRepo = createMockListingRepo({
             findById: vi.fn().mockResolvedValue(listing),
@@ -297,7 +364,7 @@ describe('GetListingDetailsUseCase', () => {
         });
 
         const useCase = new GetListingDetailsUseCase(listingRepo, contractRepo);
-        const result = await useCase.execute(listing.id.toString(), buyerId.toString());
+        const result = await useCase.execute(listing.id.toString(), actorDe(buyerId, UserRole.BUYER));
 
         expect(result.hiddenFields).toHaveLength(0);
         expect(result.assetData.subscribers).toBe(10000);
@@ -334,7 +401,7 @@ describe('GetListingDetailsUseCase', () => {
         });
 
         const useCase = new GetListingDetailsUseCase(listingRepo, contractRepo);
-        const result = await useCase.execute(listing.id.toString(), buyerId.toString());
+        const result = await useCase.execute(listing.id.toString(), actorDe(buyerId, UserRole.BUYER));
 
         expect(result.hiddenFields.length).toBeGreaterThan(0);
     });

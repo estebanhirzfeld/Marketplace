@@ -2,7 +2,9 @@ services:
   db:
     image: postgres:16
     ports:
-      - "5433:5432"
+      # host:contenedor — el lado derecho es fijo: Postgres escucha en 5432
+      # dentro de la imagen. Solo el izquierdo es nuestro.
+      - "5434:5432"
     environment:
       POSTGRES_USER: marketplace
       POSTGRES_PASSWORD: marketplace

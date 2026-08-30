@@ -1,39 +1,48 @@
-import { IListingRepository } from '../../ports/Repositories';
-import { IUserRepository } from '../../ports/Repositories';
+import { IListingRepository, IUserRepository } from '../../ports/Repositories';
+import { Actor } from '../../ports/Actor';
 import { Listing } from '../../entities/Listing';
 import { Money } from '../../value-objects/Money';
-import { IAssetStrategy } from '../../strategies/IAssetStrategy';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
+import { createAssetStrategy } from '../../strategies/AssetStrategyFactory';
+import { NotFoundError } from '../../errors/DomainError';
 
 export interface CreateListingInput {
-    sellerId: string;
-    assetStrategy: IAssetStrategy;
+    assetType: string;
+    assetData: Record<string, unknown>;
     askingPrice: { cents: number; currency: string };
     isBlind: boolean;
 }
 
+/**
+ * Crear un listing no exige rol ni KYC: nace en `draft` y no es visible para
+ * nadie. Publicarlo sí los exige — ese gate vive en SubmitListingForReview.
+ *
+ * Recibe el activo en su forma serializada, no una IAssetStrategy ya armada.
+ * Así la capa HTTP solo reenvía el body y la validación del activo queda en el
+ * dominio, que es quien sabe qué tipos existen y qué campos requiere cada uno.
+ */
 export class CreateListingUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly userRepo: IUserRepository,
     ) {}
 
-    async execute(input: CreateListingInput): Promise<Listing> {
-        // 1. Verificar que el seller existe
-        const seller = await this.userRepo.findById(input.sellerId);
+    async execute(input: CreateListingInput, actor: Actor): Promise<Listing> {
+        const seller = await this.userRepo.findById(actor.id);
         if (!seller) {
-            throw new Error('Seller no encontrado');
+            throw new NotFoundError('Seller no encontrado');
         }
 
-        // 2. Crear el listing (dominio se encarga de validar)
+        // Lanza ValidationError si el tipo o los campos del activo no cierran.
+        const assetStrategy = createAssetStrategy(input.assetType, input.assetData);
+
         const listing = Listing.create({
-            sellerId: new UniqueEntityID(input.sellerId),
-            assetStrategy: input.assetStrategy,
+            sellerId: new UniqueEntityID(actor.id),
+            assetStrategy,
             askingPrice: Money.fromCents(input.askingPrice.cents, input.askingPrice.currency),
             isBlind: input.isBlind,
         });
 
-        // 3. Persistir
         await this.listingRepo.save(listing);
 
         return listing;

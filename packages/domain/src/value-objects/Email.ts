@@ -1,3 +1,5 @@
+import { ValidationError } from '../errors/DomainError';
+
 export class Email {
     private readonly value: string;
 
@@ -10,7 +12,7 @@ export class Email {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         if (!emailRegex.test(trimmed)) {
-            throw new Error(`Dirección de email inválida: ${trimmed}`);
+            throw new ValidationError(`Dirección de email inválida: ${trimmed}`);
         }
 
         return new Email(trimmed);

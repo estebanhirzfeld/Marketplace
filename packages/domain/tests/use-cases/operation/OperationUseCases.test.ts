@@ -9,6 +9,17 @@ import { Listing } from '../../../src/entities/Listing';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { Actor } from '../../../src/ports/Actor';
+import { ForbiddenError } from '../../../src/errors/DomainError';
+import { UserRole } from '@marketplace/shared-types';
+
+// Identidades fijas: los pasos de la operación ahora se autorizan por
+// pertenencia (el seller entrega) o por rol (la plataforma custodia y paga).
+const BUYER_ID = new UniqueEntityID();
+const SELLER_ID = new UniqueEntityID();
+const SELLER: Actor = { id: SELLER_ID.toString(), role: UserRole.SELLER };
+const BUYER: Actor = { id: BUYER_ID.toString(), role: UserRole.BUYER };
+const ADMIN: Actor = { id: 'admin-id', role: UserRole.ADMIN };
 
 // ── Mock Factories ───────────────────────────────────────
 
@@ -16,6 +27,7 @@ function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}):
     return {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
+        findByParty: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -25,6 +37,8 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
     return {
         findById: vi.fn().mockResolvedValue(null),
         findPublished: vi.fn().mockResolvedValue([]),
+        findBySeller: vi.fn().mockResolvedValue([]),
+        findByStatus: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -34,8 +48,8 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
 function createOperationInState(targetState: string) {
     const op = Operation.create({
         listingId: new UniqueEntityID(),
-        buyerId: new UniqueEntityID(),
-        sellerId: new UniqueEntityID(),
+        buyerId: BUYER_ID,
+        sellerId: SELLER_ID,
         offerPrice: Money.fromCents(200000, 'USD'),
     });
 
@@ -64,7 +78,7 @@ describe('InitiateTransferUseCase', () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await new InitiateTransferUseCase(repo).execute(op.id.toString());
+        await new InitiateTransferUseCase(repo).execute(op.id.toString(), SELLER);
 
         expect(op.status).toBe('transfer_in_progress');
         expect(repo.save).toHaveBeenCalledOnce();
@@ -72,7 +86,7 @@ describe('InitiateTransferUseCase', () => {
 
     it('debería fallar si la operación no existe', async () => {
         const repo = createMockOperationRepo();
-        await expect(new InitiateTransferUseCase(repo).execute('x'))
+        await expect(new InitiateTransferUseCase(repo).execute('x', SELLER))
             .rejects.toThrow('Operación no encontrada');
     });
 
@@ -80,7 +94,7 @@ describe('InitiateTransferUseCase', () => {
         const op = createOperationInState('offer_sent');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString()))
+        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), SELLER))
             .rejects.toThrow('El contrato debe estar firmado');
     });
 });
@@ -94,7 +108,7 @@ describe('ConfirmCustodyUseCase', () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await new ConfirmCustodyUseCase(repo).execute(op.id.toString());
+        await new ConfirmCustodyUseCase(repo).execute(op.id.toString(), ADMIN);
 
         expect(op.status).toBe('asset_in_custody');
     });
@@ -103,7 +117,7 @@ describe('ConfirmCustodyUseCase', () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString()))
+        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), ADMIN))
             .rejects.toThrow('No hay transferencia en curso');
     });
 });
@@ -117,7 +131,7 @@ describe('ConfirmPaymentUseCase', () => {
         const op = createOperationInState('asset_in_custody');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await new ConfirmPaymentUseCase(repo).execute(op.id.toString());
+        await new ConfirmPaymentUseCase(repo).execute(op.id.toString(), ADMIN);
 
         expect(op.status).toBe('payment_received');
     });
@@ -126,7 +140,7 @@ describe('ConfirmPaymentUseCase', () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString()))
+        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), ADMIN))
             .rejects.toThrow('El activo debe estar en custodia');
     });
 });
@@ -161,7 +175,7 @@ describe('CompleteOperationUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        await new CompleteOperationUseCase(operationRepo, listingRepo).execute(op.id.toString());
+        await new CompleteOperationUseCase(operationRepo, listingRepo).execute(op.id.toString(), ADMIN);
 
         expect(op.status).toBe('completed');
         expect(listing.status).toBe('sold');
@@ -173,7 +187,46 @@ describe('CompleteOperationUseCase', () => {
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
         const listingRepo = createMockListingRepo();
 
-        await expect(new CompleteOperationUseCase(repo, listingRepo).execute(op.id.toString()))
+        await expect(new CompleteOperationUseCase(repo, listingRepo).execute(op.id.toString(), ADMIN))
             .rejects.toThrow('El pago debe estar confirmado');
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// Autorización
+// ═════════════════════════════════════════════════════════
+
+describe('Autorización de los pasos de la operación', () => {
+    it('el buyer no puede iniciar la transferencia — la entrega es del seller', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+
+        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), BUYER))
+            .rejects.toThrow(ForbiddenError);
+    });
+
+    it('un tercero no puede iniciar la transferencia', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const ajeno: Actor = { id: new UniqueEntityID().toString(), role: UserRole.SELLER };
+
+        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), ajeno))
+            .rejects.toThrow(ForbiddenError);
+    });
+
+    it('confirmar custodia es exclusivo de la plataforma', async () => {
+        const op = createOperationInState('transfer_in_progress');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+
+        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), SELLER))
+            .rejects.toThrow(ForbiddenError);
+    });
+
+    it('confirmar el pago es exclusivo de la plataforma', async () => {
+        const op = createOperationInState('asset_in_custody');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+
+        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), BUYER))
+            .rejects.toThrow(ForbiddenError);
     });
 });

@@ -1,4 +1,4 @@
-import type { User as PrismaUser } from "../../generated/prisma";
+import type { User as PrismaUser } from "../../generated/prisma/client";
 import { User, UserProps } from "@marketplace/domain/src/entities/User";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Email } from "@marketplace/domain/src/value-objects/Email";
@@ -14,6 +14,7 @@ export class UserMapper {
             dni: raw.dni ?? undefined,
             role: raw.role as UserRole,
             isKycVerified: raw.isKycVerified,
+            passwordHash: raw.passwordHash,
         };
 
         return User.reconstitute(
@@ -35,6 +36,7 @@ export class UserMapper {
             dni: props.dni ?? null,
             role: props.role,
             isKycVerified: props.isKycVerified,
+            passwordHash: props.passwordHash,
             createdAt,
         };
     }

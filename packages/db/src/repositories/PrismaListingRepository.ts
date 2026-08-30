@@ -1,17 +1,52 @@
-import { IListingRepository } from "@marketplace/domain/src/ports/Repositories";
-import { Listing } from "@marketplace/domain/src/entities/Listing";
+import { IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
+import { Listing, ListingStatus } from "@marketplace/domain/src/entities/Listing";
 import { ListingMapper } from "../mappers/ListingMapper";
-import { prisma } from "../client";
+import { prisma, PrismaLike } from "../client";
 
 export class PrismaListingRepository implements IListingRepository {
+    /**
+     * El cliente se inyecta para que el Unit of Work pueda pasar el cliente
+     * transaccional. Por defecto usa el singleton, que es lo correcto para
+     * una lectura o una escritura suelta.
+     */
+    constructor(private readonly db: PrismaLike = prisma) {}
+
     async findById(id: string): Promise<Listing | null> {
-        const raw = await prisma.listing.findUnique({ where: { id } });
+        const raw = await this.db.listing.findUnique({ where: { id } });
         return raw ? ListingMapper.toDomain(raw) : null;
     }
 
-    async findPublished(filters?: any): Promise<Listing[]> {
-        const rows = await prisma.listing.findMany({
-            where: { status: "published", ...filters },
+    async findPublished(filters?: ListingFilters): Promise<Listing[]> {
+        // Cada criterio se traduce explícitamente. Antes se hacía spread del
+        // objeto recibido, así que cualquier clave que llegara del cliente
+        // terminaba en el `where` de Prisma.
+        const precio: { gte?: number; lte?: number } = {};
+        if (filters?.minPrice !== undefined) precio.gte = filters.minPrice;
+        if (filters?.maxPrice !== undefined) precio.lte = filters.maxPrice;
+
+        const rows = await this.db.listing.findMany({
+            where: {
+                status: "published",
+                ...(filters?.assetType ? { assetType: filters.assetType as never } : {}),
+                ...(Object.keys(precio).length > 0 ? { askingPrice: precio } : {}),
+            },
+            orderBy: { createdAt: "desc" },
+        });
+        return rows.map(ListingMapper.toDomain);
+    }
+
+    async findBySeller(sellerId: string): Promise<Listing[]> {
+        const rows = await this.db.listing.findMany({
+            where: { sellerId },
+            orderBy: { createdAt: "desc" },
+        });
+        return rows.map(ListingMapper.toDomain);
+    }
+
+    async findByStatus(status: ListingStatus): Promise<Listing[]> {
+        const rows = await this.db.listing.findMany({
+            where: { status },
+            orderBy: { createdAt: "asc" },
         });
         return rows.map(ListingMapper.toDomain);
     }
@@ -28,7 +63,7 @@ export class PrismaListingRepository implements IListingRepository {
             strategyJson.assetData
         );
 
-        await prisma.listing.upsert({
+        await this.db.listing.upsert({
             where: { id: data.id },
             create: data,
             update: data,

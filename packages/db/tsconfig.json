@@ -8,6 +8,8 @@
     },
     "include": [
         "src/**/*",
+        "tests/**/*",
+        "prisma/**/*.ts",
         "prisma.config.ts"
     ],
     "exclude": [

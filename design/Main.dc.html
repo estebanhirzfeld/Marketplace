@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #3A5A45; text-decoration: none; }
+    a:hover { color: #24382A; }
+  </style>
+</helmet>
+
+<div style="font-family: 'Public Sans', -apple-system, 'Segoe UI', sans-serif; background: #FDFCF9; color: #14130F; min-height: 1000px; display: flex; flex-direction: column;">
+
+  <!-- Navbar -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 22px 64px; border-bottom: 1px solid #E6E2D8;">
+    <div style="display: flex; align-items: center; gap: 48px;">
+      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 25px; letter-spacing: -0.01em;">Traspaso</div>
+      <div style="display: flex; gap: 30px; font-size: 14px; color: #5C594F;">
+        <div>Explorar</div>
+        <div>Cómo funciona</div>
+        <div>Vender mi activo</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <div style="font-size: 14px; color: #5C594F;">Ingresar</div>
+      <div style="padding: 9px 18px; border: 1px solid #14130F; border-radius: 2px; font-size: 14px; font-weight: 500;">Crear cuenta</div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div style="padding: 92px 64px 76px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 72px; align-items: center;">
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <div style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8578;">Intermediación con custodia</div>
+      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 62px; line-height: 1.06; letter-spacing: -0.02em; text-wrap: pretty;">
+        Comprar un canal no debería ser un acto de fe.
+      </div>
+      <div style="font-size: 17px; line-height: 1.6; color: #5C594F; max-width: 480px; text-wrap: pretty;">
+        Nosotros recibimos el activo antes de que el comprador pague, y pagamos al vendedor recién cuando la transferencia está confirmada. Ninguna de las dos partes queda expuesta.
+      </div>
+      <div style="display: flex; gap: 14px; margin-top: 8px;">
+        <div style="padding: 14px 28px; background: #14130F; color: #FDFCF9; font-size: 15px; font-weight: 500; border-radius: 2px;">Ver activos en venta</div>
+        <div style="padding: 14px 28px; border: 1px solid #C9C4B6; font-size: 15px; font-weight: 500; border-radius: 2px;">Publicar el mío</div>
+      </div>
+    </div>
+
+    <!-- Tarjeta de garantía -->
+    <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 34px;">
+      <div style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8578; margin-bottom: 24px;">Cómo se protege la operación</div>
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/></svg>
+          <div>
+            <div style="font-size: 15px; font-weight: 600;">El vendedor entrega primero</div>
+            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">La plataforma toma la titularidad del canal antes de mover un peso.</div>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: #EDEAE1;"></div>
+
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><rect x="4" y="10" width="16" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+          <div>
+            <div style="font-size: 15px; font-weight: 600;">Los datos sensibles van bajo NDA</div>
+            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">La URL y las métricas crudas se revelan solo tras firmar.</div>
+          </div>
+        </div>
+
+        <div style="height: 1px; background: #EDEAE1;"></div>
+
+        <div style="display: flex; gap: 16px; align-items: flex-start;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/></svg>
+          <div>
+            <div style="font-size: 15px; font-weight: 600;">5 % a cada parte</div>
+            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">Sin costos de publicación ni cargos ocultos.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Listings -->
+  <div style="padding: 0 64px 76px; display: flex; flex-direction: column; gap: 26px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #E6E2D8; padding-bottom: 16px;">
+      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">Activos publicados</div>
+      <div style="font-size: 14px; color: #5C594F;">Ver todos los activos</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px;">
+
+      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">YouTube</div>
+          <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #3A5A45; border: 1px solid #C6D4C8; padding: 3px 9px;">Confidencial</div>
+        </div>
+        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Finanzas personales · 55 K subs</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Ingreso mensual</span><span style="font-weight: 600;">USD 1.200</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Audiencia principal</span><span style="font-weight: 600;">Estados Unidos</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Sin rostro</span><span style="font-weight: 600;">Sí</span></div>
+        </div>
+        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
+          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 15.000</div>
+          <div style="font-size: 13px; color: #8A8578;">12 ofertas</div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">Sitio web</div>
+        </div>
+        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Reseñas de herramientas · DA 42</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Ingreso mensual</span><span style="font-weight: 600;">USD 800</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Tráfico orgánico</span><span style="font-weight: 600;">78 %</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Monetización</span><span style="font-weight: 600;">Afiliados</span></div>
+        </div>
+        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
+          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 9.600</div>
+          <div style="font-size: 13px; color: #8A8578;">4 ofertas</div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">Instagram</div>
+          <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #3A5A45; border: 1px solid #C6D4C8; padding: 3px 9px;">Confidencial</div>
+        </div>
+        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Gastronomía local · 120 K</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Engagement</span><span style="font-weight: 600;">4,5 %</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Audiencia principal</span><span style="font-weight: 600;">Argentina</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Verificada</span><span style="font-weight: 600;">No</span></div>
+        </div>
+        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
+          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 6.400</div>
+          <div style="font-size: 13px; color: #8A8578;">7 ofertas</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: auto; border-top: 1px solid #E6E2D8; padding: 40px 64px; display: flex; align-items: flex-start; justify-content: space-between; background: #F7F5EF;">
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 300px;">
+      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 21px;">Traspaso</div>
+      <div style="font-size: 13px; color: #5C594F; line-height: 1.55;">Intermediación con custodia para la compraventa de activos digitales.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 64px; font-size: 13px;">
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Marketplace</div>
+        <div style="color: #5C594F;">Explorar activos</div>
+        <div style="color: #5C594F;">Publicar</div>
+        <div style="color: #5C594F;">Cómo valuamos</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Confianza</div>
+        <div style="color: #5C594F;">El proceso de custodia</div>
+        <div style="color: #5C594F;">Acuerdo de confidencialidad</div>
+        <div style="color: #5C594F;">Comisiones</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Legal</div>
+        <div style="color: #5C594F;">Términos</div>
+        <div style="color: #5C594F;">Privacidad</div>
+        <div style="color: #5C594F;">Contacto</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,134 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Estructura de la landing"
+    },
+    {
+      "id": "page-2",
+      "name": "Dirección visual"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "LandingProceso.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1400,
+      "title": "1 · Solo el proceso",
+      "page": "page-1"
+    },
+    {
+      "file": "LandingVendedor.dc.html",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1520,
+      "title": "3 · Captación de vendedores",
+      "page": "page-1"
+    },
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1020,
+      "title": "A · Editorial de confianza",
+      "page": "page-2"
+    },
+    {
+      "file": "Terminal.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 1020,
+      "title": "B · Terminal de operaciones",
+      "page": "page-2"
+    },
+    {
+      "file": "Brutalista.dc.html",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1020,
+      "title": "C · Brutalista tipográfico",
+      "page": "page-2"
+    },
+    {
+      "file": "LandingActivos.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 1540,
+      "title": "2 · Proceso + activos reales",
+      "page": "page-1"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief-estructura",
+      "x": 0,
+      "y": -270,
+      "w": 640,
+      "text": "QUÉ DECIDIR ACÁ: qué contiene la landing.\n\nLas tres están con la identidad B para que la comparación sea de contenido y no de estilo. La elección de estética sigue abierta en la otra página.\n\nEl conteo de ofertas por listing quedó incluido: muestra que la plataforma está viva, y no revela montos ni identidades."
+    },
+    {
+      "id": "op-1",
+      "x": 700,
+      "y": -270,
+      "w": 300,
+      "text": "1 · SOLO EL PROCESO\n\nVende el mecanismo de custodia. Cero números.\n\nA favor: honesta con un producto sin tracción. Nada que sacar después.\n\nEn contra: el comprador no ve nada concreto que comprar."
+    },
+    {
+      "id": "op-2",
+      "x": 1560,
+      "y": -270,
+      "w": 300,
+      "text": "2 · PROCESO + ACTIVOS REALES\n\nIgual, más una fila de listings publicados de verdad. Si no hay ninguno, la sección no se renderiza.\n\nA favor: más cerca del producto final.\n\nEn contra: en la defensa mostrás lo que haya en el seed."
+    },
+    {
+      "id": "op-3",
+      "x": 3120,
+      "y": -270,
+      "w": 300,
+      "text": "3 · CAPTACIÓN DE VENDEDORES\n\nAsume el arranque en frío: sin oferta no hay marketplace. La calculadora de valuación usa una regla de dominio ya implementada.\n\nEn contra: el comprador queda relegado en la home."
+    },
+    {
+      "id": "brief-visual",
+      "x": 0,
+      "y": -270,
+      "w": 640,
+      "page": "page-2",
+      "text": "QUÉ DECIDIR ACÁ: la piel.\n\nCorregido respecto de la versión anterior: se eliminó la tabla pública de operaciones en curso, que exponía activo, etapa y monto de operaciones ajenas y contradecía el modelo de NDA y de licitación a sobre cerrado. También se sacaron los contadores inventados y el número de ofertas por listing.\n\nLo que muestran las tarjetas es lo que getPublicFields() declara público."
+    },
+    {
+      "id": "dir-a",
+      "x": 700,
+      "y": -270,
+      "w": 300,
+      "page": "page-2",
+      "text": "A · EDITORIAL DE CONFIANZA\n\nSerif de titulares, papel cálido, verde apagado, reglas finas.\n\nA favor: seriedad de casa de bolsa; se banca montos altos.\n\nEn contra: puede leerse lenta para un producto joven."
+    },
+    {
+      "id": "dir-b",
+      "x": 1560,
+      "y": -270,
+      "w": 300,
+      "page": "page-2",
+      "text": "B · TERMINAL DE OPERACIONES\n\nOscuro, denso, números monoespaciados, verde ácido.\n\nEl panel del hero ahora muestra las ETAPAS del escrow — el mecanismo, no datos de nadie.\n\nEn contra: intimida al vendedor primerizo."
+    },
+    {
+      "id": "dir-c",
+      "x": 3120,
+      "y": -270,
+      "w": 300,
+      "page": "page-2",
+      "text": "C · BRUTALISTA TIPOGRÁFICO\n\nBordes de 3px, sombras duras, un naranja único, tipografía enorme.\n\nA favor: memorable; la promesa se lee de lejos.\n\nEn contra: la estridencia juega en contra con USD 15.000 en juego."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}
