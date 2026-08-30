@@ -11,38 +11,38 @@ const PASOS: Step[] = [
     {
         n: '01',
         title: 'Contrato firmado',
-        text: 'Comprador, vendedor y plataforma quedan obligados por el mismo documento.',
+        text: 'Las tres partes firman el mismo documento, con validez legal.',
     },
     {
         n: '02',
-        title: 'Transferencia',
-        text: 'El vendedor cede la titularidad del activo a la plataforma.',
+        title: 'El vendedor nos entrega el activo',
+        text: 'Nos pasa el canal o el sitio a nosotros, no al comprador.',
     },
     {
         n: '03',
-        title: 'Activo en custodia',
-        text: 'El punto que cambia todo: recién acá se le pide el pago al comprador.',
+        title: 'Lo revisamos',
+        text: 'Comprobamos que sea lo que decía la publicación. Recién acá le pedimos el pago al comprador.',
         destacado: true,
     },
     {
         n: '04',
-        title: 'Operación cerrada',
-        text: 'El comprador recibe el activo; el vendedor, su liquidación.',
+        title: 'Listo',
+        text: 'El comprador recibe el activo y el vendedor cobra.',
     },
 ];
 
 const COBERTURA = [
     {
         parte: 'El vendedor',
-        text: 'No le entrega el activo a un desconocido: se lo entrega a la plataforma, que responde por el pago.',
+        text: 'No le entrega el canal a un desconocido que prometió pagarle: nos lo entrega a nosotros.',
     },
     {
         parte: 'El comprador',
-        text: 'No paga contra una promesa: paga cuando el activo ya está en custodia y verificado.',
+        text: 'No paga por adelantado: pone la plata cuando el activo ya está en nuestras manos y revisado.',
     },
     {
         parte: 'Los dos',
-        text: 'La URL y las métricas crudas del activo se revelan únicamente tras firmar el NDA.',
+        text: 'Los números del activo son públicos, pero cuál es se sabe recién al firmar el acuerdo de confidencialidad.',
     },
 ] as const;
 
@@ -71,24 +71,24 @@ export default async function Home() {
                             <div className="flex items-center gap-2.5">
                                 <span className="late h-1.5 w-1.5 rounded-full bg-[var(--color-acento)]" />
                                 <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-acento)]">
-                                    CUSTODIA ACTIVA
+                                    COMPRAVENTA PROTEGIDA
                                 </span>
                             </div>
                         </Reveal>
 
                         <Reveal delay={80}>
                             <h1 className="text-[42px] font-bold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[55px]">
-                                El activo entra en custodia.
+                                Comprá y vendé sin tener
                                 <br />
-                                Después se paga.
+                                que confiar en un desconocido.
                             </h1>
                         </Reveal>
 
                         <Reveal delay={160}>
                             <p className="max-w-[470px] text-[16px] leading-relaxed text-[var(--color-tenue)] text-pretty">
-                                Recibimos el canal antes de que el comprador transfiera un peso. El
-                                vendedor cobra cuando la titularidad ya cambió de manos. Nadie
-                                adelanta nada a ciegas.
+                                El vendedor nos entrega el canal o el sitio y nosotros lo
+                                revisamos. Recién ahí el comprador pone la plata. Ninguno de los
+                                dos tiene que dar el primer paso a ciegas.
                             </p>
                         </Reveal>
 
