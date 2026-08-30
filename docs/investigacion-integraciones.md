@@ -132,7 +132,15 @@ Instagram, según fuentes secundarias, prohíbe la compraventa de cuentas y cont
 
 El dominio tiene `AssetType.INSTAGRAM` y `AssetType.TIKTOK` con su `SocialStrategy`. Si la transferencia de esas cuentas viola los términos de las plataformas, el problema no es que no haya API: es que el activo no se puede entregar de forma legítima, y la plataforma quedaría facilitando un incumplimiento contractual de sus usuarios frente a un tercero.
 
-**Es una decisión de producto, no de ingeniería.** Las opciones son acotar el marketplace a YouTube y sitios web, o asumir el riesgo de forma explícita y documentada.
+**Es una decisión de producto, no de ingeniería.** Las opciones eran acotar el marketplace a YouTube y sitios web, o asumir el riesgo de forma explícita y documentada.
+
+### Resolución: quedan afuera
+
+Se acotó el marketplace a **canales de YouTube y sitios web**. Instagram y TikTok salieron del catálogo por completo: del enum `AssetType`, del enum de Prisma —con una migración que recrea el tipo, porque Postgres no permite quitar valores—, de la factory de estrategias y de toda la interfaz.
+
+El motivo es el que se investigó: si transferir la cuenta viola los términos de la plataforma, el activo no se puede entregar de forma legítima y el marketplace estaría facilitando el incumplimiento de sus propios usuarios frente a un tercero. No es que falte una API, es que no hay traspaso posible.
+
+La `SocialStrategy` se eliminó. Una fila vieja con uno de esos tipos ya no se reconstituye: la factory la rechaza, y hay un test que lo fija.
 
 ---
 
@@ -166,7 +174,7 @@ Ordenado por valor sobre esfuerzo:
 | ~~Alta~~ **Hecho** | Corregir `getTransferSteps()` | Ningún paso queda marcado como automatizable, porque ninguno lo es. Se agregó la espera de 7 días del lado de la plataforma: son nueve pasos y dos ventanas. |
 | ~~Alta~~ **Hecho** | Marcar el ingreso como declarado, no verificado | `getVerifiableMetrics()` ya no incluye `revenue`. Queda un test que lo fija. |
 | **Media** | Adaptador de YouTube Data API para métricas de audiencia | Suscriptores y vistas sí se verifican. Requiere una clave de API. |
-| **Media** | Decisión sobre Instagram y TikTok | Riesgo de términos de servicio. Requiere leer los términos oficiales. |
+| ~~Media~~ **Resuelto** | Decisión sobre Instagram y TikTok | Quedaron fuera del catálogo. El marketplace se acotó a canales de YouTube y sitios web. |
 | **Media** | Pedir el scope `youtubepartner-channel-audit` | Reemplazaría `has_strikes` declarado por dato verificado. Aprobación de Google no garantizada. |
 | **Baja** | Proveedor de firma electrónica | El hash ya aporta integridad. El sello de tiempo de un tercero mejora la posición probatoria pero no cambia el encuadre legal. |
 
