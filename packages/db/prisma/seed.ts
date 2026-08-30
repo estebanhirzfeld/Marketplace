@@ -8,6 +8,7 @@ import { Money } from "@marketplace/domain/src/value-objects/Money";
 import { Listing } from "@marketplace/domain/src/entities/Listing";
 import { YouTubeStrategy } from "@marketplace/domain/src/strategies/YouTubeStrategy";
 import { Operation } from "@marketplace/domain/src/entities/Operation";
+import bcrypt from "bcryptjs";
 import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { ContractDataBuilder } from "@marketplace/domain/src/contracts/ContractDataBuilder";
 import { generateDocument } from "@marketplace/domain/src/contracts/ContractGenerator";
@@ -27,10 +28,25 @@ const listingRepo = new PrismaListingRepository();
 const operationRepo = new PrismaOperationRepository();
 const contractRepo = new PrismaContractRepository();
 
-// Todos los usuarios de ejemplo comparten la contraseña "marketplace1".
-// El hash está precomputado con BcryptPasswordHasher (12 rondas) para no
-// meter bcrypt como dependencia del paquete de persistencia.
-const SEED_PASSWORD_HASH = "$2b$12$OOHjL3L5b9XS8kboHqSwseWFpExdS6HMfUdXqVuwP7hQ7lhVcR8N2";
+/**
+ * La contraseña de cada usuario de ejemplo es su propio correo.
+ *
+ * No hace falta recordar nada: quien prueba la aplicación lee el correo en la
+ * pantalla de ingreso y ya tiene la contraseña. Antes había una sola clave
+ * compartida con el hash precomputado a mano, lo que evitaba depender de
+ * bcrypt acá; con una contraseña distinta por usuario esa tabla de hashes se
+ * desactualizaría en silencio en cuanto alguien agregue un usuario, así que se
+ * calculan al sembrar.
+ *
+ * Son doce rondas, las mismas que usa `BcryptPasswordHasher` en la API: un
+ * hash con otro costo no fallaría al verificar, pero dejaría de representar lo
+ * que la aplicación produce de verdad.
+ */
+const SALT_ROUNDS = 12;
+
+function hashDelCorreo(email: string): Promise<string> {
+    return bcrypt.hash(email, SALT_ROUNDS);
+}
 
 async function main() {
   console.log("🌱 Iniciando Seed...");
@@ -43,26 +59,28 @@ async function main() {
 
   // 2. Crear el admin de la plataforma. Es quien atestigua la custodia y el
   // acceso a los activos: sin él ninguno de los dos flujos se puede demostrar.
+  const adminEmail = "admin@traspaso.com";
   const admin = User.create({
-    email: Email.create("admin@traspaso.com"),
+    email: Email.create(adminEmail),
     fullName: "Administración Traspaso",
     dni: "20111222333",
     role: UserRole.ADMIN,
     country: "AR",
-    passwordHash: SEED_PASSWORD_HASH,
+    passwordHash: await hashDelCorreo(adminEmail),
   });
   admin.verifyKyc();
   await userRepo.save(admin);
   console.log("✅ Admin creado");
 
   // 3. Crear Seller
+  const sellerEmail = "esteban.seller@example.com";
   const seller = User.create({
-    email: Email.create("esteban.seller@example.com"),
+    email: Email.create(sellerEmail),
     fullName: "Esteban Vendedor",
     dni: "20123456789",
     role: UserRole.SELLER,
     country: "AR",
-    passwordHash: SEED_PASSWORD_HASH,
+    passwordHash: await hashDelCorreo(sellerEmail),
   });
   seller.verifyKyc();
   await userRepo.save(seller);
@@ -101,13 +119,14 @@ async function main() {
   console.log("✅ Listing creado (transferible)");
 
   // 5. Crear Buyer
+  const buyerEmail = "marcos.buyer@example.com";
   const buyer = User.create({
-    email: Email.create("marcos.buyer@example.com"),
+    email: Email.create(buyerEmail),
     fullName: "Marcos Comprador",
     dni: "20998877665",
     role: UserRole.BUYER,
     country: "ES",
-    passwordHash: SEED_PASSWORD_HASH,
+    passwordHash: await hashDelCorreo(buyerEmail),
   });
   buyer.verifyKyc();
   await userRepo.save(buyer);
@@ -147,6 +166,10 @@ async function main() {
   console.log("✅ Contrato NDA (Firmado) creado");
 
   console.log("✨ Seed finalizado con éxito!");
+  console.log("   La contraseña de cada usuario es su propio correo:");
+  for (const correo of [adminEmail, sellerEmail, buyerEmail]) {
+    console.log(`   · ${correo}`);
+  }
 }
 
 main()
