@@ -4,19 +4,29 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "dev": "fastify start -w -l info -P dist/index.js",
-    "start": "fastify start -l info dist/index.js",
-    "clean": "rm -rf dist"
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/jwt": "^8.0.1",
+    "@marketplace/api-contract": "workspace:^",
     "@marketplace/db": "workspace:*",
+    "@marketplace/domain": "workspace:^",
     "@marketplace/shared-types": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "fastify": "^4.26.2",
     "fastify-cli": "^6.1.1",
     "fastify-plugin": "^4.5.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.12.8",
-    "typescript": "^5.4.5"
-  }
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  },
+  "main": "src/server.ts"
 }

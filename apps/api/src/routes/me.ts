@@ -1,0 +1,237 @@
+import { FastifyInstance } from 'fastify';
+import type {
+    ContractDto,
+    MyProfileDto,
+    NotificationDto,
+    NotificationsDto,
+    VerifyIdentityRequest,
+    MyListingDto,
+    MyOperationDto,
+    OperationDetailDto,
+} from '@marketplace/api-contract';
+import { Listing } from '@marketplace/domain/src/entities/Listing';
+import { Operation } from '@marketplace/domain/src/entities/Operation';
+import { Contract } from '@marketplace/domain/src/entities/Contract';
+import { User } from '@marketplace/domain/src/entities/User';
+import { Notification } from '@marketplace/domain/src/entities/Notification';
+import { Container } from '../container';
+import { authenticate, actorOf } from '../plugins/authenticate';
+
+interface IdParams { id: string }
+
+/** Un listing propio expone más que uno público: estado real y motivo de rechazo. */
+function aMyListingDto(listing: Listing): MyListingDto {
+    const { id, createdAt, props } = listing.toSnapshot();
+    return {
+        id,
+        status: props.status,
+        assetType: props.assetStrategy.toJSON().assetType,
+        askingPrice: {
+            cents: props.askingPrice.getCents(),
+            currency: props.askingPrice.getCurrency(),
+        },
+        estimatedPrice: {
+            cents: listing.estimatedPrice.getCents(),
+            currency: listing.estimatedPrice.getCurrency(),
+        },
+        isBlind: props.isBlind,
+        rejectionReason: props.rejectionReason,
+        createdAt: createdAt.toISOString(),
+    };
+}
+
+function aMyOperationDto(operation: Operation, actorId: string): MyOperationDto {
+    const { id, createdAt, props } = operation.toSnapshot();
+
+    // partyFor lanza si no es parte; acá siempre lo es, porque la consulta
+    // se hizo por el id del actor.
+    let miParte: MyOperationDto['miParte'];
+    try {
+        miParte = operation.partyFor(actorId);
+    } catch {
+        miParte = undefined;
+    }
+
+    return {
+        id,
+        listingId: props.listingId.toString(),
+        status: props.status,
+        miParte,
+        currentOfferPrice: {
+            cents: operation.currentOfferPrice.getCents(),
+            currency: operation.currentOfferPrice.getCurrency(),
+        },
+        pendingResponseFrom: operation.pendingResponseFrom,
+        createdAt: createdAt.toISOString(),
+    };
+}
+
+function aContractDto(contract: Contract): ContractDto {
+    return {
+        id: contract.id.toString(),
+        type: contract.type,
+        isFullySigned: contract.isFullySigned(),
+    };
+}
+
+function aPerfilDto(user: User): MyProfileDto {
+    const { id, props } = user.toSnapshot();
+    return {
+        id,
+        email: props.email.getValue(),
+        fullName: props.fullName,
+        role: props.role,
+        isKycVerified: props.isKycVerified,
+        dni: props.dni,
+        phone: props.phone,
+        country: props.country,
+        // El hash nunca sale de acá.
+    };
+}
+
+function aNotificationDto(n: Notification): NotificationDto {
+    const { id, createdAt, props } = n.toSnapshot();
+    return {
+        id,
+        type: props.type,
+        operationId: props.operationId?.toString(),
+        listingId: props.listingId?.toString(),
+        amount:
+            props.amountCents !== undefined
+                ? { cents: props.amountCents, currency: props.currency ?? 'USD' }
+                : undefined,
+        read: n.isRead,
+        createdAt: createdAt.toISOString(),
+    };
+}
+
+export function registerMeRoutes(app: FastifyInstance, c: Container): void {
+    app.get<{ Querystring: { soloNoLeidas?: boolean }; Reply: NotificationsDto }>(
+        '/me/notifications',
+        {
+            preHandler: [authenticate],
+            schema: {
+                querystring: {
+                    type: 'object',
+                    properties: { soloNoLeidas: { type: 'boolean' } },
+                },
+            },
+        },
+        async (request, reply) => {
+            const actor = actorOf(request);
+            const avisos = await c.misAvisos.execute(actor, request.query.soloNoLeidas === true);
+
+            return reply.send({
+                items: avisos.map(aNotificationDto),
+                sinLeer: avisos.filter((n) => !n.isRead).length,
+            });
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/me/notifications/:id/read',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.marcarAvisoLeido.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.get<{ Reply: MyProfileDto }>(
+        '/me',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const user = await c.perfil.execute(actorOf(request));
+            return reply.send(aPerfilDto(user));
+        },
+    );
+
+    app.post<{ Body: VerifyIdentityRequest; Reply: MyProfileDto }>(
+        '/me/kyc',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['dni'],
+                    properties: {
+                        dni: { type: 'string' },
+                        phone: { type: 'string' },
+                        country: { type: 'string' },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const user = await c.verificarIdentidad.execute(request.body, actorOf(request));
+            return reply.send(aPerfilDto(user));
+        },
+    );
+
+    app.get<{ Reply: MyListingDto[] }>(
+        '/me/listings',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const listings = await c.misListings.execute(actorOf(request));
+            return reply.send(listings.map(aMyListingDto));
+        },
+    );
+
+    app.get<{ Reply: MyOperationDto[] }>(
+        '/me/operations',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const actor = actorOf(request);
+            const operaciones = await c.misOperaciones.execute(actor);
+            return reply.send(operaciones.map((op) => aMyOperationDto(op, actor.id)));
+        },
+    );
+
+    app.get<{ Reply: MyListingDto[] }>(
+        '/admin/listings',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const listings = await c.listingsParaRevisar.execute(actorOf(request));
+            return reply.send(listings.map(aMyListingDto));
+        },
+    );
+
+    app.get<{ Params: IdParams; Reply: OperationDetailDto }>(
+        '/operations/:id',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
+            const { operation, miParte, contratos } = vista;
+            const { id, createdAt, props } = operation.toSnapshot();
+
+            const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
+                m ? { cents: m.getCents(), currency: m.getCurrency() } : undefined;
+
+            const dto: OperationDetailDto = {
+                id,
+                listingId: props.listingId.toString(),
+                status: props.status,
+                miParte,
+                currentOfferPrice: {
+                    cents: operation.currentOfferPrice.getCents(),
+                    currency: operation.currentOfferPrice.getCurrency(),
+                },
+                pendingResponseFrom: operation.pendingResponseFrom,
+                finalPrice: dinero(operation.finalPrice),
+                buyerPays: dinero(operation.buyerPays),
+                sellerReceives: dinero(operation.sellerReceives),
+                platformEarns: dinero(operation.platformEarns),
+                negotiations: operation.negotiations.map((n) => ({
+                    amount: n.amount,
+                    currency: n.currency,
+                    proposedBy: n.proposedBy,
+                    proposedAt: n.proposedAt.toISOString(),
+                })),
+                contracts: contratos.map(aContractDto),
+                createdAt: createdAt.toISOString(),
+            };
+
+            return reply.send(dto);
+        },
+    );
+}
