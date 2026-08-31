@@ -166,11 +166,20 @@ textarea:focus-visible,
 
 /* Los filtros del mercado se pliegan en pantallas chicas y quedan siempre
    desplegados de `lg` para arriba, sin que el usuario tenga que abrirlos.
-   Se fuerza el `display` del contenido porque el navegador esconde por su
-   cuenta todo lo que no sea el `<summary>` mientras el `<details>` está
-   cerrado. */
+
+   Hacen falta las dos reglas porque los navegadores esconden el contenido de
+   un `<details>` cerrado de dos maneras distintas. Chrome moderno lo hace con
+   `content-visibility` sobre `::details-content`, y ahí forzar el `display`
+   del hijo no anula nada: esa fue la razón por la que el panel entero
+   desapareció en escritorio. Los navegadores que todavía lo esconden por
+   `display` necesitan la segunda. */
 @media (min-width: 1024px) {
-  details[data-filtros] > div {
+  details[data-filtros]::details-content {
+    content-visibility: visible;
+    block-size: auto;
+  }
+
+  details[data-filtros]:not([open]) > div {
     display: flex !important;
   }
 }

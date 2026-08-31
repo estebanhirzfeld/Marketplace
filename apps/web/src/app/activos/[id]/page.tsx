@@ -35,11 +35,12 @@ const COMISION = 0.05;
 
 export default async function DetalleDeActivo(props: {
     params: Promise<{ id: string }>;
-    searchParams: Promise<{ ver?: string }>;
+    searchParams: Promise<{ ver?: string; verificacion?: string }>;
 }) {
     await requireCounterparty();
     const { id } = await props.params;
-    const pestana = esPestana((await props.searchParams).ver) ? (await props.searchParams).ver! : 'estado';
+    const query = await props.searchParams;
+    const pestana = esPestana(query.ver) ? query.ver : 'estado';
 
     // El catálogo propio dice el estado real y el motivo de rechazo; el detalle
     // dice el resto. Son dos lecturas porque son dos permisos distintos.
@@ -236,6 +237,19 @@ export default async function DetalleDeActivo(props: {
             {/* ── VERIFICACIONES ────────────────────────────────── */}
             {pestana === 'verificaciones' && (
                 <Reveal>
+                    {/*
+                        Cuando la verificación no se puede ni empezar —la API
+                        responde 503 sin credenciales de Google— el vendedor
+                        vuelve acá con el motivo. Antes volvía a la pantalla de
+                        publicar, que ya no muestra este aviso, así que el clic
+                        parecía no hacer nada.
+                    */}
+                    {query.verificacion === 'no-configurada' && (
+                        <div className="mt-6 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[14px] leading-relaxed text-[var(--color-alerta)]">
+                            La verificación con Google todavía no está configurada en este entorno,
+                            así que no pudimos empezarla.
+                        </div>
+                    )}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                         <Panel title="TITULARIDAD">
                             {mio.ownership ? (
