@@ -35,6 +35,7 @@ import {
     VerifyIdentityRequest,
     MyOperationDto,
     OperationDetailDto,
+    AssetTypeDescriptorDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -83,6 +84,14 @@ export class MarketplaceClient {
     /** Perfil propio. Trae el estado real de KYC, no el que cargue el token. */
     perfil(): Promise<MyProfileDto> {
         return this.request('GET', '/me');
+    }
+
+    /**
+     * Lo que sabe de sí mismo cada tipo de activo. Anónimo: describe la forma
+     * de un canal y la de un sitio, no dice nada de ninguna publicación.
+     */
+    async assetTypes(): Promise<AssetTypeDescriptorDto[]> {
+        return this.request('GET', '/asset-types', { anonimo: true });
     }
 
     verifyIdentity(body: VerifyIdentityRequest): Promise<MyProfileDto> {

@@ -181,6 +181,8 @@ export interface ListingDetailDto {
      * dando por cumplido.
      */
     handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
 }
 
@@ -390,7 +392,42 @@ export interface MyListingDto {
      * se cede con su código de autorización.
      */
     handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
+}
+
+/**
+ * Lo que un tipo de activo sabe de sí mismo.
+ *
+ * Viaja para que la interfaz deje de preguntar "¿de qué tipo sos?" y decidir
+ * por su cuenta. Es un espejo de `AssetTypeDescriptor` del dominio: semántica,
+ * no presentación — el formato de los números y los colores siguen siendo de
+ * la vista.
+ */
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+
+export interface AssetFieldDto {
+    key: string;
+    label: string;
+    kind: AssetFieldKindDto;
+    confidential: boolean;
+}
+
+export interface AssetTypeDescriptorDto {
+    assetType: string;
+    label: string;
+    identityField: AssetFieldDto;
+    fields: AssetFieldDto[];
+    summaryMetricKeys: string[];
+    ownershipSource: 'youtube' | 'adsense';
+    transferWaitingDays: number;
+    /** Por qué la cesión del acceso la registra una persona. */
+    handoverNotice: string;
+    /** Por qué hay que esperar. Ausente cuando la transferencia es inmediata. */
+    waitingNotice?: string;
+    /** Qué pasa con el ingreso declarado: si se comprueba o queda declarado. */
+    revenueNotice: string;
 }
 
 /** Un paso de la cesión del activo a la plataforma. */

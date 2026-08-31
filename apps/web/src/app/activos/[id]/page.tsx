@@ -9,12 +9,10 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import {
-    assetTypeLabel,
-    ETIQUETAS_DE_CAMPO,
     fechaLarga,
     money,
     nicheLabel,
-    readableValue,
+    fieldValue,
 } from '@/lib/format';
 import { startVerification, submitForReview } from '../../vender/actions';
 
@@ -97,7 +95,7 @@ export default async function DetalleDeActivo(props: {
                     </Link>
                     <span>/</span>
                     <span className="text-[var(--color-tenue)]">
-                        {rubro} · {assetTypeLabel(mio.assetType)}
+                        {rubro} · {listing.descriptor.label}
                     </span>
                 </div>
 
@@ -112,7 +110,7 @@ export default async function DetalleDeActivo(props: {
                             )}
                         </div>
                         <h1 className="text-[30px] font-bold tracking-[-0.03em]">
-                            {rubro} · {assetTypeLabel(mio.assetType)}
+                            {rubro} · {listing.descriptor.label}
                         </h1>
                     </div>
 
@@ -283,16 +281,17 @@ export default async function DetalleDeActivo(props: {
                                         action={startVerification.bind(
                                             null,
                                             id,
-                                            mio.assetType === 'web' ? 'adsense' : 'youtube',
+                                            listing.descriptor.ownershipSource,
                                         )}
                                     >
                                         <SubmitButton
                                             variant="secundario"
                                             pendingText="Redirigiendo a Google…"
                                         >
-                                            {mio.assetType === 'web'
-                                                ? 'Verificar con AdSense'
-                                                : 'Verificar con YouTube'}
+                                            Verificar con{' '}
+                                            {listing.descriptor.ownershipSource === 'adsense'
+                                                ? 'AdSense'
+                                                : 'YouTube'}
                                         </SubmitButton>
                                     </form>
                                 </div>
@@ -315,9 +314,7 @@ export default async function DetalleDeActivo(props: {
                                 </div>
                             ) : (
                                 <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                    {mio.assetType === 'web'
-                                        ? 'Se comprueba junto con la titularidad: AdSense informa cuánto genera el dominio.'
-                                        : 'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada. Es la asimetría entre los dos tipos de activo.'}
+                                    {listing.descriptor.revenueNotice}
                                 </p>
                             )}
                         </Panel>
@@ -387,9 +384,8 @@ export default async function DetalleDeActivo(props: {
                                     )}
 
                                     <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                                        Cuando lo hagas, avisanos y lo dejamos registrado. No lo
-                                        detectamos solos: ni YouTube ni ningún registrador tienen una
-                                        API que nos diga quién es propietario de qué.
+                                        Cuando lo hagas, avisanos y lo dejamos registrado.{' '}
+                                        {listing.descriptor.handoverNotice}
                                     </p>
                                 </div>
                             )}
@@ -397,14 +393,21 @@ export default async function DetalleDeActivo(props: {
 
                         <Panel title="LOS DATOS PUBLICADOS">
                             <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                                {Object.entries(listing.assetData).map(([k, v]) => (
-                                    <div key={k} className="flex justify-between gap-4 py-2.5 text-[14px]">
-                                        <span className="text-[var(--color-tenue)]">
-                                            {ETIQUETAS_DE_CAMPO[k] ?? k}
-                                        </span>
-                                        <span className="font-mono">{readableValue(k, v)}</span>
-                                    </div>
-                                ))}
+                                {/*
+                                    El orden y las etiquetas los declara el tipo de activo. La
+                                    pantalla no sabe qué campos existen ni cómo se llaman: solo
+                                    los dibuja en el orden en que se los dan.
+                                */}
+                                {listing.descriptor.fields
+                                    .filter((f) => f.key in listing.assetData)
+                                    .map((f) => (
+                                        <div key={f.key} className="flex justify-between gap-4 py-2.5 text-[14px]">
+                                            <span className="text-[var(--color-tenue)]">{f.label}</span>
+                                            <span className="font-mono">
+                                                {fieldValue(f.kind, listing.assetData[f.key])}
+                                            </span>
+                                        </div>
+                                    ))}
                             </div>
                         </Panel>
                     </div>

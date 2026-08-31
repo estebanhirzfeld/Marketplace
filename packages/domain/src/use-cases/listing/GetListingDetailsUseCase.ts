@@ -1,7 +1,7 @@
 import { IListingRepository, IContractRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { ListingStatus, OwnershipVerification } from '../../entities/Listing';
-import { TransferStep } from '../../strategies/IAssetStrategy';
+import { AssetTypeDescriptor, TransferStep } from '../../strategies/IAssetStrategy';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
@@ -27,6 +27,8 @@ export interface ListingDetailView {
     transferableFrom?: Date;
     /** Lo que le falta al vendedor para cedernos el activo. */
     handoverSteps: TransferStep[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptor;
     createdAt: Date;
 }
 
@@ -96,6 +98,7 @@ export class GetListingDetailsUseCase {
             transferable: listing.isReadyToTransfer(),
             transferableFrom: listing.transferableFrom(),
             handoverSteps: listing.handoverSteps(),
+            descriptor: listing.describeAssetType(),
             createdAt: listing.toSnapshot().createdAt,
         };
     }

@@ -5,7 +5,8 @@ import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { ButtonLink, Heading, EmptyState } from '@/components/ui';
-import { assetTypeLabel, money, nicheLabel } from '@/lib/format';
+import { money, nicheLabel } from '@/lib/format';
+import { assetTypeLabeller } from '@/lib/assetTypes';
 
 export const metadata = { title: 'Mis activos · Traspaso' };
 
@@ -45,6 +46,7 @@ export default async function MisActivos(props: {
     searchParams: Promise<{ verificacion?: string; estado?: string }>;
 }) {
     await requireCounterparty();
+    const nombreDeTipo = await assetTypeLabeller();
     const params = await props.searchParams;
 
     const resultado = RESULTADOS[params.verificacion ?? ''];
@@ -146,7 +148,7 @@ export default async function MisActivos(props: {
                                             {l.niche ? nicheLabel(l.niche) : 'Activo'}
                                             <span className="text-[var(--color-tenue)]">
                                                 {' · '}
-                                                {assetTypeLabel(l.assetType)}
+                                                {nombreDeTipo(l.assetType)}
                                             </span>
                                         </span>
 

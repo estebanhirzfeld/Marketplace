@@ -1,6 +1,12 @@
 // REVIEW Deuda Técnica, se puede mejorar los cálculos de las métricas, y el cálculo de precios.
 
-import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
+import {
+    AssetFieldDescriptor,
+    AssetTypeDescriptor,
+    IAssetStrategy,
+    MetricKey,
+    TransferStep,
+} from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
@@ -13,6 +19,37 @@ export class WebStrategy implements IAssetStrategy {
         /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
         private readonly niche: string = AssetNiche.OTHER
     ) { }
+
+    public describe(): AssetTypeDescriptor {
+        const domain: AssetFieldDescriptor = {
+            key: 'domain',
+            label: 'Dominio',
+            kind: 'text',
+            confidential: true,
+        };
+
+        return {
+            assetType: AssetType.WEB,
+            label: 'Sitio web',
+            identityField: domain,
+            fields: [
+                { key: 'niche', label: 'Rubro', kind: 'niche', confidential: false },
+                { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
+                { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
+                { key: 'domainAuthority', label: 'Autoridad de dominio', kind: 'number', confidential: false },
+                domain,
+            ],
+            summaryMetricKeys: ['domainAuthority', 'monthlyRevenueUsdCents'],
+            ownershipSource: 'adsense',
+            transferWaitingDays: this.transferWaitingDays(),
+            handoverNotice:
+                'No lo detectamos solos: ningún registrador expone por API quién controla un dominio.',
+            // Sin espera no hay nada que justificar.
+            waitingNotice: undefined,
+            revenueNotice:
+                'Se comprueba junto con la titularidad: AdSense informa cuánto genera el dominio.',
+        };
+    }
 
     public calculateEstimatedPrice(): Money {
         // Múltiplo estándar para webs es 24-36 meses.

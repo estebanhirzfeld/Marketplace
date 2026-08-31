@@ -1,18 +1,31 @@
 import Link from 'next/link';
-import type { ListingSummaryDto } from '@marketplace/api-contract';
+import type { AssetTypeDescriptorDto, ListingSummaryDto } from '@marketplace/api-contract';
 import { LockIcon } from './LockIcon';
 import { TransferableBadge } from './Transferability';
-import { money, assetTypeLabel, cardMetrics } from '@/lib/format';
+import { money, fieldValue, nicheLabel } from '@/lib/format';
 
+/**
+ * Una tarjeta del mercado.
+ *
+ * Qué métricas resumen el activo lo decide su tipo, no la tarjeta: acá había
+ * un `switch` que sabía que un canal se resume con suscriptores y un sitio con
+ * autoridad de dominio, duplicando lo que la estrategia ya declara. El
+ * descriptor llega desde la página, que lo pide una vez para toda la grilla.
+ */
 export function ListingCard({
     listing,
+    descriptor,
     offers,
 }: {
     listing: ListingSummaryDto;
+    /** Ausente si la metadata del catálogo no llegó; la tarjeta se dibuja igual. */
+    descriptor?: AssetTypeDescriptorDto;
     offers?: number;
 }) {
-    const metrics = cardMetrics(listing.assetType, listing.assetData);
-    const [title, ...rows] = metrics;
+    const filas = (descriptor?.summaryMetricKeys ?? [])
+        .map((clave) => descriptor!.fields.find((f) => f.key === clave))
+        .filter((f): f is NonNullable<typeof f> => f !== undefined)
+        .map((f) => [f.label, fieldValue(f.kind, listing.assetData[f.key])] as const);
 
     return (
         <Link
@@ -25,7 +38,7 @@ export function ListingCard({
                 —cuántos datos faltan— quedó abajo, una sola vez. */}
             <div className="flex items-center justify-between">
                 <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-apagado)]">
-                    {assetTypeLabel(listing.assetType)}
+                    {(descriptor?.label ?? listing.assetType).toUpperCase()}
                 </span>
                 <TransferableBadge
                     transferable={listing.transferable}
@@ -33,13 +46,13 @@ export function ListingCard({
                 />
             </div>
 
-            <div className="text-[16px] font-medium">{title?.[1]}</div>
+            <div className="text-[16px] font-medium">{nicheLabel(listing.assetData.niche)}</div>
 
             <div className="flex flex-col gap-1.5">
-                {rows.map(([key, value]) => (
-                    <div key={key} className="flex justify-between text-[13px]">
-                        <span className="text-[var(--color-apagado)]">{key}</span>
-                        <span className="font-mono">{value}</span>
+                {filas.map(([etiqueta, valor]) => (
+                    <div key={etiqueta} className="flex justify-between text-[13px]">
+                        <span className="text-[var(--color-apagado)]">{etiqueta}</span>
+                        <span className="font-mono">{valor}</span>
                     </div>
                 ))}
             </div>

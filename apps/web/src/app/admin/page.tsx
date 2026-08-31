@@ -6,7 +6,8 @@ import { requireAdmin } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingReview } from '@/components/ListingReview';
 import { Panel, Heading, EmptyState, OperationStatusBadge } from '@/components/ui';
-import { money, assetTypeLabel } from '@/lib/format';
+import { money } from '@/lib/format';
+import { assetTypeLabeller } from '@/lib/assetTypes';
 import { approveListing, rejectListing } from './actions';
 
 export const metadata = { title: 'Panel · Traspaso' };
@@ -58,6 +59,7 @@ function Metrica({
  */
 export default async function Admin() {
     await requireAdmin();
+    const nombreDeTipo = await assetTypeLabeller();
 
     let queue: MyListingDto[] = [];
     let tablero: PlatformDashboardDto | undefined;
@@ -169,7 +171,7 @@ export default async function Admin() {
                 ) : (
                     queue.map((l, i) => (
                         <Reveal key={l.id} delay={Math.min(i, 6) * 80}>
-                            <Panel title={assetTypeLabel(l.assetType)}>
+                            <Panel title={nombreDeTipo(l.assetType)}>
                                 <div className="flex flex-col gap-5">
                                     <div className="flex flex-wrap items-baseline justify-between gap-4">
                                         <div className="flex flex-col gap-1.5">

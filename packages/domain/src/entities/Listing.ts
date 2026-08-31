@@ -1,7 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
-import { IAssetStrategy, TransferStep } from '../strategies/IAssetStrategy';
+import { AssetTypeDescriptor, IAssetStrategy, TransferStep } from '../strategies/IAssetStrategy';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ListingStatus =
@@ -200,6 +200,11 @@ export class Listing extends Entity<ListingProps> {
      * La lista existía en cada estrategia desde el principio y no se mostraba
      * en ninguna pantalla, así que el vendedor no tenía cómo saber qué hacer.
      */
+    /** Lo que su tipo de activo sabe de sí mismo. */
+    public describeAssetType(): AssetTypeDescriptor {
+        return this.props.assetStrategy.describe();
+    }
+
     public handoverSteps(): TransferStep[] {
         const pasos = this.props.assetStrategy.getTransferSteps();
         const corte = pasos.findIndex((p) => p.requiredActor !== 'seller');
