@@ -305,6 +305,12 @@ export interface RejectListingRequest {
 
 export interface OfferSummaryDto {
     id: string;
+    /**
+     * Quién ofertó. El vendedor ya ve el nombre de su contraparte en el detalle
+     * de la operación y en el contrato que firman; una tabla de ofertas contra
+     * identificadores no se puede leer.
+     */
+    buyerName: string;
     status: OperationStatusDto;
     currentOfferPrice: MoneyDto;
     /** A quién le toca responder. Deriva del historial, no se almacena. */
@@ -355,6 +361,8 @@ export interface MyListingDto {
     id: string;
     status: ListingStatusDto;
     assetType: string;
+    /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
+    niche?: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
     rejectionReason?: string;

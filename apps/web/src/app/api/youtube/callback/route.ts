@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 }
 
 function redirigir(listingId: string | undefined, resultado: string): NextResponse {
-    const destino = new URL('/vender', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000');
+    const destino = new URL('/activos', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000');
     destino.searchParams.set('verificacion', resultado);
     if (listingId) destino.searchParams.set('listing', listingId);
 

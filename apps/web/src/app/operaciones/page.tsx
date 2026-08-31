@@ -6,7 +6,7 @@ import { Reveal } from '@/components/Reveal';
 import { ButtonLink, OperationStatusBadge, Heading, EmptyState } from '@/components/ui';
 import { assetTypeLabel, money, nicheLabel } from '@/lib/format';
 
-export const metadata = { title: 'Mis operaciones · Traspaso' };
+export const metadata = { title: 'Mis compras · Traspaso' };
 
 /**
  * En qué momento del recorrido está una operación.
@@ -39,24 +39,12 @@ const ETAPAS = {
 
 type ClaveDeEtapa = keyof typeof ETAPAS;
 
-const PARTES = { buyer: 'Comprando', seller: 'Vendiendo' } as const;
-type ClaveDeParte = keyof typeof PARTES;
-
 function esEtapa(v: unknown): v is ClaveDeEtapa {
     return typeof v === 'string' && v in ETAPAS;
 }
 
-function esParte(v: unknown): v is ClaveDeParte {
-    return v === 'buyer' || v === 'seller';
-}
-
-/** Reconstruye la dirección conservando el otro criterio. */
-function href(parte?: ClaveDeParte, etapa?: ClaveDeEtapa): string {
-    const q = new URLSearchParams();
-    if (parte) q.set('parte', parte);
-    if (etapa) q.set('etapa', etapa);
-    const s = q.toString();
-    return s ? `/operaciones?${s}` : '/operaciones';
+function href(etapa?: ClaveDeEtapa): string {
+    return etapa ? `/operaciones?etapa=${etapa}` : '/operaciones';
 }
 
 function Filtro({
@@ -90,12 +78,14 @@ export default async function Operaciones(props: {
     await requireCounterparty();
     const params = await props.searchParams;
 
-    const parte = esParte(params.parte) ? params.parte : undefined;
     const etapa = esEtapa(params.etapa) ? params.etapa : undefined;
 
     let todas: MyOperationDto[] = [];
     try {
-        todas = await api().misOperaciones();
+        // Solo las compras. Las ventas se administran desde el activo, que es
+        // donde están sus ofertas: tener las dos cosas en una misma lista era
+        // lo que la volvía ilegible.
+        todas = (await api().misOperaciones()).filter((o) => o.miParte === 'buyer');
     } catch {
         todas = [];
     }
@@ -103,18 +93,12 @@ export default async function Operaciones(props: {
     // El filtrado va acá y no en la API porque la lista es de una sola persona
     // y ya viene entera en una llamada: pedirla de nuevo por cada criterio
     // sería un viaje de ida y vuelta para no traer nada que no tengamos.
-    const visibles = todas.filter(
-        (op) =>
-            (!parte || op.miParte === parte) &&
-            (!etapa || ETAPAS[etapa].states.includes(op.status)),
-    );
+    const visibles = todas.filter((op) => !etapa || ETAPAS[etapa].states.includes(op.status));
 
     // Los contadores salen del total y no de lo ya filtrado: un filtro que da
     // cero tiene que seguir diciendo cuántas hay del otro lado.
-    const cuantas = (p?: ClaveDeParte, e?: ClaveDeEtapa) =>
-        todas.filter(
-            (op) => (!p || op.miParte === p) && (!e || ETAPAS[e].states.includes(op.status)),
-        ).length;
+    const cuantas = (e?: ClaveDeEtapa) =>
+        todas.filter((op) => !e || ETAPAS[e].states.includes(op.status)).length;
 
     const fecha = (iso: string) =>
         new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
@@ -122,8 +106,8 @@ export default async function Operaciones(props: {
     return (
         <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
             <Reveal>
-                <Heading sub="Todo lo que estás comprando o vendiendo, con la etapa en la que está cada operación.">
-                    Mis operaciones
+                <Heading sub="Los activos por los que ofertaste, con el paso que falta en cada uno. Lo que vendés se administra desde Mis activos.">
+                    Mis compras
                 </Heading>
             </Reveal>
 
@@ -132,28 +116,14 @@ export default async function Operaciones(props: {
                     <div className="mt-8 flex flex-col gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="mr-1 font-mono text-[12px] tracking-[0.08em] text-[var(--color-tenue)]">
-                                POSICIÓN
-                            </span>
-                            <Filtro activo={!parte} href={href(undefined, etapa)}>
-                                Todas · {cuantas(undefined, etapa)}
-                            </Filtro>
-                            {(Object.keys(PARTES) as ClaveDeParte[]).map((p) => (
-                                <Filtro key={p} activo={parte === p} href={href(p, etapa)}>
-                                    {PARTES[p]} · {cuantas(p, etapa)}
-                                </Filtro>
-                            ))}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="mr-1 font-mono text-[12px] tracking-[0.08em] text-[var(--color-tenue)]">
                                 ETAPA
                             </span>
-                            <Filtro activo={!etapa} href={href(parte, undefined)}>
-                                Todas · {cuantas(parte, undefined)}
+                            <Filtro activo={!etapa} href={href(undefined)}>
+                                Todas · {cuantas(undefined)}
                             </Filtro>
                             {(Object.keys(ETAPAS) as ClaveDeEtapa[]).map((e) => (
-                                <Filtro key={e} activo={etapa === e} href={href(parte, e)}>
-                                    {ETAPAS[e].text} · {cuantas(parte, e)}
+                                <Filtro key={e} activo={etapa === e} href={href(e)}>
+                                    {ETAPAS[e].text} · {cuantas(e)}
                                 </Filtro>
                             ))}
                         </div>
@@ -164,14 +134,14 @@ export default async function Operaciones(props: {
             <div className="mt-8">
                 {todas.length === 0 ? (
                     <EmptyState
-                        title="Todavía no tenés operaciones"
-                        text="Cuando ofertes por un activo, o alguien oferte por uno tuyo, la vas a seguir desde acá."
+                        title="Todavía no compraste nada"
+                        text="Cuando ofertes por un activo del mercado, vas a seguir la compra desde acá."
                         action={<ButtonLink href="/listings">Ver el mercado</ButtonLink>}
                     />
                 ) : visibles.length === 0 ? (
                     <EmptyState
-                        title="Ninguna operación entra en ese filtro"
-                        text="Probá con otra combinación, o mirá todas para ver el panorama completo."
+                        title="Ninguna compra en esa etapa"
+                        text="Probá con otro filtro para ver el resto."
                         action={<ButtonLink href="/operaciones">Ver todas</ButtonLink>}
                     />
                 ) : (
@@ -210,7 +180,7 @@ export default async function Operaciones(props: {
                                                 )}
                                             </span>
                                             <span className="text-[14px] text-[var(--color-tenue)]">
-                                                {op.miParte === 'buyer' ? 'Estás comprando' : 'Estás vendiendo'}
+                                                Estás comprando
                                                 <span className="text-[var(--color-apagado)]">
                                                     {' · desde el '}
                                                     {fecha(op.createdAt)}

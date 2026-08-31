@@ -51,6 +51,17 @@ function createFakeUnitOfWork(
 
 // ── Mock Factories ───────────────────────────────────────
 
+/** Solo hace falta para resolver el nombre de quien ofertó. */
+function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepository {
+    return {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        save: vi.fn().mockResolvedValue(undefined),
+        ...overrides,
+    };
+}
+
+
 function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}): IOperationRepository {
     return {
         findById: vi.fn().mockResolvedValue(null),
@@ -417,11 +428,13 @@ describe('GetSellerOffersUseCase', () => {
             findById: vi.fn().mockResolvedValue(createPublishedListing(sellerId)),
         });
 
-        const useCase = new GetSellerOffersUseCase(operationRepo, listingRepo);
+        const useCase = new GetSellerOffersUseCase(operationRepo, listingRepo, createMockUserRepo());
         const result = await useCase.execute(listingId.toString(), actorDe(sellerId, UserRole.SELLER));
 
         expect(result).toHaveLength(1);
-        expect(result[0].id.toString()).toBe(active.id.toString());
+        expect(result[0].operation.id.toString()).toBe(active.id.toString());
+        // El nombre viaja con la oferta: una tabla contra identificadores no se lee.
+        expect(result[0].buyerName).toBeTypeOf('string');
     });
 
     it('debería devolver array vacío si no hay operaciones', async () => {
@@ -431,6 +444,7 @@ describe('GetSellerOffersUseCase', () => {
             createMockListingRepo({
                 findById: vi.fn().mockResolvedValue(createPublishedListing(sellerId)),
             }),
+            createMockUserRepo(),
         );
 
         const result = await useCase.execute('some-listing-id', actorDe(sellerId, UserRole.SELLER));

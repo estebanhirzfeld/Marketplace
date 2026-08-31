@@ -25,10 +25,10 @@ export async function Navbar() {
     const enlaces: { href: string; text: string; destacado?: boolean }[] = [
         { href: '/listings', text: 'Mercado' },
         { href: '/#proceso', text: 'Cómo funciona' },
-        ...(isAdmin ? [] : [{ href: '/vender', text: 'Vender' }]),
+        ...(isAdmin ? [] : [{ href: '/activos', text: 'Mis activos' }]),
         ...(actor && !isAdmin
             ? [
-                  { href: '/operaciones', text: 'Mis operaciones' },
+                  { href: '/operaciones', text: 'Mis compras' },
                   { href: '/denuncias', text: 'Reclamos' },
               ]
             : []),

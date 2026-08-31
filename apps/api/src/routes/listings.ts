@@ -292,8 +292,9 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         async (request, reply) => {
             const offers = await c.getSellerOffers.execute(request.params.id, actorOf(request));
             return reply.send(
-                offers.map((op): OfferSummaryDto => ({
+                offers.map(({ operation: op, buyerName }): OfferSummaryDto => ({
                     id: op.id.toString(),
+                    buyerName,
                     status: op.status,
                     currentOfferPrice: {
                         cents: op.currentOfferPrice.getCents(),

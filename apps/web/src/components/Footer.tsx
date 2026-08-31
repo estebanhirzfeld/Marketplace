@@ -4,7 +4,7 @@ import { currentActor } from '@/lib/session';
 import { Logo } from './Logo';
 
 const COLUMNAS = [
-    { title: 'MERCADO', enlaces: [['Explorar', '/listings'], ['Publicar', '/vender']] },
+    { title: 'MERCADO', enlaces: [['Explorar', '/listings'], ['Publicar', '/vender'], ['Mis activos', '/activos']] },
     { title: 'PROCESO', enlaces: [['Custodia', '/#proceso'], ['Confidencialidad', '/#proceso'], ['Comisiones', '/#comision']] },
     { title: 'LEGAL', enlaces: [['Términos', '/'], ['Privacidad', '/'], ['Contacto', '/']] },
 ] as const;

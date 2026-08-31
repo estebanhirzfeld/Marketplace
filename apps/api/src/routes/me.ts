@@ -28,6 +28,10 @@ function aMyListingDto(listing: Listing): MyListingDto {
         id,
         status: props.status,
         assetType: props.assetStrategy.toJSON().assetType,
+        niche: (() => {
+            const v = props.assetStrategy.toJSON().assetData.niche;
+            return typeof v === 'string' ? v : undefined;
+        })(),
         askingPrice: {
             cents: props.askingPrice.getCents(),
             currency: props.askingPrice.getCurrency(),
