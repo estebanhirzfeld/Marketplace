@@ -1,9 +1,16 @@
+import { redirect } from 'next/navigation';
+import { currentActor } from '@/lib/session';
 import { AuthForm } from '@/components/AuthForm';
 import { registerUser } from './actions';
 
 export const metadata = { title: 'Crear cuenta · Traspaso' };
 
-export default function Registro() {
+export default async function Registro() {
+    // Quien ya tiene sesión no tiene nada que hacer acá. Sin esto la
+    // pantalla mostraba el formulario igual, y volver a completarlo no
+    // cambiaba de cuenta de forma evidente.
+    if (await currentActor()) redirect('/');
+
     return (
         <AuthForm
             action={registerUser}

@@ -1,9 +1,16 @@
+import { redirect } from 'next/navigation';
+import { currentActor } from '@/lib/session';
 import { AuthForm } from '@/components/AuthForm';
 import { logIn } from './actions';
 
 export const metadata = { title: 'Ingresar · Traspaso' };
 
-export default function Ingresar() {
+export default async function Ingresar() {
+    // Quien ya tiene sesión no tiene nada que hacer acá. Sin esto la
+    // pantalla mostraba el formulario igual, y volver a completarlo no
+    // cambiaba de cuenta de forma evidente.
+    if (await currentActor()) redirect('/');
+
     return (
         <AuthForm
             action={logIn}

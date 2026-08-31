@@ -1,12 +1,22 @@
 'use server';
 
+/*
+ * Las Server Actions son un punto de entrada propio: se invocan por HTTP y
+ * no pasan por la guarda de la pantalla que las muestra. Los docs de Next
+ * piden tratarlas como endpoints públicos, así que cada una vuelve a exigir
+ * la sesión. No reemplaza a la API ni al dominio, que validan igual: evita
+ * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
+ */
+
 import { revalidatePath } from 'next/cache';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
+import { requireAdmin } from '@/lib/guards';
 
 export type ActionState = { error?: string };
 
 export async function approveListing(listingId: string, _estado: ActionState): Promise<ActionState> {
+    await requireAdmin();
     try {
         await api().approveListing(listingId);
     } catch (e) {
@@ -22,6 +32,7 @@ export async function rejectListing(
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireAdmin();
     const reason = String(form.get('motivo') ?? '').trim();
     if (reason === '') {
         return { error: 'El motivo es obligatorio: el vendedor tiene que saber qué corregir.' };
@@ -49,6 +60,7 @@ export async function registerPlatformAccess(
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireAdmin();
     const day = String(form.get('accessSince') ?? '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
         return { error: 'Elegí la fecha desde la que la plataforma tiene acceso.' };
@@ -76,6 +88,7 @@ export async function revokePlatformAccess(
     listingId: string,
     _estado: ActionState,
 ): Promise<ActionState> {
+    await requireAdmin();
     try {
         await api().revokePlatformAccess(listingId);
     } catch (e) {

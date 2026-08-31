@@ -3,7 +3,7 @@ import { IPasswordHasher } from '../../ports/IPasswordHasher';
 import { User } from '../../entities/User';
 import { Email } from '../../value-objects/Email';
 import { Password } from '../../value-objects/Password';
-import { ValidationError } from '../../errors/DomainError';
+import { ForbiddenError, ValidationError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
 export interface RegisterUserInput {
@@ -23,6 +23,20 @@ export class RegisterUserUseCase {
     ) {}
 
     async execute(input: RegisterUserInput): Promise<User> {
+        // 0. El registro es público, así que el rol que llega en el cuerpo lo
+        //    elige quien llama y no la plataforma. Un `curl` con
+        //    `"role":"admin"` alcanzaba para crear una cuenta capaz de aprobar
+        //    publicaciones ajenas y de registrar la constancia de acceso, que
+        //    es la atestiguación sobre la que se apoya todo el escrow.
+        //
+        //    El candado vive acá y no solo en el schema de la ruta HTTP porque
+        //    la app móvil va a ser otro punto de entrada a este mismo caso de
+        //    uso. Los admin se siembran o los promueve otro admin; nunca se
+        //    obtienen registrándose.
+        if (input.role === UserRole.ADMIN) {
+            throw new ForbiddenError('No se puede crear una cuenta de administrador desde el registro.');
+        }
+
         // 1. Validar formato y política antes de tocar la base o el hasher.
         //    Los value objects lanzan si algo no cumple.
         const email = Email.create(input.email);

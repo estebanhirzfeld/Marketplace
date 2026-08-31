@@ -172,3 +172,56 @@ describe('LoginUseCase', () => {
         expect(errorClaveMal).toBe(errorNoExiste);
     });
 });
+
+// ═════════════════════════════════════════════════════════
+// Escalada de privilegios en el registro
+// ═════════════════════════════════════════════════════════
+
+/**
+ * El registro es un endpoint público, así que el `role` que llega en el cuerpo
+ * es un dato del atacante, no una decisión de la plataforma.
+ *
+ * Sin este candado, un `curl` con `"role":"admin"` alcanzaba para crear una
+ * cuenta de administrador: leer la cola de revisión, aprobar publicaciones
+ * ajenas y —lo más grave— registrar la constancia de acceso de la plataforma,
+ * que es la atestiguación sobre la que se apoya todo el escrow.
+ *
+ * El candado va acá y no solo en el schema de la ruta HTTP porque la app móvil
+ * va a ser otro punto de entrada al mismo caso de uso.
+ */
+describe('RegisterUserUseCase — nadie se auto-nombra admin', () => {
+    const datos = {
+        email: 'intruso@example.com',
+        fullName: 'Intruso',
+        password: 'marketplace1',
+    };
+
+    it('rechaza un registro que pide el rol de admin', async () => {
+        const userRepo = createMockUserRepo();
+        const useCase = new RegisterUserUseCase(userRepo, createFakeHasher());
+
+        await expect(
+            useCase.execute({ ...datos, role: UserRole.ADMIN }),
+        ).rejects.toThrow(ForbiddenError);
+
+        expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('sigue permitiendo registrarse como comprador', async () => {
+        const userRepo = createMockUserRepo();
+        const useCase = new RegisterUserUseCase(userRepo, createFakeHasher());
+
+        await useCase.execute({ ...datos, role: UserRole.BUYER });
+
+        expect(userRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('sigue permitiendo registrarse como vendedor', async () => {
+        const userRepo = createMockUserRepo();
+        const useCase = new RegisterUserUseCase(userRepo, createFakeHasher());
+
+        await useCase.execute({ ...datos, role: UserRole.SELLER });
+
+        expect(userRepo.save).toHaveBeenCalledOnce();
+    });
+});

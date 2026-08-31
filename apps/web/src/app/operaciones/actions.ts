@@ -1,9 +1,18 @@
 'use server';
 
+/*
+ * Las Server Actions son un punto de entrada propio: se invocan por HTTP y
+ * no pasan por la guarda de la pantalla que las muestra. Los docs de Next
+ * piden tratarlas como endpoints públicos, así que cada una vuelve a exigir
+ * la sesión. No reemplaza a la API ni al dominio, que validan igual: evita
+ * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
+ */
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
+import { requireSession } from '@/lib/guards';
 
 export type ActionState = { error?: string };
 
@@ -25,6 +34,7 @@ export async function advanceOperation(
     paso: Step,
     _estado: ActionState,
 ): Promise<ActionState> {
+    await requireSession();
     try {
         await EJECUTAR[paso](operationId);
     } catch (e) {
@@ -42,6 +52,7 @@ export async function counterOffer(
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireSession();
     const amount = Number(form.get('money'));
     if (!Number.isFinite(amount) || amount <= 0) {
         return { error: 'Ingresá un monto válido.' };
@@ -65,6 +76,7 @@ export async function signContract(
     contractId: string,
     _estado: ActionState,
 ): Promise<ActionState> {
+    await requireSession();
     try {
         await api().signContract(contractId);
     } catch (e) {
@@ -109,6 +121,7 @@ export async function confirmCustody(
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireSession();
     const metrics = parseMetrics(String(form.get('metrics') ?? ''));
     if (!metrics) {
         return { error: 'Revisá las métricas: una por línea, con el formato nombre: número.' };
@@ -140,6 +153,7 @@ export async function confirmCustody(
  * cortar la ejecución, así que va fuera del `try`.
  */
 export async function goToCheckout(operationId: string): Promise<void> {
+    await requireSession();
     let url: string;
 
     try {
@@ -160,6 +174,7 @@ export async function confirmBankTransfer(
     amountCents: number,
     currency: string,
 ): Promise<void> {
+    await requireSession();
     try {
         await api().confirmPayment(operationId, {
             method: 'transferencia_bancaria',

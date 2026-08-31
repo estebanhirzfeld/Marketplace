@@ -1,10 +1,19 @@
 'use server';
 
+/*
+ * Las Server Actions son un punto de entrada propio: se invocan por HTTP y
+ * no pasan por la guarda de la pantalla que las muestra. Los docs de Next
+ * piden tratarlas como endpoints públicos, así que cada una vuelve a exigir
+ * la sesión. No reemplaza a la API ni al dominio, que validan igual: evita
+ * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
+ */
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import type { ReportReasonDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
+import { requireCounterparty } from '@/lib/guards';
 
 export type ActionState = { error?: string };
 
@@ -26,6 +35,7 @@ export async function fileReport(
     _state: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireCounterparty();
     const reason = String(form.get('motivo') ?? '');
     const detail = String(form.get('detalle') ?? '').trim();
 
@@ -57,6 +67,7 @@ export async function closeReport(
     _state: ActionState,
     form: FormData,
 ): Promise<ActionState> {
+    await requireCounterparty();
     const reason = String(form.get('motivo') ?? '').trim();
     if (reason === '') {
         return { error: 'Indicá por qué cerrás la denuncia.' };

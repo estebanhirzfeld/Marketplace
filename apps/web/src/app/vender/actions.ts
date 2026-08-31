@@ -1,10 +1,19 @@
 'use server';
 
+/*
+ * Las Server Actions son un punto de entrada propio: se invocan por HTTP y
+ * no pasan por la guarda de la pantalla que las muestra. Los docs de Next
+ * piden tratarlas como endpoints públicos, así que cada una vuelve a exigir
+ * la sesión. No reemplaza a la API ni al dominio, que validan igual: evita
+ * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
+ */
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
+import { requireCounterparty } from '@/lib/guards';
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -16,7 +25,7 @@ export async function publishListing(
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
-    if (!(await currentActor())) redirect('/ingresar');
+    await requireCounterparty();
 
     const assetType = String(form.get('assetType') ?? 'youtube');
     const price = Number(form.get('precio'));
@@ -33,6 +42,9 @@ export async function publishListing(
     const assetData: Record<string, unknown> = {
         monthlyRevenueUsdCents: Math.round((ingreso || 0) * 100),
         currency: 'USD',
+        // El rubro vale para los dos tipos y lo valida el factory contra la
+        // lista cerrada, así que acá se reenvía tal cual llega.
+        niche: String(form.get('niche') ?? 'other'),
     };
 
     // La identidad del activo es lo único que un listing blind reserva. Sin
@@ -44,21 +56,19 @@ export async function publishListing(
         assetData.isMonetized = form.get('monetizado') === 'on';
         assetData.audienceTopCountry = String(form.get('pais') || 'AR');
         assetData.channelUrl = identidad;
-    } else if (assetType === 'web') {
+    } else {
         assetData.domainAuthority = Number(form.get('metrica') || 0);
         assetData.domain = identidad;
-    } else {
-        assetData.followers = Number(form.get('metrica') || 0);
-        assetData.engagementRate = Number(form.get('engagement') || 0);
-        assetData.platform = assetType;
-        assetData.profileUrl = identidad;
     }
 
     try {
         await api().createListing({
             assetType,
             assetData,
-            askingPrice: { cents: Math.round(price * 100), currency: 'USD' },
+            // La moneda es la que el vendedor eligió. Estaba fija en 'USD':
+            // se podía elegir pesos en el formulario y el activo se publicaba
+            // igual en dólares, con el precio multiplicado por la cotización.
+            askingPrice: { cents: Math.round(price * 100), currency: moneda },
         });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
@@ -69,7 +79,32 @@ export async function publishListing(
     return { ok: true };
 }
 
+/**
+ * La valuación que calcula la fórmula del activo, mientras se completa el
+ * formulario.
+ *
+ * Va por la API y no se recalcula en el navegador a propósito: la fórmula vive
+ * en la strategy del dominio y tenerla en dos lados garantiza que en algún
+ * momento digan cosas distintas. Devuelve `null` en vez de propagar el error
+ * porque el formulario está incompleto casi todo el tiempo que se lo escribe,
+ * y un cartel rojo por cada tecla sería ruido.
+ */
+export async function estimateListingPrice(
+    assetType: string,
+    assetData: Record<string, unknown>,
+): Promise<{ cents: number; currency: string } | null> {
+    if (!(await currentActor())) return null;
+
+    try {
+        const { estimatedPrice } = await api().estimateListingPrice({ assetType, assetData });
+        return estimatedPrice;
+    } catch {
+        return null;
+    }
+}
+
 export async function submitForReview(listingId: string): Promise<void> {
+    await requireCounterparty();
     try {
         await api().submitListing(listingId);
     } catch {
@@ -89,6 +124,7 @@ export async function startVerification(
     listingId: string,
     source: 'youtube' | 'adsense',
 ): Promise<void> {
+    await requireCounterparty();
     let url: string;
 
     try {
