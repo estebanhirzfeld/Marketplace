@@ -40,6 +40,7 @@ function createMockReportRepo(report: Report | null = null): IReportRepository {
         findById: vi.fn().mockResolvedValue(report),
         findByUser: vi.fn().mockResolvedValue([]),
         findByOperation: vi.fn().mockResolvedValue([]),
+        findOpen: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -49,6 +50,7 @@ function createMockOperationRepo(operation: Operation | null): IOperationReposit
         findById: vi.fn().mockResolvedValue(operation),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

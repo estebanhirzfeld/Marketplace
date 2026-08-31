@@ -35,6 +35,18 @@ export interface OperationParty {
 export interface OperationAsset {
     assetType: string;
     niche?: string;
+    /**
+     * Si el activo ya se puede transferir. Firmar el tripartito lo exige
+     * (`assertCanBeTransferred`), así que sin este dato la pantalla ofrecía
+     * firmar y el error aparecía recién al apretar el botón.
+     */
+    transferable: boolean;
+    /**
+     * Desde cuándo se va a poder. `undefined` mientras la plataforma no tenga
+     * acceso al activo: sin acceso no hay fecha que prometerle a nadie, y lo
+     * que falta es un movimiento de la plataforma, no del calendario.
+     */
+    transferableFrom?: Date;
 }
 
 export interface OperationDetailView {
@@ -99,6 +111,8 @@ export class GetOperationDetailsUseCase {
             asset = {
                 assetType,
                 niche: typeof assetData.niche === 'string' ? assetData.niche : undefined,
+                transferable: listing.isReadyToTransfer(),
+                transferableFrom: listing.transferableFrom(),
             };
         }
 

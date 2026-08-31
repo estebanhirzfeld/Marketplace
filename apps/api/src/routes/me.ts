@@ -296,6 +296,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 listingId: props.listingId.toString(),
                 assetType: asset?.assetType,
                 niche: asset?.niche,
+                transferable: asset?.transferable,
+                transferableFrom: asset?.transferableFrom?.toISOString(),
                 status: props.status,
                 miParte,
                 buyer,

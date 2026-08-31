@@ -39,6 +39,19 @@ export function percentage(n: number): string {
     return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)} %`;
 }
 
+/**
+ * Una fecha escrita como se lee en voz alta. Se usa donde la fecha es la
+ * explicación de por qué algo todavía no se puede hacer: ahí un `12/9/2026`
+ * obliga a descifrar, y el punto es que se entienda de una.
+ */
+export function fechaLarga(iso: string): string {
+    return new Date(iso).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
 const TIPOS: Record<string, string> = {
     youtube: 'CANAL DE YOUTUBE',
     web: 'SITIO WEB',
@@ -109,4 +122,33 @@ export function cardMetrics(
         default:
             return [['titulo', 'Activo digital']];
     }
+}
+
+/** Nombres legibles para las claves crudas que devuelve la strategy. */
+/**
+ * Las claves son las de `assetData`, tal como las emite cada estrategia. Si
+ * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
+ */
+export const ETIQUETAS_DE_CAMPO: Record<string, string> = {
+    niche: 'Rubro',
+    subscribers: 'Suscriptores',
+    monthlyRevenueUsdCents: 'Ingreso mensual',
+    currency: 'Moneda',
+    growthFactor: 'Factor de crecimiento',
+    isMonetized: 'Monetizado',
+    audienceTopCountry: 'País principal de la audiencia',
+    hasNoFaceContent: 'Contenido sin rostro',
+    channelUrl: 'Dirección del canal',
+    domainAuthority: 'Autoridad de dominio',
+    domain: 'Dominio',
+};
+
+export function readableValue(key: string, value: unknown): string {
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    if (key === 'monthlyRevenueUsdCents' && typeof value === 'number') {
+        return money({ cents: value, currency: 'USD' });
+    }
+    if (key === 'engagementRate' && typeof value === 'number') return percentage(value);
+    if (typeof value === 'number') return formatNumber(value);
+    return String(value);
 }

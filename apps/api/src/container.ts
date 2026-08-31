@@ -268,7 +268,7 @@ export function createContainer(
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
         // Único use case que necesita atomicidad: la cascada multi-oferta.
         acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos),
-        cancelOperation: new CancelOperationUseCase(operationRepo),
+        cancelOperation: new CancelOperationUseCase(new PrismaUnitOfWork()),
         getSellerOffers: new GetSellerOffersUseCase(operationRepo, listingRepo, userRepo),
 
         signNda: new SignNdaUseCase(contractRepo, listingRepo, userRepo, armador),

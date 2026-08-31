@@ -439,6 +439,14 @@ export interface OperationDetailDto {
      */
     assetType?: string;
     niche?: string;
+    /**
+     * Si el activo ya se puede transferir. Firmar el contrato tripartito lo
+     * exige, así que la pantalla lo necesita para no ofrecer una firma que el
+     * dominio va a rechazar.
+     */
+    transferable?: boolean;
+    /** Desde cuándo. Ausente mientras la plataforma no tenga acceso al activo. */
+    transferableFrom?: string;
     id: string;
     listingId: string;
     status: OperationStatusDto;

@@ -8,7 +8,13 @@ import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
-import { assetTypeLabel, money, nicheLabel } from '@/lib/format';
+import {
+    assetTypeLabel,
+    ETIQUETAS_DE_CAMPO,
+    money,
+    nicheLabel,
+    readableValue,
+} from '@/lib/format';
 import { startVerification, submitForReview } from '../../vender/actions';
 
 /**
@@ -358,8 +364,10 @@ export default async function DetalleDeActivo(props: {
                             <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
                                 {Object.entries(listing.assetData).map(([k, v]) => (
                                     <div key={k} className="flex justify-between gap-4 py-2.5 text-[14px]">
-                                        <span className="text-[var(--color-tenue)]">{k}</span>
-                                        <span className="font-mono">{String(v)}</span>
+                                        <span className="text-[var(--color-tenue)]">
+                                            {ETIQUETAS_DE_CAMPO[k] ?? k}
+                                        </span>
+                                        <span className="font-mono">{readableValue(k, v)}</span>
                                     </div>
                                 ))}
                             </div>

@@ -67,6 +67,7 @@ function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}):
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -367,16 +368,78 @@ describe('CancelOperationUseCase', () => {
             findById: vi.fn().mockResolvedValue(operation),
         });
 
-        const useCase = new CancelOperationUseCase(operationRepo);
+        const useCase = new CancelOperationUseCase(
+            createFakeUnitOfWork(operationRepo, createMockListingRepo()),
+        );
         await useCase.execute(operation.id.toString(), actorDe(buyerId));
 
         expect(operation.status).toBe('cancelled');
         expect(operationRepo.save).toHaveBeenCalledOnce();
     });
 
+    it('debería devolver el activo al mercado si no queda ninguna operación viva', async () => {
+        const buyerId = new UniqueEntityID();
+        const sellerId = new UniqueEntityID();
+        const listing = createPublishedListing(sellerId);
+        listing.markInOperation();
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId,
+            sellerId,
+            offerPrice: Money.fromCents(100000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller'); // contract_pending: cancelar sigue siendo legal
+
+        const operationRepo = createMockOperationRepo({
+            findById: vi.fn().mockResolvedValue(operation),
+            findByListing: vi.fn().mockResolvedValue([operation]),
+        });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(listing),
+        });
+
+        const useCase = new CancelOperationUseCase(createFakeUnitOfWork(operationRepo, listingRepo));
+        await useCase.execute(operation.id.toString(), actorDe(buyerId));
+
+        // Sin esto el activo quedaba en in_operation para siempre.
+        expect(listing.status).toBe('published');
+        expect(listingRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('no debería devolver el activo al mercado si otra operación sigue viva', async () => {
+        const sellerId = new UniqueEntityID();
+        const buyerId = new UniqueEntityID();
+        const listing = createPublishedListing(sellerId);
+        listing.markInOperation();
+
+        const base = {
+            listingId: listing.id,
+            sellerId,
+            offerPrice: Money.fromCents(100000, 'USD'),
+        };
+        const cancelada = Operation.create({ ...base, buyerId });
+        const viva = Operation.create({ ...base, buyerId: new UniqueEntityID() });
+
+        const operationRepo = createMockOperationRepo({
+            findById: vi.fn().mockResolvedValue(cancelada),
+            findByListing: vi.fn().mockResolvedValue([cancelada, viva]),
+        });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(listing),
+        });
+
+        const useCase = new CancelOperationUseCase(createFakeUnitOfWork(operationRepo, listingRepo));
+        await useCase.execute(cancelada.id.toString(), actorDe(buyerId));
+
+        expect(listing.status).toBe('in_operation');
+        expect(listingRepo.save).not.toHaveBeenCalled();
+    });
+
     it('debería fallar si la operación no existe', async () => {
-        const operationRepo = createMockOperationRepo();
-        const useCase = new CancelOperationUseCase(operationRepo);
+        const useCase = new CancelOperationUseCase(
+            createFakeUnitOfWork(createMockOperationRepo(), createMockListingRepo()),
+        );
 
         await expect(useCase.execute('nonexistent', actorDe(new UniqueEntityID())))
             .rejects.toThrow('Operación no encontrada');
@@ -396,7 +459,9 @@ describe('CancelOperationUseCase', () => {
             findById: vi.fn().mockResolvedValue(operation),
         });
 
-        const useCase = new CancelOperationUseCase(operationRepo);
+        const useCase = new CancelOperationUseCase(
+            createFakeUnitOfWork(operationRepo, createMockListingRepo()),
+        );
         await expect(useCase.execute(operation.id.toString(), actorDe(operation.toSnapshot().props.buyerId)))
             .rejects.toThrow('No se puede cancelar');
     });
@@ -459,6 +524,7 @@ describe('GetSellerOffersUseCase', () => {
             createMockListingRepo({
                 findById: vi.fn().mockResolvedValue(createPublishedListing(new UniqueEntityID())),
             }),
+            createMockUserRepo(),
         );
 
         await expect(useCase.execute('some-listing-id', actorDe(new UniqueEntityID())))
