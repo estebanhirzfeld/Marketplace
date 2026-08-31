@@ -74,8 +74,13 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
             </Reveal>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-                {/* Datos del activo */}
-                <Reveal>
+                {/*
+                    Los datos del activo y, debajo, el acuerdo que los desbloquea:
+                    el panel del NDA vive junto a las filas borroneadas que promete
+                    revelar, y no en la columna de acciones donde competía con la
+                    oferta.
+                */}
+                <Reveal className="grid gap-6">
                     <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
                             {listing.descriptor.fields
@@ -106,19 +111,18 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             ))}
                         </div>
                     </Panel>
+                    {hidden && (
+                        <NdaPanel
+                            action={signNda.bind(null, id)}
+                            hiddenFields={listing.hiddenFields.map(etiqueta)}
+                            authenticated={Boolean(actor)}
+                        />
+                    )}
                 </Reveal>
 
                 {/* Acción */}
                 <Reveal delay={100}>
                     <div className="flex flex-col gap-5">
-                        {hidden && (
-                            <NdaPanel
-                                action={signNda.bind(null, id)}
-                                hiddenFields={listing.hiddenFields.map(etiqueta)}
-                                authenticated={Boolean(actor)}
-                            />
-                        )}
-
                         <TransferStatus
                             transferable={listing.transferable}
                             transferableFrom={listing.transferableFrom}

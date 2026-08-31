@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Alert, Button, Field } from './ui';
 
-type State = { error?: string };
+type State = { error?: string; ok?: boolean; message?: string };
 
 const COMISION = 0.05;
 
@@ -20,6 +20,16 @@ export function OfferForm({
 }) {
     const [state, submit, pending] = useActionState(action, {});
     const [money, setMonto] = useState(askingPrice);
+
+    /*
+     * Con la oferta enviada no queda nada que hacer acá: dejar el formulario
+     * en pantalla invitaba a apretar de nuevo, y el segundo intento devolvía
+     * un error del dominio que era la única señal de que el primero había
+     * funcionado.
+     */
+    if (state.ok) {
+        return <Alert tono="listo">{state.message}</Alert>;
+    }
 
     const total = money * (1 + COMISION);
     const fmt = (n: number) =>

@@ -3,10 +3,17 @@
 import { useActionState } from 'react';
 import { Alert, Button } from './ui';
 
-type State = { error?: string };
+type State = { error?: string; ok?: boolean; message?: string };
 type Variant = 'primario' | 'secundario' | 'peligro';
 
-/** Botón que dispara un paso de la operación y muestra el error si vuelve uno. */
+/**
+ * Botón que dispara un paso de la operación y cuenta cómo salió.
+ *
+ * Cuando el paso confirma con un mensaje, el botón se retira y queda la
+ * confirmación: apretar dos veces "Firmar el contrato" devolvía un error del
+ * dominio, que era la única forma de enterarse de que la primera firma había
+ * quedado registrada.
+ */
 export function OperationAction({
     action,
     text,
@@ -19,6 +26,10 @@ export function OperationAction({
     note?: string;
 }) {
     const [state, submit, pending] = useActionState(action, {});
+
+    if (state.ok && state.message) {
+        return <Alert tono="listo">{state.message}</Alert>;
+    }
 
     return (
         <div className="flex flex-col gap-2.5">

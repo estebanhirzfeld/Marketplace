@@ -13,8 +13,10 @@ import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/guards';
+import { money } from '@/lib/format';
 
-export type ActionState = { error?: string };
+/** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
+export type ActionState = { error?: string; ok?: boolean; message?: string };
 
 type Step = 'accept' | 'cancel' | 'transfer' | 'complete';
 
@@ -44,7 +46,13 @@ export async function advanceOperation(
 
     revalidatePath(`/operaciones/${operationId}`);
     revalidatePath('/operaciones');
-    return {};
+    return paso === 'accept'
+        ? {
+              ok: true,
+              message:
+                  'Aceptaste la oferta. Se cancelaron las demás sobre este activo y ahora falta firmar el contrato.',
+          }
+        : {};
 }
 
 export async function counterOffer(
@@ -68,7 +76,10 @@ export async function counterOffer(
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return {};
+    return {
+        ok: true,
+        message: `Propusiste ${money({ cents: Math.round(amount * 100), currency: 'USD' })}. Ahora le toca responder a la otra parte.`,
+    };
 }
 
 export async function signContract(
@@ -85,7 +96,10 @@ export async function signContract(
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return {};
+    return {
+        ok: true,
+        message: 'Firmaste el contrato. Cuando firme la otra parte, la operación avanza sola.',
+    };
 }
 
 /**
@@ -169,11 +183,20 @@ export async function goToCheckout(operationId: string): Promise<void> {
  * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
  * acá: los confirma el webhook contra la propia pasarela.
  */
+/**
+ * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
+ * acá: los confirma el webhook contra la propia pasarela.
+ *
+ * Devolvía `void` y se tragaba el error con un comentario que decía que se
+ * vería al recargar. No se veía: la pantalla quedaba igual, sin registrar el
+ * pago y sin decir por qué.
+ */
 export async function confirmBankTransfer(
     operationId: string,
     amountCents: number,
     currency: string,
-): Promise<void> {
+    _estado: ActionState,
+): Promise<ActionState> {
     await requireSession();
     try {
         await api().confirmPayment(operationId, {
@@ -181,9 +204,11 @@ export async function confirmBankTransfer(
             amountCents,
             currency,
         });
-    } catch {
-        // El error se ve al recargar: el estado de la operación no cambió.
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar la transferencia. Probá de nuevo.' };
     }
 
     revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: 'Registramos el pago. Falta entregar el activo y liquidar al vendedor.' };
 }

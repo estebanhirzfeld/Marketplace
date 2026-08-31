@@ -75,7 +75,7 @@ describe('Operation Entity', () => {
             const operation = createTestOperation(); // buyer ofreció
 
             expect(() => operation.counterOffer(Money.fromCents(150000, 'USD'), 'buyer'))
-                .toThrow('No es el turno de buyer');
+                .toThrow('No es tu turno');
         });
 
         it('NO puede contraofertar en estados post-negociación', () => {
@@ -83,7 +83,7 @@ describe('Operation Entity', () => {
             operation.acceptCurrentOffer('seller');
 
             expect(() => operation.counterOffer(Money.fromCents(150000, 'USD'), 'buyer'))
-                .toThrow('Solo se puede negociar en estado offer_sent o negotiating');
+                .toThrow('ya está cerrado');
         });
     });
 
@@ -111,7 +111,7 @@ describe('Operation Entity', () => {
             const operation = createTestOperation(); // buyer ofreció
 
             expect(() => operation.acceptCurrentOffer('buyer'))
-                .toThrow('No es el turno de buyer');
+                .toThrow('No es tu turno');
         });
 
         it('NO puede aceptar en estados post-negociación', () => {
@@ -120,7 +120,7 @@ describe('Operation Entity', () => {
             operation.signContract();
 
             expect(() => operation.acceptCurrentOffer('buyer'))
-                .toThrow('Solo se puede negociar en estado offer_sent o negotiating');
+                .toThrow('ya está cerrado');
         });
     });
 
@@ -199,7 +199,7 @@ describe('Operation Entity', () => {
             const operation = createTestOperation();
 
             expect(() => operation.signContract())
-                .toThrow('Operación no está esperando contrato');
+                .toThrow('no está esperando que se firme');
         });
 
         it('no debería confirmar custodia sin transfer en progreso', () => {
@@ -270,7 +270,7 @@ describe('Operation Entity', () => {
             operation.signContract();
 
             expect(() => operation.cancel())
-                .toThrow('No se puede cancelar una operación en estado contract_signed');
+                .toThrow('Ya no se puede cancelar');
         });
 
         it('NO debería permitir cancelación con activo en custodia', () => {
@@ -286,7 +286,7 @@ describe('Operation Entity', () => {
             });
 
             expect(() => operation.cancel())
-                .toThrow('No se puede cancelar una operación en estado asset_in_custody');
+                .toThrow('Ya no se puede cancelar');
         });
     });
 });

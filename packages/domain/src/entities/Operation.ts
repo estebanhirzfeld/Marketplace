@@ -16,6 +16,18 @@ export type OperationStatus =
 
 export type NegotiatingParty = 'buyer' | 'seller';
 
+/**
+ * Cómo se llama una parte cuando hay que nombrarla en un mensaje.
+ *
+ * `buyer` y `seller` son tokens del código, no palabras: un mensaje que dice
+ * "No es el turno de seller" le habla a una persona en un idioma que no es el
+ * suyo sobre un concepto que no conoce. La pantalla ya traduce en otros
+ * lugares; los errores del dominio también son texto para leer.
+ */
+function nombreDeLaParte(parte: NegotiatingParty): string {
+    return parte === 'buyer' ? 'el comprador' : 'el vendedor';
+}
+
 export interface Negotiation {
     amount: number;            // centavos — sin Money para serialización limpia
     currency: string;
@@ -275,13 +287,13 @@ export class Operation extends Entity<OperationProps> {
     private assertCanNegotiate(by: NegotiatingParty): void {
         if (this.props.status !== 'offer_sent' && this.props.status !== 'negotiating') {
             throw new InvalidStateError(
-                `Solo se puede negociar en estado offer_sent o negotiating, estado actual: ${this.props.status}`
+                'El precio de esta operación ya está cerrado: no se puede seguir negociando.'
             );
         }
 
         if (this.pendingResponseFrom !== by) {
             throw new InvalidStateError(
-                `No es el turno de ${by}. Le toca responder a ${this.pendingResponseFrom}.`
+                `No es tu turno: le toca responder ${nombreDeLaParte(this.pendingResponseFrom)}.`
             );
         }
     }
@@ -368,7 +380,7 @@ export class Operation extends Entity<OperationProps> {
 
     public signContract(): void {
         if (this.props.status !== 'contract_pending') {
-            throw new InvalidStateError('Operación no está esperando contrato');
+            throw new InvalidStateError('Esta operación no está esperando que se firme el contrato.');
         }
         this.props.status = 'contract_signed';
     }
@@ -468,7 +480,11 @@ export class Operation extends Entity<OperationProps> {
             'offer_sent', 'negotiating', 'contract_pending'
         ];
         if (!cancellableStates.includes(this.props.status)) {
-            throw new InvalidStateError(`No se puede cancelar una operación en estado ${this.props.status}`);
+            // Sin interpolar el estado: 'asset_in_custody' no le dice nada a
+            // nadie, y el motivo real es siempre el mismo.
+            throw new InvalidStateError(
+                'Ya no se puede cancelar: el contrato está firmado y las dos partes quedaron comprometidas.'
+            );
         }
         this.props.status = 'cancelled';
     }

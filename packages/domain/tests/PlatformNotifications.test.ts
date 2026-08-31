@@ -23,7 +23,7 @@ import { AssetNiche, UserRole } from '@marketplace/shared-types';
 
 function admin(email: string) {
     return User.create({
-        email: new Email(email),
+        email: Email.create(email),
         fullName: `Admin ${email}`,
         passwordHash: 'x'.repeat(60),
         role: UserRole.ADMIN,

@@ -12,8 +12,16 @@ import { revalidatePath } from 'next/cache';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
+import { money } from '@/lib/format';
 
-export type ActionState = { error?: string };
+/**
+ * El resultado de una acción, para poder contarlo.
+ *
+ * `ok` con su mensaje existe porque antes solo se devolvía el error: cuando
+ * algo salía bien la pantalla no cambiaba y el botón seguía ahí, así que no
+ * había forma de distinguir "se envió" de "no pasó nada".
+ */
+export type ActionState = { error?: string; ok?: boolean; message?: string };
 
 export async function signNda(
     listingId: string,
@@ -31,7 +39,7 @@ export async function signNda(
     // El listing cambia de contenido al firmar: hay que invalidar la caché
     // de la ruta o el usuario sigue viendo los datos ocultos.
     revalidatePath(`/listings/${listingId}`);
-    return {};
+    return { ok: true, message: 'Firmaste el acuerdo. Ya podés ver los datos reservados del activo.' };
 }
 
 export async function makeOffer(
@@ -56,5 +64,8 @@ export async function makeOffer(
     }
 
     revalidatePath(`/listings/${listingId}`);
-    return {};
+    return {
+        ok: true,
+        message: `Enviamos tu oferta de ${money({ cents: Math.round(amount * 100), currency: 'USD' })}. La seguís desde Mis compras.`,
+    };
 }

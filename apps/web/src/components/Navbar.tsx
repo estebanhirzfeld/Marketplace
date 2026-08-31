@@ -22,18 +22,32 @@ export async function Navbar() {
      * ni vender, ni tener operaciones propias, ni reclamos, que solo puede
      * abrirlos una de las partes.
      */
+    // Lo que ve cualquiera, con sesión o sin ella.
     const enlaces: { href: string; text: string; destacado?: boolean }[] = [
         { href: '/listings', text: 'Mercado' },
         { href: '/#proceso', text: 'Cómo funciona' },
-        ...(isAdmin ? [] : [{ href: '/activos', text: 'Mis activos' }]),
-        ...(actor && !isAdmin
-            ? [
-                  { href: '/operaciones', text: 'Mis compras' },
-                  { href: '/denuncias', text: 'Reclamos' },
-              ]
-            : []),
-        ...(isAdmin ? [{ href: '/admin', text: 'ADMIN', destacado: true }] : []),
     ];
+
+    /*
+     * Lo propio de cada uno solo aparece con sesión.
+     *
+     * "Mis activos" se mostraba también a un visitante anónimo, que al entrar
+     * caía en la pantalla de ingreso: un enlace que promete algo tuyo cuando
+     * todavía no sos nadie. Las tres secciones son lo mismo —lo que te
+     * pertenece— así que se agrupan bajo la misma condición y no puede volver
+     * a quedar una suelta.
+     */
+    if (actor && !isAdmin) {
+        enlaces.push(
+            { href: '/activos', text: 'Mis activos' },
+            { href: '/operaciones', text: 'Mis compras' },
+            { href: '/denuncias', text: 'Reclamos' },
+        );
+    }
+
+    if (isAdmin) {
+        enlaces.push({ href: '/admin', text: 'ADMIN', destacado: true });
+    }
 
     return (
         <header className="border-b border-[var(--color-borde)]">
