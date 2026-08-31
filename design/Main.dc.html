@@ -7,176 +7,277 @@
 <body>
 <x-dc>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
   <style>
-    body { margin: 0; }
-    a { color: #3A5A45; text-decoration: none; }
-    a:hover { color: #24382A; }
+    body {
+      margin: 0;
+      background: #0b0c0e;
+      color: #e8e9ea;
+      font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    }
+    a { color: #cff245; text-decoration: none; }
+    a:hover { color: #e4ff7a; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, "SF Mono", monospace; }
+    th { text-align: left; font-weight: 400; }
   </style>
 </helmet>
 
-<div style="font-family: 'Public Sans', -apple-system, 'Segoe UI', sans-serif; background: #FDFCF9; color: #14130F; min-height: 1000px; display: flex; flex-direction: column;">
+<div style="min-height: 1020px; padding: 40px 48px 56px">
 
-  <!-- Navbar -->
-  <div style="display: flex; align-items: center; justify-content: space-between; padding: 22px 64px; border-bottom: 1px solid #E6E2D8;">
-    <div style="display: flex; align-items: center; gap: 48px;">
-      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 25px; letter-spacing: -0.01em;">Traspaso</div>
-      <div style="display: flex; gap: 30px; font-size: 14px; color: #5C594F;">
-        <div>Explorar</div>
-        <div>Cómo funciona</div>
-        <div>Vender mi activo</div>
+  <!-- Migas: este activo cuelga del catálogo, no de "Vender" -->
+  <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #838a94">
+    <span style="cursor: pointer">Mis activos</span>
+    <span>/</span>
+    <span style="color: #8c939c">Tecnología · Sitio web</span>
+  </div>
+
+  <!-- Encabezado del activo -->
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 24px; margin-top: 14px">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+        <span class="mono" style="border-radius: 3px; border: 1px solid rgba(207,242,69,0.5); padding: 4px 10px; font-size: 11px; letter-spacing: 0.08em; color: #cff245">PUBLICADO</span>
+        <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #5eead4">TRANSFERENCIA INMEDIATA</span>
       </div>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.03em">Tecnología · Sitio web</h1>
+      <p style="margin: 0; font-size: 14px; color: #838a94">Publicado hace 9 días · el dominio queda reservado hasta que se firme el NDA</p>
     </div>
-    <div style="display: flex; align-items: center; gap: 18px;">
-      <div style="font-size: 14px; color: #5C594F;">Ingresar</div>
-      <div style="padding: 9px 18px; border: 1px solid #14130F; border-radius: 2px; font-size: 14px; font-weight: 500;">Crear cuenta</div>
+
+    <div style="text-align: right">
+      <div class="mono" style="font-size: 28px; font-weight: 700; color: #cff245">US$ 68.000</div>
+      <div class="mono" style="margin-top: 6px; font-size: 13px; color: #838a94">valuación US$ 69.300</div>
     </div>
   </div>
 
-  <!-- Hero -->
-  <div style="padding: 92px 64px 76px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 72px; align-items: center;">
-    <div style="display: flex; flex-direction: column; gap: 26px;">
-      <div style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8578;">Intermediación con custodia</div>
-      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 62px; line-height: 1.06; letter-spacing: -0.02em; text-wrap: pretty;">
-        Comprar un canal no debería ser un acto de fe.
+  <!-- Las tres cosas que antes vivían en pantallas distintas -->
+  <div style="display: flex; gap: 4px; margin-top: 28px; border-bottom: 1px solid #1e2126">
+    <sc-for list="{{pestanas}}" as="p" hint-placeholder-count="3">
+      <div onClick="{{ p.elegir }}"
+           style="cursor: pointer; padding: 12px 18px; margin-bottom: -1px; border-bottom: 2px solid {{p.linea}}; font-size: 14px; color: {{p.color}}">
+        {{p.text}}<span class="mono" style="margin-left: 8px; font-size: 12px; color: #838a94">{{p.cuenta}}</span>
       </div>
-      <div style="font-size: 17px; line-height: 1.6; color: #5C594F; max-width: 480px; text-wrap: pretty;">
-        Nosotros recibimos el activo antes de que el comprador pague, y pagamos al vendedor recién cuando la transferencia está confirmada. Ninguna de las dos partes queda expuesta.
+    </sc-for>
+  </div>
+
+  <!-- ── OFERTAS: tabla ───────────────────────────────── -->
+  <sc-if value="{{esOfertas}}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top: 24px">
+      <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; overflow: hidden">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e2126; padding: 14px 20px">
+          <span class="mono" style="font-size: 13px; font-weight: 500; letter-spacing: 0.08em; color: #8c939c">OFERTAS RECIBIDAS</span>
+          <span style="font-size: 13px; color: #838a94">Aceptar una cancela las demás</span>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse">
+          <thead>
+            <tr style="border-bottom: 1px solid #1e2126">
+              <sc-for list="{{columnas}}" as="c" hint-placeholder-count="5">
+                <th onClick="{{ c.ordenar }}"
+                    class="mono"
+                    style="cursor: pointer; padding: 11px 20px; font-size: 12px; letter-spacing: 0.06em; color: {{c.color}}; text-align: {{c.align}}">
+                  {{c.text}}{{c.flecha}}
+                </th>
+              </sc-for>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ofertas}}" as="o" hint-placeholder-count="3">
+              <tr style="border-bottom: 1px solid #1a1d21; background: {{o.fondo}}">
+                <td style="padding: 15px 20px; font-size: 14px">
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <span>{{o.comprador}}</span>
+                    <sc-if value="{{o.suTurno}}" hint-placeholder-val="{{ true }}">
+                      <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #cff245">TE TOCA</span>
+                    </sc-if>
+                  </div>
+                </td>
+                <td class="mono" style="padding: 15px 20px; font-size: 15px; font-weight: 500; text-align: right; color: {{o.montoColor}}">{{o.monto}}</td>
+                <td class="mono" style="padding: 15px 20px; font-size: 13px; text-align: right; color: #838a94">{{o.recibes}}</td>
+                <td style="padding: 15px 20px; font-size: 13px; color: #8c939c">{{o.estado}}</td>
+                <td style="padding: 15px 20px; text-align: right">
+                  <div style="display: inline-flex; gap: 8px">
+                    <span style="cursor: pointer; border-radius: 3px; border: 1px solid #2a2e35; padding: 7px 13px; font-size: 13px">Contraofertar</span>
+                    <span style="cursor: pointer; border-radius: 3px; background: {{o.aceptarFondo}}; padding: 7px 13px; font-size: 13px; font-weight: 700; color: {{o.aceptarColor}}">Aceptar</span>
+                  </div>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
       </div>
-      <div style="display: flex; gap: 14px; margin-top: 8px;">
-        <div style="padding: 14px 28px; background: #14130F; color: #FDFCF9; font-size: 15px; font-weight: 500; border-radius: 2px;">Ver activos en venta</div>
-        <div style="padding: 14px 28px; border: 1px solid #C9C4B6; font-size: 15px; font-weight: 500; border-radius: 2px;">Publicar el mío</div>
-      </div>
+
+      <p style="margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: #838a94; max-width: 640px">
+        Los compradores no se ven entre sí: cada uno solo conoce su propia oferta.
+      </p>
     </div>
+  </sc-if>
 
-    <!-- Tarjeta de garantía -->
-    <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 34px;">
-      <div style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8578; margin-bottom: 24px;">Cómo se protege la operación</div>
-      <div style="display: flex; flex-direction: column; gap: 22px;">
+  <!-- ── VERIFICACIONES ───────────────────────────────── -->
+  <sc-if value="{{esVerificaciones}}" hint-placeholder-val="{{ false }}">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px">
+      <sc-for list="{{verificaciones}}" as="v" hint-placeholder-count="4">
+        <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; padding: 20px 22px">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 14px">
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span class="mono" style="font-size: 12px; letter-spacing: 0.08em; color: #8c939c">{{v.titulo}}</span>
+              <span style="font-size: 15px; color: {{v.color}}">{{v.estado}}</span>
+              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #838a94">{{v.detalle}}</p>
+            </div>
+            <sc-if value="{{v.pendiente}}" hint-placeholder-val="{{ true }}">
+              <span style="white-space: nowrap; cursor: pointer; border-radius: 3px; border: 1px solid #2a2e35; padding: 8px 14px; font-size: 13px">{{v.accion}}</span>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
 
-        <div style="display: flex; gap: 16px; align-items: flex-start;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/></svg>
-          <div>
-            <div style="font-size: 15px; font-weight: 600;">El vendedor entrega primero</div>
-            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">La plataforma toma la titularidad del canal antes de mover un peso.</div>
+  <!-- ── ESTADO ───────────────────────────────────────── -->
+  <sc-if value="{{esEstado}}" hint-placeholder-val="{{ false }}">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px">
+
+      <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; padding: 22px">
+        <span class="mono" style="font-size: 12px; letter-spacing: 0.08em; color: #8c939c">DÓNDE ESTÁ</span>
+        <div style="display: flex; flex-direction: column; gap: 0; margin-top: 18px">
+          <sc-for list="{{etapas}}" as="e" hint-placeholder-count="4">
+            <div style="display: flex; gap: 14px">
+              <div style="display: flex; flex-direction: column; align-items: center">
+                <span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: {{e.puntoFondo}}; border: 2px solid {{e.puntoBorde}}; font-size: 11px; font-weight: 700; color: #cff245">{{e.tilde}}</span>
+                <span style="width: 1px; flex-grow: 1; background: {{e.linea}}"></span>
+              </div>
+              <div style="padding-bottom: 20px">
+                <div style="font-size: 15px; font-weight: 500; color: {{e.color}}">{{e.titulo}}</div>
+                <div style="margin-top: 3px; font-size: 13px; line-height: 1.6; color: #838a94">{{e.texto}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; padding: 22px">
+          <span class="mono" style="font-size: 12px; letter-spacing: 0.08em; color: #8c939c">SI SE VENDE A US$ 68.000</span>
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px">
+            <div style="display: flex; justify-content: space-between; font-size: 14px">
+              <span style="color: #8c939c">Precio acordado</span><span class="mono">US$ 68.000</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px">
+              <span style="color: #8c939c">Comisión de la plataforma (5 %)</span><span class="mono" style="color: #e8a33d">− US$ 3.400</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1px solid #1e2126; padding-top: 12px; font-size: 15px">
+              <span style="font-weight: 500">Recibís</span><span class="mono" style="font-weight: 700; color: #cff245">US$ 64.600</span>
+            </div>
           </div>
         </div>
 
-        <div style="height: 1px; background: #EDEAE1;"></div>
-
-        <div style="display: flex; gap: 16px; align-items: flex-start;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><rect x="4" y="10" width="16" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
-          <div>
-            <div style="font-size: 15px; font-weight: 600;">Los datos sensibles van bajo NDA</div>
-            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">La URL y las métricas crudas se revelan solo tras firmar.</div>
+        <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; padding: 22px">
+          <span class="mono" style="font-size: 12px; letter-spacing: 0.08em; color: #8c939c">LA PUBLICACIÓN</span>
+          <p style="margin: 14px 0 16px; font-size: 14px; line-height: 1.6; color: #8c939c">
+            Así la ven los compradores. El dominio queda tapado hasta que firmen el acuerdo
+            de confidencialidad.
+          </p>
+          <div style="display: flex; gap: 8px">
+            <span style="cursor: pointer; border-radius: 3px; border: 1px solid #2a2e35; padding: 9px 15px; font-size: 13px">Ver publicación</span>
+            <span style="cursor: pointer; border-radius: 3px; padding: 9px 15px; font-size: 13px; color: #8c939c">Editar precio</span>
           </div>
         </div>
-
-        <div style="height: 1px; background: #EDEAE1;"></div>
-
-        <div style="display: flex; gap: 16px; align-items: flex-start;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3A5A45" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/></svg>
-          <div>
-            <div style="font-size: 15px; font-weight: 600;">5 % a cada parte</div>
-            <div style="font-size: 14px; color: #5C594F; line-height: 1.5;">Sin costos de publicación ni cargos ocultos.</div>
-          </div>
-        </div>
-
       </div>
     </div>
-  </div>
-
-  <!-- Listings -->
-  <div style="padding: 0 64px 76px; display: flex; flex-direction: column; gap: 26px;">
-    <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #E6E2D8; padding-bottom: 16px;">
-      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">Activos publicados</div>
-      <div style="font-size: 14px; color: #5C594F;">Ver todos los activos</div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px;">
-
-      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">YouTube</div>
-          <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #3A5A45; border: 1px solid #C6D4C8; padding: 3px 9px;">Confidencial</div>
-        </div>
-        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Finanzas personales · 55 K subs</div>
-        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Ingreso mensual</span><span style="font-weight: 600;">USD 1.200</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Audiencia principal</span><span style="font-weight: 600;">Estados Unidos</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Sin rostro</span><span style="font-weight: 600;">Sí</span></div>
-        </div>
-        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
-          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 15.000</div>
-          <div style="font-size: 13px; color: #8A8578;">12 ofertas</div>
-        </div>
-      </div>
-
-      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">Sitio web</div>
-        </div>
-        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Reseñas de herramientas · DA 42</div>
-        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Ingreso mensual</span><span style="font-weight: 600;">USD 800</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Tráfico orgánico</span><span style="font-weight: 600;">78 %</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Monetización</span><span style="font-weight: 600;">Afiliados</span></div>
-        </div>
-        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
-          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 9.600</div>
-          <div style="font-size: 13px; color: #8A8578;">4 ofertas</div>
-        </div>
-      </div>
-
-      <div style="border: 1px solid #E6E2D8; background: #FFFFFF; padding: 26px; display: flex; flex-direction: column; gap: 18px;">
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <div style="font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8578;">Instagram</div>
-          <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #3A5A45; border: 1px solid #C6D4C8; padding: 3px 9px;">Confidencial</div>
-        </div>
-        <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 23px; line-height: 1.2;">Gastronomía local · 120 K</div>
-        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Engagement</span><span style="font-weight: 600;">4,5 %</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Audiencia principal</span><span style="font-weight: 600;">Argentina</span></div>
-          <div style="display: flex; justify-content: space-between;"><span style="color: #5C594F;">Verificada</span><span style="font-weight: 600;">No</span></div>
-        </div>
-        <div style="border-top: 1px solid #EDEAE1; padding-top: 16px; display: flex; align-items: baseline; justify-content: space-between;">
-          <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 27px;">USD 6.400</div>
-          <div style="font-size: 13px; color: #8A8578;">7 ofertas</div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="margin-top: auto; border-top: 1px solid #E6E2D8; padding: 40px 64px; display: flex; align-items: flex-start; justify-content: space-between; background: #F7F5EF;">
-    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 300px;">
-      <div style="font-family: 'Instrument Serif', Georgia, serif; font-size: 21px;">Traspaso</div>
-      <div style="font-size: 13px; color: #5C594F; line-height: 1.55;">Intermediación con custodia para la compraventa de activos digitales.</div>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 64px; font-size: 13px;">
-      <div style="display: flex; flex-direction: column; gap: 9px;">
-        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Marketplace</div>
-        <div style="color: #5C594F;">Explorar activos</div>
-        <div style="color: #5C594F;">Publicar</div>
-        <div style="color: #5C594F;">Cómo valuamos</div>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 9px;">
-        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Confianza</div>
-        <div style="color: #5C594F;">El proceso de custodia</div>
-        <div style="color: #5C594F;">Acuerdo de confidencialidad</div>
-        <div style="color: #5C594F;">Comisiones</div>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 9px;">
-        <div style="color: #8A8578; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;">Legal</div>
-        <div style="color: #5C594F;">Términos</div>
-        <div style="color: #5C594F;">Privacidad</div>
-        <div style="color: #5C594F;">Contacto</div>
-      </div>
-    </div>
-  </div>
-
+  </sc-if>
 </div>
 </x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pestana: 'ofertas', orden: 'monto' };
+  }
+
+  renderVals() {
+    const sel = this.state.pestana;
+
+    const defs = [
+      { id: 'estado', text: 'Estado', cuenta: '' },
+      { id: 'ofertas', text: 'Ofertas', cuenta: '2' },
+      { id: 'verificaciones', text: 'Verificaciones', cuenta: '1 pendiente' },
+    ];
+
+    let ofertas = [
+      { comprador: 'Marcos Comprador', monto: 'US$ 66.000', recibes: 'US$ 62.700', crudo: 66000,
+        estado: 'Contraofertaste · espera respuesta', suTurno: false },
+      { comprador: 'Ana Beltrán', monto: 'US$ 60.000', recibes: 'US$ 57.000', crudo: 60000,
+        estado: 'Ofertó hace 2 días', suTurno: true },
+    ];
+    if (this.state.orden === 'monto') ofertas = [...ofertas].sort((a, b) => b.crudo - a.crudo);
+
+    const columnas = [
+      { id: 'comprador', text: 'Comprador', align: 'left' },
+      { id: 'monto', text: 'Ofrece', align: 'right' },
+      { id: 'recibes', text: 'Recibís', align: 'right' },
+      { id: 'estado', text: 'Situación', align: 'left' },
+      { id: 'acciones', text: '', align: 'right' },
+    ];
+
+    return {
+      esEstado: sel === 'estado',
+      esOfertas: sel === 'ofertas',
+      esVerificaciones: sel === 'verificaciones',
+
+      pestanas: defs.map((d) => ({
+        text: d.text,
+        cuenta: d.cuenta,
+        linea: sel === d.id ? '#cff245' : 'transparent',
+        color: sel === d.id ? '#e8e9ea' : '#8c939c',
+        elegir: () => this.setState({ pestana: d.id }),
+      })),
+
+      columnas: columnas.map((c) => ({
+        text: c.text,
+        align: c.align,
+        color: this.state.orden === c.id ? '#cff245' : '#838a94',
+        flecha: this.state.orden === c.id ? ' ↓' : '',
+        ordenar: () => this.setState({ orden: c.id }),
+      })),
+
+      ofertas: ofertas.map((o, i) => ({
+        ...o,
+        fondo: i === 0 ? 'rgba(207,242,69,0.03)' : 'transparent',
+        montoColor: i === 0 ? '#cff245' : '#e8e9ea',
+        aceptarFondo: i === 0 ? '#cff245' : '#2a2e35',
+        aceptarColor: i === 0 ? '#0b0c0e' : '#8c939c',
+      })),
+
+      verificaciones: [
+        { titulo: 'TITULARIDAD', estado: 'Comprobada contra AdSense', color: '#5eead4',
+          detalle: 'Tu cuenta reporta ingresos para este dominio. Lo confirmamos el 22 de agosto.',
+          pendiente: false, accion: '' },
+        { titulo: 'INGRESO MENSUAL', estado: 'US$ 2.100 comprobados', color: '#5eead4',
+          detalle: 'Lo informa Google, no vos. Es el dato que sostiene la valuación.',
+          pendiente: false, accion: '' },
+        { titulo: 'ACCESO DE LA PLATAFORMA', estado: 'Cedido hace 1 día', color: '#5eead4',
+          detalle: 'Un sitio no tiene plazo de espera: se puede transferir hoy.',
+          pendiente: false, accion: '' },
+        { titulo: 'IDENTIDAD', estado: 'Falta tu documento', color: '#e8a33d',
+          detalle: 'Sin identidad verificada no vas a poder firmar el contrato de venta.',
+          pendiente: true, accion: 'Verificar' },
+      ],
+
+      etapas: [
+        { titulo: 'Publicado', texto: 'Está en el mercado recibiendo ofertas.', hecha: true },
+        { titulo: 'Oferta aceptada', texto: 'Al aceptar una, las demás se cancelan solas.', hecha: false },
+        { titulo: 'Contrato firmado', texto: 'Las tres partes quedan obligadas.', hecha: false },
+        { titulo: 'Entregado y cobrado', texto: 'Nos das el activo, lo verificamos, el comprador paga.', hecha: false },
+      ].map((e, i, arr) => ({
+        ...e,
+        tilde: e.hecha ? '✓' : '',
+        puntoFondo: e.hecha ? 'rgba(207,242,69,0.2)' : 'transparent',
+        puntoBorde: e.hecha ? 'rgba(207,242,69,0.2)' : '#2a2e35',
+        linea: e.hecha ? 'rgba(207,242,69,0.4)' : '#1e2126',
+        color: e.hecha ? '#e8e9ea' : '#8c939c',
+      })),
+    };
+  }
+}
+</script>
 </body>
 </html>

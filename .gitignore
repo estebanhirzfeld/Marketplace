@@ -29,3 +29,9 @@ design/*.html
 
 # Carpeta de material de trabajo, fuera del proyecto
 stuff/
+
+# El lienzo de diseño es un archivo generado de ~2 MB: se rearma desde los
+# .dc.html y canvas.json con la herramienta de diseño. La negación es
+# necesaria porque los tableros también terminan en .html.
+design/*.html
+!design/*.dc.html
