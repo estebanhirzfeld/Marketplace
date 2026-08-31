@@ -12,38 +12,9 @@ import { OfferForm } from '@/components/OfferForm';
 import { ButtonLink, Panel } from '@/components/ui';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { LockIcon } from '@/components/LockIcon';
-import { money, formatNumber, percentage } from '@/lib/format';
+import { ETIQUETAS_DE_CAMPO, money, readableValue } from '@/lib/format';
 import { signNda, makeOffer } from './actions';
 import { registerPlatformAccess, revokePlatformAccess } from '../../admin/actions';
-
-/** Nombres legibles para las claves crudas que devuelve la strategy. */
-/**
- * Las claves son las de `assetData`, tal como las emite cada estrategia. Si
- * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
- */
-const ETIQUETAS: Record<string, string> = {
-    niche: 'Rubro',
-    subscribers: 'Suscriptores',
-    monthlyRevenueUsdCents: 'Ingreso mensual',
-    currency: 'Moneda',
-    growthFactor: 'Factor de crecimiento',
-    isMonetized: 'Monetizado',
-    audienceTopCountry: 'País principal de la audiencia',
-    hasNoFaceContent: 'Contenido sin rostro',
-    channelUrl: 'Dirección del canal',
-    domainAuthority: 'Autoridad de dominio',
-    domain: 'Dominio',
-};
-
-function readableValue(key: string, value: unknown): string {
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    if (key === 'monthlyRevenueUsdCents' && typeof value === 'number') {
-        return money({ cents: value, currency: 'USD' });
-    }
-    if (key === 'engagementRate' && typeof value === 'number') return percentage(value);
-    if (typeof value === 'number') return formatNumber(value);
-    return String(value);
-}
 
 export default async function DetalleListing(props: { params: Promise<{ id: string }> }) {
     // En Next 16 `params` es una promesa: el acceso sincrónico se eliminó.
@@ -107,7 +78,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             {visibleFields.map(([key, value]) => (
                                 <div key={key} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS[key] ?? key}
+                                        {ETIQUETAS_DE_CAMPO[key] ?? key}
                                     </span>
                                     <span className="font-mono">{readableValue(key, value)}</span>
                                 </div>
@@ -118,7 +89,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             {listing.hiddenFields.map((campo) => (
                                 <div key={campo} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS[campo] ?? campo}
+                                        {ETIQUETAS_DE_CAMPO[campo] ?? campo}
                                     </span>
                                     <span className="flex items-center gap-2">
                                         <LockIcon tamano={12} color="var(--color-fantasma)" />
@@ -138,7 +109,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         {hidden && (
                             <NdaPanel
                                 action={signNda.bind(null, id)}
-                                hiddenFields={listing.hiddenFields.map((c) => ETIQUETAS[c] ?? c)}
+                                hiddenFields={listing.hiddenFields.map((c) => ETIQUETAS_DE_CAMPO[c] ?? c)}
                                 authenticated={Boolean(actor)}
                             />
                         )}
