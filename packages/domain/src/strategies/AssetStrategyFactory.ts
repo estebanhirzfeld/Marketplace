@@ -62,6 +62,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
+                name: textoOpcional(assetData, 'name', ''),
                 niche: rubro(assetData),
             });
 
@@ -71,6 +72,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 entero(assetData, 'domainAuthority'),
                 textoOpcional(assetData, 'domain', ''),
                 rubro(assetData),
+                textoOpcional(assetData, 'name', ''),
             );
 
 

@@ -14,10 +14,19 @@ export class WebStrategy implements IAssetStrategy {
     constructor(
         private readonly monthlyRevenueUsd: Money,
         private readonly domainAuthority: number,
-        /** El dominio identifica al activo: es lo único reservado. */
+        /** El dominio identifica al activo, así que es reservado. */
         private readonly domain: string = '',
         /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
-        private readonly niche: string = AssetNiche.OTHER
+        private readonly niche: string = AssetNiche.OTHER,
+        /**
+         * Cómo se llama el sitio. Reservado por el mismo motivo que el
+         * dominio: con el nombre se lo encuentra buscándolo.
+         *
+         * Va último porque los argumentos son posicionales: insertarlo en el
+         * medio corría en silencio todos los que venían después, y así fue
+         * como el rubro de un sitio pasó a ser su nombre.
+         */
+        private readonly name: string = ''
     ) { }
 
     public describe(): AssetTypeDescriptor {
@@ -37,6 +46,7 @@ export class WebStrategy implements IAssetStrategy {
                 { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
                 { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
                 { key: 'domainAuthority', label: 'Autoridad de dominio', kind: 'number', confidential: false },
+                { key: 'name', label: 'Nombre del sitio', kind: 'text', confidential: true },
                 domain,
             ],
             summaryMetricKeys: ['domainAuthority', 'monthlyRevenueUsdCents'],
@@ -87,7 +97,7 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getConfidentialFields(): string[] {
-        return ['domain'];
+        return ['name', 'domain'];
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -98,6 +108,7 @@ export class WebStrategy implements IAssetStrategy {
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
                 domainAuthority: this.domainAuthority,
+                name: this.name,
                 domain: this.domain,
             }
         };

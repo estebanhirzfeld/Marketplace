@@ -132,11 +132,30 @@ export default async function Admin() {
                                             href={`/operaciones/${p.id}`}
                                             className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-borde)] py-3 last:border-0 transition-colors hover:text-[var(--color-acento)]"
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <OperationStatusBadge state={p.status} />
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <OperationStatusBadge state={p.status} />
+                                                    {/* Con qué reconocer la fila. Antes solo
+                                                        estaban el estado y el monto, así que dos
+                                                        operaciones esperando lo mismo eran
+                                                        indistinguibles. */}
+                                                    <span className="text-[14px] font-medium text-[var(--color-tinta)]">
+                                                        {p.assetName ?? 'Activo sin nombre'}
+                                                    </span>
+                                                    {p.assetType && (
+                                                        <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                                                            {p.assetType.toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="text-[13px] text-[var(--color-tenue)]">
                                                     {PROXIMO_PASO[p.status] ?? 'Revisar la operación'}
                                                 </span>
+                                                {(p.buyerName || p.sellerName) && (
+                                                    <span className="text-[12px] text-[var(--color-apagado)]">
+                                                        {p.sellerName ?? '—'} → {p.buyerName ?? '—'}
+                                                    </span>
+                                                )}
                                             </div>
                                             <span className="font-mono text-[13px]">
                                                 {p.amount ? money(p.amount) : '—'}

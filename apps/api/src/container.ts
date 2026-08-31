@@ -227,8 +227,8 @@ export function createContainer(
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo),
         misListings: new GetMyListingsUseCase(listingRepo),
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
-        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo),
-        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo),
+        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
+        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
         detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),

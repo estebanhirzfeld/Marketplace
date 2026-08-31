@@ -229,6 +229,7 @@ async function main() {
             hasNoFaceContent: true,
             audienceTopCountry: "US",
             channelUrl: "https://youtube.com/@midudev",
+            name: "Midudev",
             niche: AssetNiche.TECHNOLOGY,
         }),
         askingPrice: Money.fromCents(3600000, "USD"), // $36.000
@@ -256,6 +257,7 @@ async function main() {
             hasNoFaceContent: true,
             audienceTopCountry: "US",
             channelUrl: "https://youtube.com/@finanzassincara",
+            name: "Finanzas Sin Cara",
             niche: AssetNiche.FINANCE,
         }),
         askingPrice: Money.fromCents(10500000, "USD"), // $105.000
@@ -281,6 +283,7 @@ async function main() {
             hasNoFaceContent: false,
             audienceTopCountry: "AR",
             channelUrl: "https://youtube.com/@nivelcompleto",
+            name: "Nivel Completo",
             niche: AssetNiche.GAMING,
         }),
         askingPrice: Money.fromCents(950000, "USD"), // $9.500
@@ -300,6 +303,7 @@ async function main() {
             hasNoFaceContent: true,
             audienceTopCountry: "AR",
             channelUrl: "https://youtube.com/@cocinadediario",
+            name: "Cocina de Diario",
             niche: AssetNiche.FOOD,
         }),
         askingPrice: Money.fromCents(2900000, "USD"), // $29.000
@@ -312,7 +316,7 @@ async function main() {
     // de acceso ya queda transferible.
     const saasBlog = seedListing({
         sellerId: seller.id,
-        assetStrategy: new WebStrategy(Money.fromCents(210000, "USD"), 52, "herramientas-saas.com", AssetNiche.TECHNOLOGY),
+        assetStrategy: new WebStrategy(Money.fromCents(210000, "USD"), 52, "herramientas-saas.com", AssetNiche.TECHNOLOGY, "Herramientas SaaS"),
         askingPrice: Money.fromCents(6800000, "USD"), // $68.000
         createdDaysAgo: 15,
         publishedDaysAgo: 9,
@@ -332,7 +336,7 @@ async function main() {
     // USD 16.000: cualquier activo más caro no se puede publicar en pesos.
     const nicheStore = seedListing({
         sellerId: seller2.id,
-        assetStrategy: new WebStrategy(Money.fromCents(25000, "USD"), 28, "decoclub.com.ar", AssetNiche.LIFESTYLE),
+        assetStrategy: new WebStrategy(Money.fromCents(25000, "USD"), 28, "decoclub.com.ar", AssetNiche.LIFESTYLE, "DecoClub"),
         askingPrice: Money.fromCents(975000000, "ARS"), // $9.750.000
         createdDaysAgo: 35,
         publishedDaysAgo: 30,
@@ -341,7 +345,7 @@ async function main() {
     // Sin publicar: queda en revisión para que la cola del admin no esté vacía.
     const hardwareReviews = seedListing({
         sellerId: seller.id,
-        assetStrategy: new WebStrategy(Money.fromCents(135000, "USD"), 41, "probamostodo.com", AssetNiche.TECHNOLOGY),
+        assetStrategy: new WebStrategy(Money.fromCents(135000, "USD"), 41, "probamostodo.com", AssetNiche.TECHNOLOGY, "Probamos Todo"),
         askingPrice: Money.fromCents(4300000, "USD"), // $43.000
         createdDaysAgo: 1,
     });

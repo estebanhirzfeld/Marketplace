@@ -103,7 +103,13 @@ describe('GetMyOperationsUseCase', () => {
     it('consulta por el id del actor', async () => {
         const repo = createMockOperationRepo();
 
-        await new GetMyOperationsUseCase(repo, createMockListingRepo()).execute(actorDe(BUYER_ID));
+        await new GetMyOperationsUseCase(repo, createMockListingRepo(), {
+            findById: vi.fn().mockResolvedValue(null),
+            findByOperation: vi.fn().mockResolvedValue([]),
+            findByListingAndSigner: vi.fn().mockResolvedValue(null),
+            findAllByListing: vi.fn().mockResolvedValue([]),
+            save: vi.fn().mockResolvedValue(undefined),
+        }).execute(actorDe(BUYER_ID));
 
         expect(repo.findByParty).toHaveBeenCalledWith(BUYER_ID.toString());
     });

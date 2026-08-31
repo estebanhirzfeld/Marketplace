@@ -173,7 +173,9 @@ export default async function Operaciones(props: {
                                                 revelar cuál es.
                                             */}
                                             <span className="text-[15px] font-medium text-[var(--color-tinta)]">
-                                                {op.niche ? nicheLabel(op.niche) : 'Activo'}
+                                                {/* El nombre solo llega si firmaste el acuerdo;
+                                                    si no, el rubro, que es público. */}
+                                                {op.assetName ?? (op.niche ? nicheLabel(op.niche) : 'Activo')}
                                                 {op.assetType && (
                                                     <span className="text-[var(--color-tenue)]">
                                                         {' · '}

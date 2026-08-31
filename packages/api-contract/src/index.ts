@@ -369,6 +369,8 @@ export interface MyListingDto {
     id: string;
     status: ListingStatusDto;
     assetType: string;
+    /** Cómo se llama el activo. Su dueño siempre lo ve. */
+    assetName?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
     askingPrice: MoneyDto;
@@ -443,6 +445,8 @@ export interface HandoverStepDto {
 export interface MyOperationDto {
     id: string;
     listingId: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
     /**
      * Con qué nombrar el activo en una lista. Son los campos que la strategy
      * declara públicos —los mismos que el mercado muestra sin NDA—, así que
@@ -466,6 +470,14 @@ export interface NegotiationDto {
 
 /** Una operación esperando un movimiento de la plataforma. */
 export interface PendingOperationDto {
+    /**
+     * Con qué reconocer la fila. El panel mostraba solo el estado y el monto,
+     * así que dos operaciones esperando lo mismo eran indistinguibles.
+     */
+    assetName?: string;
+    assetType?: string;
+    buyerName?: string;
+    sellerName?: string;
     id: string;
     status: OperationStatusDto;
     listingId: string;
@@ -497,6 +509,8 @@ export interface OperationDetailDto {
      */
     assetType?: string;
     niche?: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
     /**
      * Si el activo ya se puede transferir. Firmar el contrato tripartito lo
      * exige, así que la pantalla lo necesita para no ofrecer una firma que el

@@ -7,6 +7,7 @@ import {
 import { Actor } from '../../ports/Actor';
 import { Operation, NegotiatingParty } from '../../entities/Operation';
 import { Contract } from '../../entities/Contract';
+import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
@@ -35,6 +36,11 @@ export interface OperationParty {
 export interface OperationAsset {
     assetType: string;
     niche?: string;
+    /**
+     * Cómo se llama el activo. Ausente para quien no tiene acceso a los datos
+     * reservados: el nombre identifica al activo tanto como su dirección.
+     */
+    name?: string;
     /**
      * Si el activo ya se puede transferir. Firmar el tripartito lo exige
      * (`assertCanBeTransferred`), así que sin este dato la pantalla ofrecía
@@ -102,15 +108,22 @@ export class GetOperationDetailsUseCase {
             this.listingRepo.findById(props.listingId.toString()),
         ]);
 
-        // `false`: alcanza con lo público para nombrarlo. Quien tenga derecho a
-        // ver los datos reservados los pide en la pantalla del activo, que es
-        // donde vive esa regla.
+        // El nombre es un dato reservado, así que se filtra con la misma regla
+        // que cualquier otro: el vendedor lo ve porque el activo es suyo, la
+        // plataforma porque tiene que atestiguarlo, y el comprador si firmó.
         let asset: OperationAsset | undefined;
         if (listing) {
-            const { assetType, assetData } = listing.assetDataFor(false);
+            const puedeVerTodo = await new ConfidentialAccess(this.contractRepo).allowed(
+                listing,
+                actor,
+            );
+            const { assetType, assetData } = listing.assetDataFor(puedeVerTodo);
+            const name = typeof assetData.name === 'string' ? assetData.name : '';
+
             asset = {
                 assetType,
                 niche: typeof assetData.niche === 'string' ? assetData.niche : undefined,
+                name: name || undefined,
                 transferable: listing.isReadyToTransfer(),
                 transferableFrom: listing.transferableFrom(),
             };

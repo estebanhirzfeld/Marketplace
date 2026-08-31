@@ -176,9 +176,9 @@ export default async function DetalleOperacion(props: {
                             // Era los primeros ocho caracteres del UUID, que no le
                             // dice nada a nadie. El rubro y el tipo son públicos:
                             // nombran el activo sin revelar cuál es.
-                            op.niche
+                            op.assetName ?? (op.niche
                                 ? `${nicheLabel(op.niche)}${op.assetType ? ` · ${nombreDeTipo(op.assetType)}` : ''}`
-                                : 'Activo en venta'
+                                : 'Activo en venta')
                         }>
                         {money(op.finalPrice ?? op.currentOfferPrice)}
                     </Heading>

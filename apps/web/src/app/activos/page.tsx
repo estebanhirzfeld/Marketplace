@@ -144,8 +144,10 @@ export default async function MisActivos(props: {
                                             )}
                                         </div>
 
+                                        {/* El activo es suyo, así que su nombre le llega
+                                            siempre; el rubro y el tipo quedan de apoyo. */}
                                         <span className="text-[17px] font-medium">
-                                            {l.niche ? nicheLabel(l.niche) : 'Activo'}
+                                            {l.assetName ?? (l.niche ? nicheLabel(l.niche) : 'Activo')}
                                             <span className="text-[var(--color-tenue)]">
                                                 {' · '}
                                                 {nombreDeTipo(l.assetType)}

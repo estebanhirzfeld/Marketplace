@@ -72,6 +72,11 @@ export default async function DetalleDeActivo(props: {
 
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
+    // El activo es suyo, así que el nombre le llega siempre. El rubro y el
+    // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
+    const nombre = typeof listing.assetData.name === 'string' && listing.assetData.name
+        ? listing.assetData.name
+        : `${rubro} · ${listing.descriptor.label}`;
 
     const tab = (clave: ClaveDePestana) =>
         `-mb-px border-b-2 px-4 py-3 text-[14px] transition-colors ${
@@ -94,9 +99,7 @@ export default async function DetalleDeActivo(props: {
                         Mis activos
                     </Link>
                     <span>/</span>
-                    <span className="text-[var(--color-tenue)]">
-                        {rubro} · {listing.descriptor.label}
-                    </span>
+                    <span className="text-[var(--color-tenue)]">{nombre}</span>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-start justify-between gap-6">
@@ -109,9 +112,10 @@ export default async function DetalleDeActivo(props: {
                                 </span>
                             )}
                         </div>
-                        <h1 className="text-[30px] font-bold tracking-[-0.03em]">
+                        <h1 className="text-[30px] font-bold tracking-[-0.03em]">{nombre}</h1>
+                        <span className="text-[13px] text-[var(--color-apagado)]">
                             {rubro} · {listing.descriptor.label}
-                        </h1>
+                        </span>
                     </div>
 
                     <div className="text-right">
