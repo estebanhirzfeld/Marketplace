@@ -199,11 +199,21 @@ export default function Sistema() {
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PERÍODO DE ESPERA</div>
-                            <TransferStatus transferable={false} transferableFrom={EN_CINCO_DIAS} />
+                            {/* El motivo de la espera lo escribe el tipo de activo:
+                                acá se pasa uno de ejemplo porque el catálogo no
+                                está a mano en la página del sistema. */}
+                            <TransferStatus
+                                transferable={false}
+                                transferableFrom={EN_CINCO_DIAS}
+                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
+                            />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN ACCESO CEDIDO</div>
-                            <TransferStatus transferable={false} />
+                            <TransferStatus
+                                transferable={false}
+                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
+                            />
                         </div>
                     </div>
 

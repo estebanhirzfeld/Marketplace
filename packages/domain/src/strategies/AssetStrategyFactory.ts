@@ -1,5 +1,5 @@
 import { ASSET_NICHES, AssetNiche, AssetType } from '@marketplace/shared-types';
-import { IAssetStrategy } from './IAssetStrategy';
+import { AssetTypeDescriptor, IAssetStrategy } from './IAssetStrategy';
 import { YouTubeStrategy } from './YouTubeStrategy';
 import { WebStrategy } from './WebStrategy';
 import { Money } from '../value-objects/Money';
@@ -20,6 +20,37 @@ type AssetData = Record<string, unknown>;
  * filas propias de la base y bodies de requests ajenos. Validar los dos cuesta
  * poco y evita tener dos caminos con distinto rigor.
  */
+/**
+ * Lo que sabe de sí mismo cada tipo de activo que la plataforma acepta.
+ *
+ * Se arma con valores mínimos porque el descriptor no depende de los datos del
+ * activo sino de su tipo: describe la forma, no el contenido. Sirve para las
+ * pantallas que todavía no tienen un activo —el formulario de publicar, los
+ * filtros del mercado— y para no repetir el descriptor en cada fila de una
+ * grilla.
+ *
+ * Recorre el enum en vez de una lista escrita a mano: agregar un tipo de
+ * activo no debería exigir acordarse de sumarlo también acá.
+ */
+export function describeAssetTypes(): AssetTypeDescriptor[] {
+    return Object.values(AssetType).map((assetType) =>
+        createAssetStrategy(assetType, MUESTRA[assetType]).describe(),
+    );
+}
+
+/** Lo mínimo que cada estrategia exige para construirse. */
+const MUESTRA: Record<AssetType, AssetData> = {
+    [AssetType.YOUTUBE]: {
+        monthlyRevenueUsdCents: 0,
+        subscribers: 0,
+        isMonetized: false,
+    },
+    [AssetType.WEB]: {
+        monthlyRevenueUsdCents: 0,
+        domainAuthority: 0,
+    },
+};
+
 export function createAssetStrategy(assetType: string, assetData: AssetData): IAssetStrategy {
     switch (assetType) {
         case AssetType.YOUTUBE:
@@ -31,6 +62,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
+                name: textoOpcional(assetData, 'name', ''),
                 niche: rubro(assetData),
             });
 
@@ -40,6 +72,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 entero(assetData, 'domainAuthority'),
                 textoOpcional(assetData, 'domain', ''),
                 rubro(assetData),
+                textoOpcional(assetData, 'name', ''),
             );
 
 

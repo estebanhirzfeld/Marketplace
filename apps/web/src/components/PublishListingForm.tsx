@@ -26,11 +26,15 @@ const IDENTIDAD = {
         label: 'Dirección del canal',
         placeholder: 'https://youtube.com/@tuCanal',
         hint: 'Solo la ve quien firme el NDA. Es lo que nos permite contrastar tus métricas con YouTube.',
+        nombre: 'Nombre del canal',
+        nombrePlaceholder: 'Nivel Completo',
     },
     web: {
         label: 'Dominio',
         placeholder: 'ejemplo.com',
         hint: 'Solo lo ve quien firme el NDA.',
+        nombre: 'Nombre del sitio',
+        nombrePlaceholder: 'Probamos Todo',
     },
 } as const;
 
@@ -116,6 +120,14 @@ export function PublishListingForm({
                     cuál es tu activo.
                 </span>
             </label>
+
+            <Field
+                label={identidad.nombre}
+                name="nombre"
+                placeholder={identidad.nombrePlaceholder}
+                hint="Con qué lo vas a reconocer vos y con qué lo va a nombrar la plataforma. Es reservado: solo lo ve quien firme el acuerdo."
+                required
+            />
 
             <Field
                 label={identidad.label}

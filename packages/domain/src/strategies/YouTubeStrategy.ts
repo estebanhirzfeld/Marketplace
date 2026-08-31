@@ -1,4 +1,10 @@
-import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
+import {
+  AssetFieldDescriptor,
+  AssetTypeDescriptor,
+  IAssetStrategy,
+  MetricKey,
+  TransferStep,
+} from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
@@ -11,6 +17,12 @@ interface YouTubeStrategyProps {
   hasNoFaceContent?: boolean;
   /** Dirección del canal. Es lo que identifica al activo, así que es reservado. */
   channelUrl?: string;
+  /**
+   * Cómo se llama el canal. Reservado por el mismo motivo que la dirección:
+   * con el nombre se lo encuentra buscándolo, así que publicarlo dejaría el
+   * acuerdo de confidencialidad sin nada que proteger.
+   */
+  name?: string;
   /** Rubro del canal. Público: dice de qué trata, no cuál es. */
   niche?: string;
 }
@@ -29,6 +41,7 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly audienceTopCountry: string;
   private readonly hasNoFaceContent: boolean;
   private readonly channelUrl: string;
+  private readonly name: string;
   private readonly niche: string;
 
   constructor({
@@ -39,6 +52,7 @@ export class YouTubeStrategy implements IAssetStrategy {
     audienceTopCountry = 'AR',
     hasNoFaceContent = false,
     channelUrl = '',
+    name = '',
     niche = AssetNiche.OTHER,
   }: YouTubeStrategyProps) {
     this.niche = niche;
@@ -49,6 +63,43 @@ export class YouTubeStrategy implements IAssetStrategy {
     this.audienceTopCountry = audienceTopCountry;
     this.hasNoFaceContent = hasNoFaceContent;
     this.channelUrl = channelUrl;
+    this.name = name;
+  }
+
+  public describe(): AssetTypeDescriptor {
+    const channelUrl: AssetFieldDescriptor = {
+      key: 'channelUrl',
+      label: 'Dirección del canal',
+      kind: 'text',
+      confidential: true,
+    };
+
+    return {
+      assetType: AssetType.YOUTUBE,
+      label: 'Canal de YouTube',
+      identityField: channelUrl,
+      fields: [
+        { key: 'niche', label: 'Rubro', kind: 'niche', confidential: false },
+        { key: 'subscribers', label: 'Suscriptores', kind: 'number', confidential: false },
+        { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
+        { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
+        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false },
+        { key: 'isMonetized', label: 'Monetizado', kind: 'boolean', confidential: false },
+        { key: 'audienceTopCountry', label: 'País principal de la audiencia', kind: 'text', confidential: false },
+        { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },
+        { key: 'name', label: 'Nombre del canal', kind: 'text', confidential: true },
+        channelUrl,
+      ],
+      summaryMetricKeys: ['subscribers', 'monthlyRevenueUsdCents', 'audienceTopCountry'],
+      ownershipSource: 'youtube',
+      transferWaitingDays: this.transferWaitingDays(),
+      handoverNotice:
+        'No lo detectamos solos: la API de YouTube no dice si un canal es Cuenta de Marca ni quiénes son sus propietarios.',
+      waitingNotice:
+        'YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal. La espera la impone la plataforma del activo, no nosotros.',
+      revenueNotice:
+        'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada.',
+    };
   }
 
   // -------------------------------------------------------------------
@@ -268,7 +319,7 @@ export class YouTubeStrategy implements IAssetStrategy {
    * métricas alcanza para valuar, y hace falta el NDA para saber qué canal es.
    */
   public getConfidentialFields(): string[] {
-    return ['channelUrl'];
+    return ['name', 'channelUrl'];
   }
 
   public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -283,6 +334,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         isMonetized: this.isMonetized,
         audienceTopCountry: this.audienceTopCountry,
         hasNoFaceContent: this.hasNoFaceContent,
+        name: this.name,
         channelUrl: this.channelUrl,
       }
     };

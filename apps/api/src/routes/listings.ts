@@ -3,8 +3,10 @@ import { Container } from '../container';
 import { simulatedGrantFor } from '../adapters/SimulatedGoogleReaders';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
 import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
-import { ASSET_NICHES } from '@marketplace/shared-types';
+import { ASSET_NICHES, AssetType } from '@marketplace/shared-types';
+import { describeAssetTypes } from '@marketplace/domain/src/strategies/AssetStrategyFactory';
 import type {
+    AssetTypeDescriptorDto,
     ContractDto,
     CreateListingRequest,
     CreateOfferRequest,
@@ -25,6 +27,19 @@ import type {
 interface IdParams { id: string }
 
 export function registerListingRoutes(app: FastifyInstance, c: Container): void {
+    /*
+     * Lo que sabe de sí mismo cada tipo de activo.
+     *
+     * Es metadata del catálogo, no de una publicación: la usan el formulario
+     * de publicar y los filtros del mercado, que existen antes de que haya un
+     * activo. Sin autenticar porque no dice nada de nadie — describe la forma
+     * de un canal y la de un sitio, que es información pública del producto.
+     */
+    app.get<{ Reply: AssetTypeDescriptorDto[] }>('/asset-types', async (_request, reply) => {
+        return reply.send(describeAssetTypes() as AssetTypeDescriptorDto[]);
+    });
+
+
     app.get<{ Querystring: ListingFiltersQuery; Reply: ListingSummaryDto[] }>(
         '/listings',
         {
@@ -32,7 +47,9 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 querystring: {
                     type: 'object',
                     properties: {
-                        assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        // Del enum, no de una lista a mano: sumar un tipo de activo no
+                        // debería exigir acordarse de tocar también este schema.
+                        assetType: { type: 'string', enum: Object.values(AssetType) },
                         niche: { type: 'string', enum: ASSET_NICHES },
                         onlyTransferable: { type: 'boolean' },
                         currency: { type: 'string', enum: ['ARS', 'USD'] },
@@ -111,6 +128,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
                 handoverSteps: view.handoverSteps.map(({ id, description, instruction }) => ({ id, description, instruction })),
+                descriptor: view.descriptor,
                 createdAt: view.createdAt.toISOString(),
             };
             return reply.send(dto);

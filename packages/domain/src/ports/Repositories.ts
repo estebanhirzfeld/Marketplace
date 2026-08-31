@@ -4,10 +4,23 @@ import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { ListingStatus } from '../entities/Listing';
+import { UserRole } from '@marketplace/shared-types';
 
 export interface IUserRepository {
     findById(id: string): Promise<User | null>;
     findByEmail(email: string): Promise<User | null>;
+    /**
+     * Los usuarios de un rol.
+     *
+     * Existe para poder avisarle a la plataforma. Un aviso apunta siempre a
+     * una persona —`Notification.userId` es obligatorio— así que sin esta
+     * consulta no había forma de que un administrador recibiera ninguno: la
+     * campana estaba en su barra desde el principio y nunca podía tener nada.
+     *
+     * Devuelve una lista y no uno solo a propósito: hoy hay un admin, pero
+     * asumirlo sería construir una plataforma de una sola persona.
+     */
+    findByRole(role: UserRole): Promise<User[]>;
     save(user: User): Promise<void>;
 }
 

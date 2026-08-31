@@ -12,7 +12,7 @@ import { OfferForm } from '@/components/OfferForm';
 import { ButtonLink, Panel } from '@/components/ui';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { LockIcon } from '@/components/LockIcon';
-import { ETIQUETAS_DE_CAMPO, money, readableValue } from '@/lib/format';
+import { fieldValue, money } from '@/lib/format';
 import { signNda, makeOffer } from './actions';
 import { registerPlatformAccess, revokePlatformAccess } from '../../admin/actions';
 
@@ -35,7 +35,10 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
     // (`Solo se puede ofertar sobre activos publicados`), pero la pantalla lo
     // ofrecía igual y la persona se enteraba recién al apretar.
     const disponible = listing.status === 'published';
-    const visibleFields = Object.entries(listing.assetData);
+    // Los campos ocultos llegan como claves crudas; el descriptor les pone
+    // nombre. Si el tipo no describe alguno, se muestra la clave antes que nada.
+    const etiqueta = (clave: string) =>
+        listing.descriptor.fields.find((f) => f.key === clave)?.label ?? clave;
 
     return (
         <div className="mx-auto max-w-[1400px] px-6 py-14 sm:px-12">
@@ -75,21 +78,23 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                 <Reveal>
                     <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                            {visibleFields.map(([key, value]) => (
-                                <div key={key} className="flex items-center justify-between py-3 text-[14px]">
-                                    <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS_DE_CAMPO[key] ?? key}
-                                    </span>
-                                    <span className="font-mono">{readableValue(key, value)}</span>
-                                </div>
-                            ))}
+                            {listing.descriptor.fields
+                                .filter((f) => f.key in listing.assetData)
+                                .map((f) => (
+                                    <div key={f.key} className="flex items-center justify-between py-3 text-[14px]">
+                                        <span className="text-[var(--color-tenue)]">{f.label}</span>
+                                        <span className="font-mono">
+                                            {fieldValue(f.kind, listing.assetData[f.key])}
+                                        </span>
+                                    </div>
+                                ))}
 
                             {/* Los campos ocultos se muestran como filas ciegas: el
                                 comprador ve qué le falta, no un vacío inexplicable. */}
                             {listing.hiddenFields.map((campo) => (
                                 <div key={campo} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS_DE_CAMPO[campo] ?? campo}
+                                        {etiqueta(campo)}
                                     </span>
                                     <span className="flex items-center gap-2">
                                         <LockIcon tamano={12} color="var(--color-fantasma)" />
@@ -109,7 +114,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         {hidden && (
                             <NdaPanel
                                 action={signNda.bind(null, id)}
-                                hiddenFields={listing.hiddenFields.map((c) => ETIQUETAS_DE_CAMPO[c] ?? c)}
+                                hiddenFields={listing.hiddenFields.map(etiqueta)}
                                 authenticated={Boolean(actor)}
                             />
                         )}
@@ -117,6 +122,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         <TransferStatus
                             transferable={listing.transferable}
                             transferableFrom={listing.transferableFrom}
+                            waitingNotice={listing.descriptor.waitingNotice}
                         />
 
                         {actor?.role === UserRole.ADMIN && (

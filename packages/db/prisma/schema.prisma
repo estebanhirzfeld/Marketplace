@@ -58,6 +58,12 @@ enum NotificationType {
   // el error, así que la denuncia se registraba y el denunciado nunca se
   // enteraba.
   denuncia_recibida
+  // Los avisos dirigidos a la plataforma. Un administrador no recibía ninguno
+  // porque no había forma de nombrarlo como destinatario.
+  revision_pendiente
+  acceso_pendiente
+  custodia_pendiente
+  liquidacion_pendiente
 }
 
 enum ContractType {

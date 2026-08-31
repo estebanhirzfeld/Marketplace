@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { anonymousApi } from '@/lib/api';
 import { Reveal } from '@/components/Reveal';
 import { ListingCard } from '@/components/ListingCard';
+import { assetTypes } from '@/lib/assetTypes';
 import { LockIcon } from '@/components/LockIcon';
 import type { ListingSummaryDto } from '@marketplace/api-contract';
 
@@ -52,6 +53,10 @@ const COBERTURA = [
  * campos públicos de cada activo — el filtrado lo hace el dominio, no la UI.
  */
 export default async function Home() {
+    // La metadata del catálogo se pide una vez para toda la grilla: repetirla
+    // en cada tarjeta sería mandar lo mismo seis veces.
+    const porTipo = new Map((await assetTypes()).map((d) => [d.assetType, d]));
+
     let listings: ListingSummaryDto[] = [];
     try {
         listings = await anonymousApi().listings();
@@ -211,7 +216,7 @@ export default async function Home() {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {listings.slice(0, 3).map((l, i) => (
                                 <Reveal key={l.id} delay={i * 100}>
-                                    <ListingCard listing={l} />
+                                    <ListingCard listing={l} descriptor={porTipo.get(l.assetType)} />
                                 </Reveal>
                             ))}
                         </div>

@@ -1,6 +1,7 @@
 import { IUserRepository } from "@marketplace/domain/src/ports/Repositories";
 import { User } from "@marketplace/domain/src/entities/User";
 import { UserMapper } from "../mappers/UserMapper";
+import { UserRole } from "@marketplace/shared-types";
 import { prisma, PrismaLike } from "../client";
 
 export class PrismaUserRepository implements IUserRepository {
@@ -19,6 +20,11 @@ export class PrismaUserRepository implements IUserRepository {
     async findByEmail(email: string): Promise<User | null> {
         const raw = await this.db.user.findUnique({ where: { email } });
         return raw ? UserMapper.toDomain(raw) : null;
+    }
+
+    async findByRole(role: UserRole): Promise<User[]> {
+        const raws = await this.db.user.findMany({ where: { role } });
+        return raws.map(UserMapper.toDomain);
     }
 
     async save(user: User): Promise<void> {

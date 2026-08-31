@@ -13,7 +13,8 @@ import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
-import { assetTypeLabel, nicheLabel, money, fechaLarga } from '@/lib/format';
+import { nicheLabel, money, fechaLarga } from '@/lib/format';
+import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
     advanceOperation,
     confirmBankTransfer,
@@ -121,6 +122,7 @@ export default async function DetalleOperacion(props: {
 }) {
     const { id } = await props.params;
     const query = await props.searchParams;
+    const nombreDeTipo = await assetTypeLabeller();
 
     const actor = await currentActor();
     if (!actor) redirect('/ingresar');
@@ -174,9 +176,9 @@ export default async function DetalleOperacion(props: {
                             // Era los primeros ocho caracteres del UUID, que no le
                             // dice nada a nadie. El rubro y el tipo son públicos:
                             // nombran el activo sin revelar cuál es.
-                            op.niche
-                                ? `${nicheLabel(op.niche)}${op.assetType ? ` · ${assetTypeLabel(op.assetType)}` : ''}`
-                                : 'Activo en venta'
+                            op.assetName ?? (op.niche
+                                ? `${nicheLabel(op.niche)}${op.assetType ? ` · ${nombreDeTipo(op.assetType)}` : ''}`
+                                : 'Activo en venta')
                         }>
                         {money(op.finalPrice ?? op.currentOfferPrice)}
                     </Heading>

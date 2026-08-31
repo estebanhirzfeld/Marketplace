@@ -45,6 +45,10 @@ export async function publishListing(
         // El rubro vale para los dos tipos y lo valida el factory contra la
         // lista cerrada, así que acá se reenvía tal cual llega.
         niche: String(form.get('niche') ?? 'other'),
+        // El nombre es parte del blindaje, igual que la dirección: con él se
+        // encuentra el activo buscándolo. Lo ven el vendedor, la plataforma y
+        // el comprador que firmó el acuerdo.
+        name: String(form.get('nombre') ?? '').trim(),
     };
 
     // La identidad del activo es lo único que un listing blind reserva. Sin

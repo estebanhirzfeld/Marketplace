@@ -68,7 +68,13 @@ function armar(listing: Listing | null) {
         findByStatus: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
-    return new GetMyOperationsUseCase(operationRepo, listingRepo);
+    return new GetMyOperationsUseCase(operationRepo, listingRepo, {
+            findById: vi.fn().mockResolvedValue(null),
+            findByOperation: vi.fn().mockResolvedValue([]),
+            findByListingAndSigner: vi.fn().mockResolvedValue(null),
+            findAllByListing: vi.fn().mockResolvedValue([]),
+            save: vi.fn().mockResolvedValue(undefined),
+        });
 }
 
 describe('GetMyOperationsUseCase — identidad del activo', () => {

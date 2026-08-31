@@ -4,7 +4,8 @@ import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ButtonLink, OperationStatusBadge, Heading, EmptyState } from '@/components/ui';
-import { assetTypeLabel, money, nicheLabel } from '@/lib/format';
+import { money, nicheLabel } from '@/lib/format';
+import { assetTypeLabeller } from '@/lib/assetTypes';
 
 export const metadata = { title: 'Mis compras · Traspaso' };
 
@@ -76,6 +77,7 @@ export default async function Operaciones(props: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
     await requireCounterparty();
+    const nombreDeTipo = await assetTypeLabeller();
     const params = await props.searchParams;
 
     const etapa = esEtapa(params.etapa) ? params.etapa : undefined;
@@ -171,11 +173,13 @@ export default async function Operaciones(props: {
                                                 revelar cuál es.
                                             */}
                                             <span className="text-[15px] font-medium text-[var(--color-tinta)]">
-                                                {op.niche ? nicheLabel(op.niche) : 'Activo'}
+                                                {/* El nombre solo llega si firmaste el acuerdo;
+                                                    si no, el rubro, que es público. */}
+                                                {op.assetName ?? (op.niche ? nicheLabel(op.niche) : 'Activo')}
                                                 {op.assetType && (
                                                     <span className="text-[var(--color-tenue)]">
                                                         {' · '}
-                                                        {assetTypeLabel(op.assetType)}
+                                                        {nombreDeTipo(op.assetType)}
                                                     </span>
                                                 )}
                                             </span>

@@ -22,6 +22,17 @@ import { authenticate, actorOf } from '../plugins/authenticate';
 interface IdParams { id: string }
 
 /** Un listing propio expone más que uno público: estado real y motivo de rechazo. */
+/**
+ * El nombre del activo, para su propio dueño.
+ *
+ * `true` porque este mapeo solo se usa en el catálogo del vendedor, que se
+ * consulta por su id: no hay forma de que devuelva el activo de otro.
+ */
+function nombreDelActivo(listing: Listing): string | undefined {
+    const valor = listing.assetDataFor(true).assetData.name;
+    return typeof valor === 'string' && valor ? valor : undefined;
+}
+
 function aMyListingDto(listing: Listing): MyListingDto {
     const { id, createdAt, props } = listing.toSnapshot();
     return {
@@ -40,6 +51,7 @@ function aMyListingDto(listing: Listing): MyListingDto {
             cents: listing.estimatedPrice.getCents(),
             currency: listing.estimatedPrice.getCurrency(),
         },
+        assetName: nombreDelActivo(listing),
         rejectionReason: props.rejectionReason,
         ownership: listing.ownershipVerification && {
             verifiedAt: listing.ownershipVerification.verifiedAt.toISOString(),
@@ -49,6 +61,7 @@ function aMyListingDto(listing: Listing): MyListingDto {
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
         handoverSteps: listing.handoverSteps().map(({ id, description, instruction }) => ({ id, description, instruction })),
+        descriptor: listing.describeAssetType(),
         createdAt: createdAt.toISOString(),
     };
 }
@@ -56,7 +69,7 @@ function aMyListingDto(listing: Listing): MyListingDto {
 function aMyOperationDto(
     operation: Operation,
     actorId: string,
-    activo: { assetType?: string; niche?: string } = {},
+    activo: { assetType?: string; niche?: string; name?: string } = {},
 ): MyOperationDto {
     const { id, createdAt, props } = operation.toSnapshot();
 
@@ -74,6 +87,7 @@ function aMyOperationDto(
         listingId: props.listingId.toString(),
         assetType: activo.assetType,
         niche: activo.niche,
+        assetName: activo.name,
         status: props.status,
         miParte,
         currentOfferPrice: {
@@ -239,6 +253,10 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                             ? undefined
                             : { cents: p.amountCents, currency: p.currency },
                     waitingSince: p.waitingSince.toISOString(),
+                    assetName: p.assetName,
+                    assetType: p.assetType,
+                    buyerName: p.buyerName,
+                    sellerName: p.sellerName,
                 })),
             });
         },
@@ -297,6 +315,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 listingId: props.listingId.toString(),
                 assetType: asset?.assetType,
                 niche: asset?.niche,
+                assetName: asset?.name,
                 transferable: asset?.transferable,
                 transferableFrom: asset?.transferableFrom?.toISOString(),
                 status: props.status,

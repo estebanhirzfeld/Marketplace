@@ -35,6 +35,7 @@ function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepo
     return {
         findById: vi.fn().mockResolvedValue(null),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };

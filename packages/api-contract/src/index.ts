@@ -181,6 +181,8 @@ export interface ListingDetailDto {
      * dando por cumplido.
      */
     handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
 }
 
@@ -367,6 +369,8 @@ export interface MyListingDto {
     id: string;
     status: ListingStatusDto;
     assetType: string;
+    /** Cómo se llama el activo. Su dueño siempre lo ve. */
+    assetName?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
     askingPrice: MoneyDto;
@@ -390,7 +394,42 @@ export interface MyListingDto {
      * se cede con su código de autorización.
      */
     handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
+}
+
+/**
+ * Lo que un tipo de activo sabe de sí mismo.
+ *
+ * Viaja para que la interfaz deje de preguntar "¿de qué tipo sos?" y decidir
+ * por su cuenta. Es un espejo de `AssetTypeDescriptor` del dominio: semántica,
+ * no presentación — el formato de los números y los colores siguen siendo de
+ * la vista.
+ */
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+
+export interface AssetFieldDto {
+    key: string;
+    label: string;
+    kind: AssetFieldKindDto;
+    confidential: boolean;
+}
+
+export interface AssetTypeDescriptorDto {
+    assetType: string;
+    label: string;
+    identityField: AssetFieldDto;
+    fields: AssetFieldDto[];
+    summaryMetricKeys: string[];
+    ownershipSource: 'youtube' | 'adsense';
+    transferWaitingDays: number;
+    /** Por qué la cesión del acceso la registra una persona. */
+    handoverNotice: string;
+    /** Por qué hay que esperar. Ausente cuando la transferencia es inmediata. */
+    waitingNotice?: string;
+    /** Qué pasa con el ingreso declarado: si se comprueba o queda declarado. */
+    revenueNotice: string;
 }
 
 /** Un paso de la cesión del activo a la plataforma. */
@@ -406,6 +445,8 @@ export interface HandoverStepDto {
 export interface MyOperationDto {
     id: string;
     listingId: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
     /**
      * Con qué nombrar el activo en una lista. Son los campos que la strategy
      * declara públicos —los mismos que el mercado muestra sin NDA—, así que
@@ -429,6 +470,14 @@ export interface NegotiationDto {
 
 /** Una operación esperando un movimiento de la plataforma. */
 export interface PendingOperationDto {
+    /**
+     * Con qué reconocer la fila. El panel mostraba solo el estado y el monto,
+     * así que dos operaciones esperando lo mismo eran indistinguibles.
+     */
+    assetName?: string;
+    assetType?: string;
+    buyerName?: string;
+    sellerName?: string;
     id: string;
     status: OperationStatusDto;
     listingId: string;
@@ -460,6 +509,8 @@ export interface OperationDetailDto {
      */
     assetType?: string;
     niche?: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
     /**
      * Si el activo ya se puede transferir. Firmar el contrato tripartito lo
      * exige, así que la pantalla lo necesita para no ofrecer una firma que el
@@ -653,7 +704,12 @@ export type NotificationTypeDto =
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
-    | 'denuncia_recibida';
+    | 'denuncia_recibida'
+    /** Los que le tocan a la plataforma. */
+    | 'revision_pendiente'
+    | 'acceso_pendiente'
+    | 'custodia_pendiente'
+    | 'liquidacion_pendiente';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

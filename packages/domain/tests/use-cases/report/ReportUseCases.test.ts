@@ -79,6 +79,7 @@ function createMockUserRepo(): IUserRepository {
     return {
         findById: vi.fn().mockImplementation(async (id: string) => unUsuario(id)),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

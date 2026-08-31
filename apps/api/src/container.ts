@@ -77,6 +77,7 @@ import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/oper
 import { GetMyNotificationsUseCase } from '@marketplace/domain/src/use-cases/notification/GetMyNotificationsUseCase';
 import { MarkNotificationReadUseCase } from '@marketplace/domain/src/use-cases/notification/MarkNotificationReadUseCase';
 import { NegotiationNotifier } from '@marketplace/domain/src/services/NegotiationNotifier';
+import { PlatformNotifier } from '@marketplace/domain/src/services/PlatformNotifier';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import { IListingRepository } from '@marketplace/domain/src/ports/Repositories';
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
@@ -230,6 +231,9 @@ export function createContainer(
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
     const avisos = new NegotiationNotifier(notificationRepo);
+    // Los avisos dirigidos a la plataforma van aparte porque el destinatario
+    // no sale de la operación: hay que buscar quiénes son los administradores.
+    const avisosDePlataforma = new PlatformNotifier(notificationRepo, userRepo);
 
     // Una sola definición de qué entra en el documento de un contrato: si el
     // armado divergiera entre firmar y leer, los hashes no coincidirían.
@@ -247,7 +251,7 @@ export function createContainer(
 
         createListing: new CreateListingUseCase(listingRepo, userRepo),
         estimateListingPrice: new EstimateListingPriceUseCase(),
-        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo),
+        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo, avisosDePlataforma),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         simulacionDeGoogle: simularGoogle,
@@ -284,14 +288,14 @@ export function createContainer(
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo),
         misListings: new GetMyListingsUseCase(listingRepo),
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
-        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo),
-        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo),
+        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
+        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
         detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
         // Único use case que necesita atomicidad: la cascada multi-oferta.
-        acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos),
+        acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos, avisosDePlataforma),
         cancelOperation: new CancelOperationUseCase(new PrismaUnitOfWork()),
         getSellerOffers: new GetSellerOffersUseCase(operationRepo, listingRepo, userRepo),
 
@@ -299,7 +303,7 @@ export function createContainer(
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
         signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
 
-        initiateTransfer: new InitiateTransferUseCase(operationRepo),
+        initiateTransfer: new InitiateTransferUseCase(operationRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, avisos),
         simulacionDePagos: simularPagos,
         // La simulación gana sobre las credenciales reales: si alguien la
@@ -308,7 +312,7 @@ export function createContainer(
             ? new CreateCheckoutUseCase(operationRepo, userRepo, pasarela)
             : undefined,
         confirmarPagoDePasarela: pasarela
-            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, pasarela, avisos)
+            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, pasarela, avisos, avisosDePlataforma)
             : undefined,
         mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
         denunciar: new FileReportUseCase(reportRepo, operationRepo, notificationRepo),
@@ -321,7 +325,7 @@ export function createContainer(
             contractRepo,
             userRepo,
         ),
-        confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos),
+        confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
         completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos),
     };
 }

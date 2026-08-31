@@ -1,8 +1,9 @@
 import { IListingRepository, IContractRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { ListingStatus, OwnershipVerification } from '../../entities/Listing';
-import { TransferStep } from '../../strategies/IAssetStrategy';
+import { AssetTypeDescriptor, TransferStep } from '../../strategies/IAssetStrategy';
 import { NotFoundError } from '../../errors/DomainError';
+import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { UserRole } from '@marketplace/shared-types';
 
 export interface ListingDetailView {
@@ -27,6 +28,8 @@ export interface ListingDetailView {
     transferableFrom?: Date;
     /** Lo que le falta al vendedor para cedernos el activo. */
     handoverSteps: TransferStep[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptor;
     createdAt: Date;
 }
 
@@ -76,7 +79,7 @@ export class GetListingDetailsUseCase {
         }
 
         // El filtrado lo decide la entidad: una sola regla, un solo lugar.
-        const puedeVerTodo = await this.puedeVerTodo(esDuenio, listingId, actor);
+        const puedeVerTodo = await new ConfidentialAccess(this.contractRepo).allowed(listing, actor);
         const data = listing.assetDataFor(puedeVerTodo);
 
         return {
@@ -96,31 +99,9 @@ export class GetListingDetailsUseCase {
             transferable: listing.isReadyToTransfer(),
             transferableFrom: listing.transferableFrom(),
             handoverSteps: listing.handoverSteps(),
+            descriptor: listing.describeAssetType(),
             createdAt: listing.toSnapshot().createdAt,
         };
     }
 
-    private async puedeVerTodo(
-        esDuenio: boolean,
-        listingId: string,
-        actor?: Actor,
-    ): Promise<boolean> {
-        // El vendedor nunca necesita un NDA para ver su propio activo.
-        if (esDuenio) return true;
-        if (!actor) return false;
-
-        // Tampoco la plataforma. El blindaje protege al vendedor de que le
-        // copien el activo sin comprarlo, y la plataforma no es ese tercero:
-        // es la custodia. Un operador que no sabe de qué canal se trata no
-        // puede comprobar la titularidad ni atestiguar que lo tenemos. El
-        // resto del código ya lo daba por hecho —las verificaciones de
-        // métricas y de titularidad dejan pasar al admin—, así que pedirle un
-        // NDA acá era además incoherente: se lo firmaría a sí mismo.
-        if (actor.role === UserRole.ADMIN) return true;
-
-        const contract = await this.contractRepo.findByListingAndSigner(listingId, actor.id);
-        if (!contract) return false;
-
-        return contract.type === 'buyer_nda' && contract.isFullySigned();
-    }
 }
