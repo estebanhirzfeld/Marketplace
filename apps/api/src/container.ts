@@ -69,6 +69,7 @@ import {
     CreateCheckoutUseCase,
 } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
+import { SimulatedPaymentGateway } from './adapters/SimulatedPaymentGateway';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
@@ -117,6 +118,8 @@ export interface Container {
     googleOAuth?: GoogleOAuthClient;
     /** Si las respuestas de Google están simuladas. La interfaz lo muestra. */
     simulacionDeGoogle: boolean;
+    /** Si el cobro está simulado. Habilita la pantalla de pago de mentira. */
+    simulacionDePagos: boolean;
     verifyChannelOwnership?: VerifyChannelOwnershipUseCase;
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
@@ -175,6 +178,21 @@ export function createContainer(
         );
     }
 
+    /*
+     * Cobro simulado. Misma regla que arriba: explícito y con nada más. Un
+     * pago inventado en producción es peor que no cobrar — la operación
+     * avanzaría a `payment_received` y se liquidaría al vendedor por plata que
+     * nunca entró.
+     */
+    const simularPagos = process.env.SIMULATE_PAYMENTS?.trim() === 'true';
+    if (simularPagos) {
+        console.warn(
+            '\n  ⚠️  COBROS SIMULADOS\n' +
+            '      Ningún pago es real: la pasarela responde que todo se aprobó.\n' +
+            '      Solo para desarrollo.\n',
+        );
+    }
+
     const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
     const mercadoPago = mpToken
         ? new MercadoPagoGateway({
@@ -201,6 +219,12 @@ export function createContainer(
     const reportRepo = new PrismaReportRepository();
     const operationRepo = new PrismaOperationRepository();
     const contractRepo = new PrismaContractRepository();
+    const pasarela = simularPagos
+        ? new SimulatedPaymentGateway(
+              operationRepo,
+              process.env.API_URL?.trim() ?? 'http://localhost:3001',
+          )
+        : mercadoPago;
     const notificationRepo = new PrismaNotificationRepository();
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
@@ -277,11 +301,14 @@ export function createContainer(
 
         initiateTransfer: new InitiateTransferUseCase(operationRepo),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, avisos),
-        crearCheckout: mercadoPago
-            ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
+        simulacionDePagos: simularPagos,
+        // La simulación gana sobre las credenciales reales: si alguien la
+        // encendió a propósito, es porque quiere recorrer el flujo sin cobrar.
+        crearCheckout: pasarela
+            ? new CreateCheckoutUseCase(operationRepo, userRepo, pasarela)
             : undefined,
-        confirmarPagoDePasarela: mercadoPago
-            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos)
+        confirmarPagoDePasarela: pasarela
+            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, pasarela, avisos)
             : undefined,
         mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
         denunciar: new FileReportUseCase(reportRepo, operationRepo, notificationRepo),

@@ -230,6 +230,19 @@ export default async function DetalleOperacion(props: {
                                         tarde o escribinos.
                                     </div>
                                 )}
+                                {query.pago === 'rechazado' && (
+                                    <div className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-alerta)]">
+                                        El pago no se pudo registrar. El activo sigue en nuestra
+                                        custodia y la operación no avanzó: podés volver a
+                                        intentarlo.
+                                    </div>
+                                )}
+                                {query.pago === 'simulado' && (
+                                    <div className="rounded-[var(--radius-chico)] border border-[var(--color-listo)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-listo)]">
+                                        Pago simulado registrado. En este entorno no se movió
+                                        plata de verdad.
+                                    </div>
+                                )}
                                 {negociando && miTurno && (
                                     <>
                                         <OperationAction
