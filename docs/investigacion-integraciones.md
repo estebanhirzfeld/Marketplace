@@ -56,6 +56,66 @@ Durante los 7 días en que la plataforma es propietaria pero **todavía no princ
 
 Esto no invalida el modelo, pero cambia cuándo se le puede pedir el pago al comprador: **recién cuando la plataforma es propietaria principal**, no cuando fue invitada.
 
+### Corrección: la espera de 7 días corre para las dos partes
+
+La cita de arriba —*"To become primary owner, you must have been an owner for 7 days or more"*— describe solo la mitad de la regla. La página de Google sobre cambiar quién administra una Cuenta de Marca la enuncia completa, y son **dos** condiciones simultáneas:
+
+> *"The person making the change has been an owner for 7 days or more"*
+
+> *"The person becoming the new primary owner has been a manager or owner for 7 days or more"*
+
+Si alguna no se cumple, Google devuelve un error.
+
+Para nuestro flujo el piso de 14 días no cambia, porque quien cede siempre lleva más de 7 días como propietario: el vendedor lo es desde antes de publicar, y la plataforma cumple sus 7 días al volverse principal. Pero la regla es más estricta de lo que decíamos, y conviene tenerla escrita entera: **la plataforma no puede cederle el canal al comprador el mismo día en que lo recibió**, aunque el comprador ya llevara sus 7 días esperando.
+
+### Un paso que faltaba: salir del modelo nuevo de permisos
+
+YouTube está migrando la administración de accesos desde los roles de Cuenta de Marca hacia los **permisos de canal** de YouTube Studio. Los dos modelos coexisten, y son incompatibles con la transferencia:
+
+> *"Only opt out of channel permissions if you need to complete a channel transfer."*
+
+Para mover un canal entre Cuentas de Marca hay que **salir de los permisos de canal** en YouTube Studio y no tener a nadie más con acceso otorgado por esa vía. Un canal que use el modelo nuevo —cada vez más son así— no se puede transferir hasta que su propietario principal lo desactive.
+
+Esto es un paso previo del vendedor que `getTransferSteps()` no contempla, y es de los que rompen el traspaso con un error incomprensible: el vendedor invita a la plataforma, la invitación parece funcionar, y el cambio de propietario principal falla sin explicar por qué.
+
+---
+
+## 1bis. ¿Una cuenta nuestra puede sostener varios activos a la vez?
+
+La pregunta importa porque define el esquema de datos: si la plataforma necesitara una cuenta de Google por operación, la identidad de custodia sería un campo de la operación; si alcanza con una, sería configuración.
+
+### Lo que dice Google
+
+> *"You can use one Google Account to manage multiple Brand Accounts connected to YouTube channels."*
+
+> *"If you have multiple YouTube channels connected to Brand Accounts, you can manage them all through one Google Account without signing out."*
+
+Y sobre la unicidad, que es lo que podría haber sido un impedimento:
+
+> *"An account must have one primary owner."*
+
+La restricción es **por Cuenta de Marca, no por cuenta de Google**: cada canal necesita exactamente un propietario principal, pero nada impide que la misma cuenta de Google ocupe ese lugar en varios canales a la vez.
+
+**Respuesta: sí.** Una sola cuenta puede sostener múltiples canales en custodia simultáneamente.
+
+### Lo que Google NO dice
+
+No hay un límite documentado —ni de Cuentas de Marca por cuenta de Google, ni de propietarios por Cuenta de Marca—. Circulan cifras de 50 o 100 canales por cuenta, pero **ninguna sale de documentación oficial** y no conviene apoyar un diseño en ellas. Que no esté documentado no es lo mismo que garantizar que no exista.
+
+### El argumento en contra de una sola cuenta
+
+Que se pueda no quiere decir que convenga, y la razón está en una cita que ya teníamos:
+
+> *"If you delete the primary owner account linked to your channel, the channel will also be deleted."*
+
+Con una única cuenta de custodia, perderla —suspensión, recuperación fallida, un error de Google— **destruye todos los canales que la plataforma tenga en custodia al mismo tiempo**, no uno. Es la diferencia entre un incidente y el fin del negocio.
+
+### Recomendación para el modelo de datos
+
+Registrar **qué cuenta sostiene qué activo**, sea cual sea la política operativa. Así "una sola cuenta" y "una por operación" dejan de ser decisiones de esquema y pasan a ser decisiones de operación, reversibles sin migrar nada. Además es el dato que hoy falta para que el traspaso sea ejecutable: el vendedor no tiene a quién invitar y el comprador no sabe de quién va a recibir la invitación.
+
+Para sitios web el problema no existe: una cuenta de registrador administra tantos dominios como se quiera, y no hay ventana de espera.
+
 ---
 
 ## 2. El ingreso mensual no se puede verificar
@@ -183,6 +243,10 @@ Ordenado por valor sobre esfuerzo:
 ## Fuentes
 
 - [Change channel owners & managers with a Brand Account — YouTube Help](https://support.google.com/youtube/answer/4628007?hl=en)
+- [Change who manages your Brand Account — Google Account Help](https://support.google.com/accounts/answer/7311601?hl=en&co=GENIE.Platform%3DDesktop) — la regla de los 7 días completa, para las dos partes
+- [Manage your Brand Account — Google Account Help](https://support.google.com/accounts/answer/7001996?hl=en&co=GENIE.Platform%3DDesktop) — una cuenta de Google administra varias Cuentas de Marca
+- [Manage YouTube channels — YouTube Help](https://support.google.com/youtube/answer/4642409?hl=en)
+- [Move your YouTube channel from one Brand Account to another — YouTube Help](https://support.google.com/youtube/answer/3056283?hl=en)
 - [Migrate from Brand Account user access to channel permissions — YouTube Help](https://support.google.com/youtube/answer/9367690?hl=en)
 - [YouTube Data API v3 — Getting Started](https://developers.google.com/youtube/v3/getting-started)
 - [YouTube Data API — Channels resource](https://developers.google.com/youtube/v3/docs/channels)
