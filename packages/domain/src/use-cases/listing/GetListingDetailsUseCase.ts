@@ -1,6 +1,7 @@
 import { IListingRepository, IContractRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { ListingStatus, OwnershipVerification } from '../../entities/Listing';
+import { TransferStep } from '../../strategies/IAssetStrategy';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
@@ -24,6 +25,8 @@ export interface ListingDetailView {
     ownership?: OwnershipVerification;
     transferable: boolean;
     transferableFrom?: Date;
+    /** Lo que le falta al vendedor para cedernos el activo. */
+    handoverSteps: TransferStep[];
     createdAt: Date;
 }
 
@@ -92,6 +95,7 @@ export class GetListingDetailsUseCase {
             isOwnedByViewer: esDuenio,
             transferable: listing.isReadyToTransfer(),
             transferableFrom: listing.transferableFrom(),
+            handoverSteps: listing.handoverSteps(),
             createdAt: listing.toSnapshot().createdAt,
         };
     }

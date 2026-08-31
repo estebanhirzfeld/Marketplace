@@ -25,6 +25,89 @@ import {
 import { fileReport } from '../../denuncias/actions';
 
 /**
+ * Qué está pasando y qué se espera de quien mira.
+ *
+ * El panel de acciones se armaba solo con los botones que correspondían, así
+ * que en las etapas donde a alguien no le toca hacer nada quedaba vacío: el
+ * vendedor apretaba "Iniciar la transferencia" y la pantalla se quedaba muda,
+ * sin decirle si algo había salido mal o si simplemente había que esperar. Una
+ * etapa en la que no hay que hacer nada es información, no un hueco.
+ *
+ * Devuelve siempre un texto: cubrir todas las combinaciones de estado y
+ * posición es justamente el punto.
+ */
+function queEsperar(
+    status: OperationDetailDto['status'],
+    parte: 'buyer' | 'seller' | 'platform',
+): string {
+    if (status === 'cancelled') {
+        return parte === 'platform'
+            ? 'La operación se canceló. Si el activo no tiene otra operación en curso, volvió al mercado.'
+            : 'Esta operación se canceló y no se puede retomar. El activo vuelve al mercado si no quedó ninguna otra operación en curso sobre él.';
+    }
+
+    if (status === 'completed') {
+        return 'La operación se cerró. El comprador tiene el activo y el vendedor cobró su parte.';
+    }
+
+    if (status === 'offer_sent' || status === 'negotiating') {
+        if (parte === 'platform') {
+            return 'Las partes están negociando el precio. La plataforma no interviene hasta que una de las dos acepte.';
+        }
+        return 'Mientras el precio se negocia, cualquiera de los dos puede aceptar lo que está sobre la mesa o proponer otro monto. Aceptar cancela las demás ofertas sobre el activo.';
+    }
+
+    if (status === 'contract_pending') {
+        if (parte === 'seller') {
+            return 'El precio ya está acordado. Falta que firmen las dos partes: la venta no queda cerrada hasta entonces, y hasta firmar todavía se puede cancelar.';
+        }
+        if (parte === 'buyer') {
+            return 'El precio ya está acordado. Falta que firmen las dos partes; hasta entonces todavía podés cancelar sin costo.';
+        }
+        return 'Las partes tienen que firmar el contrato tripartito. La plataforma firma sola con la primera de las dos.';
+    }
+
+    if (status === 'contract_signed') {
+        if (parte === 'seller') {
+            return 'El contrato está firmado y ya nos cediste el acceso al activo. Ahora completamos el cambio de titularidad: no necesitamos nada más de vos por ahora.';
+        }
+        if (parte === 'buyer') {
+            return 'El contrato está firmado. Todavía no te toca pagar, y es a propósito: primero tomamos el activo en custodia y verificamos que lo tengamos de verdad. Si nunca llega, no pusiste un peso.';
+        }
+        return 'El contrato está firmado. Falta completar el cambio de titularidad para poder declarar la custodia.';
+    }
+
+    if (status === 'transfer_in_progress') {
+        if (parte === 'seller') {
+            return 'Estamos completando el cambio de titularidad sobre el activo que cediste. No hace falta que hagas nada: te avisamos cuando quede en nuestra custodia y le pidamos el pago al comprador.';
+        }
+        if (parte === 'buyer') {
+            return 'Estamos tomando el activo en custodia. Recién cuando verifiquemos que lo tenemos de verdad te vamos a pedir la transferencia — si el activo nunca llega, no pusiste un peso.';
+        }
+        return 'Punto de control: hay que verificar el activo y declarar la custodia. Recién después se le pide el pago al comprador.';
+    }
+
+    if (status === 'asset_in_custody') {
+        if (parte === 'seller') {
+            return 'El activo ya está en nuestra custodia. Le pedimos el pago al comprador; cuando entre, te liquidamos tu parte y se cierra la operación.';
+        }
+        if (parte === 'buyer') {
+            return 'El activo ya está en custodia de la plataforma y verificado. Recién ahora corresponde pagar.';
+        }
+        return 'El activo está en custodia. Se está esperando el pago del comprador; si entró por transferencia bancaria, se registra desde acá.';
+    }
+
+    // payment_received
+    if (parte === 'seller') {
+        return 'El comprador ya pagó y el dinero está retenido por la plataforma. Estamos entregándole el activo y liquidando tu parte.';
+    }
+    if (parte === 'buyer') {
+        return 'Ya pagaste y el dinero quedó retenido por la plataforma. Estamos entregándote el activo; cuando termine, la operación se cierra.';
+    }
+    return 'El pago está confirmado. Falta entregar el activo al comprador, liquidar al vendedor y cerrar la operación.';
+}
+
+/**
  * Detalle de una operación.
  *
  * Qué acciones se ofrecen sale de dos cosas: el estado de la operación y qué
@@ -222,6 +305,15 @@ export default async function DetalleOperacion(props: {
                                     el comprador volvía acá sin ningún aviso: el
                                     botón parecía recargar la página y nada más.
                                 */}
+                                {/*
+                                    Siempre primero: en qué está la operación y qué
+                                    se espera de quien mira. Los botones vienen
+                                    después, y el reclamo al final de todo.
+                                */}
+                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                    {queEsperar(op.status, op.miParte ?? 'platform')}
+                                </p>
+
                                 {query.pago === 'no-disponible' && (
                                     <div className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-alerta)]">
                                         No pudimos abrir el pago: la pasarela todavía no está
@@ -265,9 +357,8 @@ export default async function DetalleOperacion(props: {
 
                                 {negociando && !miTurno && op.miParte && (
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Le toca responder{' '}
+                                        Ahora le toca responder{' '}
                                         {op.pendingResponseFrom === 'buyer' ? 'al comprador' : 'al vendedor'}.
-                                        Cuando conteste vas a poder aceptar o contraofertar.
                                     </p>
                                 )}
 
@@ -344,53 +435,19 @@ export default async function DetalleOperacion(props: {
                                     />
                                 )}
 
-                                {/*
-                                    El comprador acepta el precio y espera. Sin
-                                    decirle por qué, la pantalla parecía rota:
-                                    "acordamos el precio y no hay dónde pagar".
-                                    El orden es deliberado y es la propuesta de
-                                    valor, así que conviene explicarlo donde se
-                                    nota, y no solo en la página de inicio.
-                                */}
-                                {op.miParte === 'buyer' &&
-                                    ['contract_pending', 'contract_signed', 'transfer_in_progress'].includes(
-                                        op.status,
-                                    ) && (
-                                        <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4 text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            Todavía no te toca pagar, y es a propósito: primero el
-                                            vendedor nos entrega el activo y nosotros verificamos que
-                                            lo tengamos de verdad. Recién ahí te vamos a pedir la
-                                            transferencia. Si el activo nunca llega, no pusiste un peso.
-                                        </p>
-                                    )}
-
                                 {isAdmin && op.status === 'transfer_in_progress' && (
-                                    <div className="flex flex-col gap-3">
-                                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            Punto de control: al registrar la custodia se le pide el
-                                            pago al comprador. Queda constancia de qué verificaste.
-                                        </p>
-                                        <CustodyVerificationForm
-                                            action={confirmCustody.bind(null, id)}
-                                        />
-                                    </div>
+                                    <CustodyVerificationForm action={confirmCustody.bind(null, id)} />
                                 )}
 
                                 {op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
-                                    <div className="flex flex-col gap-3">
-                                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            El activo ya está en custodia de la plataforma y
-                                            verificado. Recién ahora corresponde pagar.
-                                        </p>
-                                        <form action={goToCheckout.bind(null, id)}>
+                                    <form action={goToCheckout.bind(null, id)}>
                                             <SubmitButton
                                                 className="w-full"
                                                 pendingText="Preparando el pago…"
                                             >
                                                 Pagar {op.buyerPays ? money(op.buyerPays) : ''}
-                                            </SubmitButton>
-                                        </form>
-                                    </div>
+                                        </SubmitButton>
+                                    </form>
                                 )}
 
                                 {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (
@@ -441,12 +498,6 @@ export default async function DetalleOperacion(props: {
                                         </div>
                                     )}
 
-                                {op.status === 'completed' && (
-                                    <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        La operación se cerró. El comprador tiene el activo y el vendedor
-                                        cobró su parte.
-                                    </p>
-                                )}
                             </div>
                         </Panel>
                     </Reveal>

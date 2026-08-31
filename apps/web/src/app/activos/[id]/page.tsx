@@ -11,6 +11,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import {
     assetTypeLabel,
     ETIQUETAS_DE_CAMPO,
+    fechaLarga,
     money,
     nicheLabel,
     readableValue,
@@ -337,26 +338,76 @@ export default async function DetalleDeActivo(props: {
                             )}
                         </Panel>
 
+                        {/*
+                            Acá vive el trabajo real del vendedor. Los pasos estaban
+                            escritos en cada estrategia desde el principio y no se
+                            mostraban en ninguna pantalla, así que el vendedor no
+                            tenía cómo saber qué hacer y se enteraba recién cuando
+                            una operación quedaba trabada esperándolo.
+
+                            Va antes de que haya comprador a propósito: cumplirlo
+                            arranca el plazo, y cuando el plazo se cumple el activo
+                            queda marcado como de transferencia inmediata. Así la
+                            espera transcurre mientras el activo está en el mercado
+                            y no en el medio de una venta ya acordada.
+                        */}
                         <Panel title="ACCESO DE LA PLATAFORMA">
                             {mio.transferable ? (
-                                <span className="text-[15px] text-[var(--color-listo)]">
-                                    Cedido y fuera del plazo de espera
-                                </span>
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-[15px] text-[var(--color-listo)]">
+                                        Cedido y fuera del plazo de espera
+                                    </span>
+                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                                        Tu activo aparece en el mercado como{' '}
+                                        <span className="font-mono text-[12px] text-[var(--color-listo)]">
+                                            TRANSFERENCIA INMEDIATA
+                                        </span>
+                                        . Quien compre hoy no espera ningún plazo, y el contrato se
+                                        puede firmar el mismo día.
+                                    </span>
+                                </div>
                             ) : mio.transferableFrom ? (
                                 <div className="flex flex-col gap-2">
                                     <span className="text-[15px] text-[var(--color-alerta)]">
                                         En período de espera
                                     </span>
                                     <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Va a poder transferirse a partir del{' '}
-                                        {new Date(mio.transferableFrom).toLocaleDateString('es-AR')}.
+                                        Ya nos diste el acceso. El{' '}
+                                        {fechaLarga(mio.transferableFrom)} tu activo pasa a figurar
+                                        como de transferencia inmediata. Mientras tanto podés
+                                        recibir ofertas y negociar normalmente.
                                     </span>
                                 </div>
                             ) : (
-                                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                    Todavía no nos diste acceso. Lo registramos nosotros cuando nos lo
-                                    cedas: hasta entonces el contrato de venta no se puede firmar.
-                                </p>
+                                <div className="flex flex-col gap-4">
+                                    <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                                        Todavía no nos diste acceso, así que el contrato de venta no
+                                        se va a poder firmar. Hacelo ahora y no cuando aparezca un
+                                        comprador: el plazo de espera corre igual mientras el activo
+                                        está publicado.
+                                    </p>
+
+                                    {mio.handoverSteps.length > 0 && (
+                                        <ol className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
+                                            {mio.handoverSteps.map((paso, i) => (
+                                                <li key={paso.id} className="flex gap-3 text-[13px]">
+                                                    <span className="font-mono text-[12px] text-[var(--color-acento)]">
+                                                        {i + 1}
+                                                    </span>
+                                                    <span className="leading-relaxed text-[var(--color-tenue)]">
+                                                        {paso.description}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    )}
+
+                                    <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                                        Cuando lo hagas, avisanos y lo dejamos registrado. No lo
+                                        detectamos solos: ni YouTube ni ningún registrador tienen una
+                                        API que nos diga quién es propietario de qué.
+                                    </p>
+                                </div>
                             )}
                         </Panel>
 

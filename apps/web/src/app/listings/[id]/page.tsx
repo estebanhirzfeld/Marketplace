@@ -126,6 +126,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                                     revocar={revokePlatformAccess.bind(null, id)}
                                     transferable={listing.transferable}
                                     transferableFrom={listing.transferableFrom}
+                                    handoverSteps={listing.handoverSteps}
                                 />
                             </Panel>
                         )}

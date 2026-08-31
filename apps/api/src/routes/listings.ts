@@ -110,6 +110,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
+                handoverSteps: view.handoverSteps.map(({ id, description }) => ({ id, description })),
                 createdAt: view.createdAt.toISOString(),
             };
             return reply.send(dto);

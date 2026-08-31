@@ -175,6 +175,12 @@ export interface ListingDetailDto {
      * el acceso de la plataforma — sin acceso no hay fecha que prometer.
      */
     transferableFrom?: string;
+    /**
+     * Lo que le falta hacer al vendedor para cedernos el activo. Lo ve el
+     * admin, que es quien atestigua el acceso: es el contexto de lo que está
+     * dando por cumplido.
+     */
+    handoverSteps: HandoverStepDto[];
     createdAt: string;
 }
 
@@ -378,7 +384,19 @@ export interface MyListingDto {
      * el acceso de la plataforma — sin acceso no hay fecha que prometer.
      */
     transferableFrom?: string;
+    /**
+     * Lo que el vendedor tiene que hacer para cedernos el activo. Depende del
+     * tipo: un canal se convierte a Cuenta de Marca y nos invita; un dominio
+     * se cede con su código de autorización.
+     */
+    handoverSteps: HandoverStepDto[];
     createdAt: string;
+}
+
+/** Un paso de la cesión del activo a la plataforma. */
+export interface HandoverStepDto {
+    id: string;
+    description: string;
 }
 
 /** Una operación en la que el usuario es parte. */
