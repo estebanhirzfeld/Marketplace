@@ -34,6 +34,7 @@ function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}):
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -102,7 +103,7 @@ describe('GetMyOperationsUseCase', () => {
     it('consulta por el id del actor', async () => {
         const repo = createMockOperationRepo();
 
-        await new GetMyOperationsUseCase(repo).execute(actorDe(BUYER_ID));
+        await new GetMyOperationsUseCase(repo, createMockListingRepo()).execute(actorDe(BUYER_ID));
 
         expect(repo.findByParty).toHaveBeenCalledWith(BUYER_ID.toString());
     });

@@ -58,6 +58,7 @@ function armar(listing: Listing | null) {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([unaOperacion()]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
     const listingRepo: IListingRepository = {
