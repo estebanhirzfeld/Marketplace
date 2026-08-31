@@ -3,6 +3,7 @@ import { IPaymentGateway } from '../../ports/IPaymentGateway';
 import { Actor } from '../../ports/Actor';
 import { Checkout } from '../../ports/IPaymentGateway';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
+import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { ForbiddenError, InvalidStateError, NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -73,6 +74,7 @@ export class ConfirmPaymentFromGatewayUseCase {
         private readonly operationRepo: IOperationRepository,
         private readonly gateway: IPaymentGateway,
         private readonly avisos?: NegotiationNotifier,
+        private readonly avisosDePlataforma?: PlatformNotifier,
     ) {}
 
     async execute(externalPaymentId: string): Promise<void> {
@@ -102,5 +104,6 @@ export class ConfirmPaymentFromGatewayUseCase {
 
         await this.operationRepo.save(operation);
         await this.avisos?.paymentConfirmed(operation);
+        await this.avisosDePlataforma?.payoutNeeded(operation);
     }
 }

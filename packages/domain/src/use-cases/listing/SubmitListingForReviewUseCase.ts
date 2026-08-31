@@ -1,5 +1,6 @@
 import { IListingRepository, IUserRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
+import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -13,6 +14,7 @@ export class SubmitListingForReviewUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly userRepo: IUserRepository,
+        private readonly avisosDePlataforma?: PlatformNotifier,
     ) {}
 
     async execute(listingId: string, actor: Actor): Promise<void> {
@@ -33,5 +35,9 @@ export class SubmitListingForReviewUseCase {
         listing.submitForReview();
 
         await this.listingRepo.save(listing);
+
+        // La cola de revisión existía y nadie avisaba que había algo en ella:
+        // un activo enviado esperaba a que a un admin se le ocurriera entrar.
+        await this.avisosDePlataforma?.listingSubmitted(listing);
     }
 }

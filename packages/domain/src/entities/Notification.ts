@@ -19,7 +19,16 @@ export type NotificationType =
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
-    | 'denuncia_recibida';
+    | 'denuncia_recibida'
+    /*
+     * Los que le tocan a la plataforma. Antes no existía ninguno: la campana
+     * de un administrador estaba siempre vacía, incluso cuando una operación
+     * llevaba días detenida esperando un movimiento suyo.
+     */
+    | 'revision_pendiente'
+    | 'acceso_pendiente'
+    | 'custodia_pendiente'
+    | 'liquidacion_pendiente';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

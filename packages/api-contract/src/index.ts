@@ -704,7 +704,12 @@ export type NotificationTypeDto =
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
-    | 'denuncia_recibida';
+    | 'denuncia_recibida'
+    /** Los que le tocan a la plataforma. */
+    | 'revision_pendiente'
+    | 'acceso_pendiente'
+    | 'custodia_pendiente'
+    | 'liquidacion_pendiente';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

@@ -3,6 +3,7 @@ import { Actor } from '../../ports/Actor';
 import { Operation, NegotiatingParty } from '../../entities/Operation';
 import { Contract } from '../../entities/Contract';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
+import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -25,6 +26,7 @@ export class AcceptOfferUseCase {
     constructor(
         private readonly uow: IUnitOfWork,
         private readonly avisos?: NegotiationNotifier,
+        private readonly avisosDePlataforma?: PlatformNotifier,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<void> {
@@ -69,7 +71,12 @@ export class AcceptOfferUseCase {
                 await repos.listings.save(listing);
             }
 
-            return { operation, by, cancelled };
+            // Si el activo todavía no se puede transferir, la firma queda
+            // trabada esperando a la plataforma. Se resuelve adentro porque el
+            // listing ya está cargado acá.
+            const faltaAcceso = listing !== null && listing.transferableFrom() === undefined;
+
+            return { operation, by, cancelled, faltaAcceso };
         });
 
         // Los avisos salen DESPUÉS de que la transacción confirmó. Mandarlos
@@ -77,5 +84,9 @@ export class AcceptOfferUseCase {
         // revertirse, y no hay forma de retirar un aviso ya enviado.
         await this.avisos?.offerAccepted(resultado.operation, resultado.by as NegotiatingParty);
         await this.avisos?.offersCancelledByCascade(resultado.cancelled);
+
+        if (resultado.faltaAcceso) {
+            await this.avisosDePlataforma?.platformAccessNeeded(resultado.operation);
+        }
     }
 }

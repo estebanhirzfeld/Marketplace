@@ -67,6 +67,7 @@ function createMockUserRepo(): IUserRepository {
             }),
         ),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

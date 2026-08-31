@@ -124,6 +124,7 @@ describe('GetOperationDetailsUseCase', () => {
     const usuariosVacios: IUserRepository = {
         findById: vi.fn().mockResolvedValue(null),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 

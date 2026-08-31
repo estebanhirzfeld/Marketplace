@@ -14,6 +14,7 @@ function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepo
     return {
         findById: vi.fn().mockResolvedValue(null),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -83,6 +84,7 @@ describe('RegisterUserUseCase', () => {
     it('rechaza un email ya registrado', async () => {
         const userRepo = createMockUserRepo({
             findByEmail: vi.fn().mockResolvedValue(unUsuarioRegistrado()),
+            findByRole: vi.fn().mockResolvedValue([]),
         });
         const useCase = new RegisterUserUseCase(userRepo, createFakeHasher());
 
@@ -129,6 +131,7 @@ describe('LoginUseCase', () => {
         const user = unUsuarioRegistrado();
         const userRepo = createMockUserRepo({
             findByEmail: vi.fn().mockResolvedValue(user),
+            findByRole: vi.fn().mockResolvedValue([]),
         });
         const useCase = new LoginUseCase(userRepo, createFakeHasher());
 
@@ -141,6 +144,7 @@ describe('LoginUseCase', () => {
     it('rechaza una contraseña incorrecta', async () => {
         const userRepo = createMockUserRepo({
             findByEmail: vi.fn().mockResolvedValue(unUsuarioRegistrado()),
+            findByRole: vi.fn().mockResolvedValue([]),
         });
         const useCase = new LoginUseCase(userRepo, createFakeHasher());
 

@@ -89,6 +89,7 @@ function userRepoCon(user: User): IUserRepository {
     return {
         findById: vi.fn().mockResolvedValue(user),
         findByEmail: vi.fn().mockResolvedValue(user),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
