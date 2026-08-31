@@ -75,7 +75,7 @@ export async function publishListing(
         return { error: 'No pudimos publicar el activo. Probá de nuevo.' };
     }
 
-    revalidatePath('/vender');
+    revalidatePath('/activos');
     return { ok: true };
 }
 
@@ -110,7 +110,7 @@ export async function submitForReview(listingId: string): Promise<void> {
     } catch {
         // El error se ve al recargar: el estado del listing no cambió.
     }
-    revalidatePath('/vender');
+    revalidatePath('/activos');
 }
 
 /**
@@ -130,10 +130,11 @@ export async function startVerification(
     try {
         ({ url } = await api().authorizationUrl(listingId, source));
     } catch {
-        // Sin credenciales de Google la API responde 503. Se vuelve a la
-        // pantalla con el motivo en la dirección, igual que hace la vuelta del
-        // consentimiento, en vez de dejar al vendedor sin respuesta.
-        redirect('/vender?verificacion=no-configurada');
+        // Sin credenciales de Google la API responde 503. Se vuelve al activo
+        // del que salió —no a la pantalla de publicar, que ya no muestra este
+        // aviso— con el motivo en la dirección, igual que hace la vuelta del
+        // consentimiento.
+        redirect(`/activos/${listingId}?ver=verificaciones&verificacion=no-configurada`);
     }
 
     redirect(url);
