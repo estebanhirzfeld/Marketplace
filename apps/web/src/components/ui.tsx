@@ -65,7 +65,7 @@ const ESTADOS: Record<OperationStatusDto, { text: string; clase: string }> = {
 export function OperationStatusBadge({ state }: { state: OperationStatusDto }) {
     const e = ESTADOS[state];
     return (
-        <span className={`rounded-[var(--radius-chico)] border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] ${e.clase}`}>
+        <span className={`rounded-[var(--radius-chico)] border px-2.5 py-1 font-mono text-[11px] tracking-[0.08em] ${e.clase}`}>
             {e.text}
         </span>
     );
@@ -86,7 +86,7 @@ export function Panel({
         <div className="overflow-hidden rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
             {title && (
                 <div className="flex items-center justify-between border-b border-[var(--color-borde)] px-5 py-3.5">
-                    <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
+                    <span className="font-mono text-[13px] font-medium tracking-[0.08em] text-[var(--color-tenue)]">
                         {title}
                     </span>
                     {action}
@@ -131,9 +131,9 @@ export function Field({
             <span className="text-[13px] text-[var(--color-tenue)]">{label}</span>
             <input
                 {...props}
-                className="h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none transition-colors placeholder:text-[var(--color-fantasma)] focus:border-[var(--color-acento)]"
+                className="h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none transition-colors placeholder:text-[var(--color-apagado)] focus:border-[var(--color-acento)]"
             />
-            {hint && <span className="text-[12px] text-[var(--color-apagado)]">{hint}</span>}
+            {hint && <span className="text-[13px] text-[var(--color-apagado)]">{hint}</span>}
         </label>
     );
 }

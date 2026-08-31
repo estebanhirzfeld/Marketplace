@@ -9,7 +9,8 @@ import { NdaPanel } from '@/components/NdaPanel';
 import { TransferStatus } from '@/components/Transferability';
 import { PlatformAccessForm } from '@/components/PlatformAccessForm';
 import { OfferForm } from '@/components/OfferForm';
-import { ButtonLink, OperationStatusBadge, Panel } from '@/components/ui';
+import { ButtonLink, Panel } from '@/components/ui';
+import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { LockIcon } from '@/components/LockIcon';
 import { money, formatNumber, percentage } from '@/lib/format';
 import { signNda, makeOffer } from './actions';
@@ -21,6 +22,7 @@ import { registerPlatformAccess, revokePlatformAccess } from '../../admin/action
  * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
  */
 const ETIQUETAS: Record<string, string> = {
+    niche: 'Rubro',
     subscribers: 'Suscriptores',
     monthlyRevenueUsdCents: 'Ingreso mensual',
     currency: 'Moneda',
@@ -58,6 +60,10 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
     }
 
     const hidden = listing.hiddenFields.length > 0;
+    // Solo un activo publicado admite ofertas. El dominio ya lo rechaza
+    // (`Solo se puede ofertar sobre activos publicados`), pero la pantalla lo
+    // ofrecía igual y la persona se enteraba recién al apretar.
+    const disponible = listing.status === 'published';
     const visibleFields = Object.entries(listing.assetData);
 
     return (
@@ -65,7 +71,13 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
             <Reveal>
                 <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-3">
-                        <OperationStatusBadge state="offer_sent" />
+                        {/*
+                            Era `OperationStatusBadge state="offer_sent"` fijo: un
+                            estado de OPERACIÓN pintado sobre un ACTIVO, igual en el
+                            100 % de las publicaciones. No informaba nada y encima
+                            mentía sobre activos ya vendidos.
+                        */}
+                        <ListingStatusBadge state={listing.status} />
                         {hidden && (
                             <span className="flex items-center gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 px-2.5 py-1">
                                 <LockIcon />
@@ -147,24 +159,61 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             </Panel>
                         )}
 
-                        <Panel title="HACER UNA OFERTA">
-                            {actor ? (
-                                <OfferForm
-                                    action={makeOffer.bind(null, id)}
-                                    askingPrice={Math.round(listing.askingPrice.cents / 100)}
-                                />
-                            ) : (
+                        {/*
+                            El formulario se muestra solo a quien realmente puede
+                            ofertar. Antes aparecía siempre: el vendedor lo veía
+                            sobre su propio activo y la API le respondía que no,
+                            así que la pantalla ofrecía algo que el negocio
+                            prohíbe y la persona se enteraba recién al apretar.
+                        */}
+                        {listing.isOwnedByViewer ? (
+                            <Panel title="ESTE ACTIVO ES TUYO">
                                 <div className="flex flex-col gap-4">
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Necesitás una cuenta para ofertar. Crearla es gratis y no te
-                                        compromete a nada.
+                                        Así es como ven tu publicación los compradores. Las ofertas
+                                        que recibas te esperan en tu panel.
                                     </p>
-                                    <ButtonLink href="/ingresar" className="w-full">
-                                        Ingresar para ofertar
+                                    <ButtonLink href={`/vender/${id}/ofertas`} className="w-full">
+                                        Ver las ofertas recibidas
                                     </ButtonLink>
                                 </div>
-                            )}
-                        </Panel>
+                            </Panel>
+                        ) : actor?.role === UserRole.ADMIN ? (
+                            <Panel title="ESTÁS COMO PLATAFORMA">
+                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                    La plataforma no compra ni vende. Tu rol acá es verificar el
+                                    acceso al activo y su custodia, y por eso ves los datos
+                                    reservados sin firmar el acuerdo de confidencialidad.
+                                </p>
+                            </Panel>
+                        ) : !disponible ? (
+                            <Panel title="YA NO ESTÁ DISPONIBLE">
+                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                    {listing.status === 'sold'
+                                        ? 'Este activo ya se vendió. Lo dejamos visible para que las partes puedan volver a su operación.'
+                                        : 'Este activo tiene una operación en curso, así que no está recibiendo ofertas.'}
+                                </p>
+                            </Panel>
+                        ) : (
+                            <Panel title="HACER UNA OFERTA">
+                                {actor ? (
+                                    <OfferForm
+                                        action={makeOffer.bind(null, id)}
+                                        askingPrice={Math.round(listing.askingPrice.cents / 100)}
+                                    />
+                                ) : (
+                                    <div className="flex flex-col gap-4">
+                                        <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                            Necesitás una cuenta para ofertar. Crearla es gratis y no te
+                                            compromete a nada.
+                                        </p>
+                                        <ButtonLink href="/ingresar" className="w-full">
+                                            Ingresar para ofertar
+                                        </ButtonLink>
+                                    </div>
+                                )}
+                            </Panel>
+                        )}
                     </div>
                 </Reveal>
             </div>

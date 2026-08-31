@@ -38,7 +38,7 @@ export function AuthForm({
                 {conNombre && (
                     <Field label="Nombre completo" name="fullName" required autoComplete="name" />
                 )}
-                <Field label="Email" name="email" type="email" required autoComplete="email" />
+                <Field label="Correo" name="email" type="email" required autoComplete="email" />
                 <Field
                     label="Contraseña"
                     name="password"

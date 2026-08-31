@@ -25,7 +25,14 @@ function href(actuales: FiltrosDeBusqueda, sort: Criterio, direction: 'asc' | 'd
         if (valor !== undefined) q.set(clave, String(valor));
     };
 
+    // Cada criterio se reenvía explícitamente, así que agregar un filtro nuevo
+    // obliga a sumarlo también acá. `niche` y `onlyTransferable` faltaban:
+    // ordenar después de filtrar por rubro o por disponibilidad los perdía en
+    // silencio, y el panel de filtros —que sí los conserva— quedaba
+    // contradiciendo al de orden en la misma pantalla.
     poner('assetType', actuales.assetType);
+    poner('niche', actuales.niche);
+    poner('onlyTransferable', actuales.onlyTransferable);
     poner('currency', actuales.currency);
     poner('minPrice', actuales.minPrice);
     poner('maxPrice', actuales.maxPrice);

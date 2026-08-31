@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ApiError } from '@marketplace/api-client';
 import type { ReportDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
-import { currentActor } from '@/lib/session';
+import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { Panel, Heading, EmptyState } from '@/components/ui';
 import { MOTIVOS } from '@/components/ReportReasons';
@@ -11,7 +11,7 @@ import { MOTIVOS } from '@/components/ReportReasons';
 export const metadata = { title: 'Reclamos · Traspaso' };
 
 export default async function Denuncias() {
-    if (!(await currentActor())) redirect('/ingresar');
+    await requireCounterparty();
 
     let reports: ReportDto[] = [];
     let error: string | undefined;

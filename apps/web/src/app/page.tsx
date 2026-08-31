@@ -225,7 +225,7 @@ export default async function Home() {
                     <Reveal>
                         <div className="flex flex-col gap-3">
                             <h2 className="text-[26px] font-bold tracking-[-0.03em] sm:text-[32px]">
-                                5 % al buyer, 5 % al seller.
+                                5 % al comprador, 5 % al vendedor.
                             </h2>
                             <p className="max-w-[460px] text-[15px] leading-relaxed text-[var(--color-tenue)]">
                                 Publicar no cuesta nada. La comisión se cobra solo si la operación

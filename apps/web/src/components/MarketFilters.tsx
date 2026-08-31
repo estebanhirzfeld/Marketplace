@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { ListingFiltersQuery } from '@marketplace/api-contract';
+import { ASSET_NICHES } from '@marketplace/shared-types';
+import { nicheLabel } from '@/lib/format';
 import { Button } from './ui';
 
 /**
@@ -11,6 +13,8 @@ import { Button } from './ui';
  */
 export interface FiltrosDeBusqueda {
     assetType?: string;
+    niche?: string;
+    onlyTransferable?: boolean;
     currency?: 'ARS' | 'USD';
     minPrice?: number;
     maxPrice?: number;
@@ -40,6 +44,10 @@ function hrefDeTipo(assetType: string | undefined, actuales: FiltrosDeBusqueda):
     };
 
     poner('assetType', assetType);
+    // El rubro y la transferibilidad valen para los dos tipos, así que
+    // sobreviven al cambio igual que el precio y el orden.
+    poner('niche', actuales.niche);
+    if (actuales.onlyTransferable) q.set('onlyTransferable', 'true');
     poner('currency', actuales.currency);
     poner('minPrice', actuales.minPrice);
     poner('maxPrice', actuales.maxPrice);
@@ -61,8 +69,23 @@ export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
     const esCanal = actuales.assetType === 'youtube';
     const esWeb = actuales.assetType === 'web';
 
+    /*
+     * En pantallas chicas el formulario de filtros completo se apilaba arriba
+     * de los resultados: había que scrollear todo el panel para llegar al
+     * primer activo. Plegado por defecto, y desplegado siempre de `lg` para
+     * arriba mediante CSS —ver `[data-filtros]` en globals.css—, así que en
+     * escritorio no cambia nada.
+     *
+     * Con `<details>` y no con estado de React para que esto siga siendo un
+     * componente de servidor.
+     */
     return (
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-8">
+        <details data-filtros className="lg:sticky lg:top-8">
+            <summary className="mb-4 flex cursor-pointer list-none items-center justify-between rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-4 py-2.5 text-[14px] lg:hidden [&::-webkit-details-marker]:hidden">
+                <span>Filtrar y ordenar</span>
+                <span aria-hidden className="text-[var(--color-tenue)]">▾</span>
+            </summary>
+            <div className="flex flex-col gap-6">
             <Bloque titulo="TIPO DE ACTIVO">
                 <nav className="flex flex-col gap-0.5">
                     {TIPOS.map((t) => {
@@ -95,6 +118,34 @@ export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
                 {actuales.direction && (
                     <input type="hidden" name="direction" value={actuales.direction} />
                 )}
+
+                <Bloque titulo="RUBRO">
+                    <Select name="niche" valor={actuales.niche ?? ''}>
+                        <option value="">Todos</option>
+                        {ASSET_NICHES.map((n) => (
+                            <option key={n} value={n}>{nicheLabel(n)}</option>
+                        ))}
+                    </Select>
+                </Bloque>
+
+                <Bloque titulo="DISPONIBILIDAD">
+                    <label className="flex items-start gap-2.5 text-[13px] text-[var(--color-tenue)]">
+                        <input
+                            type="checkbox"
+                            name="onlyTransferable"
+                            value="true"
+                            defaultChecked={actuales.onlyTransferable}
+                            className="mt-0.5 size-4 accent-[var(--color-listo)]"
+                        />
+                        <span className="flex flex-col gap-1">
+                            Solo transferencia inmediata
+                            <span className="text-[11px] leading-relaxed text-[var(--color-apagado)]">
+                                La plataforma ya tiene el acceso, así que la entrega no queda
+                                esperando ningún plazo.
+                            </span>
+                        </span>
+                    </label>
+                </Bloque>
 
                 <Bloque titulo="PRECIO">
                     <div className="flex flex-col gap-3">
@@ -173,14 +224,15 @@ export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
                     </Link>
                 </div>
             </form>
-        </aside>
+            </div>
+        </details>
     );
 }
 
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
     return (
         <div className="flex flex-col gap-3">
-            <h2 className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-apagado)]">
+            <h2 className="font-mono text-[12px] tracking-[0.08em] text-[var(--color-apagado)]">
                 {titulo}
             </h2>
             {children}

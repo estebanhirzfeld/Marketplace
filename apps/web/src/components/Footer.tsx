@@ -1,13 +1,23 @@
 import Link from 'next/link';
+import { UserRole } from '@marketplace/shared-types';
+import { currentActor } from '@/lib/session';
 import { Logo } from './Logo';
 
 const COLUMNAS = [
-    { title: 'MERCADO', enlaces: [['Explorar', '/listings'], ['Publicar', '/vender'], ['Valuación', '/vender']] },
+    { title: 'MERCADO', enlaces: [['Explorar', '/listings'], ['Publicar', '/vender']] },
     { title: 'PROCESO', enlaces: [['Custodia', '/#proceso'], ['Confidencialidad', '/#proceso'], ['Comisiones', '/#comision']] },
     { title: 'LEGAL', enlaces: [['Términos', '/'], ['Privacidad', '/'], ['Contacto', '/']] },
 ] as const;
 
-export function Footer() {
+/*
+ * La plataforma no compra ni vende, así que tampoco le corresponde el
+ * enlace a publicar. El navbar ya lo escondía y el pie no, con lo cual el
+ * admin hacía click y rebotaba contra la guarda de /vender.
+ */
+export async function Footer() {
+    const actor = await currentActor();
+    const isAdmin = actor?.role === UserRole.ADMIN;
+
     return (
         <footer className="mt-auto border-t border-[var(--color-borde)]">
             <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-6 py-10 sm:px-12 md:flex-row md:items-start md:justify-between">
@@ -26,18 +36,20 @@ export function Footer() {
                 <div className="grid grid-cols-2 gap-10 sm:grid-cols-3 sm:gap-14">
                     {COLUMNAS.map((col) => (
                         <div key={col.title} className="flex flex-col gap-2.5">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-fantasma)]">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
                                 {col.title}
                             </div>
-                            {col.enlaces.map(([text, href]) => (
-                                <Link
-                                    key={text}
-                                    href={href}
-                                    className="text-[13px] text-[var(--color-apagado)] transition-colors hover:text-[var(--color-tinta)]"
-                                >
-                                    {text}
-                                </Link>
-                            ))}
+                            {col.enlaces
+                                .filter(([, href]) => !(isAdmin && href === '/vender'))
+                                .map(([text, href]) => (
+                                    <Link
+                                        key={text}
+                                        href={href}
+                                        className="text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"
+                                    >
+                                        {text}
+                                    </Link>
+                                ))}
                         </div>
                     ))}
                 </div>

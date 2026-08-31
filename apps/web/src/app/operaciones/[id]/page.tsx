@@ -6,13 +6,14 @@ import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { Reveal } from '@/components/Reveal';
+import { SubmitButton } from '@/components/SubmitButton';
 import { Timeline } from '@/components/Timeline';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
-import { money } from '@/lib/format';
+import { assetTypeLabel, nicheLabel, money } from '@/lib/format';
 import {
     advanceOperation,
     confirmBankTransfer,
@@ -68,12 +69,27 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                         )}
                         {isAdmin && !op.miParte && (
                             <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-alerta)]">
-                                MIRÁS COMO PLATFORM
+                                MIRÁS COMO PLATAFORMA
                             </span>
                         )}
+                        {/* Con quién se está negociando. Antes solo se veía el
+                            rol, así que las dos partes discutían un precio
+                            contra alguien sin nombre. */}
+                        <span className="text-[13px] text-[var(--color-tenue)]">
+                            {op.miParte
+                                ? `Con ${op.miParte === 'buyer' ? op.seller.fullName : op.buyer.fullName}`
+                                : `${op.buyer.fullName} · ${op.seller.fullName}`}
+                        </span>
                     </div>
 
-                    <Heading sub={`Activo en venta · ${op.listingId.slice(0, 8)}`}>
+                    <Heading sub={
+                            // Era los primeros ocho caracteres del UUID, que no le
+                            // dice nada a nadie. El rubro y el tipo son públicos:
+                            // nombran el activo sin revelar cuál es.
+                            op.niche
+                                ? `${nicheLabel(op.niche)}${op.assetType ? ` · ${assetTypeLabel(op.assetType)}` : ''}`
+                                : 'Activo en venta'
+                        }>
                         {money(op.finalPrice ?? op.currentOfferPrice)}
                     </Heading>
 
@@ -217,9 +233,9 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
 
                                 {negociando && !miTurno && op.miParte && (
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Le toca responder a{' '}
-                                        {op.pendingResponseFrom === 'buyer' ? 'el comprador' : 'el vendedor'}.
-                                        Cuando conteste vas a poder aceptar o counterOffer.
+                                        Le toca responder{' '}
+                                        {op.pendingResponseFrom === 'buyer' ? 'al comprador' : 'al vendedor'}.
+                                        Cuando conteste vas a poder aceptar o contraofertar.
                                     </p>
                                 )}
 
@@ -248,6 +264,26 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                     />
                                 )}
 
+                                {/*
+                                    El comprador acepta el precio y espera. Sin
+                                    decirle por qué, la pantalla parecía rota:
+                                    "acordamos el precio y no hay dónde pagar".
+                                    El orden es deliberado y es la propuesta de
+                                    valor, así que conviene explicarlo donde se
+                                    nota, y no solo en la página de inicio.
+                                */}
+                                {op.miParte === 'buyer' &&
+                                    ['contract_pending', 'contract_signed', 'transfer_in_progress'].includes(
+                                        op.status,
+                                    ) && (
+                                        <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            Todavía no te toca pagar, y es a propósito: primero el
+                                            vendedor nos entrega el activo y nosotros verificamos que
+                                            lo tengamos de verdad. Recién ahí te vamos a pedir la
+                                            transferencia. Si el activo nunca llega, no pusiste un peso.
+                                        </p>
+                                    )}
+
                                 {isAdmin && op.status === 'transfer_in_progress' && (
                                     <div className="flex flex-col gap-3">
                                         <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
@@ -267,9 +303,12 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                             verificado. Recién ahora corresponde pagar.
                                         </p>
                                         <form action={goToCheckout.bind(null, id)}>
-                                            <Button type="submit" className="w-full">
+                                            <SubmitButton
+                                                className="w-full"
+                                                pendingText="Preparando el pago…"
+                                            >
                                                 Pagar {op.buyerPays ? money(op.buyerPays) : ''}
-                                            </Button>
+                                            </SubmitButton>
                                         </form>
                                     </div>
                                 )}
@@ -283,9 +322,13 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                             op.buyerPays.currency,
                                         )}
                                     >
-                                        <Button type="submit" variant="secundario" className="w-full">
+                                        <SubmitButton
+                                            variant="secundario"
+                                            className="w-full"
+                                            pendingText="Registrando…"
+                                        >
                                             Registrar una transferencia recibida
-                                        </Button>
+                                        </SubmitButton>
                                     </form>
                                 )}
 

@@ -56,7 +56,7 @@ export function PlatformAccessForm({
                         <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
                             Borrar la constancia devuelve el activo a no transferible y reinicia el
                             conteo: si más adelante se recupera el acceso, los días vuelven a
-                            contarse from cero.
+                            contarse desde cero.
                         </p>
                         <div className="flex gap-2.5">
                             <form action={enviarRevocar}>
@@ -109,7 +109,7 @@ export function PlatformAccessForm({
                 />
                 <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
                     El día en que la plataforma quedó con acceso, no el de hoy. El plazo de espera se
-                    cuenta from esta date.
+                    cuenta desde esta fecha.
                 </span>
             </label>
 

@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
+import { SubmitButton } from '@/components/SubmitButton';
 import Link from 'next/link';
 import type { MyListingDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
-import { currentActor } from '@/lib/session';
+import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { PublishListingForm } from '@/components/PublishListingForm';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { Button, Panel, Heading, EmptyState } from '@/components/ui';
 import { money, assetTypeLabel } from '@/lib/format';
-import { publishListing, startVerification, submitForReview } from './actions';
+import { estimateListingPrice, publishListing, startVerification, submitForReview } from './actions';
 
 export const metadata = { title: 'Vender · Traspaso' };
 
@@ -34,7 +35,7 @@ export default async function Vender({
     // En Next 16 `searchParams` es una promesa: el acceso sincrónico se eliminó.
     searchParams: Promise<{ verificacion?: string }>;
 }) {
-    if (!(await currentActor())) redirect('/ingresar');
+    await requireCounterparty();
 
     const resultado = RESULTADOS[(await searchParams).verificacion ?? ''];
 
@@ -68,7 +69,7 @@ export default async function Vender({
             <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
                 <Reveal>
                     <Panel title="NUEVO ACTIVO">
-                        <PublishListingForm action={publishListing} />
+                        <PublishListingForm action={publishListing} estimate={estimateListingPrice} />
                     </Panel>
                 </Reveal>
 
@@ -138,23 +139,27 @@ export default async function Vender({
                                                         l.assetType === 'web' ? 'adsense' : 'youtube',
                                                     )}
                                                 >
-                                                    <Button
-                                                        type="submit"
+                                                    <SubmitButton
                                                         variant="secundario"
                                                         className="px-4 py-2 text-[13px]"
+                                                        pendingText="Redirigiendo a Google…"
                                                     >
                                                         {l.assetType === 'web'
                                                             ? 'Verificar con AdSense'
                                                             : 'Verificar con YouTube'}
-                                                    </Button>
+                                                    </SubmitButton>
                                                 </form>
                                             )}
 
                                             {(l.status === 'draft' || l.status === 'rejected') && (
                                                 <form action={submitForReview.bind(null, l.id)}>
-                                                    <Button type="submit" variant="secundario" className="px-4 py-2 text-[13px]">
+                                                    <SubmitButton
+                                                        variant="secundario"
+                                                        className="px-4 py-2 text-[13px]"
+                                                        pendingText="Enviando…"
+                                                    >
                                                         Enviar a revisión
-                                                    </Button>
+                                                    </SubmitButton>
                                                 </form>
                                             )}
                                             {(l.status === 'published' || l.status === 'in_operation') && (
@@ -162,7 +167,7 @@ export default async function Vender({
                                                     href={`/vender/${l.id}/ofertas`}
                                                     className="rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-4 py-2 text-[13px] font-medium transition-colors hover:border-[var(--color-tenue)]"
                                                 >
-                                                    Ver offers
+                                                    Ver ofertas
                                                 </Link>
                                             )}
                                             <Link

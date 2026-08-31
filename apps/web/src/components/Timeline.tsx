@@ -47,15 +47,33 @@ export function Timeline({ actual }: { actual: OperationStatusDto }) {
                     <li key={etapa.state} className="flex gap-4">
                         {/* Riel: punto + línea que conecta con la etapa siguiente */}
                         <div className="flex flex-col items-center">
-                            <span
-                                className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
-                                    esActual
-                                        ? 'border-[var(--color-acento)] bg-[var(--color-acento)]'
-                                        : hecha
-                                          ? 'border-[var(--color-acento)]/50 bg-[var(--color-acento)]/50'
-                                          : 'border-[var(--color-borde-fuerte)] bg-transparent'
-                                } ${esActual ? 'late' : ''}`}
-                            />
+                            {/*
+                                Una etapa cumplida se marcaba solo por color y opacidad,
+                                así que quien no distingue el verde del gris no podía
+                                saber por dónde va la operación. El tilde dice lo mismo
+                                sin depender del color, y el texto para lectores de
+                                pantalla lo dice sin depender de la forma.
+                            */}
+                            {hecha ? (
+                                <span
+                                    className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--color-acento)]/20 text-[11px] font-bold leading-none text-[var(--color-acento)]"
+                                    aria-hidden
+                                >
+                                    ✓
+                                </span>
+                            ) : (
+                                <span
+                                    className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
+                                        esActual
+                                            ? 'border-[var(--color-acento)] bg-[var(--color-acento)] late'
+                                            : 'border-[var(--color-borde-fuerte)] bg-transparent'
+                                    }`}
+                                    aria-hidden
+                                />
+                            )}
+                            <span className="sr-only">
+                                {hecha ? 'Etapa cumplida' : esActual ? 'Etapa actual' : 'Etapa pendiente'}
+                            </span>
                             {i < ETAPAS.length - 1 && (
                                 <span
                                     className={`w-px flex-1 ${

@@ -23,7 +23,7 @@ export function TransferableBadge({
 }) {
     if (transferable) {
         return (
-            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-acento)]">
+            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-listo)]">
                 TRANSFERENCIA INMEDIATA
             </span>
         );
@@ -50,7 +50,7 @@ export function TransferStatus({
 }) {
     if (transferable) {
         return (
-            <Block accent title="Transferencia inmediata">
+            <Block listo title="Transferencia inmediata">
                 La plataforma ya tiene el acceso que necesita para tomar la custodia de este
                 activo. Si cerrás la compra hoy, la entrega no queda esperando ningún plazo.
             </Block>
@@ -79,22 +79,22 @@ export function TransferStatus({
 function Block({
     title,
     children,
-    accent = false,
+    listo = false,
 }: {
     title: string;
     children: React.ReactNode;
-    accent?: boolean;
+    listo?: boolean;
 }) {
     return (
         <div
             className={`flex flex-col gap-1.5 rounded-[var(--radius-chico)] border p-4 ${
-                accent
-                    ? 'border-[var(--color-acento)]/40 bg-[var(--color-acento)]/[0.04]'
+                listo
+                    ? 'border-[var(--color-listo)]/40 bg-[var(--color-listo)]/[0.04]'
                     : 'border-[var(--color-borde)]'
             }`}
         >
             <span
-                className={`text-[13px] font-medium ${accent ? 'text-[var(--color-acento)]' : ''}`}
+                className={`text-[13px] font-medium ${listo ? 'text-[var(--color-listo)]' : ''}`}
             >
                 {title}
             </span>

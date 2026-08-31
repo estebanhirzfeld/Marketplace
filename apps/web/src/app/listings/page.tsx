@@ -1,4 +1,5 @@
 import type { ListingSummaryDto, ListingFiltersQuery } from '@marketplace/api-contract';
+import { ASSET_NICHES } from '@marketplace/shared-types';
 import { ApiError } from '@marketplace/api-client';
 import { anonymousApi } from '@/lib/api';
 import { Reveal } from '@/components/Reveal';
@@ -53,6 +54,10 @@ function leerFiltros(params: Record<string, string | string[] | undefined>): {
 
     const busqueda: FiltrosDeBusqueda = {
         assetType,
+        // El rubro y la transferibilidad no son propios de un tipo: se leen
+        // siempre, con cualquier tipo elegido o sin ninguno.
+        niche: aOpcion(params.niche, ASSET_NICHES),
+        onlyTransferable: params.onlyTransferable === 'true' ? true : undefined,
         // Sin rango no hace falta moneda, y mandarla acotaría sin que se pida.
         currency: hayRango ? (aOpcion(params.currency, MONEDAS) ?? 'USD') : undefined,
         minPrice,

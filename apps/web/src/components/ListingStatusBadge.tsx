@@ -12,7 +12,7 @@ const ESTADOS: Record<ListingStatusDto, { text: string; clase: string }> = {
 export function ListingStatusBadge({ state }: { state: ListingStatusDto }) {
     const e = ESTADOS[state];
     return (
-        <span className={`rounded-[var(--radius-chico)] border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] ${e.clase}`}>
+        <span className={`rounded-[var(--radius-chico)] border px-2.5 py-1 font-mono text-[11px] tracking-[0.08em] ${e.clase}`}>
             {e.text}
         </span>
     );
