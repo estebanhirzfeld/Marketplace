@@ -39,6 +39,19 @@ export function percentage(n: number): string {
     return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)} %`;
 }
 
+/**
+ * Una fecha escrita como se lee en voz alta. Se usa donde la fecha es la
+ * explicación de por qué algo todavía no se puede hacer: ahí un `12/9/2026`
+ * obliga a descifrar, y el punto es que se entienda de una.
+ */
+export function fechaLarga(iso: string): string {
+    return new Date(iso).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
 const TIPOS: Record<string, string> = {
     youtube: 'CANAL DE YOUTUBE',
     web: 'SITIO WEB',

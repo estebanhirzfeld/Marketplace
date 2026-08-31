@@ -13,7 +13,7 @@ import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
-import { assetTypeLabel, nicheLabel, money } from '@/lib/format';
+import { assetTypeLabel, nicheLabel, money, fechaLarga } from '@/lib/format';
 import {
     advanceOperation,
     confirmBankTransfer,
@@ -239,20 +239,68 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                                     </p>
                                 )}
 
-                                {op.status === 'contract_pending' && tripartito && op.miParte && (
+                                {op.status === 'contract_pending' && op.miParte && (
                                     <div className="flex flex-col gap-3">
-                                        {/* Leer antes de firmar: el enlace va primero. */}
-                                        <Link
-                                            href={`/contratos/${tripartito.id}`}
-                                            className="text-[14px] text-[var(--color-acento)]"
-                                        >
-                                            Leer el contrato antes de firmar →
-                                        </Link>
-                                        <OperationAction
-                                            action={signContract.bind(null, id, tripartito.id)}
-                                            text="Firmar el contrato"
-                                            note="Requiere identidad verificada. Se registran la fecha, la IP y la huella del documento."
-                                        />
+                                        {!tripartito ? (
+                                            <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                                Estamos preparando el contrato de esta operación.
+                                                Apenas esté vas a poder leerlo y firmarlo desde acá.
+                                            </p>
+                                        ) : (
+                                            <>
+                                                {/* Leer antes de firmar: el enlace va primero. */}
+                                                <Link
+                                                    href={`/contratos/${tripartito.id}`}
+                                                    className="text-[14px] text-[var(--color-acento)]"
+                                                >
+                                                    Leer el contrato antes de firmar →
+                                                </Link>
+                                                {/*
+                                                    Firmar exige que la plataforma ya pueda tomar la
+                                                    custodia del activo. Ofrecer el botón igual dejaba
+                                                    a las dos partes apretando contra un error que la
+                                                    pantalla nunca les había anticipado.
+                                                */}
+                                                {op.transferable ? (
+                                                    <OperationAction
+                                                        action={signContract.bind(null, id, tripartito.id)}
+                                                        text="Firmar el contrato"
+                                                        note="Requiere identidad verificada. Se registran la fecha, la IP y la huella del documento."
+                                                    />
+                                                ) : (
+                                                    <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                                        {op.transferableFrom
+                                                            ? `El activo está en su período de espera: recién se puede transferir a partir del ${fechaLarga(op.transferableFrom)}. La firma se habilita ese día, para que nadie quede comprometido con una operación que todavía no podemos cerrar.`
+                                                            : op.miParte === 'seller'
+                                                              ? 'Para habilitar la firma necesitamos que nos des acceso al activo: sin eso no podemos garantizar la custodia y nadie debería quedar comprometido. Te vamos a escribir para coordinarlo.'
+                                                              : 'Todavía no tomamos la custodia del activo, así que la firma no se habilita. Lo estamos coordinando con el vendedor y te avisamos apenas esté.'}
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/*
+                                    El paso que le toca a la plataforma en esta etapa. No es
+                                    ceremonia: sin la constancia de acceso el dominio rechaza la
+                                    firma, así que la operación queda detenida esperándonos.
+                                */}
+                                {isAdmin && op.status === 'contract_pending' && !op.transferable && (
+                                    <div className="flex flex-col gap-3">
+                                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            {op.transferableFrom
+                                                ? `Ya tenemos acceso al activo. El período de espera termina el ${fechaLarga(op.transferableFrom)} y recién ahí las partes pueden firmar.`
+                                                : 'Las partes no pueden firmar hasta que dejemos constancia de que tenemos acceso al activo. Es el próximo paso y es nuestro.'}
+                                        </p>
+                                        {!op.transferableFrom && (
+                                            <Link
+                                                href={`/listings/${op.listingId}`}
+                                                className="text-[14px] text-[var(--color-acento)]"
+                                            >
+                                                Registrar el acceso al activo →
+                                            </Link>
+                                        )}
                                     </div>
                                 )}
 

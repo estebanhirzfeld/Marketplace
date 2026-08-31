@@ -17,6 +17,10 @@ export const metadata = { title: 'Panel · Traspaso' };
  * tiene que responder.
  */
 const PROXIMO_PASO: Partial<Record<OperationStatusDto, string>> = {
+    // Las partes no pueden firmar hasta que dejemos constancia del acceso: el
+    // dominio rechaza la firma sin ella, así que acá la operación está parada
+    // esperándonos a nosotros.
+    contract_pending: 'Registrar nuestro acceso al activo para habilitar la firma',
     transfer_in_progress: 'Verificar el activo y declarar la custodia',
     asset_in_custody: 'Esperando el pago del comprador',
     payment_received: 'Liquidar al vendedor y cerrar la operación',
