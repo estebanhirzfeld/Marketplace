@@ -70,8 +70,8 @@ describe('Errores de dominio', () => {
         // esa compatibilidad: si el mensaje dejara de propagarse, romperían todos.
         it('es capturable con toThrow por mensaje', () => {
             expect(() => {
-                throw new InvalidStateError('Operación no está esperando contrato');
-            }).toThrow('Operación no está esperando contrato');
+                throw new InvalidStateError('no está esperando que se firme');
+            }).toThrow('no está esperando que se firme');
         });
 
         it('conserva el stack trace', () => {

@@ -8,6 +8,7 @@ import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
+import { OperationAction } from '@/components/OperationAction';
 import {
     fechaLarga,
     money,
@@ -430,11 +431,10 @@ export default async function DetalleDeActivo(props: {
                                             Todavía no lo ve nadie. Al enviarlo a revisión lo evaluamos
                                             antes de publicarlo.
                                         </p>
-                                        <form action={submitForReview.bind(null, id)}>
-                                            <SubmitButton pendingText="Enviando…">
-                                                Enviar a revisión
-                                            </SubmitButton>
-                                        </form>
+                                        <OperationAction
+                                            action={submitForReview.bind(null, id)}
+                                            text="Enviar a revisión"
+                                        />
                                     </>
                                 )}
                                 {mio.status === 'under_review' && (

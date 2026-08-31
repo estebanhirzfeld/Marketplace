@@ -235,7 +235,7 @@ describe('CounterOfferUseCase', () => {
         await expect(useCase.execute({
             operationId: operation.id.toString(),
             price: { cents: 150000, currency: 'USD' },
-        }, actorDe(buyerId))).rejects.toThrow('No es el turno de buyer');
+        }, actorDe(buyerId))).rejects.toThrow('No es tu turno');
     });
 
     it('rechaza a un tercero ajeno a la operación', async () => {
@@ -465,7 +465,7 @@ describe('CancelOperationUseCase', () => {
             createFakeUnitOfWork(operationRepo, createMockListingRepo()),
         );
         await expect(useCase.execute(operation.id.toString(), actorDe(operation.toSnapshot().props.buyerId)))
-            .rejects.toThrow('No se puede cancelar');
+            .rejects.toThrow('Ya no se puede cancelar');
     });
 });
 

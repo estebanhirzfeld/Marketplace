@@ -440,22 +440,16 @@ export default async function DetalleOperacion(props: {
                                 )}
 
                                 {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (
-                                    <form
+                                    <OperationAction
                                         action={confirmBankTransfer.bind(
                                             null,
                                             id,
                                             op.buyerPays.cents,
                                             op.buyerPays.currency,
                                         )}
-                                    >
-                                        <SubmitButton
-                                            variant="secundario"
-                                            className="w-full"
-                                            pendingText="Registrando…"
-                                        >
-                                            Registrar una transferencia recibida
-                                        </SubmitButton>
-                                    </form>
+                                        text="Registrar una transferencia recibida"
+                                        variant="secundario"
+                                    />
                                 )}
 
                                 {isAdmin && op.status === 'payment_received' && (

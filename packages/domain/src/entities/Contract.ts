@@ -127,11 +127,15 @@ export class Contract extends Entity<ContractProps> {
         const signature = this.props.signatures.find(s => s.role === role);
 
         if (!signature) {
-            throw new ForbiddenError(`El rol "${role}" no es parte de este contrato.`);
+            throw new ForbiddenError('No sos parte de este contrato, así que no podés firmarlo.');
         }
 
         if (signature.signed) {
-            throw new InvalidStateError(`El rol "${role}" ya firmó este contrato.`);
+            // Se dice en segunda persona y sin nombrar el rol: quien lee este
+            // error es justamente quien ya firmó, y decirle que 'el rol
+            // "seller"' ya firmó le cuenta de un tercero que es él mismo —y de
+            // paso le revela qué partes tiene el contrato.
+            throw new InvalidStateError('Ya firmaste este contrato. Falta la otra parte.');
         }
 
         signature.signed = true;

@@ -107,11 +107,27 @@ export function EmptyState({ title, text, action }: { title: string; text: strin
     );
 }
 
-export function Alert({ tono = 'error', children }: { tono?: 'error' | 'alerta'; children: React.ReactNode }) {
+/**
+ * Un aviso corto sobre lo que acaba de pasar.
+ *
+ * El tono `listo` existe porque las acciones solo sabían fallar: al enviar una
+ * oferta el formulario quedaba igual que antes y nada decía que hubiera salido
+ * bien, así que la única forma de averiguarlo era apretar de nuevo y leer el
+ * error de que ya había una.
+ */
+export function Alert({
+    tono = 'error',
+    children,
+}: {
+    tono?: 'error' | 'alerta' | 'listo';
+    children: React.ReactNode;
+}) {
     const clase =
         tono === 'error'
             ? 'border-[var(--color-error)]/40 text-[var(--color-error)]'
-            : 'border-[var(--color-alerta)]/40 text-[var(--color-alerta)]';
+            : tono === 'listo'
+              ? 'border-[var(--color-listo)]/40 text-[var(--color-listo)]'
+              : 'border-[var(--color-alerta)]/40 text-[var(--color-alerta)]';
     return (
         <div className={`rounded-[var(--radius-chico)] border px-4 py-3 text-[13px] leading-relaxed ${clase}`}>
             {children}

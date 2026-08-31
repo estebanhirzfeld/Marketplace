@@ -15,7 +15,8 @@ import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
 
-export type ActionState = { error?: string; ok?: boolean };
+/** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
+export type ActionState = { error?: string; ok?: boolean; message?: string };
 
 /**
  * Publicar un activo. El assetData se arma según el tipo: su forma la valida
@@ -107,14 +108,30 @@ export async function estimateListingPrice(
     }
 }
 
-export async function submitForReview(listingId: string): Promise<void> {
+/**
+ * Manda el activo a la cola de revisión.
+ *
+ * Devolvía `void` y se tragaba el error con un comentario que decía que se
+ * vería al recargar. No se veía: el activo seguía en borrador y la pantalla no
+ * daba ninguna señal. El motivo más común es justamente uno que hay que
+ * explicar —falta verificar la titularidad, falta el KYC— así que esconderlo
+ * dejaba al vendedor sin saber qué le falta.
+ */
+export async function submitForReview(
+    listingId: string,
+    _estado: ActionState,
+): Promise<ActionState> {
     await requireCounterparty();
     try {
         await api().submitListing(listingId);
-    } catch {
-        // El error se ve al recargar: el estado del listing no cambió.
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos enviarlo a revisión. Probá de nuevo.' };
     }
+
     revalidatePath('/activos');
+    revalidatePath(`/activos/${listingId}`);
+    return { ok: true, message: 'Lo enviamos a revisión. Te avisamos cuando salga al mercado.' };
 }
 
 /**

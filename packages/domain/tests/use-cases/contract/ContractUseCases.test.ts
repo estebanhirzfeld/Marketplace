@@ -348,7 +348,7 @@ describe('SignContractUseCase', () => {
 
         await expect(
             useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId)),
-        ).rejects.toThrow('ya firmó');
+        ).rejects.toThrow('Ya firmaste');
     });
 });
 
