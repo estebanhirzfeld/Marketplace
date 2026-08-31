@@ -1,12 +1,12 @@
 import { IListingRepository } from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 export class RejectListingUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(listingId: string, reason: string, actor: Actor): Promise<void> {
@@ -14,13 +14,13 @@ export class RejectListingUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         // La validación de reason no-vacío vive en la entidad
         listing.reject(reason);
 
         await this.listingRepo.save(listing);
-        await this.avisos?.listingRevisado(listing, false);
+        await this.avisos?.listingReviewed(listing, false);
     }
 }

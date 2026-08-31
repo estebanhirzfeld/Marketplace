@@ -17,7 +17,7 @@ export class MarkNotificationReadUseCase {
             throw new ForbiddenError('Este aviso no es tuyo.');
         }
 
-        aviso.marcarLeida();
+        aviso.markAsRead();
         await this.repo.save(aviso);
     }
 }

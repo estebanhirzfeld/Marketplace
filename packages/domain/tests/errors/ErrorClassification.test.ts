@@ -18,6 +18,10 @@ import { CreateOfferUseCase } from '../../src/use-cases/negotiation/CreateOfferU
 import { IListingRepository, IOperationRepository } from '../../src/ports/Repositories';
 import { Actor } from '../../src/ports/Actor';
 
+// Un contrato sin documento no se puede firmar; en estos tests alcanza
+// una huella cualquiera con forma válida.
+const HASH = 'a'.repeat(64);
+
 /**
  * Contrato de clasificación de errores.
  *
@@ -70,7 +74,6 @@ function unListingPublicado(sellerId: UniqueEntityID): Listing {
             isMonetized: true,
         }),
         askingPrice: Money.fromFloat(24_000),
-        isBlind: false,
     });
     listing.submitForReview();
     listing.approve();
@@ -101,7 +104,6 @@ describe('Clasificación de errores de dominio', () => {
                     isMonetized: true,
                 }),
                 askingPrice: Money.fromFloat(12_000),
-                isBlind: false,
             });
             listing.submitForReview();
 
@@ -155,6 +157,7 @@ describe('Clasificación de errores de dominio', () => {
                 new UniqueEntityID(),
                 new UniqueEntityID(),
             );
+            contract.attachDocument(HASH);
             contract.sign('buyer', '1.1.1.1');
 
             expect(() => contract.sign('buyer', '1.1.1.1')).toThrow(InvalidStateError);
@@ -167,6 +170,8 @@ describe('Clasificación de errores de dominio', () => {
                 new UniqueEntityID(),
                 new UniqueEntityID(),
             );
+
+            nda.attachDocument(HASH);
 
             // Un buyer_nda solo tiene firmas de buyer y platform.
             expect(() => nda.sign('seller', '1.1.1.1')).toThrow(ForbiddenError);

@@ -2,7 +2,7 @@ import { IOperationRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { Money } from '../../value-objects/Money';
 import { NotFoundError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 export interface CounterOfferInput {
     operationId: string;
@@ -16,7 +16,7 @@ export interface CounterOfferInput {
 export class CounterOfferUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(input: CounterOfferInput, actor: Actor): Promise<void> {
@@ -34,6 +34,6 @@ export class CounterOfferUseCase {
         );
 
         await this.operationRepo.save(operation);
-        await this.avisos?.contraofertaHecha(operation);
+        await this.avisos?.counterOfferMade(operation);
     }
 }

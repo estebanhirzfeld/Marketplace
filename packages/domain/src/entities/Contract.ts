@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
-import { ForbiddenError, InvalidStateError } from '../errors/DomainError';
+import { isValidHash } from '../services/DocumentHash';
+import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ContractType = 'buyer_nda' | 'seller_nda' | 'tripartite';
 export type PartyRole = 'buyer' | 'seller' | 'platform';
@@ -10,6 +11,11 @@ export interface Signature {
     signed: boolean;
     signedAt?: Date;
     signatureIp?: string;
+    /**
+     * Hash del documento vigente al momento de firmar. Sin esto, la firma
+     * registra que alguien apretó un botón, no qué texto aceptó.
+     */
+    documentHash?: string;
 }
 
 export interface ContractProps {
@@ -20,6 +26,8 @@ export interface ContractProps {
     signatures: Signature[];
     externalSignatureId?: string;
     fileUrl?: string;
+    /** Huella del documento que las partes firman. */
+    documentHash?: string;
 }
 
 export class Contract extends Entity<ContractProps> {
@@ -76,8 +84,46 @@ export class Contract extends Entity<ContractProps> {
 
     // ── Comportamiento ─────────────────────────────────────
 
+    /**
+     * Adjunta el documento que las partes van a firmar.
+     *
+     * Se guarda la huella, no el texto: el contenido se regenera de forma
+     * determinista a partir de los datos de la operación, y el hash prueba que
+     * lo regenerado es idéntico a lo firmado.
+     */
+    public attachDocument(hash: string): void {
+        if (!isValidHash(hash)) {
+            throw new ValidationError('La huella del documento no es un SHA-256 válido.');
+        }
+
+        // Cambiar el documento después de una firma la invalidaría en silencio:
+        // esa persona habría firmado un texto que ya no es el vigente.
+        if (this.props.signatures.some((s) => s.signed)) {
+            throw new InvalidStateError(
+                'No se puede cambiar el documento de un contrato que ya tiene firmas.'
+            );
+        }
+
+        this.props.documentHash = hash.toLowerCase();
+    }
+
+    /** ¿Todas las firmas corresponden al documento vigente? */
+    public signaturesMatchDocument(): boolean {
+        return this.props.signatures
+            .filter((s) => s.signed)
+            .every((s) => s.documentHash === this.props.documentHash);
+    }
+
     /** Firma el contrato para un rol específico. Tell, don't ask. */
     public sign(role: PartyRole, ipAddress: string): void {
+        // Sin documento no hay nada que firmar. Registrar una firma sobre la
+        // nada era exactamente lo que hacía este método antes.
+        if (!this.props.documentHash) {
+            throw new InvalidStateError(
+                'Este contrato todavía no tiene un documento para firmar.'
+            );
+        }
+
         const signature = this.props.signatures.find(s => s.role === role);
 
         if (!signature) {
@@ -91,6 +137,7 @@ export class Contract extends Entity<ContractProps> {
         signature.signed = true;
         signature.signedAt = new Date();
         signature.signatureIp = ipAddress;
+        signature.documentHash = this.props.documentHash;
     }
 
     /**
@@ -125,6 +172,10 @@ export class Contract extends Entity<ContractProps> {
 
     public get operationId(): UniqueEntityID | undefined {
         return this.props.operationId;
+    }
+
+    public get documentHash(): string | undefined {
+        return this.props.documentHash;
     }
 
     public get signerId(): UniqueEntityID | undefined {

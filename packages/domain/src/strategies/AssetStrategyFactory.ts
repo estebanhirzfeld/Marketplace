@@ -1,8 +1,7 @@
-import { AssetType } from '@marketplace/shared-types';
+import { ASSET_NICHES, AssetNiche, AssetType } from '@marketplace/shared-types';
 import { IAssetStrategy } from './IAssetStrategy';
 import { YouTubeStrategy } from './YouTubeStrategy';
 import { WebStrategy } from './WebStrategy';
-import { SocialStrategy } from './SocialStrategy';
 import { Money } from '../value-objects/Money';
 import { ValidationError } from '../errors/DomainError';
 
@@ -27,25 +26,22 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
             return new YouTubeStrategy({
                 monthlyRevenueUsd: dinero(assetData, 'monthlyRevenueUsdCents'),
                 subscribers: entero(assetData, 'subscribers'),
-                isMonetized: booleano(assetData, 'isMonetized'),
+                isMonetized: readBoolean(assetData, 'isMonetized'),
                 growthFactor: numeroOpcional(assetData, 'growthFactor', 1.0),
                 audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
+                channelUrl: textoOpcional(assetData, 'channelUrl', ''),
+                niche: rubro(assetData),
             });
 
         case AssetType.WEB:
             return new WebStrategy(
                 dinero(assetData, 'monthlyRevenueUsdCents'),
                 entero(assetData, 'domainAuthority'),
+                textoOpcional(assetData, 'domain', ''),
+                rubro(assetData),
             );
 
-        case AssetType.INSTAGRAM:
-        case AssetType.TIKTOK:
-            return new SocialStrategy(
-                entero(assetData, 'followers'),
-                numero(assetData, 'engagementRate'),
-                assetType === AssetType.INSTAGRAM ? AssetType.INSTAGRAM : AssetType.TIKTOK,
-            );
 
         default:
             throw new ValidationError(`Tipo de activo desconocido: ${assetType}`);
@@ -55,54 +51,68 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
 // ── Lectores validados ───────────────────────────────────
 // Cada uno falla con el nombre del campo, para que el error diga qué corregir.
 
-function numero(data: AssetData, campo: string): number {
-    const valor = data[campo];
-    if (typeof valor !== 'number' || Number.isNaN(valor)) {
-        throw new ValidationError(`El campo "${campo}" debe ser un número.`);
+function readNumber(data: AssetData, field: string): number {
+    const value = data[field];
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+        throw new ValidationError(`El campo "${field}" debe ser un número.`);
     }
-    return valor;
+    return value;
 }
 
-function entero(data: AssetData, campo: string): number {
-    const valor = numero(data, campo);
-    if (!Number.isInteger(valor)) {
-        throw new ValidationError(`El campo "${campo}" debe ser un número entero.`);
+function entero(data: AssetData, field: string): number {
+    const value = readNumber(data, field);
+    if (!Number.isInteger(value)) {
+        throw new ValidationError(`El campo "${field}" debe ser un número entero.`);
     }
-    return valor;
+    return value;
 }
 
-function booleano(data: AssetData, campo: string): boolean {
-    const valor = data[campo];
-    if (typeof valor !== 'boolean') {
-        throw new ValidationError(`El campo "${campo}" debe ser true o false.`);
+function readBoolean(data: AssetData, field: string): boolean {
+    const value = data[field];
+    if (typeof value !== 'boolean') {
+        throw new ValidationError(`El campo "${field}" debe ser true o false.`);
     }
-    return valor;
+    return value;
 }
 
-function numeroOpcional(data: AssetData, campo: string, porDefecto: number): number {
-    return data[campo] === undefined || data[campo] === null
+function numeroOpcional(data: AssetData, field: string, porDefecto: number): number {
+    return data[field] === undefined || data[field] === null
         ? porDefecto
-        : numero(data, campo);
+        : readNumber(data, field);
 }
 
-function booleanoOpcional(data: AssetData, campo: string, porDefecto: boolean): boolean {
-    return data[campo] === undefined || data[campo] === null
+function booleanoOpcional(data: AssetData, field: string, porDefecto: boolean): boolean {
+    return data[field] === undefined || data[field] === null
         ? porDefecto
-        : booleano(data, campo);
+        : readBoolean(data, field);
 }
 
-function textoOpcional(data: AssetData, campo: string, porDefecto: string): string {
-    const valor = data[campo];
-    if (valor === undefined || valor === null) return porDefecto;
-    if (typeof valor !== 'string') {
-        throw new ValidationError(`El campo "${campo}" debe ser texto.`);
+function textoOpcional(data: AssetData, field: string, porDefecto: string): string {
+    const value = data[field];
+    if (value === undefined || value === null) return porDefecto;
+    if (typeof value !== 'string') {
+        throw new ValidationError(`El campo "${field}" debe ser texto.`);
     }
-    return valor;
+    return value;
+}
+
+/**
+ * El rubro se valida contra la lista cerrada porque se puede filtrar por él:
+ * un valor libre haría que ese filtro no encuentre nada sin explicar por qué.
+ * Ausente cae en `other`, que es lo que tienen las publicaciones anteriores a
+ * que el campo existiera.
+ */
+function rubro(data: AssetData): AssetNiche {
+    const value = textoOpcional(data, 'niche', AssetNiche.OTHER);
+    if (!ASSET_NICHES.includes(value as AssetNiche)) {
+        throw new ValidationError(`Rubro desconocido: ${value}`);
+    }
+    return value as AssetNiche;
 }
 
 /** Money valida que sean centavos enteros y lanza ValidationError por su cuenta. */
-function dinero(data: AssetData, campo: string): Money {
-    const cents = numero(data, campo);
+function dinero(data: AssetData, field: string): Money {
+    const cents = readNumber(data, field);
     const currency = textoOpcional(data, 'currency', 'USD');
     return Money.fromCents(cents, currency);
 }

@@ -16,7 +16,12 @@ const registerSchema = {
             email: { type: 'string' },
             fullName: { type: 'string' },
             password: { type: 'string' },
-            role: { type: 'string', enum: Object.values(UserRole) },
+            // Solo los roles que alguien puede pedir para sí mismo. `admin` no
+            // está en la lista a propósito: era `Object.values(UserRole)`, que
+            // lo incluía, y bastaba un `curl` para crear un administrador. El
+            // dominio lo rechaza igual — esto es la segunda cerradura, para que
+            // ni siquiera llegue al caso de uso.
+            role: { type: 'string', enum: [UserRole.BUYER, UserRole.SELLER] },
             phone: { type: 'string' },
             country: { type: 'string' },
             dni: { type: 'string' },

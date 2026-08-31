@@ -26,8 +26,8 @@ export class LoginUseCase {
             throw new ForbiddenError(CREDENCIALES_INVALIDAS);
         }
 
-        const coincide = await this.hasher.compare(password, user.passwordHash);
-        if (!coincide) {
+        const matches = await this.hasher.compare(password, user.passwordHash);
+        if (!matches) {
             throw new ForbiddenError(CREDENCIALES_INVALIDAS);
         }
 

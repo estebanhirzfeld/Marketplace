@@ -56,7 +56,6 @@ async function crearListingPublicado(sellerId: UniqueEntityID): Promise<Listing>
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1500000, "USD"),
-        isBlind: false,
     });
     listing.submitForReview();
     listing.approve();

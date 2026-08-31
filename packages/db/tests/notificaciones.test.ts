@@ -95,12 +95,12 @@ describe("PrismaNotificationRepository", () => {
             Notification.create({ userId: user.id, type: "oferta_aceptada" }),
         ]);
 
-        expect(await repo.contarNoLeidas(user.id.toString())).toBe(2);
+        expect(await repo.countUnread(user.id.toString())).toBe(2);
 
-        leida.marcarLeida();
+        leida.markAsRead();
         await repo.save(leida);
 
-        expect(await repo.contarNoLeidas(user.id.toString())).toBe(1);
+        expect(await repo.countUnread(user.id.toString())).toBe(1);
         expect(await repo.findByUser(user.id.toString(), true)).toHaveLength(1);
     });
 
@@ -112,7 +112,7 @@ describe("PrismaNotificationRepository", () => {
     it("recupera readAt como Date, no como string", async () => {
         const user = await crearUsuario("uno@test.com");
         const aviso = Notification.create({ userId: user.id, type: "pago_confirmado" });
-        aviso.marcarLeida();
+        aviso.markAsRead();
         await repo.save(aviso);
 
         const recuperado = await repo.findById(aviso.id.toString());
@@ -130,10 +130,10 @@ describe("PrismaNotificationRepository", () => {
     it("notificar deja los avisos en la bandeja", async () => {
         const user = await crearUsuario("uno@test.com");
 
-        await repo.notificar([
+        await repo.notify([
             Notification.create({ userId: user.id, type: "activo_en_custodia" }),
         ]);
 
-        expect(await repo.contarNoLeidas(user.id.toString())).toBe(1);
+        expect(await repo.countUnread(user.id.toString())).toBe(1);
     });
 });

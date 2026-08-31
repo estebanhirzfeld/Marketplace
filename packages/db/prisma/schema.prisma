@@ -19,8 +19,6 @@ enum UserRole {
 enum AssetType {
   youtube
   web
-  instagram
-  tiktok
 }
 
 enum ListingStatus {
@@ -55,6 +53,11 @@ enum NotificationType {
   activo_en_custodia
   pago_confirmado
   operacion_completada
+  // Faltaba, y el dominio ya lo emitía: cada aviso de denuncia fallaba al
+  // guardarse con "Invalid value for argument `type`". El notificador se comía
+  // el error, así que la denuncia se registraba y el denunciado nunca se
+  // enteraba.
+  denuncia_recibida
 }
 
 enum ContractType {
@@ -82,6 +85,8 @@ model User {
   operationsAsSeller Operation[] @relation("SellerOperations")
   contractsAsSigner  Contract[]
   notifications      Notification[]
+  reportsFiled       Report[]      @relation("ReportsFiled")
+  reportsReceived    Report[]      @relation("ReportsReceived")
 
   @@map("users")
 }
@@ -94,9 +99,10 @@ model Listing {
   status          ListingStatus @default(draft)
   askingPrice     Int
   currency        String        @default("USD")
-  isBlind         Boolean       @default(true)
   publishedAt     DateTime?
   rejectionReason String?
+  platformAccess  Json?
+  ownershipCheck  Json?
   createdAt       DateTime      @default(now())
 
   seller     User        @relation(fields: [sellerId], references: [id])
@@ -104,6 +110,46 @@ model Listing {
   contracts  Contract[]
 
   @@map("listings")
+}
+
+enum ReportReason {
+  metricas_falsas
+  ingreso_falso
+  activo_no_entregado
+  activo_recuperado
+  pago_no_recibido
+  otro
+}
+
+enum ReportStatus {
+  open
+  closed
+}
+
+/// Denuncia de una parte contra la otra sobre una operación.
+///
+/// Ninguno de sus estados dice quién tiene razón: la plataforma no arbitra el
+/// fondo del reclamo, deja constancia y reúne la evidencia que registró.
+model Report {
+  id             String       @id @default(uuid())
+  operationId    String
+  reportedById   String
+  reporterRole   String
+  reportedUserId String
+  reason         ReportReason
+  detail         String
+  status         ReportStatus @default(open)
+  closedAt       DateTime?
+  closedReason   String?
+  createdAt      DateTime     @default(now())
+
+  operation    Operation @relation(fields: [operationId], references: [id])
+  reportedBy   User      @relation("ReportsFiled", fields: [reportedById], references: [id])
+  reportedUser User      @relation("ReportsReceived", fields: [reportedUserId], references: [id])
+
+  @@index([reportedById])
+  @@index([reportedUserId])
+  @@map("reports")
 }
 
 model Operation {
@@ -121,6 +167,8 @@ model Operation {
   platformEarns    Int?
   currency         String          @default("USD")
   negotiations     Json            @default("[]")
+  custodyCheck     Json?
+  payment          Json?
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 
@@ -128,6 +176,7 @@ model Operation {
   buyer     User       @relation("BuyerOperations", fields: [buyerId], references: [id])
   seller    User       @relation("SellerOperations", fields: [sellerId], references: [id])
   contracts Contract[]
+  reports   Report[]
 
   @@map("operations")
 }
@@ -141,6 +190,7 @@ model Contract {
   signatures          Json
   externalSignatureId String?
   fileUrl             String?
+  documentHash        String?
   createdAt           DateTime     @default(now())
 
   listing   Listing    @relation(fields: [listingId], references: [id])

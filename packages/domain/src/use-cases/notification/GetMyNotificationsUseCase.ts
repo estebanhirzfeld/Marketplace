@@ -6,7 +6,7 @@ import { Notification } from '../../entities/Notification';
 export class GetMyNotificationsUseCase {
     constructor(private readonly repo: INotificationRepository) {}
 
-    async execute(actor: Actor, soloNoLeidas = false): Promise<Notification[]> {
-        return this.repo.findByUser(actor.id, soloNoLeidas);
+    async execute(actor: Actor, onlyUnread = false): Promise<Notification[]> {
+        return this.repo.findByUser(actor.id, onlyUnread);
     }
 }

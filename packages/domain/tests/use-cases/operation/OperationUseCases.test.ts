@@ -21,6 +21,14 @@ const SELLER: Actor = { id: SELLER_ID.toString(), role: UserRole.SELLER };
 const BUYER: Actor = { id: BUYER_ID.toString(), role: UserRole.BUYER };
 const ADMIN: Actor = { id: 'admin-id', role: UserRole.ADMIN };
 
+// Constancia mínima válida: sin propiedad principal ni accesos asegurados
+// la entidad rechaza declarar la custodia.
+const CUSTODIA_OK = {
+    isPrimaryOwner: true,
+    accessSecured: true,
+    metrics: { subscribers: 55000 },
+};
+
 // ── Mock Factories ───────────────────────────────────────
 
 function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}): IOperationRepository {
@@ -61,9 +69,12 @@ function createOperationInState(targetState: string) {
     if (targetState === 'contract_signed') return op;
     op.initiateTransfer();
     if (targetState === 'transfer_in_progress') return op;
-    op.confirmAssetCustody();
+    op.confirmAssetCustody({
+        verifiedBy: new UniqueEntityID(),
+        ...CUSTODIA_OK,
+    });
     if (targetState === 'asset_in_custody') return op;
-    op.confirmBuyerPayment();
+    op.confirmBuyerPayment(unPagoDe(op));
     if (targetState === 'payment_received') return op;
     op.complete();
     return op; // completed
@@ -108,7 +119,7 @@ describe('ConfirmCustodyUseCase', () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await new ConfirmCustodyUseCase(repo).execute(op.id.toString(), ADMIN);
+        await new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, ADMIN);
 
         expect(op.status).toBe('asset_in_custody');
     });
@@ -117,7 +128,7 @@ describe('ConfirmCustodyUseCase', () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), ADMIN))
+        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, ADMIN))
             .rejects.toThrow('No hay transferencia en curso');
     });
 });
@@ -131,7 +142,7 @@ describe('ConfirmPaymentUseCase', () => {
         const op = createOperationInState('asset_in_custody');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await new ConfirmPaymentUseCase(repo).execute(op.id.toString(), ADMIN);
+        await new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), ADMIN);
 
         expect(op.status).toBe('payment_received');
     });
@@ -140,7 +151,7 @@ describe('ConfirmPaymentUseCase', () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), ADMIN))
+        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), ADMIN))
             .rejects.toThrow('El activo debe estar en custodia');
     });
 });
@@ -162,7 +173,6 @@ describe('CompleteOperationUseCase', () => {
                 isMonetized: true,
             }),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: false,
         });
         listing.submitForReview();
         listing.approve();
@@ -218,7 +228,7 @@ describe('Autorización de los pasos de la operación', () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), SELLER))
+        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, SELLER))
             .rejects.toThrow(ForbiddenError);
     });
 
@@ -226,7 +236,18 @@ describe('Autorización de los pasos de la operación', () => {
         const op = createOperationInState('asset_in_custody');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
 
-        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), BUYER))
+        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), BUYER))
             .rejects.toThrow(ForbiddenError);
     });
 });
+
+
+/** El pago que una operación espera: exactamente lo que el comprador debe. */
+function unPagoDe(op: Operation) {
+    return {
+        provider: 'transferencia' as const,
+        method: 'transferencia_bancaria',
+        amountCents: op.buyerPays!.getCents(),
+        currency: op.buyerPays!.getCurrency(),
+    };
+}

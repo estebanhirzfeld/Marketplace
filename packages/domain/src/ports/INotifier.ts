@@ -12,13 +12,13 @@ import { Notification } from '../entities/Notification';
  * salga es molesto, que se caiga una venta por eso es inaceptable.
  */
 export interface INotifier {
-    notificar(notificaciones: Notification[]): Promise<void>;
+    notify(notifications: Notification[]): Promise<void>;
 }
 
 export interface INotificationRepository {
-    findByUser(userId: string, soloNoLeidas?: boolean): Promise<Notification[]>;
+    findByUser(userId: string, onlyUnread?: boolean): Promise<Notification[]>;
     findById(id: string): Promise<Notification | null>;
-    contarNoLeidas(userId: string): Promise<number>;
-    save(notificacion: Notification): Promise<void>;
-    saveMany(notificaciones: Notification[]): Promise<void>;
+    countUnread(userId: string): Promise<number>;
+    save(notification: Notification): Promise<void>;
+    saveMany(notifications: Notification[]): Promise<void>;
 }

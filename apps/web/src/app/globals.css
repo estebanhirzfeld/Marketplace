@@ -17,13 +17,24 @@
 
   --color-tinta: #e8e9ea;
   --color-tenue: #8c939c;
-  --color-apagado: #6b7280;
+  /* Medido: #6b7280 daba 3,75:1 sobre la superficie, por debajo del 4,5:1
+     que WCAG pide para texto normal — y era justo el color del texto más
+     chico de la aplicación (etiquetas de métricas, ayudas de formulario,
+     "Estás comprando"). Este llega a ~5,2:1 sin dejar de ser un gris de
+     segundo plano. */
+  --color-apagado: #838a94;
+  /* 2,2:1: no alcanza para ningún texto. Queda solo para lo decorativo,
+     como los bloques ████ que tapan un dato bajo NDA. */
   --color-fantasma: #4a5057;
 
   --color-acento: #cff245;
   --color-acento-claro: #e4ff7a;
   --color-alerta: #e8a33d;
   --color-error: #f87171;
+  /* La disponibilidad para transferir usaba el mismo verde que el precio y le
+     robaba la atención en cada tarjeta. Con un color propio se lee como lo que
+     es: un estado del activo, no una cifra. */
+  --color-listo: #5eead4;
 
   /* Las variables --fuente-* las inyecta next/font desde el layout. */
   --font-sans: var(--fuente-sans), ui-sans-serif, system-ui, sans-serif;
@@ -86,9 +97,21 @@ body {
 }
 
 /* El elemento arranca invisible y solo aparece cuando entra en pantalla.
-   `[data-visible]` lo enciende el observador del componente Revelar. */
+   `[data-visible]` lo enciende el observador del componente Reveal.
+
+   La animación de respaldo no es un adorno: `opacity: 0` lo pinta el CSS en el
+   primer cuadro, y el atributo que lo revierte lo pone JavaScript de cliente
+   después de hidratar. Entre las dos cosas, TODO el contenido de la página
+   —que está casi enteramente dentro de <Reveal>— quedaba invisible mientras el
+   navbar y el pie sí se veían, así que la aplicación parecía rota. Medido en
+   el navegador: unos ocho segundos hasta la opacidad plena.
+
+   Con el respaldo, si el observador nunca llega a correr el contenido aparece
+   igual a 1,4 s. El costo es que algo fuera de pantalla puede revelarse antes
+   de que se llegue scrolleando, y es un costo barato frente a no verse nunca. */
 [data-revelar] {
   opacity: 0;
+  animation: subir 0.75s var(--ease-salida) 1.4s both;
 }
 
 [data-revelar][data-visible] {
@@ -99,6 +122,7 @@ body {
 [data-trazo] {
   transform: scaleX(0);
   transform-origin: left;
+  animation: trazar-linea 1.2s var(--ease-salida) 1.4s both;
 }
 
 [data-trazo][data-visible] {
@@ -119,5 +143,34 @@ body {
     animation: none !important;
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Foco de teclado.
+
+   No existía: los botones y los enlaces con forma de tarjeta —las filas del
+   mercado, de las operaciones y de la cola de revisión— no daban ninguna
+   señal al tabular, así que la aplicación era imposible de recorrer sin
+   mouse. `focus-visible` y no `focus` para que el anillo no aparezca al
+   hacer click. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-acento);
+  outline-offset: 2px;
+  border-radius: var(--radius-chico);
+}
+
+/* Los filtros del mercado se pliegan en pantallas chicas y quedan siempre
+   desplegados de `lg` para arriba, sin que el usuario tenga que abrirlos.
+   Se fuerza el `display` del contenido porque el navegador esconde por su
+   cuenta todo lo que no sea el `<summary>` mientras el `<details>` está
+   cerrado. */
+@media (min-width: 1024px) {
+  details[data-filtros] > div {
+    display: flex !important;
   }
 }

@@ -1,12 +1,12 @@
 import { IListingRepository } from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 export class ApproveListingUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(listingId: string, actor: Actor): Promise<void> {
@@ -14,12 +14,12 @@ export class ApproveListingUseCase {
 
         const listing = await this.listingRepo.findById(listingId);
         if (!listing) {
-            throw new NotFoundError('Listing no encontrado');
+            throw new NotFoundError('Activo no encontrado');
         }
 
         listing.approve();
 
         await this.listingRepo.save(listing);
-        await this.avisos?.listingRevisado(listing, true);
+        await this.avisos?.listingReviewed(listing, true);
     }
 }

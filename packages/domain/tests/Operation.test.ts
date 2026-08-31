@@ -139,7 +139,10 @@ describe('Operation Entity', () => {
         });
 
         it('debería calcular comisiones sobre el precio negociado', () => {
-            const operation = createTestOperation(500000); // Buyer: $5000
+            // El vendedor contraoferta por encima de lo ofrecido, que es la
+            // única dirección con sentido: pedir menos de lo que ya le ofrecen
+            // sería aceptar, y aceptar tiene su propia acción.
+            const operation = createTestOperation(400000); // Buyer: $4000
 
             operation.counterOffer(Money.fromCents(450000, 'USD'), 'seller'); // Seller: $4500
             operation.acceptCurrentOffer('buyer'); // Buyer acepta $4500
@@ -172,11 +175,16 @@ describe('Operation Entity', () => {
             expect(operation.status).toBe('transfer_in_progress');
 
             // 4. Custodia
-            operation.confirmAssetCustody();
+            operation.confirmAssetCustody({
+                verifiedBy: new UniqueEntityID(),
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            });
             expect(operation.status).toBe('asset_in_custody');
 
             // 5. Pago
-            operation.confirmBuyerPayment();
+            operation.confirmBuyerPayment(unPagoDe(operation));
             expect(operation.status).toBe('payment_received');
 
             // 6. Completar
@@ -199,7 +207,12 @@ describe('Operation Entity', () => {
             operation.acceptCurrentOffer('seller');
             operation.signContract();
 
-            expect(() => operation.confirmAssetCustody())
+            expect(() => operation.confirmAssetCustody({
+                verifiedBy: new UniqueEntityID(),
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            }))
                 .toThrow('No hay transferencia en curso');
         });
 
@@ -209,7 +222,7 @@ describe('Operation Entity', () => {
             operation.signContract();
             operation.initiateTransfer();
 
-            expect(() => operation.confirmBuyerPayment())
+            expect(() => operation.confirmBuyerPayment(unPagoDe(operation)))
                 .toThrow('El activo debe estar en custodia de la plataforma antes del pago');
         });
 
@@ -218,7 +231,12 @@ describe('Operation Entity', () => {
             operation.acceptCurrentOffer('seller');
             operation.signContract();
             operation.initiateTransfer();
-            operation.confirmAssetCustody();
+            operation.confirmAssetCustody({
+                verifiedBy: new UniqueEntityID(),
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            });
 
             expect(() => operation.complete())
                 .toThrow('El pago debe estar confirmado para completar la operación');
@@ -260,10 +278,26 @@ describe('Operation Entity', () => {
             operation.acceptCurrentOffer('seller');
             operation.signContract();
             operation.initiateTransfer();
-            operation.confirmAssetCustody();
+            operation.confirmAssetCustody({
+                verifiedBy: new UniqueEntityID(),
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            });
 
             expect(() => operation.cancel())
                 .toThrow('No se puede cancelar una operación en estado asset_in_custody');
         });
     });
 });
+
+
+/** El pago que una operación espera: exactamente lo que el comprador debe. */
+function unPagoDe(op: Operation) {
+    return {
+        provider: 'transferencia' as const,
+        method: 'transferencia_bancaria',
+        amountCents: op.buyerPays!.getCents(),
+        currency: op.buyerPays!.getCurrency(),
+    };
+}

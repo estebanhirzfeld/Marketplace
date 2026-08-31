@@ -1,13 +1,13 @@
 import { IOperationRepository, IListingRepository } from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError } from '../../errors/DomainError';
-import { AvisosDeNegociacion } from '../../services/AvisosDeNegociacion';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 
 export class CompleteOperationUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
-        private readonly avisos?: AvisosDeNegociacion,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<void> {
@@ -30,6 +30,6 @@ export class CompleteOperationUseCase {
             await this.listingRepo.save(listing);
         }
 
-        await this.avisos?.operacionCompletada(operation);
+        await this.avisos?.operationCompleted(operation);
     }
 }

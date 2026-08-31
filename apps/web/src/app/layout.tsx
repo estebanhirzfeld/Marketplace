@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import { AvisoKyc } from '@/components/AvisoKyc';
+import { KycNotice } from '@/components/KycNotice';
 import './globals.css';
 
 const sans = Space_Grotesk({
@@ -22,7 +22,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
     title: 'Traspaso · Compraventa de activos digitales con custodia',
     description:
-        'El activo entra en custodia antes de que el comprador pague. Canales de YouTube, sitios web y cuentas sociales, con los datos sensibles protegidos por NDA.',
+        'Canales de YouTube y sitios web. Recibimos el activo, lo revisamos, y recién ahí el comprador paga.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html lang="es" className={`${sans.variable} ${mono.variable}`}>
             <body className="flex min-h-screen flex-col">
                 <Navbar />
-                <AvisoKyc />
+                <KycNotice />
                 <main className="flex-1">{children}</main>
                 <Footer />
             </body>

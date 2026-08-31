@@ -1,41 +1,78 @@
 import Link from 'next/link';
-import { Marca } from './Marca';
-import { Campana } from './Campana';
-import { actorActual } from '@/lib/sesion';
-import { cerrarSesionAccion } from '@/app/acciones';
+import { Logo } from './Logo';
+import { NotificationBell } from './NotificationBell';
+import { currentActor } from '@/lib/session';
+import { currentProfile } from '@/lib/profile';
+import { logoutAction } from '@/app/actions';
 import { UserRole } from '@marketplace/shared-types';
 
 export async function Navbar() {
-    const actor = await actorActual();
-    const esAdmin = actor?.role === UserRole.ADMIN;
+    const actor = await currentActor();
+    const isAdmin = actor?.role === UserRole.ADMIN;
+    // El nombre no viaja en la sesión: la cookie guarda el actor, que es id y
+    // rol. `currentProfile` está memoizado por request, así que esto no agrega
+    // una llamada — la comparte con el aviso de verificación del layout.
+    const profile = await currentProfile();
+
+    /*
+     * Un solo lugar donde se decide qué ve cada rol, para que el menú de
+     * escritorio y el de teléfono no puedan discrepar.
+     *
+     * La plataforma no compra ni vende, así que nada de eso le corresponde:
+     * ni vender, ni tener operaciones propias, ni reclamos, que solo puede
+     * abrirlos una de las partes.
+     */
+    const enlaces: { href: string; text: string; destacado?: boolean }[] = [
+        { href: '/listings', text: 'Mercado' },
+        { href: '/#proceso', text: 'Cómo funciona' },
+        ...(isAdmin ? [] : [{ href: '/activos', text: 'Mis activos' }]),
+        ...(actor && !isAdmin
+            ? [
+                  { href: '/operaciones', text: 'Mis compras' },
+                  { href: '/denuncias', text: 'Reclamos' },
+              ]
+            : []),
+        ...(isAdmin ? [{ href: '/admin', text: 'ADMIN', destacado: true }] : []),
+    ];
 
     return (
         <header className="border-b border-[var(--color-borde)]">
             <nav className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4 sm:px-12">
                 <div className="flex items-center gap-11">
                     <Link href="/" className="flex items-center gap-2.5">
-                        <Marca />
+                        <Logo />
                         <span className="text-[17px] font-bold tracking-[-0.02em]">TRASPASO</span>
                     </Link>
-                    <div className="hidden items-center gap-6 text-[13px] text-[var(--color-tenue)] md:flex">
-                        <Link href="/listings" className="transition-colors hover:text-[var(--color-tinta)]">Mercado</Link>
-                        <Link href="/#proceso" className="transition-colors hover:text-[var(--color-tinta)]">Cómo funciona</Link>
-                        <Link href="/vender" className="transition-colors hover:text-[var(--color-tinta)]">Vender</Link>
-                        {actor && (
-                            <Link href="/operaciones" className="transition-colors hover:text-[var(--color-tinta)]">Mis operaciones</Link>
-                        )}
-                        {esAdmin && (
-                            <Link href="/admin" className="font-mono text-[11px] tracking-wider text-[var(--color-alerta)] transition-colors hover:text-[var(--color-tinta)]">
-                                ADMIN
+                    <div className="hidden items-center gap-6 text-[14px] text-[var(--color-tenue)] md:flex">
+                        {enlaces.map((e) => (
+                            <Link
+                                key={e.href}
+                                href={e.href}
+                                className={
+                                    e.destacado
+                                        ? 'font-mono text-[12px] tracking-wider text-[var(--color-alerta)] transition-colors hover:text-[var(--color-tinta)]'
+                                        : 'transition-colors hover:text-[var(--color-tinta)]'
+                                }
+                            >
+                                {e.text}
                             </Link>
-                        )}
+                        ))}
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <Campana />
+                    {profile && (
+                        <Link
+                            href="/perfil"
+                            className="hidden max-w-[190px] truncate text-[13px] text-[var(--color-tinta)] transition-colors hover:text-[var(--color-acento)] sm:block"
+                            title={profile.fullName}
+                        >
+                            {profile.fullName}
+                        </Link>
+                    )}
+                    <NotificationBell />
                     {actor ? (
-                        <form action={cerrarSesionAccion}>
+                        <form action={logoutAction}>
                             <button
                                 type="submit"
                                 className="rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-4 py-2 text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"
@@ -59,6 +96,61 @@ export async function Navbar() {
                             Ingresar
                         </Link>
                     )}
+
+                    {/*
+                        El menú de teléfono. Hasta acá la navegación entera vivía
+                        detrás de `hidden md:flex` sin ningún reemplazo, así que
+                        desde un celular no se podía llegar a Mercado, Vender, Mis
+                        operaciones, Reclamos ni Admin: quedaban la campana y el
+                        botón de salir.
+
+                        Va con `<details>` y no con estado de React para que el
+                        navbar siga siendo un componente de servidor: abrir un
+                        menú no justifica mandar JavaScript al navegador.
+                    */}
+                    <details className="relative md:hidden">
+                        <summary
+                            className="flex size-9 cursor-pointer list-none items-center justify-center rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] [&::-webkit-details-marker]:hidden"
+                            aria-label="Abrir el menú"
+                        >
+                            <span aria-hidden className="flex flex-col gap-[3px]">
+                                <span className="block h-px w-4 bg-[var(--color-tenue)]" />
+                                <span className="block h-px w-4 bg-[var(--color-tenue)]" />
+                                <span className="block h-px w-4 bg-[var(--color-tenue)]" />
+                            </span>
+                        </summary>
+                        <div className="absolute right-0 top-11 z-20 flex w-56 flex-col rounded-[var(--radius-medio)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)] p-2 shadow-lg">
+                            {enlaces.map((e) => (
+                                <Link
+                                    key={e.href}
+                                    href={e.href}
+                                    className={`rounded-[var(--radius-chico)] px-3 py-2.5 text-[14px] transition-colors hover:bg-[var(--color-superficie-alta)] ${
+                                        e.destacado
+                                            ? 'font-mono text-[12px] tracking-wider text-[var(--color-alerta)]'
+                                            : 'text-[var(--color-tinta)]'
+                                    }`}
+                                >
+                                    {e.text}
+                                </Link>
+                            ))}
+                            {profile && (
+                                <Link
+                                    href="/perfil"
+                                    className="truncate rounded-[var(--radius-chico)] px-3 py-2.5 text-[14px] text-[var(--color-tenue)] transition-colors hover:bg-[var(--color-superficie-alta)]"
+                                >
+                                    {profile.fullName}
+                                </Link>
+                            )}
+                            {!actor && (
+                                <Link
+                                    href="/registro"
+                                    className="rounded-[var(--radius-chico)] px-3 py-2.5 text-[14px] text-[var(--color-tenue)] transition-colors hover:bg-[var(--color-superficie-alta)]"
+                                >
+                                    Crear cuenta
+                                </Link>
+                            )}
+                        </div>
+                    </details>
                 </div>
             </nav>
         </header>

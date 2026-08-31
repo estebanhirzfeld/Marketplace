@@ -24,10 +24,14 @@ export class PrismaListingRepository implements IListingRepository {
         if (filters?.minPrice !== undefined) precio.gte = filters.minPrice;
         if (filters?.maxPrice !== undefined) precio.lte = filters.maxPrice;
 
+        // El orden final lo decide el use case, porque uno de los criterios
+        // —la proyección— se calcula y no está en ninguna columna. Acá se deja
+        // uno estable para que el resultado no dependa del plan de Postgres.
         const rows = await this.db.listing.findMany({
             where: {
                 status: "published",
                 ...(filters?.assetType ? { assetType: filters.assetType as never } : {}),
+                ...(filters?.currency ? { currency: filters.currency } : {}),
                 ...(Object.keys(precio).length > 0 ? { askingPrice: precio } : {}),
             },
             orderBy: { createdAt: "desc" },

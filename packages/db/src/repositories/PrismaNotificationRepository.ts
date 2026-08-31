@@ -24,9 +24,9 @@ type ConNotificaciones = PrismaLike & {
 export class PrismaNotificationRepository implements INotificationRepository, INotifier {
     constructor(private readonly db: ConNotificaciones = prisma as ConNotificaciones) {}
 
-    async findByUser(userId: string, soloNoLeidas = false): Promise<Notification[]> {
+    async findByUser(userId: string, onlyUnread = false): Promise<Notification[]> {
         const rows = (await this.db.notification.findMany({
-            where: { userId, ...(soloNoLeidas ? { readAt: null } : {}) },
+            where: { userId, ...(onlyUnread ? { readAt: null } : {}) },
             orderBy: { createdAt: "desc" },
             take: 50,
         })) as Parameters<typeof NotificationMapper.toDomain>[0][];
@@ -41,24 +41,24 @@ export class PrismaNotificationRepository implements INotificationRepository, IN
         return raw ? NotificationMapper.toDomain(raw) : null;
     }
 
-    async contarNoLeidas(userId: string): Promise<number> {
+    async countUnread(userId: string): Promise<number> {
         return this.db.notification.count({ where: { userId, readAt: null } });
     }
 
-    async save(notificacion: Notification): Promise<void> {
-        const data = NotificationMapper.toPersistence(notificacion);
+    async save(notification: Notification): Promise<void> {
+        const data = NotificationMapper.toPersistence(notification);
         await this.db.notification.upsert({ where: { id: data.id }, create: data, update: data });
     }
 
-    async saveMany(notificaciones: Notification[]): Promise<void> {
-        if (notificaciones.length === 0) return;
+    async saveMany(notifications: Notification[]): Promise<void> {
+        if (notifications.length === 0) return;
         await this.db.notification.createMany({
-            data: notificaciones.map(NotificationMapper.toPersistence),
+            data: notifications.map(NotificationMapper.toPersistence),
         });
     }
 
     /** Implementación de INotifier: hoy, guardar en la bandeja. */
-    async notificar(notificaciones: Notification[]): Promise<void> {
-        await this.saveMany(notificaciones);
+    async notify(notifications: Notification[]): Promise<void> {
+        await this.saveMany(notifications);
     }
 }

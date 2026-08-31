@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body {
+      margin: 0;
+      background: #0b0c0e;
+      color: #e8e9ea;
+      font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    }
+    a { color: #cff245; text-decoration: none; }
+    a:hover { color: #e4ff7a; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, "SF Mono", monospace; }
+  </style>
+</helmet>
+
+<div style="min-height: 900px; padding: 40px 48px 56px">
+
+  <!-- Encabezado -->
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 640px">
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.03em">Mis activos</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #8c939c">
+      Todo lo que pusiste a la venta, en la etapa en la que está cada uno. Entrá a
+      cualquiera para ver sus ofertas y sus verificaciones.
+    </p>
+  </div>
+
+  <!-- Acción primaria: publicar sale del listado y es un botón, no una pestaña -->
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <sc-for list="{{filtros}}" as="f" hint-placeholder-count="5">
+        <div onClick="{{ f.elegir }}"
+             style="cursor: pointer; border-radius: 3px; border: 1px solid {{f.borde}}; padding: 8px 14px; font-size: 13px; color: {{f.color}}">
+          {{f.text}} · {{f.cuenta}}
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px">
+      <div style="display: inline-flex; align-items: center; gap: 8px; border-radius: 3px; background: #cff245; padding: 12px 20px; font-size: 14px; font-weight: 700; color: #0b0c0e; cursor: pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b0c0e" stroke-width="2" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        Publicar un activo
+      </div>
+    </div>
+  </div>
+
+  <!-- Listado -->
+  <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px">
+    <sc-for list="{{activos}}" as="a" hint-placeholder-count="4">
+      <div style="border-radius: 5px; border: 1px solid #1e2126; background: #141619; padding: 20px 22px">
+
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px">
+
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 260px; flex-grow: 1">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+              <span class="mono" style="border-radius: 3px; border: 1px solid {{a.selloBorde}}; padding: 4px 10px; font-size: 11px; letter-spacing: 0.08em; color: {{a.selloColor}}">{{a.sello}}</span>
+              <sc-if value="{{a.transferible}}" hint-placeholder-val="{{ true }}">
+                <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #5eead4">TRANSFERENCIA INMEDIATA</span>
+              </sc-if>
+            </div>
+
+            <div style="font-size: 17px; font-weight: 500">
+              {{a.rubro}}<span style="color: #8c939c"> · {{a.tipo}}</span>
+            </div>
+
+            <!-- La fila de señales que antes había que ir a buscar a otra pantalla -->
+            <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #8c939c">
+              <span style="display: inline-flex; align-items: center; gap: 6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{a.ofertasColor}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span style="color: {{a.ofertasColor}}">{{a.ofertas}}</span>
+              </span>
+              <span style="display: inline-flex; align-items: center; gap: 6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{a.verifColor}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 12l2 2 4-4"/>
+                  <circle cx="12" cy="12" r="9"/>
+                </svg>
+                <span style="color: {{a.verifColor}}">{{a.verif}}</span>
+              </span>
+              <span class="mono" style="color: #838a94">{{a.desde}}</span>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px">
+            <div style="text-align: right">
+              <div class="mono" style="font-size: 21px; font-weight: 700; color: #cff245">{{a.precio}}</div>
+              <div class="mono" style="margin-top: 4px; font-size: 12px; color: #838a94">valuación {{a.valuacion}}</div>
+            </div>
+
+            <!-- Las acciones viven en la card, que es lo que se reutiliza -->
+            <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px">
+              <sc-for list="{{a.acciones}}" as="ac" hint-placeholder-count="3">
+                <div style="cursor: pointer; border-radius: 3px; border: 1px solid {{ac.borde}}; padding: 8px 14px; font-size: 13px; color: {{ac.color}}">{{ac.text}}</div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"densidad":{"editor":"enum","options":["Cómoda","Compacta"],"default":"Cómoda","section":"Vista"}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filtro: 'todos' };
+  }
+
+  datos() {
+    return [
+      { id: 1, estado: 'publicado', rubro: 'Tecnología', tipo: 'Sitio web',
+        sello: 'PUBLICADO', precio: 'US$ 68.000', valuacion: 'US$ 69.300',
+        ofertas: '2 ofertas · 1 sin responder', ofertasDestacada: true,
+        verif: 'Titularidad comprobada', verifOk: true, transferible: true,
+        desde: 'hace 9 días',
+        acciones: ['Ver ofertas', 'Ver publicación'] },
+      { id: 2, estado: 'publicado', rubro: 'Finanzas', tipo: 'Canal de YouTube',
+        sello: 'PUBLICADO', precio: 'US$ 105.000', valuacion: 'US$ 110.500',
+        ofertas: 'Sin ofertas todavía', ofertasDestacada: false,
+        verif: 'Falta verificar la titularidad', verifOk: false, transferible: false,
+        desde: 'hace 5 días',
+        acciones: ['Verificar con YouTube', 'Ver publicación'] },
+      { id: 3, estado: 'revision', rubro: 'Tecnología', tipo: 'Sitio web',
+        sello: 'EN REVISIÓN', precio: 'US$ 43.000', valuacion: 'US$ 44.550',
+        ofertas: 'Todavía no está en el mercado', ofertasDestacada: false,
+        verif: 'Falta verificar el ingreso', verifOk: false, transferible: false,
+        desde: 'hace 1 día',
+        acciones: ['Verificar con AdSense'] },
+      { id: 4, estado: 'vendido', rubro: 'Gaming', tipo: 'Canal de YouTube',
+        sello: 'VENDIDO', precio: 'US$ 9.500', valuacion: 'US$ 9.225',
+        ofertas: 'Se cerró con Ana Beltrán', ofertasDestacada: false,
+        verif: 'Titularidad comprobada', verifOk: true, transferible: false,
+        desde: 'hace 2 meses',
+        acciones: ['Ver la operación'] },
+    ];
+  }
+
+  renderVals() {
+    const todos = this.datos();
+    const sel = this.state.filtro;
+
+    const grupos = [
+      { id: 'todos', text: 'Todos', match: () => true },
+      { id: 'publicado', text: 'Publicados', match: (a) => a.estado === 'publicado' },
+      { id: 'revision', text: 'En revisión', match: (a) => a.estado === 'revision' },
+      { id: 'vendido', text: 'Vendidos', match: (a) => a.estado === 'vendido' },
+    ];
+
+    const selloDe = (e) => {
+      if (e === 'publicado') return { selloColor: '#cff245', selloBorde: 'rgba(207,242,69,0.5)' };
+      if (e === 'revision') return { selloColor: '#e8a33d', selloBorde: 'rgba(232,163,61,0.5)' };
+      return { selloColor: '#8c939c', selloBorde: '#2a2e35' };
+    };
+
+    const visibles = todos
+      .filter((a) => grupos.find((g) => g.id === sel).match(a))
+      .map((a) => ({
+        ...a,
+        ...selloDe(a.estado),
+        ofertasColor: a.ofertasDestacada ? '#cff245' : '#838a94',
+        verifColor: a.verifOk ? '#5eead4' : '#e8a33d',
+        acciones: a.acciones.map((text, i) => ({
+          text,
+          borde: i === 0 ? '#2a2e35' : 'transparent',
+          color: i === 0 ? '#e8e9ea' : '#8c939c',
+        })),
+      }));
+
+    return {
+      activos: visibles,
+      filtros: grupos.map((g) => ({
+        text: g.text,
+        cuenta: todos.filter(g.match).length,
+        borde: sel === g.id ? '#cff245' : '#2a2e35',
+        color: sel === g.id ? '#cff245' : '#8c939c',
+        elegir: () => this.setState({ filtro: g.id }),
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

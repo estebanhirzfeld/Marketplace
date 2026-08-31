@@ -1,14 +1,21 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
+import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
+import { ASSET_NICHES } from '@marketplace/shared-types';
 import type {
     ContractDto,
     CreateListingRequest,
     CreateOfferRequest,
     CreatedListingDto,
     CreatedOperationDto,
+    EstimateListingRequest,
+    EstimatedPriceDto,
     ListingDetailDto,
     ListingFiltersQuery,
+    AuthorizationUrlDto,
+    ChannelMetricsReportDto,
+    OwnershipVerificationDto,
     ListingSummaryDto,
     OfferSummaryDto,
     RejectListingRequest,
@@ -24,11 +31,19 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 querystring: {
                     type: 'object',
                     properties: {
-                        assetType: { type: 'string' },
+                        assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        niche: { type: 'string', enum: ASSET_NICHES },
+                        onlyTransferable: { type: 'boolean' },
+                        currency: { type: 'string', enum: ['ARS', 'USD'] },
                         // `coerceTypes` de Fastify convierte el string del query
                         // a número; sin el schema llegarían como texto.
                         minPrice: { type: 'integer', minimum: 0 },
                         maxPrice: { type: 'integer', minimum: 0 },
+                        minSubscribers: { type: 'integer', minimum: 0 },
+                        onlyMonetized: { type: 'boolean' },
+                        minDomainAuthority: { type: 'integer', minimum: 0, maximum: 100 },
+                        sort: { type: 'string', enum: ['price', 'created', 'published', 'estimated'] },
+                        direction: { type: 'string', enum: ['asc', 'desc'] },
                     },
                 },
             },
@@ -45,13 +60,36 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 assetType: v.assetType,
                 askingPrice: v.askingPrice,
                 estimatedPrice: v.estimatedPrice,
-                isBlind: v.isBlind,
                 assetData: v.assetData,
                 hiddenFields: v.hiddenFields,
+                transferable: v.transferable,
+                transferableFrom: v.transferableFrom?.toISOString(),
                 createdAt: v.createdAt.toISOString(),
+                publishedAt: v.publishedAt?.toISOString(),
             })),
         );
     },
+    );
+
+    /**
+     * Valuación de un activo que todavía no existe.
+     *
+     * No persiste nada: es la misma fórmula que se aplica al listing ya creado,
+     * expuesta antes para que el vendedor tenga una referencia mientras decide
+     * el precio en vez de descubrirla cuando ya lo fijó.
+     */
+    app.post<{ Body: EstimateListingRequest; Reply: EstimatedPriceDto }>(
+        '/listings/estimate',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const estimado = await c.estimateListingPrice.execute(request.body);
+            return reply.send({
+                estimatedPrice: {
+                    cents: estimado.getCents(),
+                    currency: estimado.getCurrency(),
+                },
+            });
+        },
     );
 
     // Autenticación opcional: cuánto se ve depende de si hay NDA firmado.
@@ -63,7 +101,106 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
 
             // createdAt viaja como ISO string: JSON no tiene tipo fecha, y el
             // cliente móvil no debe adivinar el formato.
-            const dto: ListingDetailDto = { ...view, createdAt: view.createdAt.toISOString() };
+            const dto: ListingDetailDto = {
+                ...view,
+                ownership: view.ownership && {
+                    verifiedAt: view.ownership.verifiedAt.toISOString(),
+                    source: view.ownership.source,
+                    monthlyRevenueCents: view.ownership.monthlyRevenueCents,
+                },
+                transferableFrom: view.transferableFrom?.toISOString(),
+                createdAt: view.createdAt.toISOString(),
+            };
+            return reply.send(dto);
+        },
+    );
+
+    /**
+     * Contrasta lo declarado contra la API de YouTube. Solo el vendedor del
+     * activo o un admin: la dirección del canal es un dato reservado y el
+     * título que devuelve revelaría la identidad de un listing blind.
+     */
+    app.post<{ Params: IdParams; Reply: ChannelMetricsReportDto }>(
+        '/listings/:id/verificar-metricas',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.verifyChannelMetrics) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con YouTube todavía no está configurada.',
+                } as never);
+            }
+
+            const reporte = await c.verifyChannelMetrics.execute(
+                request.params.id,
+                actorOf(request),
+            );
+
+            return reply.send({ ...reporte, checkedAt: reporte.checkedAt.toISOString() });
+        },
+    );
+
+    /**
+     * Paso uno del consentimiento: la dirección a la que mandar al vendedor.
+     *
+     * `state` lleva el listing y la fuente para poder retomar al volver. No
+     * lleva nada secreto: viaja por la barra de direcciones del navegador.
+     */
+    app.get<{ Params: { id: string; fuente: string }; Reply: AuthorizationUrlDto }>(
+        '/listings/:id/autorizacion/:fuente',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.googleOAuth) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const { id, fuente } = request.params;
+            const scope = fuente === 'adsense' ? SCOPE_ADSENSE : SCOPE_YOUTUBE;
+
+            return reply.send({
+                url: c.googleOAuth.authorizationUrl(scope, `${fuente}:${id}`),
+            });
+        },
+    );
+
+    /**
+     * Paso dos: con el código que trajo el navegador, se le pregunta a Google
+     * qué controla esa cuenta y se compara contra lo publicado. El código se
+     * canjea, se usa una vez y se descarta: no se guarda ningún token.
+     */
+    app.post<{ Params: { id: string; fuente: string }; Body: { code: string } }>(
+        '/listings/:id/verificar/:fuente',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['code'],
+                    properties: { code: { type: 'string', minLength: 1 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            const { id, fuente } = request.params;
+            const uso = fuente === 'adsense' ? c.verifyWebsiteRevenue : c.verifyChannelOwnership;
+
+            if (!uso) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const constancia = await uso.execute(id, request.body.code, actorOf(request));
+
+            const dto: OwnershipVerificationDto = {
+                verifiedAt: constancia.verifiedAt.toISOString(),
+                source: constancia.source,
+                monthlyRevenueCents: constancia.monthlyRevenueCents,
+            };
             return reply.send(dto);
         },
     );
@@ -75,7 +212,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
             schema: {
                 body: {
                     type: 'object',
-                    required: ['assetType', 'assetData', 'askingPrice', 'isBlind'],
+                    required: ['assetType', 'assetData', 'askingPrice'],
                     properties: {
                         assetType: { type: 'string' },
                         // Sin schema: la forma de assetData depende del tipo de
@@ -90,7 +227,6 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                                 currency: { type: 'string' },
                             },
                         },
-                        isBlind: { type: 'boolean' },
                     },
                 },
             },
@@ -156,8 +292,9 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         async (request, reply) => {
             const offers = await c.getSellerOffers.execute(request.params.id, actorOf(request));
             return reply.send(
-                offers.map((op): OfferSummaryDto => ({
+                offers.map(({ operation: op, buyerName }): OfferSummaryDto => ({
                     id: op.id.toString(),
+                    buyerName,
                     status: op.status,
                     currentOfferPrice: {
                         cents: op.currentOfferPrice.getCents(),

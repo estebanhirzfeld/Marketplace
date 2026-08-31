@@ -1,104 +1,54 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { MyListingDto } from '@marketplace/api-contract';
-import { api } from '@/lib/api';
-import { actorActual } from '@/lib/sesion';
-import { Revelar } from '@/components/Revelar';
-import { FormularioPublicar } from '@/components/FormularioPublicar';
-import { EstadoListing } from '@/components/EstadoListing';
-import { Boton, Panel, Titulo, Vacio } from '@/components/ui';
-import { monto, etiquetaTipo } from '@/lib/formato';
-import { publicar, enviarARevision } from './acciones';
+import { requireCounterparty } from '@/lib/guards';
+import { Reveal } from '@/components/Reveal';
+import { PublishListingForm } from '@/components/PublishListingForm';
+import { Panel, Heading } from '@/components/ui';
+import { estimateListingPrice, publishListing } from './actions';
 
-export const metadata = { title: 'Vender · Traspaso' };
+export const metadata = { title: 'Publicar un activo · Traspaso' };
 
-export default async function Vender() {
-    if (!(await actorActual())) redirect('/ingresar');
-
-    let listings: MyListingDto[] = [];
-    try {
-        listings = await api().misListings();
-    } catch {
-        listings = [];
-    }
+/**
+ * Publicar y nada más.
+ *
+ * Esta pantalla mostraba además el catálogo entero, con las acciones de cada
+ * activo apretadas en una fila: "Vender" es un verbo y lo que había era una
+ * lista. El catálogo vive ahora en `/activos`, y cada activo tiene su propia
+ * vista.
+ */
+export default async function Publicar() {
+    await requireCounterparty();
 
     return (
-        <div className="mx-auto max-w-[1400px] px-6 py-16 sm:px-12">
-            <Revelar>
-                <Titulo sub="Publicá un activo y recibí ofertas. Cobrás cuando el traspaso está hecho, no antes.">
-                    Vender
-                </Titulo>
-            </Revelar>
+        <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
+            <Reveal>
+                <div className="flex items-center gap-2 text-[13px] text-[var(--color-apagado)]">
+                    <Link href="/activos" className="hover:text-[var(--color-tinta)]">
+                        Mis activos
+                    </Link>
+                    <span>/</span>
+                    <span className="text-[var(--color-tenue)]">Publicar</span>
+                </div>
 
-            <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-                <Revelar>
-                    <Panel titulo="NUEVO ACTIVO">
-                        <FormularioPublicar accion={publicar} />
+                <div className="mt-4">
+                    <Heading sub="Publicá un activo nuevo. Los que ya cargaste están en Mis activos.">
+                        Publicar un activo
+                    </Heading>
+                </div>
+            </Reveal>
+
+            <div className="mt-10 max-w-[720px]">
+                <Reveal delay={80}>
+                    <Panel title="NUEVO ACTIVO">
+                        <PublishListingForm action={publishListing} estimate={estimateListingPrice} />
                     </Panel>
-                </Revelar>
+                </Reveal>
 
-                <Revelar retraso={100}>
-                    <Panel titulo="MIS ACTIVOS">
-                        {listings.length === 0 ? (
-                            <Vacio
-                                titulo="Todavía no publicaste nada"
-                                texto="Cargá tu primer activo con el formulario de la izquierda. Nace como borrador: nadie lo ve hasta que lo envíes a revisión."
-                            />
-                        ) : (
-                            <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                                {listings.map((l) => (
-                                    <div key={l.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-apagado)]">
-                                                {etiquetaTipo(l.assetType)}
-                                            </span>
-                                            <EstadoListing estado={l.status} />
-                                        </div>
-
-                                        <div className="flex flex-wrap items-baseline justify-between gap-3">
-                                            <span className="font-mono text-[19px] font-bold text-[var(--color-acento)]">
-                                                {monto(l.askingPrice)}
-                                            </span>
-                                            <span className="text-[12px] text-[var(--color-apagado)]">
-                                                Estimado: <span className="font-mono">{monto(l.estimatedPrice)}</span>
-                                            </span>
-                                        </div>
-
-                                        {l.rejectionReason && (
-                                            <p className="text-[13px] leading-relaxed text-[var(--color-error)]">
-                                                Motivo del rechazo: {l.rejectionReason}
-                                            </p>
-                                        )}
-
-                                        <div className="flex flex-wrap gap-2.5">
-                                            {(l.status === 'draft' || l.status === 'rejected') && (
-                                                <form action={enviarARevision.bind(null, l.id)}>
-                                                    <Boton type="submit" variante="secundario" className="px-4 py-2 text-[13px]">
-                                                        Enviar a revisión
-                                                    </Boton>
-                                                </form>
-                                            )}
-                                            {(l.status === 'published' || l.status === 'in_operation') && (
-                                                <Link
-                                                    href={`/vender/${l.id}/ofertas`}
-                                                    className="rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] px-4 py-2 text-[13px] font-medium transition-colors hover:border-[var(--color-tenue)]"
-                                                >
-                                                    Ver ofertas
-                                                </Link>
-                                            )}
-                                            <Link
-                                                href={`/listings/${l.id}`}
-                                                className="rounded-[var(--radius-chico)] px-4 py-2 text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"
-                                            >
-                                                Ver publicación
-                                            </Link>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </Panel>
-                </Revelar>
+                <Reveal delay={140}>
+                    <p className="mt-5 text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                        Se guarda como borrador. Al enviarlo a revisión lo evaluamos antes de
+                        publicarlo, y en ese momento te pedimos el acceso al activo.
+                    </p>
+                </Reveal>
             </div>
         </div>
     );

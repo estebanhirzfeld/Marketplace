@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body {
+      margin: 0;
+      background: #0b0c0e;
+      color: #e8e9ea;
+      font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    }
+    a { color: #cff245; text-decoration: none; }
+    a:hover { color: #e4ff7a; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, "SF Mono", monospace; }
+  </style>
+</helmet>
+
+<div style="min-height: 900px; padding: 40px 48px 56px">
+
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 640px">
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.03em">Mis compras</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #8c939c">
+      Los activos por los que ofertaste, con el paso que falta en cada uno. Lo que vendés se administra desde Mis activos.
+    </p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 26px">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+      <span class="mono" style="margin-right: 4px; font-size: 12px; letter-spacing: 0.08em; color: #8c939c">ETAPA</span>
+      <sc-for list="{{etapas}}" as="e" hint-placeholder-count="4">
+        <div onClick="{{ e.elegir }}" style="cursor: pointer; border-radius: 3px; border: 1px solid {{e.borde}}; padding: 8px 14px; font-size: 13px; color: {{e.color}}">{{e.text}} · {{e.cuenta}}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- La misma anatomía de card que Mis activos: sello, identidad, señales, precio, acciones -->
+  <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px">
+    <sc-for list="{{operaciones}}" as="o" hint-placeholder-count="3">
+      <div style="border-radius: 5px; border: 1px solid {{o.borde}}; background: #141619; padding: 20px 22px">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px">
+
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 280px; flex-grow: 1">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+              <span class="mono" style="border-radius: 3px; border: 1px solid {{o.selloBorde}}; padding: 4px 10px; font-size: 11px; letter-spacing: 0.08em; color: {{o.selloColor}}">{{o.sello}}</span>
+              <sc-if value="{{o.miTurno}}" hint-placeholder-val="{{ true }}">
+                <span class="mono" style="font-size: 11px; letter-spacing: 0.08em; color: #cff245">TE TOCA RESPONDER</span>
+              </sc-if>
+            </div>
+
+            <div style="font-size: 17px; font-weight: 500">
+              {{o.rubro}}<span style="color: #8c939c"> · {{o.tipo}}</span>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #8c939c">
+              <span>Le comprás a {{o.contraparte}}</span>
+              <span class="mono" style="color: #838a94">{{o.desde}}</span>
+            </div>
+
+            <!-- Lo que la lista vieja no decía: qué falta ahora -->
+            <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 13px; color: {{o.faltaColor}}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{o.faltaColor}}" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+              </svg>
+              {{o.falta}}
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px">
+            <div style="text-align: right">
+              <div class="mono" style="font-size: 21px; font-weight: 700; color: #cff245">{{o.monto}}</div>
+              <div class="mono" style="margin-top: 4px; font-size: 12px; color: #838a94">{{o.neto}}</div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px">
+              <sc-for list="{{o.acciones}}" as="ac" hint-placeholder-count="2">
+                <div style="cursor: pointer; border-radius: 3px; border: 1px solid {{ac.borde}}; background: {{ac.fondo}}; padding: 8px 14px; font-size: 13px; font-weight: {{ac.peso}}; color: {{ac.color}}">{{ac.text}}</div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { etapa: 'todas' };
+  }
+
+  /* Solo compras: lo que la persona vende se administra desde Mis activos, y
+     ahí cada activo tiene sus propias ofertas. Mantener las dos cosas en una
+     misma lista era lo que la volvía ilegible. */
+  datos() {
+    return [
+      { etapa: 'negociando', sello: 'NEGOCIANDO',
+        rubro: 'Tecnología', tipo: 'Sitio web', contraparte: 'Esteban Vendedor',
+        desde: 'desde el 22 de agosto', monto: 'US$ 66.000', neto: 'pagarías US$ 69.300',
+        miTurno: true, falta: 'Contraofertaron: aceptá o respondé', urgente: true,
+        acciones: [['Responder', true], ['Ver el activo', false]] },
+      { etapa: 'en-curso', sello: 'EN CUSTODIA',
+        rubro: 'Gaming', tipo: 'Canal de YouTube', contraparte: 'Lucía Ferreyra',
+        desde: 'desde el 12 de agosto', monto: 'US$ 9.500', neto: 'pagás US$ 9.975',
+        miTurno: true, falta: 'Verificamos el activo. Corresponde pagar', urgente: true,
+        acciones: [['Pagar', true], ['Ver el activo', false]] },
+      { etapa: 'en-curso', sello: 'CONTRATO FIRMADO',
+        rubro: 'Finanzas', tipo: 'Canal de YouTube', contraparte: 'Lucía Ferreyra',
+        desde: 'desde el 3 de agosto', monto: 'US$ 105.000', neto: 'pagarías US$ 110.250',
+        miTurno: false, falta: 'El vendedor nos está cediendo el canal', urgente: false,
+        acciones: [['Ver el contrato', false]] },
+      { etapa: 'cerradas', sello: 'COMPLETADA',
+        rubro: 'Cocina y gastronomía', tipo: 'Canal de YouTube', contraparte: 'Lucía Ferreyra',
+        desde: 'cerrada el 2 de julio', monto: 'US$ 29.000', neto: 'pagaste US$ 30.450',
+        miTurno: false, falta: 'El canal ya es tuyo', urgente: false,
+        acciones: [['Ver el legajo', false]] },
+    ];
+  }
+
+  renderVals() {
+    const todas = this.datos();
+    const sel = this.state.etapa;
+
+    const eta = [
+      { id: 'todas', text: 'Todas', match: () => true },
+      { id: 'negociando', text: 'En negociación', match: (o) => o.etapa === 'negociando' },
+      { id: 'en-curso', text: 'En curso', match: (o) => o.etapa === 'en-curso' },
+      { id: 'cerradas', text: 'Cerradas', match: (o) => o.etapa === 'cerradas' },
+    ];
+
+    const colorSello = (e) => {
+      if (e === 'cerradas') return ['#8c939c', '#2a2e35'];
+      if (e === 'en-curso') return ['#5eead4', 'rgba(94,234,212,0.5)'];
+      return ['#e8a33d', 'rgba(232,163,61,0.5)'];
+    };
+
+    return {
+      etapas: eta.map((g) => ({
+        text: g.text,
+        cuenta: todas.filter(g.match).length,
+        borde: sel === g.id ? '#cff245' : '#2a2e35',
+        color: sel === g.id ? '#cff245' : '#8c939c',
+        elegir: () => this.setState({ etapa: g.id }),
+      })),
+
+      operaciones: todas.filter(eta.find((g) => g.id === sel).match).map((o) => {
+        const [selloColor, selloBorde] = colorSello(o.etapa);
+        return {
+          ...o,
+          selloColor,
+          selloBorde,
+          borde: o.miTurno ? 'rgba(207,242,69,0.3)' : '#1e2126',
+          faltaColor: o.urgente ? '#cff245' : '#838a94',
+          acciones: o.acciones.map(([text, primaria]) => ({
+            text,
+            fondo: primaria ? '#cff245' : 'transparent',
+            borde: primaria ? '#cff245' : '#2a2e35',
+            color: primaria ? '#0b0c0e' : '#e8e9ea',
+            peso: primaria ? '700' : '400',
+          })),
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

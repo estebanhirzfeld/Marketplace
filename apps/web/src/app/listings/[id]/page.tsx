@@ -1,18 +1,28 @@
 import { notFound } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import type { ListingDetailDto } from '@marketplace/api-contract';
+import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
-import { actorActual } from '@/lib/sesion';
-import { Revelar } from '@/components/Revelar';
-import { PanelNda } from '@/components/PanelNda';
-import { FormularioOferta } from '@/components/FormularioOferta';
-import { BotonEnlace, EstadoOperacion, Panel } from '@/components/ui';
-import { Candado } from '@/components/Candado';
-import { monto, numero, porcentaje } from '@/lib/formato';
-import { firmarNda, ofertar } from './acciones';
+import { currentActor } from '@/lib/session';
+import { Reveal } from '@/components/Reveal';
+import { NdaPanel } from '@/components/NdaPanel';
+import { TransferStatus } from '@/components/Transferability';
+import { PlatformAccessForm } from '@/components/PlatformAccessForm';
+import { OfferForm } from '@/components/OfferForm';
+import { ButtonLink, Panel } from '@/components/ui';
+import { ListingStatusBadge } from '@/components/ListingStatusBadge';
+import { LockIcon } from '@/components/LockIcon';
+import { money, formatNumber, percentage } from '@/lib/format';
+import { signNda, makeOffer } from './actions';
+import { registerPlatformAccess, revokePlatformAccess } from '../../admin/actions';
 
 /** Nombres legibles para las claves crudas que devuelve la strategy. */
+/**
+ * Las claves son las de `assetData`, tal como las emite cada estrategia. Si
+ * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
+ */
 const ETIQUETAS: Record<string, string> = {
+    niche: 'Rubro',
     subscribers: 'Suscriptores',
     monthlyRevenueUsdCents: 'Ingreso mensual',
     currency: 'Moneda',
@@ -20,31 +30,26 @@ const ETIQUETAS: Record<string, string> = {
     isMonetized: 'Monetizado',
     audienceTopCountry: 'País principal de la audiencia',
     hasNoFaceContent: 'Contenido sin rostro',
+    channelUrl: 'Dirección del canal',
     domainAuthority: 'Autoridad de dominio',
-    followers: 'Seguidores',
-    engagementRate: 'Engagement',
-    platform: 'Plataforma',
-    channel_url: 'URL del canal',
-    channel_id: 'ID del canal',
-    raw_metrics: 'Métricas crudas',
-    has_strikes: 'Tiene strikes',
+    domain: 'Dominio',
 };
 
-function valorLegible(clave: string, valor: unknown): string {
-    if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
-    if (clave === 'monthlyRevenueUsdCents' && typeof valor === 'number') {
-        return monto({ cents: valor, currency: 'USD' });
+function readableValue(key: string, value: unknown): string {
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    if (key === 'monthlyRevenueUsdCents' && typeof value === 'number') {
+        return money({ cents: value, currency: 'USD' });
     }
-    if (clave === 'engagementRate' && typeof valor === 'number') return porcentaje(valor);
-    if (typeof valor === 'number') return numero(valor);
-    return String(valor);
+    if (key === 'engagementRate' && typeof value === 'number') return percentage(value);
+    if (typeof value === 'number') return formatNumber(value);
+    return String(value);
 }
 
 export default async function DetalleListing(props: { params: Promise<{ id: string }> }) {
     // En Next 16 `params` es una promesa: el acceso sincrónico se eliminó.
     const { id } = await props.params;
 
-    const actor = await actorActual();
+    const actor = await currentActor();
 
     let listing: ListingDetailDto;
     try {
@@ -54,18 +59,28 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
         throw e;
     }
 
-    const oculto = listing.hiddenFields.length > 0;
-    const camposVisibles = Object.entries(listing.assetData);
+    const hidden = listing.hiddenFields.length > 0;
+    // Solo un activo publicado admite ofertas. El dominio ya lo rechaza
+    // (`Solo se puede ofertar sobre activos publicados`), pero la pantalla lo
+    // ofrecía igual y la persona se enteraba recién al apretar.
+    const disponible = listing.status === 'published';
+    const visibleFields = Object.entries(listing.assetData);
 
     return (
         <div className="mx-auto max-w-[1400px] px-6 py-14 sm:px-12">
-            <Revelar>
+            <Reveal>
                 <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-3">
-                        <EstadoOperacion estado="offer_sent" />
-                        {oculto && (
+                        {/*
+                            Era `OperationStatusBadge state="offer_sent"` fijo: un
+                            estado de OPERACIÓN pintado sobre un ACTIVO, igual en el
+                            100 % de las publicaciones. No informaba nada y encima
+                            mentía sobre activos ya vendidos.
+                        */}
+                        <ListingStatusBadge state={listing.status} />
+                        {hidden && (
                             <span className="flex items-center gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 px-2.5 py-1">
-                                <Candado />
+                                <LockIcon />
                                 <span className="font-mono text-[10px] text-[var(--color-alerta)]">
                                     CONFIDENCIAL
                                 </span>
@@ -73,28 +88,28 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         )}
                     </div>
                     <h1 className="text-[32px] font-bold tracking-[-0.03em] sm:text-[40px]">
-                        {monto(listing.askingPrice)}
+                        {money(listing.askingPrice)}
                     </h1>
                     <p className="text-[15px] text-[var(--color-tenue)]">
                         Valuación estimada por nuestra fórmula:{' '}
                         <span className="font-mono text-[var(--color-tinta)]">
-                            {monto(listing.estimatedPrice)}
+                            {money(listing.estimatedPrice)}
                         </span>
                     </p>
                 </div>
-            </Revelar>
+            </Reveal>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
                 {/* Datos del activo */}
-                <Revelar>
-                    <Panel titulo="DATOS DEL ACTIVO">
+                <Reveal>
+                    <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                            {camposVisibles.map(([clave, valor]) => (
-                                <div key={clave} className="flex items-center justify-between py-3 text-[14px]">
+                            {visibleFields.map(([key, value]) => (
+                                <div key={key} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS[clave] ?? clave}
+                                        {ETIQUETAS[key] ?? key}
                                     </span>
-                                    <span className="font-mono">{valorLegible(clave, valor)}</span>
+                                    <span className="font-mono">{readableValue(key, value)}</span>
                                 </div>
                             ))}
 
@@ -106,7 +121,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                                         {ETIQUETAS[campo] ?? campo}
                                     </span>
                                     <span className="flex items-center gap-2">
-                                        <Candado tamano={12} color="var(--color-fantasma)" />
+                                        <LockIcon tamano={12} color="var(--color-fantasma)" />
                                         <span className="select-none font-mono text-[var(--color-fantasma)] blur-[3px]">
                                             ████████
                                         </span>
@@ -115,39 +130,92 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             ))}
                         </div>
                     </Panel>
-                </Revelar>
+                </Reveal>
 
                 {/* Acción */}
-                <Revelar retraso={100}>
+                <Reveal delay={100}>
                     <div className="flex flex-col gap-5">
-                        {oculto && (
-                            <PanelNda
-                                accion={firmarNda.bind(null, id)}
-                                camposOcultos={listing.hiddenFields.map((c) => ETIQUETAS[c] ?? c)}
-                                autenticado={Boolean(actor)}
+                        {hidden && (
+                            <NdaPanel
+                                action={signNda.bind(null, id)}
+                                hiddenFields={listing.hiddenFields.map((c) => ETIQUETAS[c] ?? c)}
+                                authenticated={Boolean(actor)}
                             />
                         )}
 
-                        <Panel titulo="HACER UNA OFERTA">
-                            {actor ? (
-                                <FormularioOferta
-                                    accion={ofertar.bind(null, id)}
-                                    precioPedido={Math.round(listing.askingPrice.cents / 100)}
+                        <TransferStatus
+                            transferable={listing.transferable}
+                            transferableFrom={listing.transferableFrom}
+                        />
+
+                        {actor?.role === UserRole.ADMIN && (
+                            <Panel title="ACCESO DE LA PLATAFORMA">
+                                <PlatformAccessForm
+                                    registerUser={registerPlatformAccess.bind(null, id)}
+                                    revocar={revokePlatformAccess.bind(null, id)}
+                                    transferable={listing.transferable}
+                                    transferableFrom={listing.transferableFrom}
                                 />
-                            ) : (
+                            </Panel>
+                        )}
+
+                        {/*
+                            El formulario se muestra solo a quien realmente puede
+                            ofertar. Antes aparecía siempre: el vendedor lo veía
+                            sobre su propio activo y la API le respondía que no,
+                            así que la pantalla ofrecía algo que el negocio
+                            prohíbe y la persona se enteraba recién al apretar.
+                        */}
+                        {listing.isOwnedByViewer ? (
+                            <Panel title="ESTE ACTIVO ES TUYO">
                                 <div className="flex flex-col gap-4">
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Necesitás una cuenta para ofertar. Crearla es gratis y no te
-                                        compromete a nada.
+                                        Así es como ven tu publicación los compradores. Las ofertas
+                                        que recibas te esperan en tu panel.
                                     </p>
-                                    <BotonEnlace href="/ingresar" className="w-full">
-                                        Ingresar para ofertar
-                                    </BotonEnlace>
+                                    <ButtonLink href={`/vender/${id}/ofertas`} className="w-full">
+                                        Ver las ofertas recibidas
+                                    </ButtonLink>
                                 </div>
-                            )}
-                        </Panel>
+                            </Panel>
+                        ) : actor?.role === UserRole.ADMIN ? (
+                            <Panel title="ESTÁS COMO PLATAFORMA">
+                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                    La plataforma no compra ni vende. Tu rol acá es verificar el
+                                    acceso al activo y su custodia, y por eso ves los datos
+                                    reservados sin firmar el acuerdo de confidencialidad.
+                                </p>
+                            </Panel>
+                        ) : !disponible ? (
+                            <Panel title="YA NO ESTÁ DISPONIBLE">
+                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                    {listing.status === 'sold'
+                                        ? 'Este activo ya se vendió. Lo dejamos visible para que las partes puedan volver a su operación.'
+                                        : 'Este activo tiene una operación en curso, así que no está recibiendo ofertas.'}
+                                </p>
+                            </Panel>
+                        ) : (
+                            <Panel title="HACER UNA OFERTA">
+                                {actor ? (
+                                    <OfferForm
+                                        action={makeOffer.bind(null, id)}
+                                        askingPrice={Math.round(listing.askingPrice.cents / 100)}
+                                    />
+                                ) : (
+                                    <div className="flex flex-col gap-4">
+                                        <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                            Necesitás una cuenta para ofertar. Crearla es gratis y no te
+                                            compromete a nada.
+                                        </p>
+                                        <ButtonLink href="/ingresar" className="w-full">
+                                            Ingresar para ofertar
+                                        </ButtonLink>
+                                    </div>
+                                )}
+                            </Panel>
+                        )}
                     </div>
-                </Revelar>
+                </Reveal>
             </div>
         </div>
     );

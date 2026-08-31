@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
-import { perfilActual } from '@/lib/perfil';
-import { actorActual } from '@/lib/sesion';
-import { Revelar } from '@/components/Revelar';
-import { FormularioVerificacion } from '@/components/FormularioVerificacion';
-import { BotonEnlace, Panel, Titulo } from '@/components/ui';
-import { verificar } from './acciones';
+import { currentProfile } from '@/lib/profile';
+import { currentActor } from '@/lib/session';
+import { Reveal } from '@/components/Reveal';
+import { IdentityVerificationForm } from '@/components/IdentityVerificationForm';
+import { ButtonLink, Panel, Heading } from '@/components/ui';
+import { verifyIdentityAction } from './actions';
 
 export const metadata = { title: 'Verificar identidad · Traspaso' };
 
@@ -15,41 +15,41 @@ const REQUIERE_KYC = [
 ];
 
 export default async function Verificar() {
-    if (!(await actorActual())) redirect('/ingresar');
+    if (!(await currentActor())) redirect('/ingresar');
 
-    const perfil = await perfilActual();
+    const perfil = await currentProfile();
 
     return (
         <div className="mx-auto max-w-[900px] px-6 py-16 sm:px-12">
-            <Revelar>
-                <Titulo sub="Verificamos tu identidad una sola vez. Después podés publicar y firmar sin volver a hacerlo.">
+            <Reveal>
+                <Heading sub="Verificamos tu identidad una sola vez. Después podés publicar y firmar sin volver a hacerlo.">
                     Verificar identidad
-                </Titulo>
-            </Revelar>
+                </Heading>
+            </Reveal>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr]">
-                <Revelar>
-                    <Panel titulo={perfil?.isKycVerified ? 'IDENTIDAD VERIFICADA' : 'TUS DATOS'}>
+                <Reveal>
+                    <Panel title={perfil?.isKycVerified ? 'IDENTIDAD VERIFICADA' : 'TUS DATOS'}>
                         {perfil?.isKycVerified ? (
                             <div className="flex flex-col gap-4">
                                 <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
                                     Tu identidad ya está verificada con el documento{' '}
                                     <span className="font-mono text-[var(--color-tinta)]">{perfil.dni}</span>.
-                                    Podés publicar activos y firmar contratos.
+                                    Ya podés publicar activos y firmar contratos.
                                 </p>
                                 <div className="flex flex-wrap gap-3">
-                                    <BotonEnlace href="/vender">Publicar un activo</BotonEnlace>
-                                    <BotonEnlace href="/listings" variante="secundario">Ver el mercado</BotonEnlace>
+                                    <ButtonLink href="/vender">Publicar un activo</ButtonLink>
+                                    <ButtonLink href="/listings" variant="secundario">Ver el mercado</ButtonLink>
                                 </div>
                             </div>
                         ) : (
-                            <FormularioVerificacion accion={verificar} />
+                            <IdentityVerificationForm action={verifyIdentityAction} />
                         )}
                     </Panel>
-                </Revelar>
+                </Reveal>
 
-                <Revelar retraso={100}>
-                    <Panel titulo="PARA QUÉ SIRVE">
+                <Reveal delay={100}>
+                    <Panel title="PARA QUÉ SIRVE">
                         <div className="flex flex-col gap-5">
                             <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
                                 Acá se mueven activos de miles de dólares entre desconocidos. Antes
@@ -79,7 +79,7 @@ export default async function Verificar() {
                             </div>
                         </div>
                     </Panel>
-                </Revelar>
+                </Reveal>
             </div>
         </div>
     );

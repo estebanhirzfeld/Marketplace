@@ -2,12 +2,16 @@
 
 import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
-import { AssetType } from '@marketplace/shared-types';
+import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 export class WebStrategy implements IAssetStrategy {
     constructor(
         private readonly monthlyRevenueUsd: Money,
-        private readonly domainAuthority: number
+        private readonly domainAuthority: number,
+        /** El dominio identifica al activo: es lo único reservado. */
+        private readonly domain: string = '',
+        /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
+        private readonly niche: string = AssetNiche.OTHER
     ) { }
 
     public calculateEstimatedPrice(): Money {
@@ -37,20 +41,27 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['niche', 'monthly_sessions', 'monthly_revenue_usd', 'domain_authority', 'monetization_type', 'cms'];
+        return ['niche', 'monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
+    }
+
+    /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
+    public transferWaitingDays(): number {
+        return 0;
     }
 
     public getConfidentialFields(): string[] {
-        return ['domain', 'raw_metrics', 'organic_traffic_pct'];
+        return ['domain'];
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
         return {
             assetType: AssetType.WEB,
             assetData: {
+                niche: this.niche,
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
                 domainAuthority: this.domainAuthority,
+                domain: this.domain,
             }
         };
     }

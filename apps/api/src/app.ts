@@ -4,6 +4,8 @@ import { Container, createContainer } from './container';
 import { registerErrorHandler } from './http/errorHandler';
 import { registerAuthRoutes } from './routes/auth';
 import { registerListingRoutes } from './routes/listings';
+import { registerWebhookRoutes } from './routes/webhooks';
+import { registerReportRoutes } from './routes/reports';
 import { registerOperationRoutes } from './routes/operations';
 import { registerContractRoutes } from './routes/contracts';
 import { registerMeRoutes } from './routes/me';
@@ -34,6 +36,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     registerAuthRoutes(app, container);
     registerListingRoutes(app, container);
     registerOperationRoutes(app, container);
+    registerReportRoutes(app, container);
+    registerWebhookRoutes(app, container);
     registerContractRoutes(app, container);
     registerMeRoutes(app, container);
 

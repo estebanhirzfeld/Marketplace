@@ -230,7 +230,7 @@ A diferencia de `Email`, `Password` **no** hace `trim()` ni `toLowerCase()`: en 
 - **Mismo mensaje para "email inexistente" y "contraseña incorrecta".** Distinguirlos permitiría enumerar qué emails están registrados probando el login. Hay un test que lo fija comparando ambos mensajes.
 - **12 rondas de bcrypt.** Cada ronda adicional duplica el trabajo; es el equilibrio habitual entre resistencia a fuerza bruta y latencia de login.
 - **`bcryptjs` en lugar de `bcrypt`**: JavaScript puro, sin compilación de binarios nativos en el monorepo. Es más lento, lo que en un hasher no es un defecto.
-- Los usuarios del seed comparten la contraseña `marketplace1`, con el hash precomputado para no meter bcrypt como dependencia de `packages/db`.
+- La contraseña de cada usuario del seed es su propio correo, así que quien prueba la aplicación la lee en la misma pantalla de ingreso. El seed las hashea al sembrar con las mismas doce rondas que usa la API.
 
 ### Bloque C — Pertenencia y KYC en las entidades ✅
 

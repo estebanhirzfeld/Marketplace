@@ -1,5 +1,5 @@
 import { MarketplaceClient } from '@marketplace/api-client';
-import { leerSesion } from './sesion';
+import { readSession } from './session';
 
 const BASE = process.env.API_URL ?? 'http://localhost:3001';
 
@@ -12,11 +12,11 @@ const BASE = process.env.API_URL ?? 'http://localhost:3001';
 export function api(): MarketplaceClient {
     return new MarketplaceClient({
         baseUrl: BASE,
-        getToken: async () => (await leerSesion())?.token,
+        getToken: async () => (await readSession())?.token,
     });
 }
 
 /** Para rutas públicas donde no queremos arrastrar la sesión. */
-export function apiAnonima(): MarketplaceClient {
+export function anonymousApi(): MarketplaceClient {
     return new MarketplaceClient({ baseUrl: BASE });
 }

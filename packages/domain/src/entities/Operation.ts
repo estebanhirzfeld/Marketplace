@@ -25,6 +25,59 @@ export interface Negotiation {
 
 const COMMISSION_RATE = 5; // 5% a cada parte
 
+
+/**
+ * Constancia de qué verificó la plataforma al tomar el activo en custodia.
+ *
+ * Antes de esto, confirmar custodia era un botón sin registro: nadie podía
+ * responder qué se había comprobado ni quién lo hizo. Es el paso en el que la
+ * plataforma asume el riesgo, así que es el que más necesita constancia.
+ */
+export interface CustodyVerification {
+    verifiedBy: UniqueEntityID;
+    verifiedAt: Date;
+    /**
+     * Si la plataforma quedó como propietaria principal del activo.
+     *
+     * YouTube exige haber sido propietario 7 días antes de poder volverse
+     * principal. Hasta que eso ocurre, el vendedor conserva la facultad de
+     * expulsar a la plataforma y la custodia no es efectiva.
+     */
+    isPrimaryOwner: boolean;
+    /** Emails de recuperación, segundo factor y demás accesos bajo control. */
+    accessSecured: boolean;
+    /** Foto de las métricas al momento de la recepción. */
+    metrics: Record<string, number>;
+    notes?: string;
+}
+
+/** Lo que aporta quien verifica; la fecha la pone la entidad. */
+export type CustodyVerificationInput = Omit<CustodyVerification, 'verifiedAt'>;
+
+/** De dónde entró la plata. */
+export type PaymentProvider = 'mercadopago' | 'transferencia';
+
+/**
+ * Constancia del pago del comprador.
+ *
+ * Confirmar el pago era un botón sin registro de por dónde había entrado la
+ * plata. Guardar el identificador externo permite reconciliar contra la
+ * pasarela más adelante, y es la evidencia que se presenta ante un contracargo
+ * junto con la constancia de custodia: prueba que el activo ya estaba en manos
+ * de la plataforma cuando se cobró.
+ */
+export interface PaymentRecord {
+    provider: PaymentProvider;
+    /** El id del pago en la pasarela. Ausente en una transferencia manual. */
+    externalId?: string;
+    method: string;
+    amountCents: number;
+    currency: string;
+    confirmedAt: Date;
+}
+
+export type PaymentInput = Omit<PaymentRecord, 'confirmedAt'>;
+
 export interface OperationProps {
     listingId: UniqueEntityID;
     buyerId: UniqueEntityID;
@@ -38,6 +91,8 @@ export interface OperationProps {
     buyerPays?: Money;
     sellerReceives?: Money;
     platformEarns?: Money;
+    custodyVerification?: CustodyVerification;
+    payment?: PaymentRecord;
     completedAt?: Date;
 }
 
@@ -91,7 +146,28 @@ export class Operation extends Entity<OperationProps> {
         this.props.platformEarns = this.props.buyerCommission.add(this.props.sellerCommission);
     }
 
+
     // ── Getters ──────────────────────────────────────────────
+
+    public get listingId(): UniqueEntityID {
+        return this.props.listingId;
+    }
+
+    /**
+     * Si esta operación sigue abierta.
+     *
+     * Cancelada o completada, deja de ocupar lugar: el comprador puede volver a
+     * ofertar sobre el mismo activo. Mientras esté viva, no — para eso está la
+     * contraoferta.
+     */
+    public isLive(): boolean {
+        return this.props.status !== 'cancelled' && this.props.status !== 'completed';
+    }
+
+    /** Si este usuario es el comprador de esta operación. */
+    public hasBuyer(userId: string): boolean {
+        return this.props.buyerId.toString() === userId;
+    }
 
     public get status(): OperationStatus {
         return this.props.status;
@@ -116,6 +192,7 @@ export class Operation extends Entity<OperationProps> {
     public get sellerReceives(): Money | undefined {
         return this.props.sellerReceives;
     }
+
 
     public get platformEarns(): Money | undefined {
         return this.props.platformEarns;
@@ -158,7 +235,7 @@ export class Operation extends Entity<OperationProps> {
     /** Para los pasos que solo le corresponden a quien entrega el activo. */
     public assertIsSeller(actorId: string): void {
         if (this.partyFor(actorId) !== 'seller') {
-            throw new ForbiddenError('Solo el seller de la operación puede hacer esto.');
+            throw new ForbiddenError('Solo el vendedor de la operación puede hacer esto.');
         }
     }
 
@@ -227,17 +304,25 @@ export class Operation extends Entity<OperationProps> {
      * el historial anterior intacto.
      */
     private assertConverge(price: Money, by: NegotiatingParty): void {
+        const enLaMesa = this.props.negotiations[this.props.negotiations.length - 1];
+
+        if (enLaMesa.currency !== price.getCurrency()) {
+            throw new ValidationError(
+                `La contraoferta debe estar en ${enLaMesa.currency}, la moneda de la negociación.`
+            );
+        }
+
         const propiaAnterior = [...this.props.negotiations]
             .reverse()
             .find((n) => n.proposedBy === by);
 
-        // La primera propuesta de cada parte no tiene con qué compararse.
-        if (!propiaAnterior) return;
-
-        if (propiaAnterior.currency !== price.getCurrency()) {
-            throw new ValidationError(
-                `La contraoferta debe estar en ${propiaAnterior.currency}, la moneda de la negociación.`
-            );
+        // Sin propuesta propia anterior —el caso del vendedor que responde por
+        // primera vez— la referencia es lo que hay sobre la mesa. Si no se
+        // aparta de ese monto, no está contraofertando: está aceptando, y
+        // aceptar tiene su propia acción.
+        if (!propiaAnterior) {
+            this.assertSeApartaDeLaMesa(price, Money.fromCents(enLaMesa.amount, enLaMesa.currency), by);
+            return;
         }
 
         const anterior = Money.fromCents(propiaAnterior.amount, propiaAnterior.currency);
@@ -251,6 +336,30 @@ export class Operation extends Entity<OperationProps> {
         if (by === 'seller' && !anterior.isGreaterThan(price)) {
             throw new InvalidStateError(
                 'Una contraoferta del vendedor tiene que ser menor que su propuesta anterior.'
+            );
+        }
+    }
+
+    /**
+     * La primera respuesta de una parte tiene que pedir algo distinto de lo que
+     * le ofrecieron: el vendedor por encima, el comprador por debajo.
+     *
+     * Igualar el monto de la contraparte dejaba la negociación en un estado sin
+     * sentido —dos propuestas idénticas enfrentadas— y desplazaba el turno sin
+     * que nada avanzara.
+     */
+    private assertSeApartaDeLaMesa(price: Money, enLaMesa: Money, by: NegotiatingParty): void {
+        if (by === 'seller' && !price.isGreaterThan(enLaMesa)) {
+            throw new InvalidStateError(
+                'Tu contraoferta tiene que ser mayor que la oferta del comprador. ' +
+                'Si el monto te convence, aceptá la oferta en vez de contraofertarla.'
+            );
+        }
+
+        if (by === 'buyer' && !enLaMesa.isGreaterThan(price)) {
+            throw new InvalidStateError(
+                'Tu contraoferta tiene que ser menor que lo que pide el vendedor. ' +
+                'Si el monto te convence, aceptá la oferta en vez de contraofertarla.'
             );
         }
     }
@@ -271,17 +380,77 @@ export class Operation extends Entity<OperationProps> {
         this.props.status = 'transfer_in_progress';
     }
 
-    public confirmAssetCustody(): void {
+    /**
+     * La plataforma declara haber recibido el activo.
+     *
+     * Exige la constancia de qué se verificó. Sin propiedad principal ni
+     * accesos asegurados no se puede declarar la custodia: pedirle el pago al
+     * comprador mientras el vendedor todavía puede revertir la transferencia
+     * lo expondría al riesgo exacto que el escrow existe para eliminar.
+     */
+    public confirmAssetCustody(data: CustodyVerificationInput): void {
         if (this.props.status !== 'transfer_in_progress') {
             throw new InvalidStateError('No hay transferencia en curso');
         }
+
+        if (!data.verifiedBy) {
+            throw new ValidationError('Falta registrar quién verificó la custodia.');
+        }
+
+        if (!data.isPrimaryOwner) {
+            throw new InvalidStateError(
+                'La plataforma todavía no es propietaria principal del activo: la custodia no es efectiva y el vendedor aún puede revertirla.'
+            );
+        }
+
+        if (!data.accessSecured) {
+            throw new InvalidStateError(
+                'Faltan asegurar los accesos del activo (correos de recuperación y segundo factor).'
+            );
+        }
+
+        this.props.custodyVerification = { ...data, verifiedAt: new Date() };
         this.props.status = 'asset_in_custody';
     }
 
-    public confirmBuyerPayment(): void {
+    public get payment(): PaymentRecord | undefined {
+        return this.props.payment;
+    }
+
+    public get custodyVerification(): CustodyVerification | undefined {
+        return this.props.custodyVerification;
+    }
+
+    /**
+     * Confirma el pago del comprador con la constancia de por dónde entró.
+     *
+     * El monto tiene que coincidir exactamente con lo que el comprador debía.
+     * Un pago por menos no cierra la obligación y aceptarlo dejaría a la
+     * plataforma entregando un activo que no terminó de cobrar; uno por más es
+     * señal de que ese pago no corresponde a esta operación.
+     */
+    public confirmBuyerPayment(datos: PaymentInput): void {
         if (this.props.status !== 'asset_in_custody') {
             throw new InvalidStateError('El activo debe estar en custodia de la plataforma antes del pago');
         }
+        if (!this.props.buyerPays) {
+            throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
+        }
+        if (datos.provider !== 'transferencia' && !datos.externalId) {
+            throw new ValidationError('Falta el identificador del pago en la pasarela.');
+        }
+        if (datos.currency !== this.props.buyerPays.getCurrency()) {
+            throw new ValidationError(
+                `El pago llegó en ${datos.currency} y la operación es en ${this.props.buyerPays.getCurrency()}.`,
+            );
+        }
+        if (datos.amountCents !== this.props.buyerPays.getCents()) {
+            throw new ValidationError(
+                'El monto pagado no coincide con el total de la operación.',
+            );
+        }
+
+        this.props.payment = { ...datos, confirmedAt: new Date() };
         this.props.status = 'payment_received';
     }
 
@@ -292,6 +461,7 @@ export class Operation extends Entity<OperationProps> {
         this.props.status = 'completed';
         this.props.completedAt = new Date();
     }
+
 
     public cancel(): void {
         const cancellableStates: OperationStatus[] = [

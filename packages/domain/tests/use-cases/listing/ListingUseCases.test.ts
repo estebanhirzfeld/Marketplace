@@ -107,7 +107,6 @@ describe('CreateListingUseCase', () => {
         const result = await useCase.execute({
             ...createTestStrategy().toJSON(),
             askingPrice: { cents: 1000000, currency: 'USD' },
-            isBlind: true,
         }, actorDe(seller.id));
 
         expect(result.status).toBe('draft');
@@ -124,8 +123,7 @@ describe('CreateListingUseCase', () => {
         await expect(useCase.execute({
             ...createTestStrategy().toJSON(),
             askingPrice: { cents: 1000000, currency: 'USD' },
-            isBlind: true,
-        }, actorDe('nonexistent-id'))).rejects.toThrow('Seller no encontrado');
+        }, actorDe('nonexistent-id'))).rejects.toThrow('Vendedor no encontrado');
 
         expect(listingRepo.save).not.toHaveBeenCalled();
     });
@@ -142,7 +140,6 @@ describe('SubmitListingForReviewUseCase', () => {
             sellerId,
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
 
         const listingRepo = createMockListingRepo({
@@ -164,7 +161,7 @@ describe('SubmitListingForReviewUseCase', () => {
         const useCase = new SubmitListingForReviewUseCase(listingRepo, createMockUserRepo());
 
         await expect(useCase.execute('nonexistent', actorDe(new UniqueEntityID())))
-            .rejects.toThrow('Listing no encontrado');
+            .rejects.toThrow('Activo no encontrado');
     });
 
     it('debería rechazar a quien no es dueño del listing', async () => {
@@ -172,7 +169,6 @@ describe('SubmitListingForReviewUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
 
         const useCase = new SubmitListingForReviewUseCase(
@@ -190,7 +186,6 @@ describe('SubmitListingForReviewUseCase', () => {
             sellerId,
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
         const sinKyc = User.create({
             email: Email.create('sinkyc@test.com'),
@@ -219,7 +214,6 @@ describe('ApproveListingUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
         listing.submitForReview();
 
@@ -239,7 +233,6 @@ describe('ApproveListingUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         }); // status = draft
 
         const listingRepo = createMockListingRepo({
@@ -248,7 +241,7 @@ describe('ApproveListingUseCase', () => {
 
         const useCase = new ApproveListingUseCase(listingRepo);
         await expect(useCase.execute(listing.id.toString(), ADMIN))
-            .rejects.toThrow('El listing debe estar en revisión para ser aprobado');
+            .rejects.toThrow('El activo debe estar en revisión para ser aprobado');
     });
 });
 
@@ -262,7 +255,6 @@ describe('RejectListingUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
         listing.submitForReview();
 
@@ -282,7 +274,6 @@ describe('RejectListingUseCase', () => {
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind: true,
         });
         listing.submitForReview();
 
@@ -301,20 +292,23 @@ describe('RejectListingUseCase', () => {
 // ═════════════════════════════════════════════════════════
 
 describe('GetListingDetailsUseCase', () => {
-    const createPublishedListing = (isBlind: boolean) => {
+    const createPublishedListing = () => {
         const listing = Listing.create({
             sellerId: new UniqueEntityID(),
             assetStrategy: createTestStrategy(),
             askingPrice: Money.fromCents(1000000, 'USD'),
-            isBlind,
         });
         listing.submitForReview();
         listing.approve();
         return listing;
     };
 
-    it('debería devolver todos los datos si el listing NO es blind', async () => {
-        const listing = createPublishedListing(false);
+    /**
+     * Todo activo está blindado. A quien mira sin sesión le llegan las métricas
+     * —con eso se evalúa— y nunca la identidad del activo.
+     */
+    it('debería devolver las métricas y reservar la identidad a quien no firmó', async () => {
+        const listing = createPublishedListing();
 
         const listingRepo = createMockListingRepo({
             findById: vi.fn().mockResolvedValue(listing),
@@ -324,13 +318,14 @@ describe('GetListingDetailsUseCase', () => {
         const useCase = new GetListingDetailsUseCase(listingRepo, contractRepo);
         const result = await useCase.execute(listing.id.toString());
 
-        expect(result.hiddenFields).toHaveLength(0);
         expect(result.assetData.subscribers).toBe(10000);
         expect(result.assetData.monthlyRevenueUsdCents).toBeDefined();
+        expect(result.assetData).not.toHaveProperty('channelUrl');
+        expect(result.hiddenFields).toContain('channelUrl');
     });
 
     it('debería ocultar campos confidenciales si es blind y NO hay NDA', async () => {
-        const listing = createPublishedListing(true);
+        const listing = createPublishedListing();
 
         const listingRepo = createMockListingRepo({
             findById: vi.fn().mockResolvedValue(listing),
@@ -348,11 +343,12 @@ describe('GetListingDetailsUseCase', () => {
     });
 
     it('debería mostrar todos los datos si es blind PERO hay NDA firmado', async () => {
-        const listing = createPublishedListing(true);
+        const listing = createPublishedListing();
         const buyerId = new UniqueEntityID();
 
         // Crear un NDA completamente firmado
         const nda = Contract.createBuyerNda(listing.id, buyerId);
+        nda.attachDocument('a'.repeat(64));
         nda.sign('buyer', '127.0.0.1');
         nda.signAsPlatform();
 
@@ -372,7 +368,7 @@ describe('GetListingDetailsUseCase', () => {
     });
 
     it('debería ocultar datos si es blind y no se provee requesterId', async () => {
-        const listing = createPublishedListing(true);
+        const listing = createPublishedListing();
 
         const listingRepo = createMockListingRepo({
             findById: vi.fn().mockResolvedValue(listing),
@@ -386,11 +382,12 @@ describe('GetListingDetailsUseCase', () => {
     });
 
     it('debería ocultar datos si el NDA existe pero NO está completamente firmado', async () => {
-        const listing = createPublishedListing(true);
+        const listing = createPublishedListing();
         const buyerId = new UniqueEntityID();
 
         // NDA firmado solo por buyer, falta platform
         const nda = Contract.createBuyerNda(listing.id, buyerId);
+        nda.attachDocument('a'.repeat(64));
         nda.sign('buyer', '127.0.0.1');
 
         const listingRepo = createMockListingRepo({
