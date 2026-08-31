@@ -32,6 +32,11 @@ import {
     YouTubeOAuthOwnershipReader,
 } from './adapters/GoogleOwnershipReaders';
 import {
+    SimulatedAdSenseReader,
+    SimulatedYouTubeChannelReader,
+    SimulatedYouTubeOwnershipReader,
+} from './adapters/SimulatedGoogleReaders';
+import {
     VerifyChannelOwnershipUseCase,
     VerifyWebsiteRevenueUseCase,
 } from '@marketplace/domain/src/use-cases/listing/VerifyOwnershipUseCases';
@@ -110,6 +115,8 @@ export interface Container {
      * todavía no está dada de alta.
      */
     googleOAuth?: GoogleOAuthClient;
+    /** Si las respuestas de Google están simuladas. La interfaz lo muestra. */
+    simulacionDeGoogle: boolean;
     verifyChannelOwnership?: VerifyChannelOwnershipUseCase;
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
@@ -151,6 +158,22 @@ export function createContainer(
     hasher: IPasswordHasher = new BcryptPasswordHasher(),
 ): Container {
     const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
+
+    /*
+     * Verificaciones simuladas, para recorrer el flujo sin credenciales de
+     * Google. Se enciende de forma explícita y con nada más: no alcanza con
+     * que falte una clave. Una constancia de titularidad falsa que llegara a
+     * producción por una variable olvidada sería peor que no tener
+     * verificación — es una atestiguación que miente y la firma la plataforma.
+     */
+    const simularGoogle = process.env.SIMULATE_GOOGLE_VERIFICATION?.trim() === 'true';
+    if (simularGoogle) {
+        console.warn(
+            '\n  ⚠️  VERIFICACIONES DE GOOGLE SIMULADAS\n' +
+            '      Las constancias de titularidad e ingreso no comprueban nada:\n' +
+            '      confirman lo que el vendedor declaró. Solo para desarrollo.\n',
+        );
+    }
 
     const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
     const mercadoPago = mpToken
@@ -203,24 +226,34 @@ export function createContainer(
         submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
-        verifyChannelMetrics: youtubeApiKey
-            ? new VerifyChannelMetricsUseCase(listingRepo, new YouTubeApiChannelReader(youtubeApiKey))
-            : undefined,
+        simulacionDeGoogle: simularGoogle,
+        verifyChannelMetrics: simularGoogle
+            ? new VerifyChannelMetricsUseCase(listingRepo, new SimulatedYouTubeChannelReader())
+            : youtubeApiKey
+              ? new VerifyChannelMetricsUseCase(listingRepo, new YouTubeApiChannelReader(youtubeApiKey))
+              : undefined,
         googleOAuth,
         // La verificación de titularidad necesita las dos cosas: el
         // consentimiento para preguntar qué controla el vendedor, y la clave
         // para resolver el canal publicado a su identificador.
-        verifyChannelOwnership:
-            googleOAuth && youtubeApiKey
-                ? new VerifyChannelOwnershipUseCase(
-                      listingRepo,
-                      new YouTubeOAuthOwnershipReader(googleOAuth),
-                      new YouTubeApiChannelReader(youtubeApiKey),
-                  )
-                : undefined,
-        verifyWebsiteRevenue: googleOAuth
-            ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
-            : undefined,
+        verifyChannelOwnership: simularGoogle
+            ? new VerifyChannelOwnershipUseCase(
+                  listingRepo,
+                  new SimulatedYouTubeOwnershipReader(listingRepo),
+                  new SimulatedYouTubeChannelReader(),
+              )
+            : googleOAuth && youtubeApiKey
+              ? new VerifyChannelOwnershipUseCase(
+                    listingRepo,
+                    new YouTubeOAuthOwnershipReader(googleOAuth),
+                    new YouTubeApiChannelReader(youtubeApiKey),
+                )
+              : undefined,
+        verifyWebsiteRevenue: simularGoogle
+            ? new VerifyWebsiteRevenueUseCase(listingRepo, new SimulatedAdSenseReader(listingRepo))
+            : googleOAuth
+              ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
+              : undefined,
         registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo),
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),

@@ -34,6 +34,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     registerErrorHandler(app);
 
     registerAuthRoutes(app, container);
+    /*
+     * Qué modo está corriendo la API. Es público a propósito: cuando las
+     * verificaciones están simuladas, la interfaz tiene que poder decirlo en
+     * pantalla. Una constancia que no comprobó nada no puede parecerse a una
+     * que sí, y esconder el modo sería justamente eso.
+     */
+    app.get('/config', async () => ({
+        simulatedVerification: container.simulacionDeGoogle,
+    }));
+
     registerListingRoutes(app, container);
     registerOperationRoutes(app, container);
     registerReportRoutes(app, container);

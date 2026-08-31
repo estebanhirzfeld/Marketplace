@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
+import { simulatedGrantFor } from '../adapters/SimulatedGoogleReaders';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
 import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import { ASSET_NICHES } from '@marketplace/shared-types';
@@ -150,6 +151,23 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         '/listings/:id/autorizacion/:fuente',
         { preHandler: [authenticate] },
         async (request, reply) => {
+            const { id, fuente } = request.params;
+
+            /*
+             * Con la simulación encendida no hay a dónde mandar al vendedor:
+             * se vuelve derecho al callback con un permiso reconocible, que es
+             * el único que los lectores simulados aceptan. El recorrido de la
+             * pantalla queda idéntico —salir, volver, ver el resultado— sin
+             * depender de que Google esté dado de alta.
+             */
+            if (c.simulacionDeGoogle) {
+                const app = process.env.APP_URL?.trim() ?? 'http://localhost:3000';
+                const destino = new URL('/api/youtube/callback', app);
+                destino.searchParams.set('code', simulatedGrantFor(id));
+                destino.searchParams.set('state', `${fuente}:${id}`);
+                return reply.send({ url: destino.toString() });
+            }
+
             if (!c.googleOAuth) {
                 return reply.code(503).send({
                     code: 'INTERNAL',
@@ -157,7 +175,6 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                 } as never);
             }
 
-            const { id, fuente } = request.params;
             const scope = fuente === 'adsense' ? SCOPE_ADSENSE : SCOPE_YOUTUBE;
 
             return reply.send({

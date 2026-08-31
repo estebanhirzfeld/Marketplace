@@ -85,6 +85,11 @@ export class MarketplaceClient {
         return this.request('GET', '/me');
     }
 
+    /** En qué modo corre la API. Anónimo: no depende de la sesión. */
+    async config(): Promise<{ simulatedVerification: boolean }> {
+        return this.request('GET', '/config', { anonimo: true });
+    }
+
     verifyIdentity(body: VerifyIdentityRequest): Promise<MyProfileDto> {
         return this.request('POST', '/me/kyc', { body });
     }

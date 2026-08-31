@@ -64,6 +64,15 @@ export default async function DetalleDeActivo(props: {
         offers = [];
     }
 
+    // Si las respuestas de Google están simuladas hay que decirlo donde se ven
+    // las constancias. Una que no comprobó nada no puede parecerse a una que sí.
+    let simulado = false;
+    try {
+        simulado = (await api().config()).simulatedVerification;
+    } catch {
+        simulado = false;
+    }
+
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
 
@@ -236,6 +245,13 @@ export default async function DetalleDeActivo(props: {
             {/* ── VERIFICACIONES ────────────────────────────────── */}
             {pestana === 'verificaciones' && (
                 <Reveal>
+                    {simulado && (
+                        <div className="mt-6 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[14px] leading-relaxed text-[var(--color-alerta)]">
+                            Las verificaciones están <strong>simuladas</strong> en este entorno: no
+                            se consulta a Google. Lo que figure como comprobado repite lo que
+                            declaró el vendedor.
+                        </div>
+                    )}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                         <Panel title="TITULARIDAD">
                             {mio.ownership ? (
