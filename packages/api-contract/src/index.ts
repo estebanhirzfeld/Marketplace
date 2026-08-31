@@ -156,6 +156,12 @@ export interface ListingDetailDto {
     assetData: Record<string, unknown>;
     /** Qué campos quedaron ocultos, para que la UI sepa qué difuminar. */
     hiddenFields: string[];
+    /**
+     * Si quien pide el detalle es el vendedor del activo. Viaja como booleano y
+     * no como `sellerId` porque exponer el identificador dejaría correlacionar
+     * las publicaciones de un mismo vendedor, que es lo que el blindaje evita.
+     */
+    isOwnedByViewer: boolean;
     /** Presente desde que el vendedor demostró controlar el activo. */
     ownership?: OwnershipVerificationDto;
     /**
@@ -185,8 +191,25 @@ export type ListingSortDto = 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirectionDto = 'asc' | 'desc';
 
+/**
+ * Lo que hace falta para valuar un activo que todavía no se creó, así el
+ * vendedor ve la estimación mientras completa el formulario y no después.
+ */
+export interface EstimateListingRequest {
+    assetType: string;
+    assetData: Record<string, unknown>;
+}
+
+export interface EstimatedPriceDto {
+    estimatedPrice: MoneyDto;
+}
+
 export interface ListingFiltersQuery {
     assetType?: string;
+    /** Rubro del activo. Vale para los dos tipos. */
+    niche?: string;
+    /** Solo los que la plataforma ya puede transferir hoy. */
+    onlyTransferable?: boolean;
     /** Obligatoria si se acota el rango: comparar centavos de monedas
      *  distintas no significa nada. */
     currency?: ListingCurrencyDto;
@@ -354,6 +377,13 @@ export interface MyListingDto {
 export interface MyOperationDto {
     id: string;
     listingId: string;
+    /**
+     * Con qué nombrar el activo en una lista. Son los campos que la strategy
+     * declara públicos —los mismos que el mercado muestra sin NDA—, así que
+     * dicen de qué trata el activo, no cuál es. Ausentes si ya no está.
+     */
+    assetType?: string;
+    niche?: string;
     status: OperationStatusDto;
     miParte?: NegotiatingPartyDto;
     currentOfferPrice: MoneyDto;
@@ -368,12 +398,50 @@ export interface NegotiationDto {
     proposedAt: string;
 }
 
+/** Una operación esperando un movimiento de la plataforma. */
+export interface PendingOperationDto {
+    id: string;
+    status: OperationStatusDto;
+    listingId: string;
+    amount?: MoneyDto;
+    waitingSince: string;
+}
+
+/** El tablero de la plataforma: qué hay para hacer y en qué estado está todo. */
+export interface PlatformDashboardDto {
+    listingsToReview: number;
+    publishedListings: number;
+    operationsInProgress: number;
+    openReports: number;
+    /** Solo de operaciones completadas: comprometido no es cobrado. */
+    earned: MoneyDto;
+    pending: PendingOperationDto[];
+}
+
+/** Una de las dos partes de una operación, con nombre para poder mostrarla. */
+export interface OperationPartyDto {
+    id: string;
+    fullName: string;
+}
+
 export interface OperationDetailDto {
+    /**
+     * Con qué nombrar el activo. Campos públicos de la strategy: dicen de
+     * qué trata, no cuál es. Ausentes si el activo ya no está.
+     */
+    assetType?: string;
+    niche?: string;
     id: string;
     listingId: string;
     status: OperationStatusDto;
     /** Ausente cuando quien consulta es un admin que no es parte. */
     miParte?: NegotiatingPartyDto;
+    /**
+     * Quiénes son las dos partes. Sin esto la negociación se veía contra un
+     * identificador y no contra una persona.
+     */
+    buyer: OperationPartyDto;
+    seller: OperationPartyDto;
     currentOfferPrice: MoneyDto;
     pendingResponseFrom: NegotiatingPartyDto;
     /** Solo presente una vez aceptada la oferta. */

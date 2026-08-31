@@ -153,6 +153,22 @@ export class Operation extends Entity<OperationProps> {
         return this.props.listingId;
     }
 
+    /**
+     * Si esta operación sigue abierta.
+     *
+     * Cancelada o completada, deja de ocupar lugar: el comprador puede volver a
+     * ofertar sobre el mismo activo. Mientras esté viva, no — para eso está la
+     * contraoferta.
+     */
+    public isLive(): boolean {
+        return this.props.status !== 'cancelled' && this.props.status !== 'completed';
+    }
+
+    /** Si este usuario es el comprador de esta operación. */
+    public hasBuyer(userId: string): boolean {
+        return this.props.buyerId.toString() === userId;
+    }
+
     public get status(): OperationStatus {
         return this.props.status;
     }
@@ -288,17 +304,25 @@ export class Operation extends Entity<OperationProps> {
      * el historial anterior intacto.
      */
     private assertConverge(price: Money, by: NegotiatingParty): void {
+        const enLaMesa = this.props.negotiations[this.props.negotiations.length - 1];
+
+        if (enLaMesa.currency !== price.getCurrency()) {
+            throw new ValidationError(
+                `La contraoferta debe estar en ${enLaMesa.currency}, la moneda de la negociación.`
+            );
+        }
+
         const propiaAnterior = [...this.props.negotiations]
             .reverse()
             .find((n) => n.proposedBy === by);
 
-        // La primera propuesta de cada parte no tiene con qué compararse.
-        if (!propiaAnterior) return;
-
-        if (propiaAnterior.currency !== price.getCurrency()) {
-            throw new ValidationError(
-                `La contraoferta debe estar en ${propiaAnterior.currency}, la moneda de la negociación.`
-            );
+        // Sin propuesta propia anterior —el caso del vendedor que responde por
+        // primera vez— la referencia es lo que hay sobre la mesa. Si no se
+        // aparta de ese monto, no está contraofertando: está aceptando, y
+        // aceptar tiene su propia acción.
+        if (!propiaAnterior) {
+            this.assertSeApartaDeLaMesa(price, Money.fromCents(enLaMesa.amount, enLaMesa.currency), by);
+            return;
         }
 
         const anterior = Money.fromCents(propiaAnterior.amount, propiaAnterior.currency);
@@ -312,6 +336,30 @@ export class Operation extends Entity<OperationProps> {
         if (by === 'seller' && !anterior.isGreaterThan(price)) {
             throw new InvalidStateError(
                 'Una contraoferta del vendedor tiene que ser menor que su propuesta anterior.'
+            );
+        }
+    }
+
+    /**
+     * La primera respuesta de una parte tiene que pedir algo distinto de lo que
+     * le ofrecieron: el vendedor por encima, el comprador por debajo.
+     *
+     * Igualar el monto de la contraparte dejaba la negociación en un estado sin
+     * sentido —dos propuestas idénticas enfrentadas— y desplazaba el turno sin
+     * que nada avanzara.
+     */
+    private assertSeApartaDeLaMesa(price: Money, enLaMesa: Money, by: NegotiatingParty): void {
+        if (by === 'seller' && !price.isGreaterThan(enLaMesa)) {
+            throw new InvalidStateError(
+                'Tu contraoferta tiene que ser mayor que la oferta del comprador. ' +
+                'Si el monto te convence, aceptá la oferta en vez de contraofertarla.'
+            );
+        }
+
+        if (by === 'buyer' && !enLaMesa.isGreaterThan(price)) {
+            throw new InvalidStateError(
+                'Tu contraoferta tiene que ser menor que lo que pide el vendedor. ' +
+                'Si el monto te convence, aceptá la oferta en vez de contraofertarla.'
             );
         }
     }

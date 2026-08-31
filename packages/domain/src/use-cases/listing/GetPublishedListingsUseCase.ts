@@ -127,6 +127,12 @@ function cumpleCriteriosDelActivo(listing: Listing, filtros?: ListingFilters): b
         if (da === undefined || da < filtros.minDomainAuthority) return false;
     }
 
+    if (filtros.niche !== undefined && assetData.niche !== filtros.niche) return false;
+
+    // No sale de `assetData` sino de un cálculo sobre la constancia de acceso,
+    // pero se resuelve en el mismo paso porque tampoco tiene columna.
+    if (filtros.onlyTransferable && !listing.isReadyToTransfer()) return false;
+
     return true;
 }
 

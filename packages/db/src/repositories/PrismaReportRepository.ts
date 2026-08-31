@@ -28,6 +28,15 @@ export class PrismaReportRepository implements IReportRepository {
         return rows.map(ReportMapper.toDomain);
     }
 
+    /** Las más viejas primero: son las que llevan más tiempo sin respuesta. */
+    async findOpen(): Promise<Report[]> {
+        const rows = await this.db.report.findMany({
+            where: { status: "open" },
+            orderBy: { createdAt: "asc" },
+        });
+        return rows.map(ReportMapper.toDomain);
+    }
+
     async save(report: Report): Promise<void> {
         const data = ReportMapper.toPersistence(report);
 

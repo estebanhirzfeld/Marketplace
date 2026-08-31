@@ -20,3 +20,30 @@ export enum UserRole {
     SELLER = "seller",
     ADMIN = "admin",
 }
+
+/**
+ * El rubro del activo.
+ *
+ * Es una lista cerrada y no texto libre por dos razones. Se puede filtrar por
+ * él, cosa imposible si cada vendedor escribe lo que quiere; y es lo único que
+ * dice de qué trata un activo blindado sin revelar cuál es, así que conviene
+ * que signifique lo mismo en todas las publicaciones.
+ *
+ * No es un dato reservado: describe la categoría, no la identidad.
+ */
+export enum AssetNiche {
+    GAMING = "gaming",
+    FINANCE = "finance",
+    TECHNOLOGY = "technology",
+    EDUCATION = "education",
+    ENTERTAINMENT = "entertainment",
+    HEALTH = "health",
+    LIFESTYLE = "lifestyle",
+    NEWS = "news",
+    FOOD = "food",
+    TRAVEL = "travel",
+    BUSINESS = "business",
+    OTHER = "other",
+}
+
+export const ASSET_NICHES: readonly AssetNiche[] = Object.values(AssetNiche);

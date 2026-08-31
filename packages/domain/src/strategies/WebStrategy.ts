@@ -2,14 +2,16 @@
 
 import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
-import { AssetType } from '@marketplace/shared-types';
+import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 export class WebStrategy implements IAssetStrategy {
     constructor(
         private readonly monthlyRevenueUsd: Money,
         private readonly domainAuthority: number,
         /** El dominio identifica al activo: es lo único reservado. */
-        private readonly domain: string = ''
+        private readonly domain: string = '',
+        /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
+        private readonly niche: string = AssetNiche.OTHER
     ) { }
 
     public calculateEstimatedPrice(): Money {
@@ -39,7 +41,7 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
+        return ['niche', 'monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
     }
 
     /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
@@ -55,6 +57,7 @@ export class WebStrategy implements IAssetStrategy {
         return {
             assetType: AssetType.WEB,
             assetData: {
+                niche: this.niche,
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
                 domainAuthority: this.domainAuthority,

@@ -1,4 +1,4 @@
-import { AssetType } from '@marketplace/shared-types';
+import { ASSET_NICHES, AssetNiche, AssetType } from '@marketplace/shared-types';
 import { IAssetStrategy } from './IAssetStrategy';
 import { YouTubeStrategy } from './YouTubeStrategy';
 import { WebStrategy } from './WebStrategy';
@@ -31,6 +31,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
+                niche: rubro(assetData),
             });
 
         case AssetType.WEB:
@@ -38,6 +39,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 dinero(assetData, 'monthlyRevenueUsdCents'),
                 entero(assetData, 'domainAuthority'),
                 textoOpcional(assetData, 'domain', ''),
+                rubro(assetData),
             );
 
 
@@ -92,6 +94,20 @@ function textoOpcional(data: AssetData, field: string, porDefecto: string): stri
         throw new ValidationError(`El campo "${field}" debe ser texto.`);
     }
     return value;
+}
+
+/**
+ * El rubro se valida contra la lista cerrada porque se puede filtrar por él:
+ * un valor libre haría que ese filtro no encuentre nada sin explicar por qué.
+ * Ausente cae en `other`, que es lo que tienen las publicaciones anteriores a
+ * que el campo existiera.
+ */
+function rubro(data: AssetData): AssetNiche {
+    const value = textoOpcional(data, 'niche', AssetNiche.OTHER);
+    if (!ASSET_NICHES.includes(value as AssetNiche)) {
+        throw new ValidationError(`Rubro desconocido: ${value}`);
+    }
+    return value as AssetNiche;
 }
 
 /** Money valida que sean centavos enteros y lanza ValidationError por su cuenta. */

@@ -1,7 +1,7 @@
 import { Report } from '../entities/Report';
 import { User } from '../entities/User';
 import { Listing } from '../entities/Listing';
-import { Operation } from '../entities/Operation';
+import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { ListingStatus } from '../entities/Listing';
 
@@ -34,6 +34,14 @@ export type SortDirection = 'asc' | 'desc';
 
 export interface ListingFilters {
     assetType?: string;
+    /** Rubro del activo. Sirve para los dos tipos, así que no es propio de uno. */
+    niche?: string;
+    /**
+     * Solo los activos que la plataforma ya puede transferir hoy. Se calcula
+     * sobre la constancia de acceso y el plazo de espera del tipo de activo,
+     * así que no hay columna que consultar: se resuelve después de leer.
+     */
+    onlyTransferable?: boolean;
     /**
      * Moneda del precio pedido. Es obligatoria si se acota el rango: comparar
      * centavos de monedas distintas no significa nada.
@@ -69,6 +77,12 @@ export interface IOperationRepository {
     findByListing(listingId: string): Promise<Operation[]>;
     /** Las operaciones en las que este usuario es comprador o vendedor. */
     findByParty(userId: string): Promise<Operation[]>;
+    /**
+     * Para el tablero de la plataforma: las operaciones paradas en las etapas
+     * donde el próximo paso lo da un admin. Es una consulta transversal, sin
+     * parte, y por eso no entra por `findByParty`.
+     */
+    findByStatuses(statuses: OperationStatus[]): Promise<Operation[]>;
     save(operation: Operation): Promise<void>;
 }
 
@@ -85,5 +99,7 @@ export interface IReportRepository {
     /** Las denuncias en las que el usuario es parte, denuncie o sea denunciado. */
     findByUser(userId: string): Promise<Report[]>;
     findByOperation(operationId: string): Promise<Report[]>;
+    /** Las abiertas, para el tablero de la plataforma. */
+    findOpen(): Promise<Report[]>;
     save(report: Report): Promise<void>;
 }

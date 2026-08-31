@@ -2,12 +2,15 @@ import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
 import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
+import { ASSET_NICHES } from '@marketplace/shared-types';
 import type {
     ContractDto,
     CreateListingRequest,
     CreateOfferRequest,
     CreatedListingDto,
     CreatedOperationDto,
+    EstimateListingRequest,
+    EstimatedPriceDto,
     ListingDetailDto,
     ListingFiltersQuery,
     AuthorizationUrlDto,
@@ -29,6 +32,8 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     type: 'object',
                     properties: {
                         assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        niche: { type: 'string', enum: ASSET_NICHES },
+                        onlyTransferable: { type: 'boolean' },
                         currency: { type: 'string', enum: ['ARS', 'USD'] },
                         // `coerceTypes` de Fastify convierte el string del query
                         // a número; sin el schema llegarían como texto.
@@ -64,6 +69,27 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
             })),
         );
     },
+    );
+
+    /**
+     * Valuación de un activo que todavía no existe.
+     *
+     * No persiste nada: es la misma fórmula que se aplica al listing ya creado,
+     * expuesta antes para que el vendedor tenga una referencia mientras decide
+     * el precio en vez de descubrirla cuando ya lo fijó.
+     */
+    app.post<{ Body: EstimateListingRequest; Reply: EstimatedPriceDto }>(
+        '/listings/estimate',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const estimado = await c.estimateListingPrice.execute(request.body);
+            return reply.send({
+                estimatedPrice: {
+                    cents: estimado.getCents(),
+                    currency: estimado.getCurrency(),
+                },
+            });
+        },
     );
 
     // Autenticación opcional: cuánto se ve depende de si hay NDA firmado.

@@ -1,5 +1,5 @@
 import { IOperationRepository } from "@marketplace/domain/src/ports/Repositories";
-import { Operation } from "@marketplace/domain/src/entities/Operation";
+import { Operation, OperationStatus } from "@marketplace/domain/src/entities/Operation";
 import { OperationMapper } from "../mappers/OperationMapper";
 import { prisma, PrismaLike } from "../client";
 
@@ -25,6 +25,17 @@ export class PrismaOperationRepository implements IOperationRepository {
         const rows = await this.db.operation.findMany({
             where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
             orderBy: { createdAt: "desc" },
+        });
+        return rows.map(OperationMapper.toDomain);
+    }
+
+    /** Las más viejas primero: son las que llevan más tiempo esperando. */
+    async findByStatuses(statuses: OperationStatus[]): Promise<Operation[]> {
+        if (statuses.length === 0) return [];
+
+        const rows = await this.db.operation.findMany({
+            where: { status: { in: statuses as never[] } },
+            orderBy: { createdAt: "asc" },
         });
         return rows.map(OperationMapper.toDomain);
     }

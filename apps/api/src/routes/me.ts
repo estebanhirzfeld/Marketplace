@@ -6,6 +6,7 @@ import type {
     NotificationsDto,
     VerifyIdentityRequest,
     MyListingDto,
+    PlatformDashboardDto,
     MyOperationDto,
     OperationDetailDto,
     RegisterPlatformAccessRequest,
@@ -47,7 +48,11 @@ function aMyListingDto(listing: Listing): MyListingDto {
     };
 }
 
-function aMyOperationDto(operation: Operation, actorId: string): MyOperationDto {
+function aMyOperationDto(
+    operation: Operation,
+    actorId: string,
+    activo: { assetType?: string; niche?: string } = {},
+): MyOperationDto {
     const { id, createdAt, props } = operation.toSnapshot();
 
     // partyFor lanza si no es parte; acá siempre lo es, porque la consulta
@@ -62,6 +67,8 @@ function aMyOperationDto(operation: Operation, actorId: string): MyOperationDto 
     return {
         id,
         listingId: props.listingId.toString(),
+        assetType: activo.assetType,
+        niche: activo.niche,
         status: props.status,
         miParte,
         currentOfferPrice: {
@@ -190,7 +197,9 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         async (request, reply) => {
             const actor = actorOf(request);
             const operaciones = await c.misOperaciones.execute(actor);
-            return reply.send(operaciones.map((op) => aMyOperationDto(op, actor.id)));
+            return reply.send(
+                operaciones.map((v) => aMyOperationDto(v.operation, actor.id, v)),
+            );
         },
     );
 
@@ -200,6 +209,33 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         async (request, reply) => {
             const listings = await c.listingsParaRevisar.execute(actorOf(request));
             return reply.send(listings.map(aMyListingDto));
+        },
+    );
+
+    /** El tablero de la plataforma: qué hay pendiente y en qué estado va todo. */
+    app.get<{ Reply: PlatformDashboardDto }>(
+        '/admin/dashboard',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const t = await c.tableroDePlataforma.execute(actorOf(request));
+
+            return reply.send({
+                listingsToReview: t.listingsToReview,
+                publishedListings: t.publishedListings,
+                operationsInProgress: t.operationsInProgress,
+                openReports: t.openReports,
+                earned: { cents: t.earnedCents, currency: t.currency },
+                pending: t.pending.map((p) => ({
+                    id: p.id,
+                    status: p.status,
+                    listingId: p.listingId,
+                    amount:
+                        p.amountCents === undefined || p.currency === undefined
+                            ? undefined
+                            : { cents: p.amountCents, currency: p.currency },
+                    waitingSince: p.waitingSince.toISOString(),
+                })),
+            });
         },
     );
 
@@ -245,7 +281,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, miParte, contratos } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -254,8 +290,12 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
             const dto: OperationDetailDto = {
                 id,
                 listingId: props.listingId.toString(),
+                assetType: asset?.assetType,
+                niche: asset?.niche,
                 status: props.status,
                 miParte,
+                buyer,
+                seller,
                 currentOfferPrice: {
                     cents: operation.currentOfferPrice.getCents(),
                     currency: operation.currentOfferPrice.getCurrency(),

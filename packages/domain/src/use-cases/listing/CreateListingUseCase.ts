@@ -4,7 +4,8 @@ import { Listing } from '../../entities/Listing';
 import { Money } from '../../value-objects/Money';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { createAssetStrategy } from '../../strategies/AssetStrategyFactory';
-import { NotFoundError } from '../../errors/DomainError';
+import { ForbiddenError, NotFoundError } from '../../errors/DomainError';
+import { UserRole } from '@marketplace/shared-types';
 
 export interface CreateListingInput {
     assetType: string;
@@ -13,8 +14,11 @@ export interface CreateListingInput {
 }
 
 /**
- * Crear un listing no exige rol ni KYC: nace en `draft` y no es visible para
- * nadie. Publicarlo sí los exige — ese gate vive en SubmitListingForReview.
+ * Crear un listing no exige KYC: nace en `draft` y no es visible para nadie.
+ * Publicarlo sí lo exige — ese gate vive en SubmitListingForReview.
+ *
+ * Sí exige no ser el admin. La plataforma verifica la custodia de lo que se
+ * vende, así que no puede además ser la vendedora.
  *
  * Recibe el activo en su forma serializada, no una IAssetStrategy ya armada.
  * Así la capa HTTP solo reenvía el body y la validación del activo queda en el
@@ -27,6 +31,13 @@ export class CreateListingUseCase {
     ) {}
 
     async execute(input: CreateListingInput, actor: Actor): Promise<Listing> {
+        if (actor.role === UserRole.ADMIN) {
+            throw new ForbiddenError(
+                'La plataforma no compra ni vende: verifica la custodia de las operaciones ' +
+                'y no puede ser parte de ellas.',
+            );
+        }
+
         const seller = await this.userRepo.findById(actor.id);
         if (!seller) {
             throw new NotFoundError('Vendedor no encontrado');

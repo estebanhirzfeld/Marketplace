@@ -7,6 +7,7 @@ import {
     IListingRepository,
     IOperationRepository,
     IContractRepository,
+    IUserRepository,
 } from '../../../src/ports/Repositories';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation } from '../../../src/entities/Operation';
@@ -108,10 +109,25 @@ describe('GetMyOperationsUseCase', () => {
 });
 
 describe('GetOperationDetailsUseCase', () => {
+    /**
+     * El repositorio de usuarios devuelve `null`: la vista tiene que resolver
+     * igual. Un usuario dado de baja no puede dejar la operación inaccesible
+     * para su contraparte, que sigue necesitando el historial.
+     */
+    const usuariosVacios: IUserRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+
     function armar(operacion: Operation | null) {
         return new GetOperationDetailsUseCase(
             createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operacion) }),
             createMockContractRepo(),
+            usuariosVacios,
+            // El activo se resuelve para poder nombrarlo; que no esté no
+            // impide abrir la operación, y estos casos no lo miran.
+            createMockListingRepo(),
         );
     }
 

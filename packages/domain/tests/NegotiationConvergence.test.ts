@@ -32,11 +32,34 @@ function unaNegociacion(ofertaInicial = 10_000): Operation {
 }
 
 describe('Convergencia — el vendedor nunca sube', () => {
-    it('su primera contraoferta puede ser cualquier monto', () => {
+    it('su primera contraoferta puede ser cualquier monto por encima de la oferta', () => {
         const op = unaNegociacion();
 
         expect(() => op.counterOffer(USD(18_000), 'seller')).not.toThrow();
         expect(op.currentOfferPrice.getCents()).toBe(1_800_000);
+    });
+
+    /**
+     * Igualar la oferta del comprador dejaba dos propuestas idénticas
+     * enfrentadas y movía el turno sin que nada avanzara. Aceptar tiene su
+     * propia acción y es la que corresponde.
+     */
+    it('rechaza que iguale la oferta del comprador', () => {
+        const op = unaNegociacion(10_000);
+
+        expect(() => op.counterOffer(USD(10_000), 'seller')).toThrow(InvalidStateError);
+    });
+
+    it('rechaza que pida menos de lo que ya le ofrecieron', () => {
+        const op = unaNegociacion(10_000);
+
+        expect(() => op.counterOffer(USD(9_000), 'seller')).toThrow(InvalidStateError);
+    });
+
+    it('al rechazar le dice que lo que corresponde es aceptar', () => {
+        const op = unaNegociacion(10_000);
+
+        expect(() => op.counterOffer(USD(10_000), 'seller')).toThrow(/aceptá la oferta/i);
     });
 
     it('la segunda tiene que ser menor que la suya anterior', () => {

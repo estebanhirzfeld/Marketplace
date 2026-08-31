@@ -139,7 +139,10 @@ describe('Operation Entity', () => {
         });
 
         it('debería calcular comisiones sobre el precio negociado', () => {
-            const operation = createTestOperation(500000); // Buyer: $5000
+            // El vendedor contraoferta por encima de lo ofrecido, que es la
+            // única dirección con sentido: pedir menos de lo que ya le ofrecen
+            // sería aceptar, y aceptar tiene su propia acción.
+            const operation = createTestOperation(400000); // Buyer: $4000
 
             operation.counterOffer(Money.fromCents(450000, 'USD'), 'seller'); // Seller: $4500
             operation.acceptCurrentOffer('buyer'); // Buyer acepta $4500

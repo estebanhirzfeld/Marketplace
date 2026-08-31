@@ -16,6 +16,9 @@ import {
     RegisterPlatformAccessRequest,
     CounterOfferRequest,
     CreateListingRequest,
+    EstimateListingRequest,
+    EstimatedPriceDto,
+    PlatformDashboardDto,
     CreateOfferRequest,
     CreatedListingDto,
     CreatedOperationDto,
@@ -107,6 +110,8 @@ export class MarketplaceClient {
 
         for (const clave of [
             'assetType',
+            'niche',
+            'onlyTransferable',
             'currency',
             'minPrice',
             'maxPrice',
@@ -130,6 +135,16 @@ export class MarketplaceClient {
 
     createListing(body: CreateListingRequest): Promise<CreatedListingDto> {
         return this.request('POST', '/listings', { body });
+    }
+
+    /** El tablero de la plataforma. Solo responde a un admin. */
+    platformDashboard(): Promise<PlatformDashboardDto> {
+        return this.request('GET', '/admin/dashboard');
+    }
+
+    /** Valuación de un activo que todavía no se creó. No persiste nada. */
+    estimateListingPrice(body: EstimateListingRequest): Promise<EstimatedPriceDto> {
+        return this.request('POST', '/listings/estimate', { body });
     }
 
     submitListing(id: string): Promise<void> {

@@ -1,6 +1,6 @@
 import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
-import { AssetType } from '@marketplace/shared-types';
+import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 interface YouTubeStrategyProps {
   monthlyRevenueUsd: Money;
@@ -11,6 +11,8 @@ interface YouTubeStrategyProps {
   hasNoFaceContent?: boolean;
   /** Dirección del canal. Es lo que identifica al activo, así que es reservado. */
   channelUrl?: string;
+  /** Rubro del canal. Público: dice de qué trata, no cuál es. */
+  niche?: string;
 }
 
 export class YouTubeStrategy implements IAssetStrategy {
@@ -27,6 +29,7 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly audienceTopCountry: string;
   private readonly hasNoFaceContent: boolean;
   private readonly channelUrl: string;
+  private readonly niche: string;
 
   constructor({
     monthlyRevenueUsd,
@@ -36,7 +39,9 @@ export class YouTubeStrategy implements IAssetStrategy {
     audienceTopCountry = 'AR',
     hasNoFaceContent = false,
     channelUrl = '',
+    niche = AssetNiche.OTHER,
   }: YouTubeStrategyProps) {
+    this.niche = niche;
     this.monthlyRevenueUsd = monthlyRevenueUsd;
     this.subscribers = subscribers;
     this.growthFactor = growthFactor;
@@ -245,6 +250,7 @@ export class YouTubeStrategy implements IAssetStrategy {
    */
   public getPublicFields(): string[] {
     return [
+      'niche',
       'subscribers',
       'monthlyRevenueUsdCents',
       'currency',
@@ -267,6 +273,7 @@ export class YouTubeStrategy implements IAssetStrategy {
     return {
       assetType: AssetType.YOUTUBE,
       assetData: {
+        niche: this.niche,
         monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
         currency: this.monthlyRevenueUsd.getCurrency(),
         subscribers: this.subscribers,

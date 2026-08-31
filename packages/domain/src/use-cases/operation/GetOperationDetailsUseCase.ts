@@ -1,15 +1,51 @@
-import { IOperationRepository, IContractRepository } from '../../ports/Repositories';
+import {
+    IContractRepository,
+    IListingRepository,
+    IOperationRepository,
+    IUserRepository,
+} from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { Operation, NegotiatingParty } from '../../entities/Operation';
 import { Contract } from '../../entities/Contract';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
+/**
+ * Quién está del otro lado.
+ *
+ * Se devuelve el nombre y no solo el identificador porque una negociación
+ * contra un UUID es ilegible: el vendedor veía "tenés una oferta" sin saber de
+ * quién, y el comprador negociaba contra nadie. No agrega exposición — el
+ * contrato que las dos partes firman ya las nombra, y el legajo de un reclamo
+ * también.
+ */
+export interface OperationParty {
+    id: string;
+    fullName: string;
+}
+
+/**
+ * Con qué nombrar el activo de la operación.
+ *
+ * La pantalla lo identificaba con los primeros ocho caracteres de su UUID, que
+ * no le dice nada a nadie. El tipo y el rubro son campos que la strategy
+ * declara públicos, así que describen de qué se trata sin revelar cuál es:
+ * eso sigue detrás del NDA.
+ */
+export interface OperationAsset {
+    assetType: string;
+    niche?: string;
+}
+
 export interface OperationDetailView {
     operation: Operation;
+    /** Ausente si el activo ya no está; la operación sigue siendo válida. */
+    asset?: OperationAsset;
     /** Qué posición ocupa quien consulta. `undefined` para un admin ajeno. */
     miParte?: NegotiatingParty;
     contratos: Contract[];
+    buyer: OperationParty;
+    seller: OperationParty;
 }
 
 /**
@@ -22,6 +58,8 @@ export class GetOperationDetailsUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly contractRepo: IContractRepository,
+        private readonly userRepo: IUserRepository,
+        private readonly listingRepo: IListingRepository,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<OperationDetailView> {
@@ -45,6 +83,38 @@ export class GetOperationDetailsUseCase {
 
         const contratos = await this.contractRepo.findByOperation(operationId);
 
-        return { operation, miParte, contratos };
+        const { props } = operation.toSnapshot();
+        const [buyer, seller, listing] = await Promise.all([
+            this.parte(props.buyerId.toString()),
+            this.parte(props.sellerId.toString()),
+            this.listingRepo.findById(props.listingId.toString()),
+        ]);
+
+        // `false`: alcanza con lo público para nombrarlo. Quien tenga derecho a
+        // ver los datos reservados los pide en la pantalla del activo, que es
+        // donde vive esa regla.
+        let asset: OperationAsset | undefined;
+        if (listing) {
+            const { assetType, assetData } = listing.assetDataFor(false);
+            asset = {
+                assetType,
+                niche: typeof assetData.niche === 'string' ? assetData.niche : undefined,
+            };
+        }
+
+        return { operation, asset, miParte, contratos, buyer, seller };
+    }
+
+    /**
+     * Un usuario borrado no debería tumbar la operación: el historial y las
+     * constancias siguen siendo válidos y la contraparte tiene derecho a
+     * verlos. Se muestra sin nombre antes que fallar.
+     */
+    private async parte(userId: string): Promise<OperationParty> {
+        const user = await this.userRepo.findById(userId);
+        return {
+            id: userId,
+            fullName: user?.toSnapshot().props.fullName ?? 'Usuario dado de baja',
+        };
     }
 }

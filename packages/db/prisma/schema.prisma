@@ -53,6 +53,11 @@ enum NotificationType {
   activo_en_custodia
   pago_confirmado
   operacion_completada
+  // Faltaba, y el dominio ya lo emitía: cada aviso de denuncia fallaba al
+  // guardarse con "Invalid value for argument `type`". El notificador se comía
+  // el error, así que la denuncia se registraba y el denunciado nunca se
+  // enteraba.
+  denuncia_recibida
 }
 
 enum ContractType {

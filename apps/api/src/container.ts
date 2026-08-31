@@ -13,6 +13,8 @@ import { LoginUseCase } from '@marketplace/domain/src/use-cases/auth/LoginUseCas
 import { VerifyIdentityUseCase } from '@marketplace/domain/src/use-cases/auth/VerifyIdentityUseCase';
 import { GetMyProfileUseCase } from '@marketplace/domain/src/use-cases/auth/GetMyProfileUseCase';
 import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/CreateListingUseCase';
+import { EstimateListingPriceUseCase } from '@marketplace/domain/src/use-cases/listing/EstimateListingPriceUseCase';
+import { GetPlatformDashboardUseCase } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { SubmitListingForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/SubmitListingForReviewUseCase';
 import {
     RegisterPlatformAccessUseCase,
@@ -90,6 +92,7 @@ export interface Container {
     marcarAvisoLeido: MarkNotificationReadUseCase;
     verifyIdentity: VerifyIdentityUseCase;
     createListing: CreateListingUseCase;
+    estimateListingPrice: EstimateListingPriceUseCase;
     submitListing: SubmitListingForReviewUseCase;
     approveListing: ApproveListingUseCase;
     rejectListing: RejectListingUseCase;
@@ -115,6 +118,7 @@ export interface Container {
     getListingDetails: GetListingDetailsUseCase;
     misListings: GetMyListingsUseCase;
     listingsParaRevisar: GetListingsForReviewUseCase;
+    tableroDePlataforma: GetPlatformDashboardUseCase;
     misOperaciones: GetMyOperationsUseCase;
     detalleOperacion: GetOperationDetailsUseCase;
     createOffer: CreateOfferUseCase;
@@ -195,6 +199,7 @@ export function createContainer(
         verifyIdentity: new VerifyIdentityUseCase(userRepo),
 
         createListing: new CreateListingUseCase(listingRepo, userRepo),
+        estimateListingPrice: new EstimateListingPriceUseCase(),
         submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
@@ -222,8 +227,9 @@ export function createContainer(
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo),
         misListings: new GetMyListingsUseCase(listingRepo),
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
-        misOperaciones: new GetMyOperationsUseCase(operationRepo),
-        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo),
+        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo),
+        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo),
+        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
