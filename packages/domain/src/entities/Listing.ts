@@ -311,4 +311,19 @@ export class Listing extends Entity<ListingProps> {
         }
         this.props.status = 'sold';
     }
+
+    /**
+     * Devuelve al mercado un activo cuya operación se cayó.
+     *
+     * Aceptar una oferta saca el activo del mercado, pero la cancelación sigue
+     * siendo legal hasta que se firma el contrato. Sin este camino de vuelta el
+     * activo quedaba en `in_operation` para siempre: no aceptaba ofertas nuevas
+     * y su dueño no tenía forma de reactivarlo.
+     */
+    public returnToMarket(): void {
+        if (this.props.status !== 'in_operation') {
+            throw new InvalidStateError("Solo un activo en operación puede volver al mercado.");
+        }
+        this.props.status = 'published';
+    }
 }
