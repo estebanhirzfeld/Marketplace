@@ -22,12 +22,19 @@ export function PlatformAccessForm({
     revocar,
     transferableFrom,
     transferable,
+    handoverSteps = [],
 }: {
     registerUser: (state: State, form: FormData) => Promise<State>;
     revocar: (state: State) => Promise<State>;
     /** Solo viene cuando ya hay constancia de acceso registrada. */
     transferableFrom?: string;
     transferable: boolean;
+    /**
+     * Lo que el vendedor tenía que hacer para cedernos el activo. Se muestra
+     * como contexto de lo que se está dando por cumplido: la constancia la
+     * firma una persona, así que conviene que tenga a la vista qué atestigua.
+     */
+    handoverSteps?: { id: string; description: string }[];
 }) {
     const [estadoRegistrar, enviarRegistrar, registrando] = useActionState(registerUser, {});
     const [estadoRevocar, enviarRevocar, revocando] = useActionState(revocar, {});
@@ -96,6 +103,26 @@ export function PlatformAccessForm({
     return (
         <form action={enviarRegistrar} className="flex flex-col gap-4">
             {estadoRegistrar.error && <Alert>{estadoRegistrar.error}</Alert>}
+
+            {handoverSteps.length > 0 && (
+                <div className="flex flex-col gap-3 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
+                    <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                        Antes de registrar, comprobá que el vendedor hizo lo suyo:
+                    </span>
+                    <ol className="flex flex-col gap-2">
+                        {handoverSteps.map((paso, i) => (
+                            <li key={paso.id} className="flex gap-3 text-[13px]">
+                                <span className="font-mono text-[12px] text-[var(--color-acento)]">
+                                    {i + 1}
+                                </span>
+                                <span className="leading-relaxed text-[var(--color-tenue)]">
+                                    {paso.description}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            )}
 
             <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium">Con acceso desde</span>

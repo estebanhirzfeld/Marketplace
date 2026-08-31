@@ -48,6 +48,7 @@ function aMyListingDto(listing: Listing): MyListingDto {
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
+        handoverSteps: listing.handoverSteps().map(({ id, description }) => ({ id, description })),
         createdAt: createdAt.toISOString(),
     };
 }

@@ -1,7 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
-import { IAssetStrategy } from '../strategies/IAssetStrategy';
+import { IAssetStrategy, TransferStep } from '../strategies/IAssetStrategy';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ListingStatus =
@@ -186,6 +186,24 @@ export class Listing extends Entity<ListingProps> {
      */
     public revokePlatformAccess(): void {
         this.props.platformAccess = undefined;
+    }
+
+    /**
+     * Lo que el vendedor tiene que hacer para cedernos el activo.
+     *
+     * Es el tramo inicial de la lista de traspaso: todo lo que le toca a él
+     * antes de que intervenga nadie más. Se corta ahí y no se filtra por rol
+     * porque más adelante vuelve a haber pasos suyos —migrar el hosting, ceder
+     * las cuentas afiliadas— que son parte de la venta y no de la cesión:
+     * pedírselos ahora sería adelantarle trabajo que todavía no corresponde.
+     *
+     * La lista existía en cada estrategia desde el principio y no se mostraba
+     * en ninguna pantalla, así que el vendedor no tenía cómo saber qué hacer.
+     */
+    public handoverSteps(): TransferStep[] {
+        const pasos = this.props.assetStrategy.getTransferSteps();
+        const corte = pasos.findIndex((p) => p.requiredActor !== 'seller');
+        return corte === -1 ? pasos : pasos.slice(0, corte);
     }
 
     /**
