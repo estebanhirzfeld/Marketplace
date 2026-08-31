@@ -31,8 +31,13 @@ import { fileReport } from '../../denuncias/actions';
  * posición ocupa quien mira. La API ya rechaza lo que no corresponde — acá
  * solo se evita ofrecer un botón que va a fallar.
  */
-export default async function DetalleOperacion(props: { params: Promise<{ id: string }> }) {
+export default async function DetalleOperacion(props: {
+    params: Promise<{ id: string }>;
+    // En Next 16 `searchParams` es una promesa: el acceso sincrónico se eliminó.
+    searchParams: Promise<{ pago?: string }>;
+}) {
     const { id } = await props.params;
+    const query = await props.searchParams;
 
     const actor = await currentActor();
     if (!actor) redirect('/ingresar');
@@ -211,6 +216,20 @@ export default async function DetalleOperacion(props: { params: Promise<{ id: st
                     <Reveal delay={160}>
                         <Panel title="QUÉ PODÉS HACER">
                             <div className="flex flex-col gap-5">
+                                {/*
+                                    El cobro puede no estar disponible —la API
+                                    responde 503 sin credenciales de la pasarela— y
+                                    el comprador volvía acá sin ningún aviso: el
+                                    botón parecía recargar la página y nada más.
+                                */}
+                                {query.pago === 'no-disponible' && (
+                                    <div className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-alerta)]">
+                                        No pudimos abrir el pago: la pasarela todavía no está
+                                        configurada en este entorno. El activo sigue en nuestra
+                                        custodia, así que no perdiste nada — probá de nuevo más
+                                        tarde o escribinos.
+                                    </div>
+                                )}
                                 {negociando && miTurno && (
                                     <>
                                         <OperationAction
