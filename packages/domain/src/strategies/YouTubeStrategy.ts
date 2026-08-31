@@ -177,12 +177,14 @@ export class YouTubeStrategy implements IAssetStrategy {
       {
         id: '1',
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
+        instruction: 'Convertí el canal a Cuenta de Marca, si todavía no lo es',
         requiredActor: 'seller',
         automated: false,
       },
       {
         id: '2',
         description: 'El vendedor invita a la plataforma como propietaria del canal',
+        instruction: 'Invitanos como propietaria del canal',
         requiredActor: 'seller',
         automated: false,
       },

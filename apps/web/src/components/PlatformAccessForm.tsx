@@ -34,7 +34,7 @@ export function PlatformAccessForm({
      * como contexto de lo que se está dando por cumplido: la constancia la
      * firma una persona, así que conviene que tenga a la vista qué atestigua.
      */
-    handoverSteps?: { id: string; description: string }[];
+    handoverSteps?: { id: string; description: string; instruction?: string }[];
 }) {
     const [estadoRegistrar, enviarRegistrar, registrando] = useActionState(registerUser, {});
     const [estadoRevocar, enviarRevocar, revocando] = useActionState(revocar, {});

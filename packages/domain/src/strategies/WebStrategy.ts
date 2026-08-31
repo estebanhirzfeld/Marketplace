@@ -33,7 +33,7 @@ export class WebStrategy implements IAssetStrategy {
 
     public getTransferSteps(): TransferStep[] {
         return [
-            { id: '1', description: 'Transferir auth code del dominio (EPP)', requiredActor: 'seller', automated: false },
+            { id: '1', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
             { id: '2', description: 'Buyer inicia transferencia de dominio en su registrador', requiredActor: 'buyer', automated: false },
             { id: '3', description: 'Migrar base de datos y archivos de hosting', requiredActor: 'seller', automated: false },
             { id: '4', description: 'Transferir cuentas afiliadas / AdSense asociadas', requiredActor: 'seller', automated: false },

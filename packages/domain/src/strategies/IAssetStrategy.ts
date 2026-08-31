@@ -5,7 +5,18 @@ export type MetricKey = 'followers' | 'revenue' | 'domainAuthority' | 'sessions'
 
 export interface TransferStep {
     id: string;
+    /** Qué pasa en este paso, contado en tercera persona. */
     description: string;
+    /**
+     * El mismo paso dicho a quien lo tiene que hacer.
+     *
+     * La descripción sirve para leer el recorrido de afuera —es la que ve la
+     * plataforma cuando atestigua lo que el vendedor cumplió— pero decirle a
+     * alguien "el vendedor invita a la plataforma" cuando ese alguien ES el
+     * vendedor es hablarle de un tercero. Se escribe, no se deriva: conjugar
+     * a mano un texto ajeno sale mal.
+     */
+    instruction?: string;
     requiredActor: 'seller' | 'buyer' | 'platform';
     automated: boolean;
 }

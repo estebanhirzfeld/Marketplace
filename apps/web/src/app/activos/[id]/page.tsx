@@ -379,7 +379,7 @@ export default async function DetalleDeActivo(props: {
                                                         {i + 1}
                                                     </span>
                                                     <span className="leading-relaxed text-[var(--color-tenue)]">
-                                                        {paso.description}
+                                                        {paso.instruction ?? paso.description}
                                                     </span>
                                                 </li>
                                             ))}

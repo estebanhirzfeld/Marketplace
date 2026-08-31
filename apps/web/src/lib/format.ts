@@ -145,6 +145,9 @@ export const ETIQUETAS_DE_CAMPO: Record<string, string> = {
 
 export function readableValue(key: string, value: unknown): string {
     if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    // El rubro viaja como código en inglés; la etiqueta ya se traduce, el
+    // valor no lo hacía y quedaba un "gaming" suelto entre datos en castellano.
+    if (key === 'niche') return nicheLabel(value);
     if (key === 'monthlyRevenueUsdCents' && typeof value === 'number') {
         return money({ cents: value, currency: 'USD' });
     }

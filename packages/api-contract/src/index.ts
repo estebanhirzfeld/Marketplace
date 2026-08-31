@@ -396,7 +396,10 @@ export interface MyListingDto {
 /** Un paso de la cesión del activo a la plataforma. */
 export interface HandoverStepDto {
     id: string;
+    /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
     description: string;
+    /** El mismo paso dicho al vendedor, que es quien lo hace. */
+    instruction?: string;
 }
 
 /** Una operación en la que el usuario es parte. */
