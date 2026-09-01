@@ -62,11 +62,17 @@ Mientras no esté declarada, el sistema MUST exponer la identidad receptora como
 
 ### Requirement: Constancia de entrega (`DeliveryVerification`)
 
-`DeliveryVerification` MUST ser simétrica a `CustodyVerification` y registrar `verifiedBy`, `verifiedAt` (la pone la entidad), `deliveredToIdentifier` (copia congelada del identificador al que efectivamente se entregó), `isPrimaryOwner`, `accessSecured` y `notes?`. Registrarla MUST ser exclusivo de un actor ADMIN y solo MUST aceptarse con la operación en `payment_received`. Al registrarla, `deliveredToIdentifier` MUST congelarse a partir de la `recipientIdentity` vigente; cambios posteriores de la declarada MUST NOT alterarla. `isPrimaryOwner` es también lo que atestigua la segunda espera de siete días, sin necesidad de un temporizador nuevo.
+`DeliveryVerification` MUST ser simétrica a `CustodyVerification` y registrar `verifiedBy`, `verifiedAt` (la pone la entidad), `deliveredToIdentifier` (copia congelada del identificador al que efectivamente se entregó), `buyerIsPrimaryOwner`, `accessTransferred`, `sellerRemoved` y `notes?`.
+
+Sobre los nombres: `verifiedBy` y `verifiedAt` son los de `CustodyVerification`, por simetría. `deliveredToIdentifier` y no `recipientIdentifier` porque chocaría con la `recipientIdentity` de la operación, y esa distinción es el punto: una es lo que el comprador declaró, la otra a dónde se entregó efectivamente. `accessTransferred` y no `accessSecured` porque en la custodia los accesos se aseguran y en la entrega se ceden; la misma palabra para direcciones opuestas confunde.
+
+**Se registra en el mismo acto que el cierre, no antes.** Los días de espera transcurren *antes* de que la entrega sea verificable: recién cuando el comprador quedó como propietario principal la plataforma le liquida al vendedor, se desvincula y cierra. No hay una ventana entre atestiguar la entrega y cerrar, así que no hay dos actos que registrar por separado.
+
+`deliveredToIdentifier` MUST congelarse a partir de la `recipientIdentity` vigente al momento del cierre; cambios posteriores de la declarada MUST NOT alterarla. `buyerIsPrimaryOwner` es también lo que atestigua la segunda espera de siete días, sin necesidad de un temporizador nuevo.
 
 #### Scenario: Registro de la constancia de entrega
 - GIVEN una operación en payment_received con identidad receptora declarada
-- WHEN un admin registra la entrega con isPrimaryOwner = true y accessSecured = true
+- WHEN un admin cierra la operación con buyerIsPrimaryOwner = true y accessTransferred = true
 - THEN la operación guarda la `DeliveryVerification` con `deliveredToIdentifier` copiado de la identidad declarada
 
 #### Scenario: Actor no administrador
@@ -84,12 +90,16 @@ Mientras no esté declarada, el sistema MUST exponer la identidad receptora como
 - WHEN la `recipientIdentity` declarada se cambia a "b@gmail.com"
 - THEN el `deliveredToIdentifier` de la constancia sigue siendo "a@gmail.com"
 
-### Requirement: `complete()` exige destino y constancia de entrega
+### Requirement: `complete()` recibe la constancia y cierra en un solo acto
 
-`Operation.complete()` MUST rechazar cerrar si no hay `recipientIdentity` declarada. MUST rechazar cerrar sin una `DeliveryVerification` cuyos `isPrimaryOwner` y `accessSecured` sean ambos true, igual que `confirmAssetCustody()` exige propiedad principal y accesos asegurados. Con ambas condiciones satisfechas y la operación en `payment_received`, `complete()` MUST pasar la operación a `completed` y fijar `completedAt`.
+`Operation.complete(data: DeliveryVerificationInput)` MUST registrar la constancia y pasar a `completed` en el mismo acto, igual que `confirmAssetCustody()` registra y transiciona sin un `takeCustody()` suelto al lado. NO MUST existir un `complete()` sin argumentos ni un método aparte de registro: un segundo camino al estado terminal se saltearía la constancia, que es el agujero que este cambio cierra.
+
+MUST rechazar si no hay `recipientIdentity` declarada, si `buyerIsPrimaryOwner` o `accessTransferred` son false, o si la operación no está en `payment_received`. `deliveredToIdentifier` NO MUST venir en el argumento: la entidad lo copia de la `recipientIdentity` declarada, porque dejar que lo aporte quien llama permitiría entregar a un destino que el comprador nunca declaró.
+
+Registrarla MUST ser exclusivo de un actor ADMIN.
 
 #### Scenario: Cierre completo
-- GIVEN una operación en payment_received, con identidad receptora declarada y una `DeliveryVerification` con isPrimaryOwner y accessSecured en true
+- GIVEN una operación en payment_received con identidad receptora declarada
 - WHEN se completa la operación
 - THEN pasa a completed y se fija completedAt
 
@@ -99,11 +109,11 @@ Mientras no esté declarada, el sistema MUST exponer la identidad receptora como
 - THEN se rechaza con un error de estado
 
 #### Scenario: Cierre sin constancia de entrega
-- GIVEN una operación en payment_received con identidad declarada pero sin `DeliveryVerification`
+- GIVEN una operación en payment_received sin identidad receptora declarada
 - WHEN se intenta completar
 - THEN se rechaza con un error de estado
 
 #### Scenario: Constancia de entrega sin propiedad principal
-- GIVEN una operación en payment_received con una `DeliveryVerification` cuyo isPrimaryOwner es false
+- GIVEN una operación en payment_received cuya constancia trae buyerIsPrimaryOwner en false
 - WHEN se intenta completar
 - THEN se rechaza con un error de estado

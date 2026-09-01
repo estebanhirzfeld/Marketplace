@@ -31,8 +31,14 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Contradicciones spec ↔ design (resolver antes de Fase 4)
 
-- **OPEN-1 — nombres de `DeliveryVerification`.** `specs/asset-delivery` pide `verifiedBy`, `verifiedAt`, `deliveredToIdentifier`, `accessSecured`; `design` §4 usa `deliveredBy`, `deliveredAt`, `recipientIdentifier`, `accessTransferred`. Elegir un juego de nombres antes de 4.1.
-- **OPEN-2 — modelo de registro.** `specs/asset-delivery` modela registrar la `DeliveryVerification` como acción ADMIN separada en `payment_received` (con sus escenarios de ForbiddenError y estado incorrecto) y `complete()` como transición aparte que verifica su existencia. `design` §4 **rechaza** un método aparte y funde el registro dentro de `complete(data)`. Las tareas 4.x y 6.7/6.8 asumen el modelo de la spec (acción separada + `complete()` verifica); ajustar si el usuario resuelve a favor del design.
+- **OPEN-1 — nombres de `DeliveryVerification`. RESUELTO.** Queda `verifiedBy`, `verifiedAt`, `deliveredToIdentifier`, `buyerIsPrimaryOwner`, `accessTransferred`, `sellerRemoved`, `notes?`. Los dos primeros por simetría con `CustodyVerification`; `deliveredToIdentifier` y no `recipientIdentifier` porque chocaría con la `recipientIdentity` de la operación y la distinción es el punto; `accessTransferred` y no `accessSecured` porque en la custodia los accesos se aseguran y en la entrega se ceden.
+- **OPEN-2 — modelo de registro. RESUELTO a favor del diseño: un solo acto.**
+
+  `complete(data: DeliveryVerificationInput)` registra la constancia y cierra. No hay `recordDeliveryVerification` aparte ni un `complete()` sin argumentos.
+
+  El motivo lo aportó el usuario y corrige el argumento con el que se había recomendado lo contrario: los días de espera de Google transcurren **antes** de que la entrega sea verificable, no entre atestiguarla y cerrar. Recién cuando el comprador quedó como propietario principal la plataforma le liquida al vendedor, se desvincula y cierra — todo en el mismo momento. No hay dos actos separados que registrar.
+
+  La spec `asset-delivery` fue actualizada para reflejarlo.
 - **Gap menor.** `specs/custody-account` "Edición" exige poder cambiar `identifier` y bloquear el cambio de `assetType` si la cuenta sostiene activos; `design` §1 no lista un método para eso. Se agrega `changeAssetType(heldAssetCount)` a la entidad en 1.2.
 
 ---
@@ -58,9 +64,9 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Fase 4: Dominio — `Operation` (identidad receptora + entrega)
 
-- [ ] 4.1 **[TEST]** ampliar `tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo `tests/use-cases/operation/AssetDelivery.test.ts`): `declareRecipientIdentity` → ForbiddenError para vendedor/admin; rechaza en `offer_sent`/`negotiating` y en `completed`/`cancelled`; permite `contract_pending` y `asset_in_custody`; re-declarable sin `DeliveryVerification`; registrar entrega → ForbiddenError para no-admin y error de estado fuera de `payment_received`; `deliveredToIdentifier` se congela de la identidad vigente y no cambia si la declarada cambia; `complete()` rechaza sin identidad, sin constancia, sin `isPrimaryOwner`, sin `accessSecured`; camino feliz pasa a `completed` y fija `completedAt`. — deps: ninguna (OPEN-1/OPEN-2 resueltas)
+- [ ] 4.1 **[TEST]** ampliar `tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo `tests/use-cases/operation/AssetDelivery.test.ts`): `declareRecipientIdentity` → ForbiddenError para vendedor/admin; rechaza en `offer_sent`/`negotiating` y en `completed`/`cancelled`; permite `contract_pending` y `asset_in_custody`; re-declarable sin `DeliveryVerification`; `complete(data)` → ForbiddenError para no-admin y error de estado fuera de `payment_received`; rechaza sin identidad declarada, con `buyerIsPrimaryOwner` false o `accessTransferred` false; `deliveredToIdentifier` se congela de la identidad vigente y no viene en el argumento; camino feliz pasa a `completed`, fija `completedAt` y guarda la constancia. — deps: ninguna (OPEN-1/OPEN-2 resueltas)
 - [ ] 4.2 **[TEST]** ampliar `tests/CustodyVerification.test.ts`: `CustodyVerification` congela `custodyAccountId` del `platformAccess` vigente y no cambia si el listing re-registra con otra cuenta. — deps: ninguna
-- [ ] 4.3 `entities/Operation.ts`: `RecipientIdentity`, `declareRecipientIdentity(identifier, by)`, `assertIsBuyer`; `DeliveryVerification` + `recordDeliveryVerification(data, by)` (acción ADMIN, solo `payment_received`, congela `deliveredToIdentifier`); `complete()` con cadena de guardas; `CustodyVerification.custodyAccountId`; expone `recipientIdentity`/`deliveryCheck` para lectura. — deps: 4.1, 4.2
+- [ ] 4.3 `entities/Operation.ts`: `RecipientIdentity`, `declareRecipientIdentity(identifier, by)`, `assertIsBuyer`; `DeliveryVerification` + `complete(data)` en un solo acto (ADMIN, solo `payment_received`, congela `deliveredToIdentifier` desde la identidad declarada, cadena de guardas); `CustodyVerification.custodyAccountId`; expone `recipientIdentity`/`deliveryCheck` para lectura. — deps: 4.1, 4.2
 
 ## Fase 5: Dominio — puertos
 
@@ -74,8 +80,8 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 - [ ] 6.4 `use-cases/operation/DeclareRecipientIdentityUseCase.ts`. — deps: 4.3, 6.3
 - [ ] 6.5 **[TEST]** ampliar cobertura de `RegisterPlatformAccessUseCase`: rechaza cuenta inexistente (`NotFoundError`), inactiva, `assetType` incompatible; camino feliz guarda `custodyAccountId`. — deps: ninguna
 - [ ] 6.6 `use-cases/listing/RegisterPlatformAccessUseCase.ts`: recibe `custodyAccountId`, carga la cuenta, `assertCanHold` + `assertIsActive`, luego `listing.registerPlatformAccess({...})`. — deps: 5.1, 2.2, 6.5
-- [ ] 6.7 **[TEST]** `RecordDeliveryVerificationUseCase` + `CompleteOperationUseCase`: registrar entrega exige admin y estado; `complete()` rechaza cierre incompleto y cierra con todo satisfecho. — deps: ninguna
-- [ ] 6.8 `use-cases/operation/RecordDeliveryVerificationUseCase.ts` (nuevo) y `CompleteOperationUseCase.ts` (ajustar a la nueva regla de `complete()`). — deps: 4.3, 6.7
+- [ ] 6.7 **[TEST]** `CompleteOperationUseCase`: exige admin y estado; rechaza cierre incompleto; cierra y guarda la constancia con todo satisfecho. — deps: ninguna
+- [ ] 6.8 `use-cases/operation/CompleteOperationUseCase.ts`: pasa a recibir la constancia y delegar en `complete(data)`. No se crea un use case aparte de registro. — deps: 4.3, 6.7
 - [ ] 6.9 **[TEST]** `GetListingDetailsUseCase` y `GetMyListingsUseCase`: resuelven la cuenta (asignada → activa por `AssetType` → genérico); `GetMyListings` carga las cuentas activas **una sola vez** (sin N+1) y devuelve `SellerListingView`; consulta de pasos restringida a vendedor o admin (`assertOwnedBy`). — deps: ninguna
 - [ ] 6.10 `use-cases/listing/GetListingDetailsUseCase.ts`: suma `ICustodyAccountRepository`, resuelve el contexto, llama `listing.handoverSteps(ctx)`. — deps: 5.1, 2.2, 3.2, 6.9
 - [ ] 6.11 **[CAMBIO NO ADITIVO]** `use-cases/listing/GetMyListingsUseCase.ts`: cambia el tipo de retorno a `SellerListingView { listing, handoverSteps }`, arma `Map<AssetType,string>` de cuentas activas. **Hacer 6.11 y 11.3 en el mismo commit** para no dejar `apps/api` roto entre medio. — deps: 5.1, 2.2, 3.2, 6.9
