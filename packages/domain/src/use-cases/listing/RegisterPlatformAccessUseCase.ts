@@ -1,4 +1,7 @@
-import { IListingRepository } from '../../ports/Repositories';
+import {
+    IListingRepository,
+    ICustodyAccountRepository,
+} from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError, ValidationError } from '../../errors/DomainError';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
@@ -6,6 +9,8 @@ import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 export interface RegisterPlatformAccessInput {
     /** Desde cuándo la plataforma figura con acceso, en formato ISO. */
     accessSince: string;
+    /** A qué cuenta de custodia se cedió el activo. Obligatorio desde este cambio. */
+    custodyAccountId: string;
     notes?: string;
 }
 
@@ -16,9 +21,18 @@ export interface RegisterPlatformAccessInput {
  * es Cuenta de Marca ni quiénes son sus propietarios, así que ningún software
  * puede comprobar este estado. Lo que sí se deriva de la fecha registrada es
  * cuándo el activo queda efectivamente transferible.
+ *
+ * Ahora exige nombrar la cuenta de custodia: una constancia que no dice a qué
+ * cuenta se cedió el activo deja al vendedor sin saber a quién invitar, que es
+ * exactamente el hueco que este cambio cierra. Las reglas de la cuenta —que
+ * esté activa y sea del tipo correcto— viven en la entidad `CustodyAccount`;
+ * el use case solo trae el agregado.
  */
 export class RegisterPlatformAccessUseCase {
-    constructor(private readonly listingRepo: IListingRepository) {}
+    constructor(
+        private readonly listingRepo: IListingRepository,
+        private readonly custodyRepo: ICustodyAccountRepository,
+    ) {}
 
     async execute(listingId: string, input: RegisterPlatformAccessInput, actor: Actor): Promise<void> {
         assertIsAdmin(actor);
@@ -33,8 +47,21 @@ export class RegisterPlatformAccessUseCase {
             throw new ValidationError('La fecha de acceso no es válida.');
         }
 
+        if (!input.custodyAccountId) {
+            throw new ValidationError('Indicá a qué cuenta de custodia se cedió el activo.');
+        }
+
+        const account = await this.custodyRepo.findById(input.custodyAccountId);
+        if (!account) {
+            throw new NotFoundError('Cuenta de custodia no encontrada');
+        }
+
+        account.assertCanHold(listing.describeAssetType().assetType);
+        account.assertIsActive();
+
         listing.registerPlatformAccess({
             verifiedBy: new UniqueEntityID(actor.id),
+            custodyAccountId: account.id,
             accessSince,
             notes: input.notes,
         });

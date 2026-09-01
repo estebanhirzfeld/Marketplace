@@ -48,6 +48,7 @@ function unRepo(listings: Listing[] = []): IListingRepository {
         findPublished: vi.fn().mockResolvedValue(listings),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

@@ -1,7 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
-import { AssetTypeDescriptor, IAssetStrategy, TransferStep } from '../strategies/IAssetStrategy';
+import { AssetTypeDescriptor, IAssetStrategy, TransferContext, TransferStep } from '../strategies/IAssetStrategy';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ListingStatus =
@@ -28,10 +28,24 @@ export interface PlatformAccessRecord {
      * depende el plazo: los días transcurridos se calculan, no se guardan.
      */
     accessSince: Date;
+    /**
+     * A qué cuenta de custodia se le cedió el activo. Es parte de lo que se
+     * atestiguó: la constancia dice a quién invitó el vendedor, que es
+     * exactamente lo que el vendedor necesita saber para invitar.
+     *
+     * Opcional en el tipo —no en el registro nuevo— solo porque las
+     * constancias anteriores a este cambio no lo tienen: se rehidratan con
+     * este campo ausente y se muestran como "cuenta sin asignar". Todo
+     * `registerPlatformAccess` de acá en adelante lo exige.
+     */
+    custodyAccountId?: UniqueEntityID;
     notes?: string;
 }
 
-export type PlatformAccessInput = Omit<PlatformAccessRecord, 'verifiedAt'>;
+export type PlatformAccessInput = Omit<PlatformAccessRecord, 'verifiedAt' | 'custodyAccountId'> & {
+    /** Obligatorio en todo registro nuevo: sin cuenta, el vendedor no sabe a quién invitar. */
+    custodyAccountId: UniqueEntityID;
+};
 
 /** De dónde salió la comprobación. Cada fuente expone cosas distintas. */
 export type VerificationSource = 'youtube' | 'adsense';
@@ -166,6 +180,11 @@ export class Listing extends Entity<ListingProps> {
         if (!data.verifiedBy) {
             throw new ValidationError('Falta registrar quién verificó el acceso.');
         }
+        if (!data.custodyAccountId) {
+            throw new ValidationError(
+                'Falta indicar a qué cuenta de custodia se cedió el activo: sin ella el vendedor no sabe a quién invitar.',
+            );
+        }
         if (data.accessSince.getTime() > Date.now()) {
             throw new ValidationError(
                 'La fecha de acceso no puede ser futura: adelantarla adelantaría el plazo de espera.',
@@ -205,8 +224,8 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.describe();
     }
 
-    public handoverSteps(): TransferStep[] {
-        const pasos = this.props.assetStrategy.getTransferSteps();
+    public handoverSteps(context?: TransferContext): TransferStep[] {
+        const pasos = this.props.assetStrategy.getTransferSteps(context);
         const corte = pasos.findIndex((p) => p.requiredActor !== 'seller');
         return corte === -1 ? pasos : pasos.slice(0, corte);
     }

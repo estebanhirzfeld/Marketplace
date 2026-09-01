@@ -8,13 +8,29 @@ import {
     IOperationRepository,
     IContractRepository,
     IUserRepository,
+    ICustodyAccountRepository,
 } from '../../../src/ports/Repositories';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation } from '../../../src/entities/Operation';
+import { Listing } from '../../../src/entities/Listing';
+import { CustodyAccount } from '../../../src/entities/CustodyAccount';
+import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
-import { UserRole } from '@marketplace/shared-types';
+import { AssetType, UserRole } from '@marketplace/shared-types';
+
+function unListingDe(sellerId: UniqueEntityID): Listing {
+    return Listing.create({
+        sellerId,
+        assetStrategy: new YouTubeStrategy({
+            monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+            subscribers: 10000,
+            isMonetized: true,
+        }),
+        askingPrice: Money.fromCents(1_000_000, 'USD'),
+    });
+}
 
 // ── Mock Factories ───────────────────────────────────────
 
@@ -24,6 +40,17 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+        ...overrides,
+    };
+}
+
+function createMockCustodyRepo(overrides: Partial<ICustodyAccountRepository> = {}): ICustodyAccountRepository {
+    return {
+        findById: vi.fn().mockResolvedValue(null),
+        findAll: vi.fn().mockResolvedValue([]),
+        findActive: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -74,11 +101,42 @@ describe('GetMyListingsUseCase', () => {
         const repo = createMockListingRepo();
         const actor = actorDe(SELLER_ID, UserRole.SELLER);
 
-        await new GetMyListingsUseCase(repo).execute(actor);
+        await new GetMyListingsUseCase(repo, createMockCustodyRepo()).execute(actor);
 
         // La garantía no es un chequeo de permisos: es que no hay forma de
         // pedir los listings de otro, porque el id sale del actor.
         expect(repo.findBySeller).toHaveBeenCalledWith(SELLER_ID.toString());
+    });
+
+    it('carga las cuentas de custodia activas una sola vez para N listings (sin N+1)', async () => {
+        const listings = [unListingDe(SELLER_ID), unListingDe(SELLER_ID), unListingDe(SELLER_ID)];
+        const repo = createMockListingRepo({ findBySeller: vi.fn().mockResolvedValue(listings) });
+        const custodyRepo = createMockCustodyRepo();
+
+        const vistas = await new GetMyListingsUseCase(repo, custodyRepo).execute(
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(custodyRepo.findActive).toHaveBeenCalledTimes(1);
+        expect(vistas).toHaveLength(3);
+        expect(vistas[0].handoverSteps.length).toBeGreaterThan(0);
+    });
+
+    it('devuelve el identificador concreto de la cuenta activa en los pasos', async () => {
+        const listing = unListingDe(SELLER_ID);
+        const repo = createMockListingRepo({ findBySeller: vi.fn().mockResolvedValue([listing]) });
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia YT',
+            identifier: 'custodia-yt@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const custodyRepo = createMockCustodyRepo({ findActive: vi.fn().mockResolvedValue([cuenta]) });
+
+        const [vista] = await new GetMyListingsUseCase(repo, custodyRepo).execute(
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps.some((p) => p.description.includes('custodia-yt@traspaso.com'))).toBe(true);
     });
 });
 

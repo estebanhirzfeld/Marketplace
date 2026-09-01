@@ -5,7 +5,12 @@ import {
     IUserRepository,
 } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
-import { Operation, NegotiatingParty } from '../../entities/Operation';
+import {
+    Operation,
+    NegotiatingParty,
+    RecipientIdentity,
+    DeliveryVerification,
+} from '../../entities/Operation';
 import { Contract } from '../../entities/Contract';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { NotFoundError } from '../../errors/DomainError';
@@ -64,6 +69,10 @@ export interface OperationDetailView {
     contratos: Contract[];
     buyer: OperationParty;
     seller: OperationParty;
+    /** Dónde declaró el comprador que quiere recibir el activo. Tarea pendiente si falta. */
+    recipientIdentity?: RecipientIdentity;
+    /** La constancia de entrega, una vez cerrada la operación. */
+    deliveryCheck?: DeliveryVerification;
 }
 
 /**
@@ -129,7 +138,16 @@ export class GetOperationDetailsUseCase {
             };
         }
 
-        return { operation, asset, miParte, contratos, buyer, seller };
+        return {
+            operation,
+            asset,
+            miParte,
+            contratos,
+            buyer,
+            seller,
+            recipientIdentity: operation.recipientIdentity,
+            deliveryCheck: operation.deliveryCheck,
+        };
     }
 
     /**

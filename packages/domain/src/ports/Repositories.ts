@@ -3,8 +3,9 @@ import { User } from '../entities/User';
 import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
+import { CustodyAccount } from '../entities/CustodyAccount';
 import { ListingStatus } from '../entities/Listing';
-import { UserRole } from '@marketplace/shared-types';
+import { AssetType, UserRole } from '@marketplace/shared-types';
 
 export interface IUserRepository {
     findById(id: string): Promise<User | null>;
@@ -82,7 +83,30 @@ export interface IListingRepository {
     findBySeller(sellerId: string): Promise<Listing[]>;
     /** Para la cola de revisión del admin. */
     findByStatus(status: ListingStatus): Promise<Listing[]>;
+    /**
+     * Los activos que esta cuenta de custodia sostiene AHORA: los que tienen un
+     * `platformAccess` vigente cuyo `custodyAccountId` apunta a ella. Excluye
+     * los vendidos —la constancia se conserva como evidencia de la operación
+     * cerrada, pero la plataforma ya no los tiene. El radio de daño de perder
+     * una cuenta es lo que sostiene en este momento, no lo que pasó alguna vez.
+     */
+    findHeldBy(custodyAccountId: string): Promise<Listing[]>;
     save(listing: Listing): Promise<void>;
+}
+
+/**
+ * La identidad que sostiene activos en custodia.
+ *
+ * La consulta inversa —qué activos sostiene una cuenta— vive en
+ * `IListingRepository.findHeldBy`, no acá: los listings son listings, y
+ * ponerla en este puerto lo haría devolver otro agregado.
+ */
+export interface ICustodyAccountRepository {
+    findById(id: string): Promise<CustodyAccount | null>;
+    findAll(): Promise<CustodyAccount[]>;
+    /** Las activas, opcionalmente acotadas a un tipo de activo. */
+    findActive(assetType?: AssetType): Promise<CustodyAccount[]>;
+    save(account: CustodyAccount): Promise<void>;
 }
 
 export interface IOperationRepository {

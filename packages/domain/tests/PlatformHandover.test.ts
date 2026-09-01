@@ -4,6 +4,7 @@ import { YouTubeStrategy } from '../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../src/strategies/WebStrategy';
 import { Money } from '../src/value-objects/Money';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
+import { ValidationError } from '../src/errors/DomainError';
 
 /*
  * Qué tiene que hacer el vendedor para cedernos el activo.
@@ -40,9 +41,16 @@ describe('Listing.handoverSteps', () => {
     it('debería devolver lo que le toca al vendedor de un canal antes de que entremos nosotros', () => {
         const pasos = youtubeListing().handoverSteps();
 
-        expect(pasos).toHaveLength(2);
+        // Convertir a Cuenta de Marca, salir de los permisos de canal, invitar.
+        expect(pasos).toHaveLength(3);
         expect(pasos[0].description).toContain('Cuenta de Marca');
-        expect(pasos[1].description).toContain('invita a la plataforma');
+        expect(pasos[1].description).toMatch(/permisos de canal/i);
+        expect(pasos[2].description).toContain('invita a');
+    });
+
+    it('reenvía el contexto a la estrategia: el paso de invitación nombra la cuenta de custodia', () => {
+        const pasos = youtubeListing().handoverSteps({ custodyAccountIdentifier: 'custodia1@gmail.com' });
+        expect(pasos.some((p) => p.description.includes('custodia1@gmail.com'))).toBe(true);
     });
 
     it('debería devolver el único paso del vendedor de un sitio web', () => {
@@ -56,6 +64,29 @@ describe('Listing.handoverSteps', () => {
         for (const listing of [youtubeListing(), webListing()]) {
             expect(listing.handoverSteps().every((p) => p.requiredActor === 'seller')).toBe(true);
         }
+    });
+
+    it('exige la cuenta de custodia al registrar el acceso', () => {
+        const listing = youtubeListing();
+        expect(() =>
+            listing.registerPlatformAccess({
+                verifiedBy: new UniqueEntityID(),
+                accessSince: new Date(),
+            } as never),
+        ).toThrow(ValidationError);
+    });
+
+    it('revokePlatformAccess deja la constancia y su custodyAccountId en nulo', () => {
+        const listing = youtubeListing();
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            custodyAccountId: new UniqueEntityID(),
+            accessSince: new Date(),
+        });
+        expect(listing.platformAccess?.custodyAccountId).toBeDefined();
+
+        listing.revokePlatformAccess();
+        expect(listing.platformAccess).toBeUndefined();
     });
 
     it('debería cortar en cuanto interviene otra parte, no filtrar toda la lista', () => {

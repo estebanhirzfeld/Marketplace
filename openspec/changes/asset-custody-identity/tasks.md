@@ -45,47 +45,48 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Fase 1: Dominio — entidad `CustodyAccount`
 
-- [ ] 1.1 **[TEST]** `tests/use-cases/custody/CustodyAccount.test.ts`: `create` fija `isActive=true` y recorta; `reconstitute` sin defaults; `label`/`identifier` vacío → validación; `assetType` fuera de `AssetType` → validación; `deactivate(n>0)` → error de estado; `changeAssetType` con activos → error de estado; `canHold`/`assertCanHold` con tipo distinto; `assertIsActive` en cuenta inactiva. — deps: ninguna
-- [ ] 1.2 `packages/domain/src/entities/CustodyAccount.ts`: `CustodyAccountProps`, `create`, `reconstitute`, `rename`, `updateNotes`, `changeAssetType(heldAssetCount)`, `activate`, `deactivate(heldAssetCount)`, `canHold`, `assertCanHold`, `assertIsActive`. — deps: 1.1
-- [ ] 1.3 `make test-domain` en verde. — deps: 1.2
+- [x] 1.1 **[TEST]** `tests/use-cases/custody/CustodyAccount.test.ts`: `create` fija `isActive=true` y recorta; `reconstitute` sin defaults; `label`/`identifier` vacío → validación; `assetType` fuera de `AssetType` → validación; `deactivate(n>0)` → error de estado; `changeAssetType` con activos → error de estado; `canHold`/`assertCanHold` con tipo distinto; `assertIsActive` en cuenta inactiva. — deps: ninguna
+- [x] 1.2 `packages/domain/src/entities/CustodyAccount.ts`: `CustodyAccountProps`, `create`, `reconstitute`, `rename`, `updateNotes`, `changeAssetType(heldAssetCount)`, `activate`, `deactivate(heldAssetCount)`, `canHold`, `assertCanHold`, `assertIsActive`. — deps: 1.1
+- [x] 1.3 `make test-domain` en verde. — deps: 1.2
 
 ## Fase 2: Dominio — `Listing`
 
-- [ ] 2.1 **[TEST]** ampliar `tests/PlatformHandover.test.ts`: `registerPlatformAccess` sin `custodyAccountId` → validación; `revokePlatformAccess` deja `custodyAccountId` nulo; `handoverSteps(context?)` reenvía el contexto a la estrategia. — deps: ninguna
-- [ ] 2.2 `entities/Listing.ts`: `PlatformAccessRecord.custodyAccountId` (obligatorio); `registerPlatformAccess` lo exige; `revokePlatformAccess` lo limpia; `handoverSteps(context?: TransferContext)`. — deps: 2.1
+- [x] 2.1 **[TEST]** ampliar `tests/PlatformHandover.test.ts`: `registerPlatformAccess` sin `custodyAccountId` → validación; `revokePlatformAccess` deja `custodyAccountId` nulo; `handoverSteps(context?)` reenvía el contexto a la estrategia. — deps: ninguna
+- [x] 2.2 `entities/Listing.ts`: `PlatformAccessRecord.custodyAccountId` (obligatorio); `registerPlatformAccess` lo exige; `revokePlatformAccess` lo limpia; `handoverSteps(context?: TransferContext)`. — deps: 2.1
 
 ## Fase 3: Dominio — estrategias / pasos de traspaso
 
-- [ ] 3.1 **[TEST]** `tests/strategies/`: YouTube sin contexto → genérico sin identificador; con `custodyAccountIdentifier` → aparece en `description` **y** `instruction` del paso de invitación; con `recipientIdentifier` → aparece en el paso de invitación al comprador; paso opt-out de permisos de canal con `requiredActor=seller` **antes** de la invitación; Web acepta contexto sin romperse y sin ningún paso de permisos de canal. — deps: ninguna
-- [ ] 3.2 `strategies/IAssetStrategy.ts`: `TransferContext`; nueva firma `getTransferSteps(context?)`. — deps: 3.1
-- [ ] 3.3 `strategies/YouTubeStrategy.ts`: paso opt-out antes de invitar, pasos nombrados, renumerar `id` posicionales. — deps: 3.2
-- [ ] 3.4 `strategies/WebStrategy.ts`: nueva firma; nombra `recipientIdentifier` en el paso del registrador; comentario sobre la custodia ausente (cambio aparte). — deps: 3.2
-- [ ] 3.5 `strategies/SocialStrategy.ts`: adoptar la nueva firma (variante genérica). — deps: 3.2
+- [x] 3.1 **[TEST]** `tests/strategies/`: YouTube sin contexto → genérico sin identificador; con `custodyAccountIdentifier` → aparece en `description` **y** `instruction` del paso de invitación; con `recipientIdentifier` → aparece en el paso de invitación al comprador; paso opt-out de permisos de canal con `requiredActor=seller` **antes** de la invitación; Web acepta contexto sin romperse y sin ningún paso de permisos de canal. — deps: ninguna
+- [x] 3.2 `strategies/IAssetStrategy.ts`: `TransferContext`; nueva firma `getTransferSteps(context?)`. — deps: 3.1
+- [x] 3.3 `strategies/YouTubeStrategy.ts`: paso opt-out antes de invitar, pasos nombrados, renumerar `id` posicionales. — deps: 3.2
+- [x] 3.4 `strategies/WebStrategy.ts`: nueva firma; nombra `recipientIdentifier` en el paso del registrador; comentario sobre la custodia ausente (cambio aparte). — deps: 3.2
+- [x] 3.5 `strategies/SocialStrategy.ts`: adoptar la nueva firma (variante genérica). — deps: 3.2
+  - **N/A**: `SocialStrategy` no existe en el repo (`packages/domain/src/strategies/` solo tiene `YouTubeStrategy` y `WebStrategy`; `AssetType` solo tiene `youtube` y `web`). Nada que adaptar.
 
 ## Fase 4: Dominio — `Operation` (identidad receptora + entrega)
 
-- [ ] 4.1 **[TEST]** ampliar `tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo `tests/use-cases/operation/AssetDelivery.test.ts`): `declareRecipientIdentity` → ForbiddenError para vendedor/admin; rechaza en `offer_sent`/`negotiating` y en `completed`/`cancelled`; permite `contract_pending` y `asset_in_custody`; re-declarable sin `DeliveryVerification`; `complete(data)` → ForbiddenError para no-admin y error de estado fuera de `payment_received`; rechaza sin identidad declarada, con `buyerIsPrimaryOwner` false o `accessTransferred` false; `deliveredToIdentifier` se congela de la identidad vigente y no viene en el argumento; camino feliz pasa a `completed`, fija `completedAt` y guarda la constancia. — deps: ninguna (OPEN-1/OPEN-2 resueltas)
-- [ ] 4.2 **[TEST]** ampliar `tests/CustodyVerification.test.ts`: `CustodyVerification` congela `custodyAccountId` del `platformAccess` vigente y no cambia si el listing re-registra con otra cuenta. — deps: ninguna
-- [ ] 4.3 `entities/Operation.ts`: `RecipientIdentity`, `declareRecipientIdentity(identifier, by)`, `assertIsBuyer`; `DeliveryVerification` + `complete(data)` en un solo acto (ADMIN, solo `payment_received`, congela `deliveredToIdentifier` desde la identidad declarada, cadena de guardas); `CustodyVerification.custodyAccountId`; expone `recipientIdentity`/`deliveryCheck` para lectura. — deps: 4.1, 4.2
+- [x] 4.1 **[TEST]** ampliar `tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo `tests/use-cases/operation/AssetDelivery.test.ts`): `declareRecipientIdentity` → ForbiddenError para vendedor/admin; rechaza en `offer_sent`/`negotiating` y en `completed`/`cancelled`; permite `contract_pending` y `asset_in_custody`; re-declarable sin `DeliveryVerification`; `complete(data)` → ForbiddenError para no-admin y error de estado fuera de `payment_received`; rechaza sin identidad declarada, con `buyerIsPrimaryOwner` false o `accessTransferred` false; `deliveredToIdentifier` se congela de la identidad vigente y no viene en el argumento; camino feliz pasa a `completed`, fija `completedAt` y guarda la constancia. — deps: ninguna (OPEN-1/OPEN-2 resueltas)
+- [x] 4.2 **[TEST]** ampliar `tests/CustodyVerification.test.ts`: `CustodyVerification` congela `custodyAccountId` del `platformAccess` vigente y no cambia si el listing re-registra con otra cuenta. — deps: ninguna
+- [x] 4.3 `entities/Operation.ts`: `RecipientIdentity`, `declareRecipientIdentity(identifier, by)`, `assertIsBuyer`; `DeliveryVerification` + `complete(data)` en un solo acto (ADMIN, solo `payment_received`, congela `deliveredToIdentifier` desde la identidad declarada, cadena de guardas); `CustodyVerification.custodyAccountId`; expone `recipientIdentity`/`deliveryCheck` para lectura. — deps: 4.1, 4.2
 
 ## Fase 5: Dominio — puertos
 
-- [ ] 5.1 `ports/Repositories.ts`: `ICustodyAccountRepository` (`findById`, `findAll`, `findActive(assetType?)`, `save`); `IListingRepository.findHeldBy(custodyAccountId): Promise<Listing[]>` (excluye vendidos). — deps: 1.2, 2.2
+- [x] 5.1 `ports/Repositories.ts`: `ICustodyAccountRepository` (`findById`, `findAll`, `findActive(assetType?)`, `save`); `IListingRepository.findHeldBy(custodyAccountId): Promise<Listing[]>` (excluye vendidos). — deps: 1.2, 2.2
 
 ## Fase 6: Dominio — use cases (mocks de puertos)
 
-- [ ] 6.1 **[TEST]** `tests/use-cases/custody/CustodyAccountUseCases.test.ts`: cada flujo exige `assertIsAdmin` → ForbiddenError para BUYER/SELLER; `Deactivate`/`Update` consultan `findHeldBy` y bloquean baja/cambio de `assetType` con activos; `ListCustodyAccounts` arma `heldAssets` por cuenta. — deps: ninguna
-- [ ] 6.2 `use-cases/admin/CustodyAccountUseCases.ts`: `Create`, `Update`, `Activate`, `Deactivate`, `ListCustodyAccounts`. — deps: 5.1, 6.1
-- [ ] 6.3 **[TEST]** `tests/use-cases/operation/` — `DeclareRecipientIdentityUseCase`: carga la operación, delega en la entidad, guarda. — deps: ninguna
-- [ ] 6.4 `use-cases/operation/DeclareRecipientIdentityUseCase.ts`. — deps: 4.3, 6.3
-- [ ] 6.5 **[TEST]** ampliar cobertura de `RegisterPlatformAccessUseCase`: rechaza cuenta inexistente (`NotFoundError`), inactiva, `assetType` incompatible; camino feliz guarda `custodyAccountId`. — deps: ninguna
-- [ ] 6.6 `use-cases/listing/RegisterPlatformAccessUseCase.ts`: recibe `custodyAccountId`, carga la cuenta, `assertCanHold` + `assertIsActive`, luego `listing.registerPlatformAccess({...})`. — deps: 5.1, 2.2, 6.5
-- [ ] 6.7 **[TEST]** `CompleteOperationUseCase`: exige admin y estado; rechaza cierre incompleto; cierra y guarda la constancia con todo satisfecho. — deps: ninguna
-- [ ] 6.8 `use-cases/operation/CompleteOperationUseCase.ts`: pasa a recibir la constancia y delegar en `complete(data)`. No se crea un use case aparte de registro. — deps: 4.3, 6.7
-- [ ] 6.9 **[TEST]** `GetListingDetailsUseCase` y `GetMyListingsUseCase`: resuelven la cuenta (asignada → activa por `AssetType` → genérico); `GetMyListings` carga las cuentas activas **una sola vez** (sin N+1) y devuelve `SellerListingView`; consulta de pasos restringida a vendedor o admin (`assertOwnedBy`). — deps: ninguna
-- [ ] 6.10 `use-cases/listing/GetListingDetailsUseCase.ts`: suma `ICustodyAccountRepository`, resuelve el contexto, llama `listing.handoverSteps(ctx)`. — deps: 5.1, 2.2, 3.2, 6.9
-- [ ] 6.11 **[CAMBIO NO ADITIVO]** `use-cases/listing/GetMyListingsUseCase.ts`: cambia el tipo de retorno a `SellerListingView { listing, handoverSteps }`, arma `Map<AssetType,string>` de cuentas activas. **Hacer 6.11 y 11.3 en el mismo commit** para no dejar `apps/api` roto entre medio. — deps: 5.1, 2.2, 3.2, 6.9
-- [ ] 6.12 `use-cases/operation/GetOperationDetailsUseCase.ts`: expone `recipientIdentity` y `deliveryCheck`. — deps: 4.3
+- [x] 6.1 **[TEST]** `tests/use-cases/custody/CustodyAccountUseCases.test.ts`: cada flujo exige `assertIsAdmin` → ForbiddenError para BUYER/SELLER; `Deactivate`/`Update` consultan `findHeldBy` y bloquean baja/cambio de `assetType` con activos; `ListCustodyAccounts` arma `heldAssets` por cuenta. — deps: ninguna
+- [x] 6.2 `use-cases/admin/CustodyAccountUseCases.ts`: `Create`, `Update`, `Activate`, `Deactivate`, `ListCustodyAccounts`. — deps: 5.1, 6.1
+- [x] 6.3 **[TEST]** `tests/use-cases/operation/` — `DeclareRecipientIdentityUseCase`: carga la operación, delega en la entidad, guarda. — deps: ninguna
+- [x] 6.4 `use-cases/operation/DeclareRecipientIdentityUseCase.ts`. — deps: 4.3, 6.3
+- [x] 6.5 **[TEST]** ampliar cobertura de `RegisterPlatformAccessUseCase`: rechaza cuenta inexistente (`NotFoundError`), inactiva, `assetType` incompatible; camino feliz guarda `custodyAccountId`. — deps: ninguna
+- [x] 6.6 `use-cases/listing/RegisterPlatformAccessUseCase.ts`: recibe `custodyAccountId`, carga la cuenta, `assertCanHold` + `assertIsActive`, luego `listing.registerPlatformAccess({...})`. — deps: 5.1, 2.2, 6.5
+- [x] 6.7 **[TEST]** `CompleteOperationUseCase`: exige admin y estado; rechaza cierre incompleto; cierra y guarda la constancia con todo satisfecho. — deps: ninguna
+- [x] 6.8 `use-cases/operation/CompleteOperationUseCase.ts`: pasa a recibir la constancia y delegar en `complete(data)`. No se crea un use case aparte de registro. — deps: 4.3, 6.7
+- [x] 6.9 **[TEST]** `GetListingDetailsUseCase` y `GetMyListingsUseCase`: resuelven la cuenta (asignada → activa por `AssetType` → genérico); `GetMyListings` carga las cuentas activas **una sola vez** (sin N+1) y devuelve `SellerListingView`; consulta de pasos restringida a vendedor o admin (`assertOwnedBy`). — deps: ninguna
+- [x] 6.10 `use-cases/listing/GetListingDetailsUseCase.ts`: suma `ICustodyAccountRepository`, resuelve el contexto, llama `listing.handoverSteps(ctx)`. — deps: 5.1, 2.2, 3.2, 6.9
+- [x] 6.11 **[CAMBIO NO ADITIVO]** `use-cases/listing/GetMyListingsUseCase.ts`: cambia el tipo de retorno a `SellerListingView { listing, handoverSteps }`, arma `Map<AssetType,string>` de cuentas activas. **Hacer 6.11 y 11.3 en el mismo commit** para no dejar `apps/api` roto entre medio. — deps: 5.1, 2.2, 3.2, 6.9
+- [x] 6.12 `use-cases/operation/GetOperationDetailsUseCase.ts`: expone `recipientIdentity` y `deliveryCheck`. — deps: 4.3
 
 ## Fase 7: Persistencia — esquema, migración, mappers, repos
 

@@ -22,6 +22,21 @@ export interface TransferStep {
     automated: boolean;
 }
 
+/**
+ * Los identificadores concretos que los pasos de traspaso pueden nombrar.
+ *
+ * Ninguna cuenta queda escrita en una estrategia: la estrategia sabe CÓMO se
+ * dice el paso en su plataforma, y quien la llama sabe QUIÉN es. Todo es
+ * opcional porque el catálogo muestra los pasos antes de que exista ninguna
+ * operación, y ahí la variante genérica es la correcta.
+ */
+export interface TransferContext {
+    /** La cuenta de custodia que el vendedor tiene que invitar. */
+    custodyAccountIdentifier?: string;
+    /** La cuenta receptora que el comprador declaró en la operación. */
+    recipientIdentifier?: string;
+}
+
 /** Cómo hay que interpretar el valor de un campo. El formato lo pone la vista. */
 export type AssetFieldKind = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
 
@@ -100,9 +115,14 @@ export interface IAssetStrategy {
     getVerifiableMetrics(): MetricKey[];
 
     /**
-     * Retorna los pasos necesarios para transferir este tipo de activo
+     * Retorna los pasos necesarios para transferir este tipo de activo.
+     *
+     * Con `context`, los pasos que nombran una cuenta —la invitación del
+     * vendedor a la custodia, la invitación de la plataforma al comprador— usan
+     * el identificador concreto. Sin `context`, la variante genérica del
+     * catálogo.
      */
-    getTransferSteps(): TransferStep[];
+    getTransferSteps(context?: TransferContext): TransferStep[];
 
     /**
      * Días que deben pasar entre que la plataforma obtiene acceso al activo y

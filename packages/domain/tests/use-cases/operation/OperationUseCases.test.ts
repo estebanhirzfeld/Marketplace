@@ -48,6 +48,7 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -77,7 +78,13 @@ function createOperationInState(targetState: string) {
     if (targetState === 'asset_in_custody') return op;
     op.confirmBuyerPayment(unPagoDe(op));
     if (targetState === 'payment_received') return op;
-    op.complete();
+    op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
+    op.complete({
+        verifiedBy: new UniqueEntityID(),
+        buyerIsPrimaryOwner: true,
+        accessTransferred: true,
+        sellerRemoved: true,
+    });
     return op; // completed
 }
 
@@ -162,8 +169,15 @@ describe('ConfirmPaymentUseCase', () => {
 // ═════════════════════════════════════════════════════════
 
 describe('CompleteOperationUseCase', () => {
+    const ENTREGA_OK = {
+        buyerIsPrimaryOwner: true,
+        accessTransferred: true,
+        sellerRemoved: true,
+    };
+
     it('debería completar la operación y marcar el listing como vendido', async () => {
         const op = createOperationInState('payment_received');
+        op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
 
         const listing = Listing.create({
             sellerId: new UniqueEntityID(),
@@ -186,7 +200,7 @@ describe('CompleteOperationUseCase', () => {
             findById: vi.fn().mockResolvedValue(listing),
         });
 
-        await new CompleteOperationUseCase(operationRepo, listingRepo).execute(op.id.toString(), ADMIN);
+        await new CompleteOperationUseCase(operationRepo, listingRepo).execute(op.id.toString(), ENTREGA_OK, ADMIN);
 
         expect(op.status).toBe('completed');
         expect(listing.status).toBe('sold');
@@ -198,7 +212,7 @@ describe('CompleteOperationUseCase', () => {
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
         const listingRepo = createMockListingRepo();
 
-        await expect(new CompleteOperationUseCase(repo, listingRepo).execute(op.id.toString(), ADMIN))
+        await expect(new CompleteOperationUseCase(repo, listingRepo).execute(op.id.toString(), ENTREGA_OK, ADMIN))
             .rejects.toThrow('El pago debe estar confirmado');
     });
 });

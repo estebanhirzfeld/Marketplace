@@ -5,6 +5,7 @@ import {
     AssetTypeDescriptor,
     IAssetStrategy,
     MetricKey,
+    TransferContext,
     TransferStep,
 } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
@@ -78,10 +79,28 @@ export class WebStrategy implements IAssetStrategy {
         return ['sessions', 'revenue'];
     }
 
-    public getTransferSteps(): TransferStep[] {
+    /**
+     * Adopta la firma con contexto y nombra al comprador en el paso de la
+     * transferencia de dominio. NO suma ningún paso de custodia: que el sitio
+     * pase por la plataforma antes de llegar al comprador es el defecto
+     * preexistente que la propuesta manda a `web-escrow-transfer-steps`, y
+     * arreglarlo exige investigar el traspaso real de dominios (código EPP,
+     * bloqueo ICANN de 60 días). Ignorar `custodyAccountIdentifier` acá no es
+     * un olvido: es la ausencia que ese cambio va a llenar.
+     */
+    public getTransferSteps(context?: TransferContext): TransferStep[] {
+        const comprador = context?.recipientIdentifier?.trim();
+
         return [
             { id: '1', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
-            { id: '2', description: 'Buyer inicia transferencia de dominio en su registrador', requiredActor: 'buyer', automated: false },
+            {
+                id: '2',
+                description: comprador
+                    ? `El comprador (${comprador}) inicia la transferencia del dominio en su registrador`
+                    : 'El comprador inicia la transferencia del dominio en su registrador',
+                requiredActor: 'buyer',
+                automated: false,
+            },
             { id: '3', description: 'Migrar base de datos y archivos de hosting', requiredActor: 'seller', automated: false },
             { id: '4', description: 'Transferir cuentas afiliadas / AdSense asociadas', requiredActor: 'seller', automated: false },
         ];

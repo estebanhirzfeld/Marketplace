@@ -187,8 +187,17 @@ describe('Operation Entity', () => {
             operation.confirmBuyerPayment(unPagoDe(operation));
             expect(operation.status).toBe('payment_received');
 
-            // 6. Completar
-            operation.complete();
+            // 6. El comprador declaró dónde recibir; la plataforma cierra con la constancia.
+            operation.declareRecipientIdentity(
+                'comprador@gmail.com',
+                operation.toSnapshot().props.buyerId.toString(),
+            );
+            operation.complete({
+                verifiedBy: new UniqueEntityID(),
+                buyerIsPrimaryOwner: true,
+                accessTransferred: true,
+                sellerRemoved: true,
+            });
             expect(operation.status).toBe('completed');
             expect(operation.sellerReceives?.getCents()).toBe(237500); // 250000 - 5%
         });
@@ -238,7 +247,12 @@ describe('Operation Entity', () => {
                 metrics: {},
             });
 
-            expect(() => operation.complete())
+            expect(() => operation.complete({
+                verifiedBy: new UniqueEntityID(),
+                buyerIsPrimaryOwner: true,
+                accessTransferred: true,
+                sellerRemoved: true,
+            }))
                 .toThrow('El pago debe estar confirmado para completar la operación');
         });
     });
