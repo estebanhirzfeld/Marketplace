@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
-import type { ListingDetailDto } from '@marketplace/api-contract';
+import type { ListingDetailDto, CustodyAccountDto } from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
@@ -28,6 +28,21 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
     } catch (e) {
         if (e instanceof ApiError && e.code === 'NOT_FOUND') notFound();
         throw e;
+    }
+
+    // Solo el admin necesita las cuentas de custodia, y solo para registrar el
+    // acceso. Se filtran a las activas y del tipo del activo: es lo que la
+    // constancia admite.
+    let custodyAccounts: { id: string; label: string; identifier: string }[] = [];
+    if (actor?.role === UserRole.ADMIN) {
+        try {
+            const todas: CustodyAccountDto[] = await api().listCustodyAccounts();
+            custodyAccounts = todas
+                .filter((c) => c.isActive && c.assetType === listing.descriptor.assetType)
+                .map((c) => ({ id: c.id, label: c.label, identifier: c.identifier }));
+        } catch {
+            custodyAccounts = [];
+        }
     }
 
     const hidden = listing.hiddenFields.length > 0;
@@ -137,6 +152,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                                     transferable={listing.transferable}
                                     transferableFrom={listing.transferableFrom}
                                     handoverSteps={listing.handoverSteps}
+                                    custodyAccounts={custodyAccounts}
                                 />
                             </Panel>
                         )}

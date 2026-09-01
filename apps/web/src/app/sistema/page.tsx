@@ -3,6 +3,11 @@ import { Timeline } from '@/components/Timeline';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
+import { CustodyAccountForm } from '@/components/CustodyAccountForm';
+import { PlatformAccessForm } from '@/components/PlatformAccessForm';
+import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
+import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
+import { noop } from './actions';
 import {
     Alert,
     Button,
@@ -265,6 +270,48 @@ export default function Sistema() {
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN CUSTODIA</div>
                             <Timeline actual="asset_in_custody" />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Identidad de custodia y entrega"
+                    note="La cuenta de custodia es la identidad real que sostiene un activo mientras está en el escrow. El comprador declara dónde recibirlo como tarea pendiente, y el cierre registra una constancia de entrega simétrica a la de custodia. Estas acciones son de muestra: no guardan nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ALTA DE CUENTA DE CUSTODIA</div>
+                            <Panel title="DAR DE ALTA UNA CUENTA">
+                                <CustodyAccountForm action={noop} />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">REGISTRAR EL ACCESO CON CUENTA</div>
+                            <Panel title="ACCESO DE LA PLATAFORMA">
+                                <PlatformAccessForm
+                                    registerUser={noop}
+                                    revocar={noop}
+                                    transferable={false}
+                                    handoverSteps={[
+                                        { id: '1', description: 'El vendedor convierte el canal a Cuenta de Marca' },
+                                        { id: '2', description: 'El vendedor sale de los permisos de canal en YouTube Studio' },
+                                        { id: '3', description: 'El vendedor invita a custodia-yt-01@traspaso.com como propietaria del canal' },
+                                    ]}
+                                    custodyAccounts={[
+                                        { id: 'a', label: 'Custodia YouTube 01', identifier: 'custodia-yt-01@traspaso.com' },
+                                    ]}
+                                />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TAREA PENDIENTE DEL COMPRADOR (URGENTE)</div>
+                            <RecipientIdentityForm action={noop} urgente />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONSTANCIA DE ENTREGA</div>
+                            <Panel title="CERRAR LA OPERACIÓN">
+                                <DeliveryVerificationForm action={noop} recipientIdentifier="comprador@gmail.com" />
+                            </Panel>
                         </div>
                     </div>
                 </Section>

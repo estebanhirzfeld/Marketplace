@@ -18,13 +18,12 @@ import { money } from '@/lib/format';
 /** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
-type Step = 'accept' | 'cancel' | 'transfer' | 'complete';
+type Step = 'accept' | 'cancel' | 'transfer';
 
 const EJECUTAR: Record<Step, (id: string) => Promise<void>> = {
     accept: (id) => api().acceptOffer(id),
     cancel: (id) => api().cancelOperation(id),
     transfer: (id) => api().initiateTransfer(id),
-    complete: (id) => api().completeOperation(id),
 };
 
 /**
@@ -53,6 +52,65 @@ export async function advanceOperation(
                   'Aceptaste la oferta. Se cancelaron las demás sobre este activo y ahora falta firmar el contrato.',
           }
         : {};
+}
+
+/**
+ * El comprador declara dónde quiere recibir el activo.
+ *
+ * Es una tarea pendiente suya: puede resolverla desde que hay contrato y es
+ * inevitable recién al cerrar. La autorización —que sea el comprador— la hace
+ * el dominio; acá solo se valida que el identificador no venga vacío.
+ */
+export async function declareRecipientIdentity(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+    const identifier = String(form.get('identifier') ?? '').trim();
+    if (!identifier) {
+        return { error: 'Indicá la cuenta donde querés recibir el activo.' };
+    }
+
+    try {
+        await api().declareRecipientIdentity(operationId, { identifier });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar tu cuenta receptora.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: 'Registramos dónde querés recibir el activo.' };
+}
+
+/**
+ * Cierra la operación: registra la constancia de entrega y transiciona a
+ * completada, en un solo acto. `deliveredToIdentifier` no viaja: lo copia el
+ * dominio de la identidad que el comprador declaró, para no entregar a un
+ * destino que nunca eligió.
+ */
+export async function completeOperation(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+
+    try {
+        await api().completeOperation(operationId, {
+            buyerIsPrimaryOwner: form.get('buyerIsPrimaryOwner') === 'on',
+            accessTransferred: form.get('accessTransferred') === 'on',
+            sellerRemoved: form.get('sellerRemoved') === 'on',
+            notes: String(form.get('notes') ?? '').trim() || undefined,
+        });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos cerrar la operación.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    revalidatePath('/operaciones');
+    return { ok: true, message: 'Cerramos la operación. El comprador tiene el activo y el vendedor cobró su parte.' };
 }
 
 export async function counterOffer(

@@ -120,16 +120,25 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Fase 12: Web
 
-- [ ] 12.1 `apps/web/src/app/admin/cuentas/page.tsx` + `actions.ts` + `CustodyAccountForm`: lista (label, identifier, tipo, estado, activos sostenidos), alta, edición, baja/alta. — deps: 11.2
-- [ ] 12.2 `apps/web/src/components/PlatformAccessForm.tsx`: selector de cuenta de custodia (ahora obligatorio). — deps: 11.2
-- [ ] 12.3 `apps/web/src/app/operaciones/[id]/page.tsx`: tarea pendiente del comprador "declarar identidad receptora" en *Qué podés hacer* (urgente desde `asset_in_custody`); formulario de constancia de entrega para el admin. — deps: 11.2
-- [ ] 12.4 Vista de pasos del vendedor: mostrar el identificador concreto de la cuenta a invitar cuando existe. — deps: 11.3
-- [ ] 12.5 `apps/web/src/app/sistema/page.tsx`: reflejar `CustodyAccountForm`, el selector de cuenta, el formulario de entrega y la tarjeta de tarea pendiente (regla del proyecto). — deps: 12.1, 12.2, 12.3
+- [x] 12.1 `apps/web/src/app/admin/cuentas/page.tsx` + `actions.ts` + `CustodyAccountForm`: lista (label, identifier, tipo, estado, activos sostenidos), alta, edición, baja/alta. — deps: 11.2
+  - También `CustodyAccountsManager` (client) y un enlace "Cuentas" en el Navbar del admin.
+- [x] 12.2 `apps/web/src/components/PlatformAccessForm.tsx`: selector de cuenta de custodia (ahora obligatorio). — deps: 11.2
+  - `listings/[id]/page.tsx` carga las cuentas activas del tipo del activo; `admin/actions.ts` reenvía `custodyAccountId`.
+- [x] 12.3 `apps/web/src/app/operaciones/[id]/page.tsx`: tarea pendiente del comprador "declarar identidad receptora" en *Qué podés hacer* (urgente desde `asset_in_custody`); formulario de constancia de entrega para el admin. — deps: 11.2
+  - `RecipientIdentityForm`, `DeliveryVerificationForm`, acciones `declareRecipientIdentity`/`completeOperation`, panel "CONSTANCIA DE ENTREGA" en operación cerrada.
+- [x] 12.4 Vista de pasos del vendedor: mostrar el identificador concreto de la cuenta a invitar cuando existe. — deps: 11.3
+  - Ya lo entrega 11.3: `/activos/[id]` renderiza `mio.handoverSteps` con `instruction`, que ahora trae el identificador resuelto por `GetMyListingsUseCase`. Sin cambio de UI adicional.
+- [x] 12.5 `apps/web/src/app/sistema/page.tsx`: reflejar `CustodyAccountForm`, el selector de cuenta, el formulario de entrega y la tarjeta de tarea pendiente (regla del proyecto). — deps: 12.1, 12.2, 12.3
+  - Sección "Identidad de custodia y entrega" + `apps/web/src/app/sistema/actions.ts` (`noop`) para pasar Server Actions de muestra.
 
 ## Fase 13: Verificación
 
-- [ ] 13.1 `make test` (suite completa) en verde. — deps: todas
-- [ ] 13.2 Typecheck en `domain`, `db`, `api-contract`, `api`, `web`. — deps: todas
-- [ ] 13.3 `make db-reset` aplica la migración sin intervención; `make fresh` sigue funcionando. — deps: 7.2, 9.1
-- [ ] 13.4 `pnpm --filter @marketplace/web build`. — deps: Fase 12
-- [ ] 13.5 Walkthrough manual: (a) `/admin/cuentas` — alta de una cuenta; (b) `PlatformAccessForm` — registrar acceso eligiendo la cuenta; (c) pasos del vendedor en el detalle del listing — muestran el identificador concreto y el paso de opt-out antes de la invitación; (d) `/operaciones/[id]` como comprador — tarea pendiente de identidad receptora, urgente en custodia; (e) `/operaciones/[id]` como admin — formulario de entrega; la operación no cierra sin la constancia. — deps: 13.4
+- [x] 13.1 `make test` (suite completa) en verde. — deps: todas
+  - Corridas por paquete: domain 565, db 42, api 129, api-client 12. Todas en verde.
+- [x] 13.2 Typecheck en `domain`, `db`, `api-contract`, `api`, `web`. — deps: todas
+- [~] 13.3 `make db-reset` aplica la migración sin intervención; `make fresh` sigue funcionando. — deps: 7.2, 9.1
+  - `make fresh` verificado: `db:seed` corre limpio con la semilla nueva.
+  - `make db-reset` NO ejecutado: Prisma bloquea `migrate reset` para agentes de IA sin consentimiento explícito del usuario. Se crearon dos migraciones (`repair_platform_notification_types` + `add_custody_accounts`), la base quedó sin drift (`migrate diff` vacío) y el SQL de ambas está revisado y es 100% aditivo. Falta que el usuario corra `make db-reset` para confirmar el replay.
+- [x] 13.4 `pnpm --filter web build`. — deps: Fase 12
+- [ ] 13.5 Walkthrough manual: (a) `/admin/cuentas`; (b) `PlatformAccessForm`; (c) pasos del vendedor; (d) `/operaciones/[id]` comprador; (e) `/operaciones/[id]` admin. — deps: 13.4
+  - No ejecutable por el agente: requiere una persona operando la UI. Todo el camino compila, typechea y tiene cobertura automatizada (dominio + HTTP).

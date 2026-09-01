@@ -10,6 +10,8 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { Timeline } from '@/components/Timeline';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
+import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
+import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
@@ -17,9 +19,11 @@ import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
     advanceOperation,
+    completeOperation,
     confirmBankTransfer,
     confirmCustody,
     counterOffer,
+    declareRecipientIdentity,
     goToCheckout,
     signContract,
 } from '../actions';
@@ -140,6 +144,16 @@ export default async function DetalleOperacion(props: {
     const negociando = op.status === 'offer_sent' || op.status === 'negotiating';
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
 
+    // La identidad receptora es tarea pendiente del comprador: disponible desde
+    // que hay contrato, exigible recién al cerrar, y urgente desde la custodia
+    // porque a partir de ahí demora su propia entrega.
+    const puedeDeclararDestino =
+        op.miParte === 'buyer' &&
+        ['contract_pending', 'contract_signed', 'transfer_in_progress', 'asset_in_custody', 'payment_received'].includes(
+            op.status,
+        );
+    const destinoUrgente = op.status === 'asset_in_custody' || op.status === 'payment_received';
+
     // Mi propuesta anterior: contra ella se compara la convergencia, no contra
     // la que está sobre la mesa.
     const miUltima = op.miParte
@@ -236,6 +250,45 @@ export default async function DetalleOperacion(props: {
                                     {op.custody.notes && (
                                         <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
                                             {op.custody.notes}
+                                        </p>
+                                    )}
+                                </div>
+                            </Panel>
+                        </Reveal>
+                    )}
+
+                    {/*
+                      * La constancia de entrega, simétrica a la de custodia. Dice a
+                      * qué identidad se entregó el activo de verdad y qué se
+                      * atestiguó al cerrar.
+                      */}
+                    {op.delivery && (
+                        <Reveal>
+                            <Panel title="CONSTANCIA DE ENTREGA">
+                                <div className="flex flex-col gap-3 text-[14px]">
+                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                        Entregado el{' '}
+                                        {new Date(op.delivery.verifiedAt).toLocaleDateString('es-AR', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}{' '}
+                                        a{' '}
+                                        <span className="font-mono">
+                                            {op.delivery.deliveredToIdentifier}
+                                        </span>
+                                        .
+                                    </p>
+                                    <ul className="flex flex-col gap-1.5">
+                                        <CheckedItem text="El comprador quedó como propietario principal" />
+                                        <CheckedItem text="Se cedieron los accesos" />
+                                        {op.delivery.sellerRemoved && (
+                                            <CheckedItem text="Se quitó al vendedor del activo" />
+                                        )}
+                                    </ul>
+                                    {op.delivery.notes && (
+                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            {op.delivery.notes}
                                         </p>
                                     )}
                                 </div>
@@ -416,6 +469,36 @@ export default async function DetalleOperacion(props: {
                                     </div>
                                 )}
 
+                                {/*
+                                    La cuenta receptora del comprador. Aparece como pendiente
+                                    desde que hay contrato y no bloquea nada hasta el cierre;
+                                    desde la custodia sube de tono. Una vez declarada, deja de
+                                    figurar como tarea y queda un enlace discreto para corregirla.
+                                */}
+                                {puedeDeclararDestino && !op.recipientIdentity && (
+                                    <RecipientIdentityForm
+                                        action={declareRecipientIdentity.bind(null, id)}
+                                        urgente={destinoUrgente}
+                                    />
+                                )}
+                                {puedeDeclararDestino && op.recipientIdentity && (
+                                    <details className="text-[13px]">
+                                        <summary className="cursor-pointer text-[var(--color-tenue)]">
+                                            Vas a recibir el activo en{' '}
+                                            <span className="font-mono">
+                                                {op.recipientIdentity.identifier}
+                                            </span>
+                                        </summary>
+                                        <div className="mt-3">
+                                            <RecipientIdentityForm
+                                                action={declareRecipientIdentity.bind(null, id)}
+                                                urgente={false}
+                                                valorActual={op.recipientIdentity.identifier}
+                                            />
+                                        </div>
+                                    </details>
+                                )}
+
                                 {op.status === 'contract_signed' && op.miParte === 'seller' && (
                                     <OperationAction
                                         action={advanceOperation.bind(null, id, 'transfer')}
@@ -453,10 +536,9 @@ export default async function DetalleOperacion(props: {
                                 )}
 
                                 {isAdmin && op.status === 'payment_received' && (
-                                    <OperationAction
-                                        action={advanceOperation.bind(null, id, 'complete')}
-                                        text="Cerrar la operación"
-                                        note="Entrega el activo al comprador y liquida al vendedor."
+                                    <DeliveryVerificationForm
+                                        action={completeOperation.bind(null, id)}
+                                        recipientIdentifier={op.recipientIdentity?.identifier}
                                     />
                                 )}
 

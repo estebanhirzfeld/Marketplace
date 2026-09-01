@@ -66,11 +66,17 @@ export async function registerPlatformAccess(
         return { error: 'Elegí la fecha desde la que la plataforma tiene acceso.' };
     }
 
+    const custodyAccountId = String(form.get('custodyAccountId') ?? '').trim();
+    if (!custodyAccountId) {
+        return { error: 'Elegí la cuenta de custodia que sostiene este activo.' };
+    }
+
     const notes = String(form.get('notes') ?? '').trim();
 
     try {
         await api().registerPlatformAccess(listingId, {
             accessSince: new Date(`${day}T12:00:00`).toISOString(),
+            custodyAccountId,
             notes: notes || undefined,
         });
     } catch (e) {

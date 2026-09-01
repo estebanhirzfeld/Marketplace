@@ -46,7 +46,10 @@ export async function Navbar() {
     }
 
     if (isAdmin) {
-        enlaces.push({ href: '/admin', text: 'ADMIN', destacado: true });
+        enlaces.push(
+            { href: '/admin/cuentas', text: 'Cuentas' },
+            { href: '/admin', text: 'ADMIN', destacado: true },
+        );
     }
 
     return (
