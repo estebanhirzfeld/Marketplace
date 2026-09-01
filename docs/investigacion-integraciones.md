@@ -118,6 +118,46 @@ Para sitios web el problema no existe: una cuenta de registrador administra tant
 
 ---
 
+## 1ter. Dominios: el bloqueo de 60 días y qué bloquea de verdad
+
+La custodia de un sitio web no tiene un equivalente al rol de administrador de una Cuenta de Marca, así que la protección que la plataforma puede ofrecerle a un vendedor de dominios es distinta —y menor— que la que puede ofrecerle a uno de canales. Conviene que el producto no afirme lo contrario.
+
+### El bloqueo existe, pero es más angosto de lo que parece
+
+La política de transferencias de la ICANN, vigente desde el 1 de diciembre de 2016:
+
+> *"After December 1, 2016, registrars must impose a lock that will prevent any transfer to another registrar for sixty (60) days following a change to a registrant's information."*
+
+Lo importante es qué bloquea exactamente: **transferencias entre registradores**, no cambios de titular. Un cambio de titular posterior dentro del mismo registrador sigue siendo posible, y la mayoría de los registradores permiten además "empujar" un dominio a otra cuenta de la misma empresa sin que eso cuente como transferencia.
+
+Para el escrow eso significa que el traspaso es viable: el vendedor empuja el dominio a la cuenta de la plataforma en su mismo registrador, y la plataforma después lo empuja a la del comprador. La propiedad se mueve sin chocar contra el bloqueo.
+
+### Lo que sí hay que decirle al comprador
+
+Que durante 60 días desde el cambio de titular **no va a poder mover el dominio a otro registrador**. Es una limitación real sobre algo que acaba de comprar, y callarla sería venderle una libertad que no tiene.
+
+El vendedor puede eximirse del bloqueo **antes** de hacer el cambio, si su registrador ofrece esa opción —la política lo permite pero no lo obliga—:
+
+> *"the Registrar may allow the Registered Name Holder to opt out of the 60-day inter-registrar transfer lock prior to any Change of Registrant request"*
+
+Y una vez empezado el bloqueo no hay salida:
+
+> *"registrars may not allow registrants to opt out of the 60-day inter-registrar transfer lock during the 60-day lock"*
+
+Así que si hay que eximirse, es un paso del vendedor y va antes de cedernos el dominio.
+
+### La asimetría con los canales, dicha sin adornos
+
+| | Canal de YouTube | Sitio web |
+|---|---|---|
+| ¿Puede el vendedor darnos acceso sin ceder control? | **Sí.** Como administrador: no podemos borrar el canal ni quitarlo a él, y el plazo corre igual | **No de forma estándar.** Algunos registradores tienen roles delegados, pero varía y no se puede prometer |
+| ¿Qué espera impone la plataforma del activo? | 7 días para volverse propietario principal, dos veces | 60 días sin poder cambiar de registrador, después del cambio de titular |
+| ¿La espera corre antes de la venta? | **Sí**, si el vendedor nos suma temprano | **No.** Empieza recién cuando se cede el dominio |
+
+La conclusión de producto: el argumento "publicá y recibí ofertas sin comprometer tu activo" es fuerte y verdadero para canales, y no se puede sostener igual para sitios. Para dominios el argumento honesto es el escrow clásico —custodia antes del pago— más el legajo probatorio, sin prometer acceso limitado.
+
+---
+
 ## 2. El ingreso mensual no se puede verificar
 
 La documentación de YouTube Analytics es explícita:
@@ -254,4 +294,7 @@ Ordenado por valor sobre esfuerzo:
 - [YouTube Analytics API — Channel Reports](https://developers.google.com/youtube/analytics/channel_reports)
 - [YouTube Analytics API — Content Owner Reports](https://developers.google.com/youtube/analytics/content_owner_reports)
 - [TikTok — Terms of Service](https://www.tiktok.com/legal/page/us/terms-of-service/en)
+- [ICANN — Transfer Policy](https://www.icann.org/en/contracted-parties/accredited-registrars/transfer-policy-01-06-2016-en) — el bloqueo de 60 días y su alcance
+- [ICANN — FAQs for Registrants: Transferring Your Domain Name](https://www.icann.org/resources/pages/name-holder-faqs-2017-10-10-en)
+- [ICANN — About Change of Registrant](https://www.icann.org/resources/pages/ownership-2013-05-03-en)
 - [Ley 25.506 de Firma Digital — InfoLEG](https://servicios.infoleg.gob.ar/infolegInternet/anexos/70000-74999/70749/norma.htm)
