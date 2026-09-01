@@ -36,6 +36,11 @@ import {
     MyOperationDto,
     OperationDetailDto,
     AssetTypeDescriptorDto,
+    CompleteOperationRequest,
+    DeclareRecipientIdentityRequest,
+    CustodyAccountDto,
+    CreateCustodyAccountRequest,
+    UpdateCustodyAccountRequest,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -286,8 +291,44 @@ export class MarketplaceClient {
         return this.operationStep(operationId, 'payment', body);
     }
 
-    completeOperation(operationId: string): Promise<void> {
-        return this.operationStep(operationId, 'complete');
+    /** El comprador declara dónde quiere recibir el activo. */
+    declareRecipientIdentity(operationId: string, body: DeclareRecipientIdentityRequest): Promise<void> {
+        return this.request(
+            'POST',
+            `/operations/${encodeURIComponent(operationId)}/recipient-identity`,
+            { body },
+        );
+    }
+
+    /**
+     * Cierra la operación registrando la constancia de entrega. Solo admin.
+     * `deliveredToIdentifier` no viaja: lo copia el dominio de la identidad
+     * declarada por el comprador.
+     */
+    completeOperation(operationId: string, body: CompleteOperationRequest): Promise<void> {
+        return this.operationStep(operationId, 'complete', body);
+    }
+
+    // ── Cuentas de custodia (solo admin) ─────────────────
+
+    listCustodyAccounts(): Promise<CustodyAccountDto[]> {
+        return this.request('GET', '/admin/custody-accounts');
+    }
+
+    createCustodyAccount(body: CreateCustodyAccountRequest): Promise<CustodyAccountDto> {
+        return this.request('POST', '/admin/custody-accounts', { body });
+    }
+
+    updateCustodyAccount(id: string, body: UpdateCustodyAccountRequest): Promise<CustodyAccountDto> {
+        return this.request('PATCH', `/admin/custody-accounts/${encodeURIComponent(id)}`, { body });
+    }
+
+    deactivateCustodyAccount(id: string): Promise<void> {
+        return this.request('POST', `/admin/custody-accounts/${encodeURIComponent(id)}/baja`);
+    }
+
+    activateCustodyAccount(id: string): Promise<void> {
+        return this.request('POST', `/admin/custody-accounts/${encodeURIComponent(id)}/alta`);
     }
 
     // ── Denuncias ────────────────────────────────────────

@@ -109,14 +109,14 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Fase 10: `api-contract`
 
-- [ ] 10.1 `packages/api-contract/src/index.ts`: `CustodyAccountDto` (`heldAssets: number`), `CreateCustodyAccountRequest`, `UpdateCustodyAccountRequest`, `RecipientIdentityDto`, `DeliveryVerificationDto` + request, forma `SellerListingView` para `me.ts`. — deps: ninguna
+- [x] 10.1 `packages/api-contract/src/index.ts`: `CustodyAccountDto` (`heldAssets: number`), `CreateCustodyAccountRequest`, `UpdateCustodyAccountRequest`, `RecipientIdentityDto`, `DeliveryVerificationDto` + request, forma `SellerListingView` para `me.ts`. — deps: ninguna
 
 ## Fase 11: API — rutas y cableado
 
-- [ ] 11.1 `apps/api/src/container.ts`: instanciar `PrismaCustodyAccountRepository` y cablearlo en los use cases nuevos y modificados. — deps: 7.8, 6.2, 6.4, 6.6, 6.8, 6.10, 6.12
-- [ ] 11.2 `apps/api/src/routes/me.ts`: rutas ABM bajo `/admin` (`GET`/`POST /admin/custody-accounts`, `PATCH /admin/custody-accounts/:id`, `POST /admin/custody-accounts/:id/baja`, `.../alta`); ruta declarar identidad receptora; ruta registrar constancia de entrega; `RegisterPlatformAccess` recibe `custodyAccountId`. — deps: 11.1, 10.1
-- [ ] 11.3 `apps/api/src/routes/me.ts` — `aMyListingDto` lee `view.handoverSteps` en vez de llamar a la entidad (**ripple de 6.11; mismo commit**). — deps: 6.11
-- [ ] 11.4 **[TEST]** API: las cinco rutas del ABM responden 403 a un actor no-admin. — deps: 11.2
+- [x] 11.1 `apps/api/src/container.ts`: instanciar `PrismaCustodyAccountRepository` y cablearlo en los use cases nuevos y modificados. — deps: 7.8, 6.2, 6.4, 6.6, 6.8, 6.10, 6.12
+- [x] 11.2 `apps/api/src/routes/me.ts`: rutas ABM bajo `/admin` (`GET`/`POST /admin/custody-accounts`, `PATCH /admin/custody-accounts/:id`, `POST /admin/custody-accounts/:id/baja`, `.../alta`); ruta declarar identidad receptora; ruta registrar constancia de entrega; `RegisterPlatformAccess` recibe `custodyAccountId`. — deps: 11.1, 10.1
+- [x] 11.3 `apps/api/src/routes/me.ts` — `aMyListingDto` lee `view.handoverSteps` en vez de llamar a la entidad (**ripple de 6.11; mismo commit**). — deps: 6.11
+- [x] 11.4 **[TEST]** API: las cinco rutas del ABM responden 403 a un actor no-admin. — deps: 11.2
 
 ## Fase 12: Web
 

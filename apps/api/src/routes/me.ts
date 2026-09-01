@@ -10,8 +10,14 @@ import type {
     MyOperationDto,
     OperationDetailDto,
     RegisterPlatformAccessRequest,
+    CustodyAccountDto,
+    CreateCustodyAccountRequest,
+    UpdateCustodyAccountRequest,
 } from '@marketplace/api-contract';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
+import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
+import { TransferStep } from '@marketplace/domain/src/strategies/IAssetStrategy';
+import { AssetType } from '@marketplace/shared-types';
 import { Operation } from '@marketplace/domain/src/entities/Operation';
 import { Contract } from '@marketplace/domain/src/entities/Contract';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -33,8 +39,15 @@ function nombreDelActivo(listing: Listing): string | undefined {
     return typeof valor === 'string' && valor ? valor : undefined;
 }
 
-function aMyListingDto(listing: Listing): MyListingDto {
+/**
+ * Los pasos de traspaso los resuelve el use case —puede nombrar la cuenta de
+ * custodia concreta, y para eso hace falta consultar persistencia, que no
+ * corresponde a la capa de transporte. Cuando no vienen (cola de revisión del
+ * admin), se cae a la variante genérica de la entidad.
+ */
+function aMyListingDto(listing: Listing, handoverSteps?: TransferStep[]): MyListingDto {
     const { id, createdAt, props } = listing.toSnapshot();
+    const pasos = handoverSteps ?? listing.handoverSteps();
     return {
         id,
         status: props.status,
@@ -60,7 +73,7 @@ function aMyListingDto(listing: Listing): MyListingDto {
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: listing.handoverSteps().map(({ id, description, instruction }) => ({ id, description, instruction })),
+        handoverSteps: pasos.map(({ id, description, instruction }) => ({ id, description, instruction })),
         descriptor: listing.describeAssetType(),
         createdAt: createdAt.toISOString(),
     };
@@ -205,8 +218,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         '/me/listings',
         { preHandler: [authenticate] },
         async (request, reply) => {
-            const listings = await c.misListings.execute(actorOf(request));
-            return reply.send(listings.map(aMyListingDto));
+            const vistas = await c.misListings.execute(actorOf(request));
+            return reply.send(vistas.map((v) => aMyListingDto(v.listing, v.handoverSteps)));
         },
     );
 
@@ -227,7 +240,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const listings = await c.listingsParaRevisar.execute(actorOf(request));
-            return reply.send(listings.map(aMyListingDto));
+            return reply.send(listings.map((l) => aMyListingDto(l)));
         },
     );
 
@@ -275,9 +288,10 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
             schema: {
                 body: {
                     type: 'object',
-                    required: ['accessSince'],
+                    required: ['accessSince', 'custodyAccountId'],
                     properties: {
                         accessSince: { type: 'string', format: 'date-time' },
+                        custodyAccountId: { type: 'string', minLength: 1 },
                         notes: { type: 'string', maxLength: 2000 },
                     },
                 },
@@ -285,6 +299,101 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         },
         async (request, reply) => {
             await c.registerPlatformAccess.execute(request.params.id, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    // ── ABM de cuentas de custodia (solo admin) ────────────
+    //
+    // La autorización la hace cada use case con `assertIsAdmin`: estas rutas no
+    // agregan un chequeo propio, delegan.
+
+    const aCustodyAccountDto = (account: CustodyAccount, heldAssets: number): CustodyAccountDto => ({
+        id: account.id.toString(),
+        label: account.label,
+        identifier: account.identifier,
+        assetType: account.assetType,
+        isActive: account.isActive,
+        notes: account.notes,
+        heldAssets,
+        createdAt: account.createdAt.toISOString(),
+    });
+
+    app.get<{ Reply: CustodyAccountDto[] }>(
+        '/admin/custody-accounts',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const filas = await c.listarCuentasCustodia.execute(actorOf(request));
+            return reply.send(filas.map((f) => aCustodyAccountDto(f.account, f.heldAssets)));
+        },
+    );
+
+    app.post<{ Body: CreateCustodyAccountRequest; Reply: CustodyAccountDto }>(
+        '/admin/custody-accounts',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['label', 'identifier', 'assetType'],
+                    properties: {
+                        label: { type: 'string', minLength: 1, maxLength: 200 },
+                        identifier: { type: 'string', minLength: 1, maxLength: 320 },
+                        assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const cuenta = await c.crearCuentaCustodia.execute(
+                { ...request.body, assetType: request.body.assetType as AssetType },
+                actorOf(request),
+            );
+            return reply.code(201).send(aCustodyAccountDto(cuenta, 0));
+        },
+    );
+
+    app.patch<{ Params: IdParams; Body: UpdateCustodyAccountRequest; Reply: CustodyAccountDto }>(
+        '/admin/custody-accounts/:id',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    properties: {
+                        label: { type: 'string', minLength: 1, maxLength: 200 },
+                        identifier: { type: 'string', minLength: 1, maxLength: 320 },
+                        assetType: { type: 'string', enum: ['youtube', 'web'] },
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const cuenta = await c.editarCuentaCustodia.execute(
+                request.params.id,
+                { ...request.body, assetType: request.body.assetType as AssetType | undefined },
+                actorOf(request),
+            );
+            return reply.send(aCustodyAccountDto(cuenta, 0));
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/admin/custody-accounts/:id/baja',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.darDeBajaCuentaCustodia.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/admin/custody-accounts/:id/alta',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.activarCuentaCustodia.execute(request.params.id, actorOf(request));
             return reply.code(204).send();
         },
     );
@@ -346,6 +455,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     ...props.custodyVerification,
                     verifiedBy: props.custodyVerification.verifiedBy.toString(),
                     verifiedAt: props.custodyVerification.verifiedAt.toISOString(),
+                },
+                recipientIdentity: operation.recipientIdentity && {
+                    identifier: operation.recipientIdentity.identifier,
+                    declaredAt: operation.recipientIdentity.declaredAt.toISOString(),
+                    notes: operation.recipientIdentity.notes,
+                },
+                delivery: operation.deliveryCheck && {
+                    ...operation.deliveryCheck,
+                    verifiedBy: operation.deliveryCheck.verifiedBy.toString(),
+                    verifiedAt: operation.deliveryCheck.verifiedAt.toISOString(),
                 },
                 createdAt: createdAt.toISOString(),
             };

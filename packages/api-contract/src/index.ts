@@ -243,6 +243,46 @@ export interface ListingFiltersQuery {
 export interface RegisterPlatformAccessRequest {
     /** Desde cuándo hay acceso, en ISO. No puede ser futura. */
     accessSince: string;
+    /**
+     * A qué cuenta de custodia se cedió el activo. Obligatorio: una constancia
+     * que no lo dice deja al vendedor sin saber a quién invitar.
+     */
+    custodyAccountId: string;
+    notes?: string;
+}
+
+// ── Cuentas de custodia ──────────────────────────────────
+
+export type AssetTypeDto = 'youtube' | 'web';
+
+/**
+ * La identidad que sostiene activos en custodia de la plataforma. Solo se
+ * guarda su `identifier` —nunca credenciales.
+ */
+export interface CustodyAccountDto {
+    id: string;
+    label: string;
+    identifier: string;
+    assetType: AssetTypeDto;
+    isActive: boolean;
+    notes?: string;
+    /** Cuántos activos sostiene ahora mismo. La baja lo necesita; la lista lo muestra. */
+    heldAssets: number;
+    createdAt: string;
+}
+
+export interface CreateCustodyAccountRequest {
+    label: string;
+    identifier: string;
+    assetType: AssetTypeDto;
+    notes?: string;
+}
+
+export interface UpdateCustodyAccountRequest {
+    label?: string;
+    identifier?: string;
+    /** No se puede cambiar mientras la cuenta sostenga activos. */
+    assetType?: AssetTypeDto;
     notes?: string;
 }
 
@@ -543,7 +583,48 @@ export interface OperationDetailDto {
     custody?: CustodyVerificationDto;
     /** Presente desde que el pago del comprador quedó confirmado. */
     payment?: PaymentRecordDto;
+    /** Dónde declaró el comprador que quiere recibir el activo. Tarea pendiente si falta. */
+    recipientIdentity?: RecipientIdentityDto;
+    /** Constancia de entrega, una vez cerrada la operación. */
+    delivery?: DeliveryVerificationDto;
     createdAt: string;
+}
+
+/** Dónde el comprador quiere recibir el activo. */
+export interface RecipientIdentityDto {
+    identifier: string;
+    declaredAt: string;
+    notes?: string;
+}
+
+export interface DeclareRecipientIdentityRequest {
+    identifier: string;
+}
+
+/**
+ * Constancia de entrega, simétrica a `CustodyVerificationDto`.
+ * `deliveredToIdentifier` es copia congelada de la identidad declarada.
+ */
+export interface DeliveryVerificationDto {
+    verifiedBy: string;
+    verifiedAt: string;
+    deliveredToIdentifier: string;
+    buyerIsPrimaryOwner: boolean;
+    accessTransferred: boolean;
+    sellerRemoved: boolean;
+    notes?: string;
+}
+
+/**
+ * `complete()` registra la constancia y cierra en un solo acto.
+ * `deliveredToIdentifier` NO viaja: lo copia el dominio de la identidad
+ * declarada, para no entregar a un destino que el comprador nunca eligió.
+ */
+export interface CompleteOperationRequest {
+    buyerIsPrimaryOwner: boolean;
+    accessTransferred: boolean;
+    sellerRemoved: boolean;
+    notes?: string;
 }
 
 /**

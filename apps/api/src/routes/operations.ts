@@ -3,9 +3,11 @@ import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
 import type {
     CheckoutDto,
+    CompleteOperationRequest,
     ConfirmCustodyRequest,
     ConfirmPaymentRequest,
     CounterOfferRequest,
+    DeclareRecipientIdentityRequest,
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
@@ -112,11 +114,68 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
         },
     );
 
+    /**
+     * El comprador declara dónde quiere recibir el activo. Es una tarea
+     * pendiente suya: se puede resolver desde `contract_pending` y es
+     * inevitable recién al cerrar. La autorización —que sea el comprador— vive
+     * en la entidad.
+     */
+    app.post<{ Params: IdParams; Body: DeclareRecipientIdentityRequest }>(
+        '/operations/:id/recipient-identity',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['identifier'],
+                    properties: {
+                        identifier: { type: 'string', minLength: 1, maxLength: 320 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.declareRecipientIdentity.execute(
+                request.params.id,
+                request.body,
+                actorOf(request),
+            );
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * Cierre de la operación: registra la constancia de entrega y transiciona
+     * a `completed` en un solo acto. `deliveredToIdentifier` no viaja en el
+     * body: lo copia el dominio de la identidad que el comprador declaró.
+     */
+    app.post<{ Params: IdParams; Body: CompleteOperationRequest }>(
+        '/operations/:id/complete',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['buyerIsPrimaryOwner', 'accessTransferred', 'sellerRemoved'],
+                    properties: {
+                        buyerIsPrimaryOwner: { type: 'boolean' },
+                        accessTransferred: { type: 'boolean' },
+                        sellerRemoved: { type: 'boolean' },
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.completeOperation.execute(request.params.id, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
     const pasos: Array<[string, (id: string, actor: ReturnType<typeof actorOf>) => Promise<void>]> = [
         ['accept', (id, actor) => c.acceptOffer.execute(id, actor)],
         ['cancel', (id, actor) => c.cancelOperation.execute(id, actor)],
         ['transfer', (id, actor) => c.initiateTransfer.execute(id, actor)],
-        ['complete', (id, actor) => c.completeOperation.execute(id, actor)],
     ];
 
     // Todos comparten la misma forma: id en la ruta, actor del token, 204 al

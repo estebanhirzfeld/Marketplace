@@ -6,6 +6,7 @@ import {
     PrismaContractRepository,
     PrismaUnitOfWork,
     PrismaNotificationRepository,
+    PrismaCustodyAccountRepository,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -67,6 +68,14 @@ import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
+import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
+import {
+    CreateCustodyAccountUseCase,
+    UpdateCustodyAccountUseCase,
+    ActivateCustodyAccountUseCase,
+    DeactivateCustodyAccountUseCase,
+    ListCustodyAccountsUseCase,
+} from '@marketplace/domain/src/use-cases/admin/CustodyAccountUseCases';
 
 import { GetMyNotificationsUseCase } from '@marketplace/domain/src/use-cases/notification/GetMyNotificationsUseCase';
 import { MarkNotificationReadUseCase } from '@marketplace/domain/src/use-cases/notification/MarkNotificationReadUseCase';
@@ -146,6 +155,12 @@ export interface Container {
     legajo: GetEvidenceDossierUseCase;
     confirmPayment: ConfirmPaymentUseCase;
     completeOperation: CompleteOperationUseCase;
+    declareRecipientIdentity: DeclareRecipientIdentityUseCase;
+    crearCuentaCustodia: CreateCustodyAccountUseCase;
+    editarCuentaCustodia: UpdateCustodyAccountUseCase;
+    activarCuentaCustodia: ActivateCustodyAccountUseCase;
+    darDeBajaCuentaCustodia: DeactivateCustodyAccountUseCase;
+    listarCuentasCustodia: ListCustodyAccountsUseCase;
 }
 
 export function createContainer(
@@ -180,6 +195,7 @@ export function createContainer(
     const operationRepo = new PrismaOperationRepository();
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
+    const custodyRepo = new PrismaCustodyAccountRepository();
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
@@ -225,11 +241,11 @@ export function createContainer(
         verifyWebsiteRevenue: googleOAuth
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
             : undefined,
-        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo),
+        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),
-        getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo),
-        misListings: new GetMyListingsUseCase(listingRepo),
+        getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo, custodyRepo),
+        misListings: new GetMyListingsUseCase(listingRepo, custodyRepo),
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
@@ -267,5 +283,11 @@ export function createContainer(
         ),
         confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
         completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos),
+        declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo),
+        crearCuentaCustodia: new CreateCustodyAccountUseCase(custodyRepo),
+        editarCuentaCustodia: new UpdateCustodyAccountUseCase(custodyRepo, listingRepo),
+        activarCuentaCustodia: new ActivateCustodyAccountUseCase(custodyRepo),
+        darDeBajaCuentaCustodia: new DeactivateCustodyAccountUseCase(custodyRepo, listingRepo),
+        listarCuentasCustodia: new ListCustodyAccountsUseCase(custodyRepo, listingRepo),
     };
 }
