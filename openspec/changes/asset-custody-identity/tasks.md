@@ -90,22 +90,22 @@ El usuario vio el pronóstico y eligió un solo PR aceptando exceder el presupue
 
 ## Fase 7: Persistencia — esquema, migración, mappers, repos
 
-- [ ] 7.1 `packages/db/prisma/schema.prisma`: modelo `CustodyAccount` (`identifier` `@unique`, índice `assetType,isActive`); `listings.custodyAccountId` FK nullable + índice; `operations.recipientIdentity` `Json?`; `operations.deliveryCheck` `Json?`. — deps: ninguna
-- [ ] 7.2 Generar migración: `pnpm --filter @marketplace/db exec prisma migrate dev --name add_custody_accounts`; verificar que el SQL es 100% aditivo/nullable; regenerar cliente (`pnpm --filter @marketplace/db db:generate`). La aplica `make db-reset`; `make fresh`/`db:push` no la necesita. Las filas `platformAccess` previas quedan con `custodyAccountId` NULL a propósito — sin backfill. — deps: 7.1
-- [ ] 7.3 `packages/db/src/mappers/CustodyAccountMapper.ts` (nuevo): `toDomain`/`toPersistence`. — deps: 1.2
-- [ ] 7.4 `mappers/ListingMapper.ts`: `parseAcceso(raw.platformAccess, raw.custodyAccountId)`; `serializeAcceso` devuelve `{ platformAccess, custodyAccountId }`; acceso previo sin columna → "cuenta sin asignar". — deps: 2.2
-- [ ] 7.5 `mappers/OperationMapper.ts`: `parseEntrega`/`serializeEntrega` para `deliveryCheck`, `recipientIdentity`, `custodyAccountId` dentro de `custodyCheck`; `undefined` en vez de `Prisma.DbNull`. — deps: 4.3
-- [ ] 7.6 `packages/db/src/repositories/PrismaCustodyAccountRepository.ts` (nuevo). — deps: 5.1, 7.3
-- [ ] 7.7 `repositories/PrismaListingRepository.ts`: `findHeldBy` (excluye vendidos) y proyección de la FK en `save`. — deps: 5.1, 7.4
-- [ ] 7.8 `packages/db/src/index.ts`: exportar repo y mapper nuevos. — deps: 7.6
+- [x] 7.1 `packages/db/prisma/schema.prisma`: modelo `CustodyAccount` (`identifier` `@unique`, índice `assetType,isActive`); `listings.custodyAccountId` FK nullable + índice; `operations.recipientIdentity` `Json?`; `operations.deliveryCheck` `Json?`. — deps: ninguna
+- [x] 7.2 Generar migración: `pnpm --filter @marketplace/db exec prisma migrate dev --name add_custody_accounts`; verificar que el SQL es 100% aditivo/nullable; regenerar cliente (`pnpm --filter @marketplace/db db:generate`). La aplica `make db-reset`; `make fresh`/`db:push` no la necesita. Las filas `platformAccess` previas quedan con `custodyAccountId` NULL a propósito — sin backfill. — deps: 7.1
+- [x] 7.3 `packages/db/src/mappers/CustodyAccountMapper.ts` (nuevo): `toDomain`/`toPersistence`. — deps: 1.2
+- [x] 7.4 `mappers/ListingMapper.ts`: `parseAcceso(raw.platformAccess, raw.custodyAccountId)`; `serializeAcceso` devuelve `{ platformAccess, custodyAccountId }`; acceso previo sin columna → "cuenta sin asignar". — deps: 2.2
+- [x] 7.5 `mappers/OperationMapper.ts`: `parseEntrega`/`serializeEntrega` para `deliveryCheck`, `recipientIdentity`, `custodyAccountId` dentro de `custodyCheck`; `undefined` en vez de `Prisma.DbNull`. — deps: 4.3
+- [x] 7.6 `packages/db/src/repositories/PrismaCustodyAccountRepository.ts` (nuevo). — deps: 5.1, 7.3
+- [x] 7.7 `repositories/PrismaListingRepository.ts`: `findHeldBy` (excluye vendidos) y proyección de la FK en `save`. — deps: 5.1, 7.4
+- [x] 7.8 `packages/db/src/index.ts`: exportar repo y mapper nuevos. — deps: 7.6
 
 ## Fase 8: Persistencia — tests de integración (base real, :5434)
 
-- [ ] 8.1 **[TEST]** `packages/db/tests/integration.test.ts`: ida y vuelta de `CustodyAccount`; la FK sobrevive al `save` del listing; `revokePlatformAccess` deja Json **y** columna en nulo; `findHeldBy` excluye vendidos; `identifier` duplicado falla; `platformAccess` con `custodyAccountId` NULL sigue válido. Cada test crea sus datos con value objects tipados. — deps: 7.7
+- [x] 8.1 **[TEST]** `packages/db/tests/integration.test.ts`: ida y vuelta de `CustodyAccount`; la FK sobrevive al `save` del listing; `revokePlatformAccess` deja Json **y** columna en nulo; `findHeldBy` excluye vendidos; `identifier` duplicado falla; `platformAccess` con `custodyAccountId` NULL sigue válido. Cada test crea sus datos con value objects tipados. — deps: 7.7
 
 ## Fase 9: Semilla
 
-- [ ] 9.1 `packages/db/prisma/seed.ts`: una `CustodyAccount` de YouTube activa + asignar esa cuenta a los listings sembrados que ya traen `platformAccess`. Comentario: el `identifier` real de Google **todavía no existe** — el valor sembrado es un placeholder que el usuario debe reemplazar. — deps: 7.6
+- [x] 9.1 `packages/db/prisma/seed.ts`: una `CustodyAccount` de YouTube activa + asignar esa cuenta a los listings sembrados que ya traen `platformAccess`. Comentario: el `identifier` real de Google **todavía no existe** — el valor sembrado es un placeholder que el usuario debe reemplazar. — deps: 7.6
 
 ## Fase 10: `api-contract`
 

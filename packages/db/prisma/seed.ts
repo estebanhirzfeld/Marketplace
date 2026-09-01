@@ -15,10 +15,13 @@ import { Operation } from "@marketplace/domain/src/entities/Operation";
 import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { ContractDataBuilder } from "@marketplace/domain/src/contracts/ContractDataBuilder";
 import { generateDocument } from "@marketplace/domain/src/contracts/ContractGenerator";
+import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
+import { AssetType } from "@marketplace/shared-types";
 import { PrismaUserRepository } from "../src/repositories/PrismaUserRepository";
 import { PrismaListingRepository } from "../src/repositories/PrismaListingRepository";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
 import { PrismaContractRepository } from "../src/repositories/PrismaContractRepository";
+import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
 
 // Setup similar al client.ts
 const connectionString = process.env.DATABASE_URL;
@@ -30,6 +33,7 @@ const userRepo = new PrismaUserRepository();
 const listingRepo = new PrismaListingRepository();
 const operationRepo = new PrismaOperationRepository();
 const contractRepo = new PrismaContractRepository();
+const custodyRepo = new PrismaCustodyAccountRepository();
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -162,6 +166,10 @@ async function main() {
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
+    // Después de los listings: la FK `listings.custodyAccountId` es
+    // `onDelete: SetNull`, pero igual conviene borrar los listings primero
+    // para no dejar la tabla a medias si algo falla.
+    await prisma.custodyAccount.deleteMany();
     await prisma.user.deleteMany();
 
     // ── 2. Usuarios ────────────────────────────────────────
@@ -212,6 +220,31 @@ async function main() {
 
     console.log("✅ 5 usuarios creados (1 admin, 2 vendedores, 2 compradores)");
 
+    // ── 2b. Cuentas de custodia ────────────────────────────
+    //
+    // La identidad que sostiene los activos en custodia. Sin al menos una, el
+    // flujo queda trabado: registrar el acceso pasa a exigirla.
+    //
+    // ⚠️ Los `identifier` son PLACEHOLDERS. La cuenta de Google real que va a
+    // figurar como propietaria de las Cuentas de Marca todavía no existe: hay
+    // que crearla y reemplazar este valor. Lo mismo para el usuario del
+    // registrador. El código funciona; el dato hay que ponerlo.
+    const custodiaYouTube = CustodyAccount.create({
+        label: "Custodia YouTube 01",
+        identifier: "custodia-yt-01@traspaso.com", // PLACEHOLDER — reemplazar por la cuenta de Google real
+        assetType: AssetType.YOUTUBE,
+        notes: "Cuenta de Marca propietaria. Reemplazar el identifier por la cuenta real.",
+    });
+    const custodiaWeb = CustodyAccount.create({
+        label: "Custodia Web 01",
+        identifier: "custodia-web-01@traspaso.com", // PLACEHOLDER — reemplazar por el usuario del registrador real
+        assetType: AssetType.WEB,
+        notes: "Usuario del registrador. Reemplazar el identifier por el real.",
+    });
+    await custodyRepo.save(custodiaYouTube);
+    await custodyRepo.save(custodiaWeb);
+    console.log("✅ 2 cuentas de custodia creadas (identifiers placeholder)");
+
     // ── 3. Activos ─────────────────────────────────────────
     //
     // Siete, con precios pedidos cerca de lo que estima cada strategy y fechas
@@ -241,6 +274,7 @@ async function main() {
     // no se puede firmar y la demo termina en la negociación.
     programmingChannel.registerPlatformAccess({
         verifiedBy: admin.id,
+        custodyAccountId: custodiaYouTube.id,
         accessSince: daysAgo(9),
         notes: "Invitada como propietaria de la Cuenta de Marca.",
     });
@@ -266,6 +300,7 @@ async function main() {
     });
     financeChannel.registerPlatformAccess({
         verifiedBy: admin.id,
+        custodyAccountId: custodiaYouTube.id,
         accessSince: daysAgo(2),
         notes: "Invitación aceptada; corriendo el plazo de propietario principal.",
     });
@@ -323,6 +358,7 @@ async function main() {
     });
     saasBlog.registerPlatformAccess({
         verifiedBy: admin.id,
+        custodyAccountId: custodiaWeb.id,
         accessSince: daysAgo(1),
         notes: "Accesos de registrador y hosting entregados y verificados.",
     });

@@ -108,14 +108,39 @@ model Listing {
   publishedAt     DateTime?
   rejectionReason String?
   platformAccess  Json?
+  // Desnormalizado fuera del Json `platformAccess` para tener integridad
+  // referencial y poder responder "qué activos sostiene la cuenta X ahora".
+  // Nullable: las constancias anteriores a este cambio quedan sin cuenta
+  // asignada, a propósito y sin backfill.
+  custodyAccountId String?
   ownershipCheck  Json?
   createdAt       DateTime      @default(now())
 
-  seller     User        @relation(fields: [sellerId], references: [id])
-  operations Operation[]
-  contracts  Contract[]
+  seller        User           @relation(fields: [sellerId], references: [id])
+  custodyAccount CustodyAccount? @relation(fields: [custodyAccountId], references: [id])
+  operations    Operation[]
+  contracts     Contract[]
 
+  @@index([custodyAccountId])
   @@map("listings")
+}
+
+/// La identidad real (cuenta de Google, de registrador) que sostiene activos
+/// en custodia de la plataforma. No se borra nunca: las constancias que la
+/// referencian tienen que seguir resolviéndose.
+model CustodyAccount {
+  id         String    @id @default(uuid())
+  label      String
+  identifier String    @unique
+  assetType  AssetType
+  isActive   Boolean   @default(true)
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  listings Listing[]
+
+  @@index([assetType, isActive])
+  @@map("custody_accounts")
 }
 
 enum ReportReason {
@@ -175,6 +200,11 @@ model Operation {
   negotiations     Json            @default("[]")
   custodyCheck     Json?
   payment          Json?
+  // Dónde declaró el comprador que quiere recibir el activo. Nullable y
+  // aditiva: una operación vieja no la tiene.
+  recipientIdentity Json?
+  // Constancia de entrega, espejo de `custodyCheck`. Se registra al cerrar.
+  deliveryCheck    Json?
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 
