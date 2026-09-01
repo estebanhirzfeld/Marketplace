@@ -26,7 +26,7 @@ export function TransferableBadge({
 }) {
     if (transferable) {
         return (
-            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-listo)]">
+            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-listo)] italic">
                 TRANSFERENCIA INMEDIATA
             </span>
         );
