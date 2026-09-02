@@ -16,7 +16,7 @@ import type {
 } from '@marketplace/api-contract';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
-import { TransferStep } from '@marketplace/domain/src/strategies/IAssetStrategy';
+import { HandoverStep } from '@marketplace/domain/src/entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
 import { Operation } from '@marketplace/domain/src/entities/Operation';
 import { Contract } from '@marketplace/domain/src/entities/Contract';
@@ -45,7 +45,11 @@ function nombreDelActivo(listing: Listing): string | undefined {
  * corresponde a la capa de transporte. Cuando no vienen (cola de revisión del
  * admin), se cae a la variante genérica de la entidad.
  */
-function aMyListingDto(listing: Listing, handoverSteps?: TransferStep[]): MyListingDto {
+function aMyListingDto(
+    listing: Listing,
+    handoverSteps?: HandoverStep[],
+    custodyAccountIdentifier?: string,
+): MyListingDto {
     const { id, createdAt, props } = listing.toSnapshot();
     const pasos = handoverSteps ?? listing.handoverSteps();
     return {
@@ -73,7 +77,13 @@ function aMyListingDto(listing: Listing, handoverSteps?: TransferStep[]): MyList
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, description, instruction }) => ({ id, description, instruction })),
+        handoverSteps: pasos.map(({ id, description, instruction, afterPlatformStarts }) => ({
+            id,
+            description,
+            instruction,
+            afterPlatformStarts,
+        })),
+        custodyAccountIdentifier: custodyAccountIdentifier,
         descriptor: listing.describeAssetType(),
         createdAt: createdAt.toISOString(),
     };
@@ -219,7 +229,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vistas = await c.misListings.execute(actorOf(request));
-            return reply.send(vistas.map((v) => aMyListingDto(v.listing, v.handoverSteps)));
+            return reply.send(vistas.map((v) => aMyListingDto(v.listing, v.handoverSteps, v.custodyAccountIdentifier)));
         },
     );
 
@@ -292,6 +302,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     properties: {
                         accessSince: { type: 'string', format: 'date-time' },
                         custodyAccountId: { type: 'string', minLength: 1 },
+                        heldRole: { type: 'string', enum: ['manager', 'owner'] },
                         notes: { type: 'string', maxLength: 2000 },
                     },
                 },

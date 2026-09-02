@@ -91,12 +91,18 @@ describe('IAssetStrategy.describe', () => {
         expect(web.describe().handoverNotice).not.toContain('YouTube');
     });
 
-    it('explica la espera en sus propios términos, o no la explica si no hay', () => {
+    it('explica en sus propios términos qué plazo impone su plataforma', () => {
         const [, youtube] = estrategias[0];
         const [, web] = estrategias[1];
 
-        expect(youtube.describe().waitingNotice).toContain('YouTube');
-        // Un sitio web se transfiere de inmediato: no hay espera que justificar.
-        expect(web.describe().waitingNotice).toBeUndefined();
+        // El canal enuncia la regla completa: alcanza con ser administrador.
+        expect(youtube.describe().waitingNotice).toContain('administrador o propietario');
+
+        // El sitio se transfiere de inmediato, pero eso no significa que no
+        // haya nada que avisar: cambiar el titular activa el bloqueo de 60
+        // días de la ICANN para moverlo a otro registrador, que es una
+        // limitación real sobre algo que el comprador acaba de comprar.
+        expect(web.describe().waitingNotice).toContain('60 días');
+        expect(web.describe().waitingNotice).toContain('otro registrador');
     });
 });

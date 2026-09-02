@@ -52,6 +52,7 @@ describe('Listing.registerPlatformAccess', () => {
 
         listing.registerPlatformAccess({
             verifiedBy: ADMIN,
+            heldRole: 'manager',
             custodyAccountId: CUSTODY,
             accessSince: haceDias(2),
         });
@@ -69,7 +70,8 @@ describe('Listing.registerPlatformAccess', () => {
         expect(() =>
             listing.registerPlatformAccess({
                 verifiedBy: undefined as never,
-                custodyAccountId: CUSTODY,
+                heldRole: 'manager',
+            custodyAccountId: CUSTODY,
                 accessSince: haceDias(2),
             }),
         ).toThrow(ValidationError);
@@ -82,7 +84,8 @@ describe('Listing.registerPlatformAccess', () => {
         expect(() =>
             listing.registerPlatformAccess({
                 verifiedBy: ADMIN,
-                custodyAccountId: CUSTODY,
+                heldRole: 'manager',
+            custodyAccountId: CUSTODY,
                 accessSince: new Date(Date.now() + DIA),
             }),
         ).toThrow(ValidationError);
@@ -93,7 +96,8 @@ describe('Cuándo un listing queda listo para transferirse', () => {
     it('un canal no está listo el mismo día en que se registra el acceso', () => {
         const listing = unCanal();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: new Date() });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: new Date() });
 
         expect(listing.isReadyToTransfer()).toBe(false);
     });
@@ -101,7 +105,8 @@ describe('Cuándo un listing queda listo para transferirse', () => {
     it('un canal queda listo a los 7 días', () => {
         const listing = unCanal();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(7) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(7) });
 
         expect(listing.isReadyToTransfer()).toBe(true);
     });
@@ -109,7 +114,8 @@ describe('Cuándo un listing queda listo para transferirse', () => {
     it('sigue sin estar listo a los 6 días', () => {
         const listing = unCanal();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(6) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(6) });
 
         expect(listing.isReadyToTransfer()).toBe(false);
     });
@@ -125,7 +131,8 @@ describe('Cuándo un listing queda listo para transferirse', () => {
     it('un sitio web queda listo apenas se registra el acceso', () => {
         const listing = unSitioWeb();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: new Date() });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: new Date() });
 
         expect(listing.isReadyToTransfer()).toBe(true);
     });
@@ -136,7 +143,8 @@ describe('Listing.transferableFrom — la fecha que ve el comprador', () => {
         const listing = unCanal();
         const desde = haceDias(2);
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: desde });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: desde });
 
         const esperada = new Date(desde.getTime() + 7 * DIA);
         expect(listing.transferableFrom()?.getTime()).toBe(esperada.getTime());
@@ -150,7 +158,8 @@ describe('Listing.transferableFrom — la fecha que ve el comprador', () => {
 describe('Listing.assertCanBeTransferred — el candado', () => {
     it('deja pasar un listing listo', () => {
         const listing = unCanal();
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(8) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(8) });
 
         expect(() => listing.assertCanBeTransferred()).not.toThrow();
     });
@@ -161,7 +170,8 @@ describe('Listing.assertCanBeTransferred — el candado', () => {
 
     it('frena un listing dentro de la ventana de espera', () => {
         const listing = unCanal();
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(3) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(3) });
 
         expect(() => listing.assertCanBeTransferred()).toThrow(InvalidStateError);
     });
@@ -176,7 +186,8 @@ describe('Listing.revokePlatformAccess', () => {
      */
     it('borra la constancia y el listing deja de estar listo', () => {
         const listing = unCanal();
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(10) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(10) });
         expect(listing.isReadyToTransfer()).toBe(true);
 
         listing.revokePlatformAccess();
@@ -192,10 +203,12 @@ describe('Listing.revokePlatformAccess', () => {
      */
     it('registrar de nuevo reinicia la espera', () => {
         const listing = unCanal();
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: haceDias(10) });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: haceDias(10) });
         listing.revokePlatformAccess();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, custodyAccountId: CUSTODY, accessSince: new Date() });
+        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+            custodyAccountId: CUSTODY, accessSince: new Date() });
 
         expect(listing.isReadyToTransfer()).toBe(false);
     });

@@ -3,8 +3,7 @@ import {
     ICustodyAccountRepository,
 } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
-import { Listing } from '../../entities/Listing';
-import { TransferStep } from '../../strategies/IAssetStrategy';
+import { HandoverStep, Listing } from '../../entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
 
 /**
@@ -18,7 +17,13 @@ import { AssetType } from '@marketplace/shared-types';
  */
 export interface SellerListingView {
     listing: Listing;
-    handoverSteps: TransferStep[];
+    handoverSteps: HandoverStep[];
+    /**
+     * A qué cuenta tiene que invitarnos el vendedor. Ya se resolvió acá para
+     * armar los pasos, así que viaja aparte en vez de obligar a la pantalla a
+     * extraerlo de la prosa de un paso.
+     */
+    custodyAccountIdentifier?: string;
 }
 
 /**
@@ -62,6 +67,7 @@ export class GetMyListingsUseCase {
                 handoverSteps: listing.handoverSteps(
                     identifier ? { custodyAccountIdentifier: identifier } : undefined,
                 ),
+                custodyAccountIdentifier: identifier,
             };
         });
     }

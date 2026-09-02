@@ -73,6 +73,23 @@ export default async function DetalleDeActivo(props: {
 
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
+
+    /*
+     * Los pasos de la cesión, partidos en dos momentos.
+     *
+     * El primer paso de la plataforma marca la frontera: lo anterior es lo que
+     * el vendedor puede hacer ya, y lo posterior —promovernos a propietario
+     * principal— es lo que le vamos a pedir recién con el contrato firmado.
+     * Mostrarle los dos desde el principio es lo que hace creíble la primera
+     * mitad: la promesa es que no cede control ahora, y eso solo tranquiliza
+     * si puede ver cuándo sí.
+     *
+     * El momento se deduce de la posición y no de un campo del paso: la
+     * estrategia describe un recorrido, no sabe de operaciones.
+     */
+    const ahora = mio.handoverSteps.filter((p) => !p.afterPlatformStarts);
+    const despues = mio.handoverSteps.filter((p) => p.afterPlatformStarts);
+    const cuentaDeCustodia = mio.custodyAccountIdentifier;
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
     const nombre = typeof listing.assetData.name === 'string' && listing.assetData.name
@@ -373,9 +390,61 @@ export default async function DetalleDeActivo(props: {
                                         está publicado.
                                     </p>
 
-                                    {mio.handoverSteps.length > 0 && (
+                                    {/*
+                                        El dato concreto, destacado. Antes vivía embebido dentro de
+                                        una oración del instructivo y había que buscarlo: es lo
+                                        único que el vendedor necesita copiar, así que no puede
+                                        estar escondido en un párrafo.
+                                    */}
+                                    {cuentaDeCustodia && (
+                                        <div className="flex flex-col gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-acento)]/40 p-4">
+                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                                                INVITANOS A
+                                            </span>
+                                            <span className="font-mono text-[15px] text-[var(--color-acento)]">
+                                                {cuentaDeCustodia}
+                                            </span>
+                                            <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                                                Con permisos de administrador, no de propietario.
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/*
+                                        La promesa va en negativo a propósito: el vendedor puede
+                                        verificar cada línea en la interfaz de Google. Una promesa
+                                        en positivo le pediría que nos crea, y de eso se trata
+                                        justamente su desconfianza.
+                                    */}
+                                    <div className="flex flex-col gap-2 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
+                                        <span className="text-[13px] font-medium">
+                                            Con ese rol no podemos
+                                        </span>
+                                        <ul className="flex flex-col gap-1">
+                                            {[
+                                                'Eliminar tu activo',
+                                                'Quitarte a vos',
+                                                'Transferirlo a nadie',
+                                            ].map((no) => (
+                                                <li
+                                                    key={no}
+                                                    className="flex items-start gap-2 text-[12px] leading-relaxed text-[var(--color-apagado)]"
+                                                >
+                                                    <span aria-hidden className="text-[var(--color-listo)]">
+                                                        ✓
+                                                    </span>
+                                                    {no}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                                            Seguís siendo el dueño y podés echarnos cuando quieras.
+                                        </span>
+                                    </div>
+
+                                    {ahora.length > 0 && (
                                         <ol className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
-                                            {mio.handoverSteps.map((paso, i) => (
+                                            {ahora.map((paso, i) => (
                                                 <li key={paso.id} className="flex gap-3 text-[13px]">
                                                     <span className="font-mono text-[12px] text-[var(--color-acento)]">
                                                         {i + 1}
@@ -386,6 +455,28 @@ export default async function DetalleDeActivo(props: {
                                                 </li>
                                             ))}
                                         </ol>
+                                    )}
+
+                                    {/*
+                                        El momento en que sí cede el control, mostrado desde el
+                                        principio. La promesa es que no cede nada AHORA, y eso solo
+                                        tranquiliza si puede ver cuándo sí: esconderlo lo volvería
+                                        una sorpresa tardía.
+                                    */}
+                                    {despues.length > 0 && (
+                                        <div className="flex flex-col gap-2 border-t border-[var(--color-borde)] pt-4">
+                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                                                Y MÁS ADELANTE, CON EL CONTRATO FIRMADO
+                                            </span>
+                                            {despues.map((paso) => (
+                                                <span
+                                                    key={paso.id}
+                                                    className="text-[13px] leading-relaxed text-[var(--color-tenue)]"
+                                                >
+                                                    {paso.instruction ?? paso.description}
+                                                </span>
+                                            ))}
+                                        </div>
                                     )}
 
                                     <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">

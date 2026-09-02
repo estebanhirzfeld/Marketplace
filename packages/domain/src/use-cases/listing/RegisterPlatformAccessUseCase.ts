@@ -2,6 +2,7 @@ import {
     IListingRepository,
     ICustodyAccountRepository,
 } from '../../ports/Repositories';
+import { PlatformHeldRole } from '../../entities/Listing';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError, ValidationError } from '../../errors/DomainError';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
@@ -9,6 +10,13 @@ import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 export interface RegisterPlatformAccessInput {
     /** Desde cuándo la plataforma figura con acceso, en formato ISO. */
     accessSince: string;
+    /**
+     * Con qué rol quedó la plataforma. Por defecto administrador, que es el
+     * caso normal: permisos mínimos, plazo corriendo igual. Propietario existe
+     * para el activo que el vendedor ya nos promovió, o para el registrador
+     * que no admite roles.
+     */
+    heldRole?: PlatformHeldRole;
     /** A qué cuenta de custodia se cedió el activo. Obligatorio desde este cambio. */
     custodyAccountId: string;
     notes?: string;
@@ -62,6 +70,7 @@ export class RegisterPlatformAccessUseCase {
         listing.registerPlatformAccess({
             verifiedBy: new UniqueEntityID(actor.id),
             custodyAccountId: account.id,
+            heldRole: input.heldRole ?? 'manager',
             accessSince,
             notes: input.notes,
         });

@@ -274,9 +274,10 @@ async function main() {
     // no se puede firmar y la demo termina en la negociación.
     programmingChannel.registerPlatformAccess({
         verifiedBy: admin.id,
+        heldRole: 'manager',
         custodyAccountId: custodiaYouTube.id,
         accessSince: daysAgo(9),
-        notes: "Invitada como propietaria de la Cuenta de Marca.",
+        notes: "Invitada como administradora de la Cuenta de Marca.",
     });
 
     // Acceso cedido hace dos días: todavía dentro de los siete de espera, así
@@ -300,6 +301,7 @@ async function main() {
     });
     financeChannel.registerPlatformAccess({
         verifiedBy: admin.id,
+        heldRole: 'manager',
         custodyAccountId: custodiaYouTube.id,
         accessSince: daysAgo(2),
         notes: "Invitación aceptada; corriendo el plazo de propietario principal.",
@@ -358,6 +360,7 @@ async function main() {
     });
     saasBlog.registerPlatformAccess({
         verifiedBy: admin.id,
+        heldRole: 'manager',
         custodyAccountId: custodiaWeb.id,
         accessSince: daysAgo(1),
         notes: "Accesos de registrador y hosting entregados y verificados.",

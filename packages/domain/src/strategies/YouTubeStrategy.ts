@@ -97,7 +97,7 @@ export class YouTubeStrategy implements IAssetStrategy {
       handoverNotice:
         'No lo detectamos solos: la API de YouTube no dice si un canal es Cuenta de Marca ni quiénes son sus propietarios.',
       waitingNotice:
-        'YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal. La espera la impone la plataforma del activo, no nosotros.',
+        'YouTube exige haber sido administrador o propietario del canal durante siete días antes de permitir el cambio de propietario principal. Por eso alcanza con sumarnos como administrador: el plazo corre igual y vos seguís siendo el dueño. La espera la impone la plataforma del activo, no nosotros.',
       revenueNotice:
         'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada.',
     };
@@ -252,8 +252,21 @@ export class YouTubeStrategy implements IAssetStrategy {
         automated: false,
       },
       {
-        description: `El vendedor invita a ${aQuienInvita} como propietaria del canal`,
-        instruction: `Invitá a ${aQuienInvita} como propietaria del canal desde la administración de la Cuenta de Marca`,
+        /*
+         * Administrador y no propietario, y eso es el producto entero.
+         *
+         * Google admite que la antigüedad como administrador cuente para el
+         * plazo de siete días, y un administrador no puede eliminar el canal
+         * ni quitar propietarios. Pedir propietario acá era pedir más poder
+         * del necesario — justamente el que el vendedor teme ceder— sin
+         * ningún beneficio: el reloj corre igual.
+         *
+         * La instrucción enumera lo que NO podemos hacer. Una promesa en
+         * negativo el vendedor la puede verificar en la interfaz de Google;
+         * una en positivo le pide que nos crea.
+         */
+        description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
+        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca. No como propietario: un administrador no puede eliminar el canal, no puede quitarte a vos, y no puede transferir nada. Lo único que cambia es que arranca el plazo de siete días que exige Google — y ese plazo corre mientras seguís recibiendo ofertas.`,
         requiredActor: 'seller',
         automated: false,
       },
@@ -266,11 +279,25 @@ export class YouTubeStrategy implements IAssetStrategy {
         automated: false,
       },
       {
-        // La espera que la investigación encontró: mientras no se complete, el
-        // vendedor sigue siendo propietario principal y conserva la facultad
-        // de expulsar a la plataforma.
-        description: 'Pasados 7 días desde la invitación, la plataforma se convierte en propietaria principal y toma la custodia',
+        // Informativo: a los 7 días se cumple el requisito de Google, pero no
+        // pasa nada solo. El cambio de propietario principal lo hace el
+        // vendedor, y es el paso siguiente.
+        description: 'Pasados 7 días desde la invitación, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
+        automated: false,
+      },
+      {
+        /*
+         * El único momento en que el vendedor cede el control, y ocurre entre
+         * dos pasos nuestros. Se le muestra desde el principio a propósito: la
+         * promesa del producto es que no cede control AHORA, y eso solo
+         * tranquiliza si puede ver cuándo sí lo va a ceder. Escondérselo lo
+         * convertiría en una sorpresa tardía, que es la desconfianza que el
+         * producto intenta eliminar.
+         */
+        description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
+        instruction: `Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.`,
+        requiredActor: 'seller',
         automated: false,
       },
       {

@@ -55,8 +55,18 @@ export class WebStrategy implements IAssetStrategy {
             transferWaitingDays: this.transferWaitingDays(),
             handoverNotice:
                 'No lo detectamos solos: ningún registrador expone por API quién controla un dominio.',
-            // Sin espera no hay nada que justificar.
-            waitingNotice: undefined,
+            /*
+             * No hay espera para transferir, pero sí algo que avisar.
+             *
+             * Cambiar el titular de un dominio activa el bloqueo de 60 días de
+             * la ICANN, que impide moverlo a OTRO registrador — no cambiar de
+             * titular dentro del mismo, que es como funciona el traspaso. La
+             * propiedad no se ve afectada, pero es una limitación real sobre
+             * algo que el comprador acaba de comprar, y callarla sería
+             * venderle una libertad que no tiene.
+             */
+            waitingNotice:
+                'Un sitio se transfiere de inmediato, pero cambiar el titular de un dominio activa un bloqueo de 60 días de la ICANN para moverlo a otro registrador. No afecta la propiedad —el dominio es tuyo desde el traspaso— pero durante ese plazo no vas a poder llevártelo a un registrador distinto.',
             revenueNotice:
                 'Se comprueba junto con la titularidad: AdSense informa cuánto genera el dominio.',
         };
@@ -92,17 +102,30 @@ export class WebStrategy implements IAssetStrategy {
         const comprador = context?.recipientIdentifier?.trim();
 
         return [
-            { id: '1', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
             {
-                id: '2',
+                /*
+                 * Va antes de ceder el dominio y no después: la política de la
+                 * ICANN permite que el titular se exima del bloqueo de 60 días
+                 * ANTES del cambio, si su registrador lo ofrece, y prohíbe
+                 * expresamente eximirse una vez empezado.
+                 */
+                id: '1',
+                description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
+                instruction: 'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede, y el comprador queda sin poder mover el dominio durante ese plazo.',
+                requiredActor: 'seller',
+                automated: false,
+            },
+            { id: '2', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
+            {
+                id: '3',
                 description: comprador
                     ? `El comprador (${comprador}) inicia la transferencia del dominio en su registrador`
                     : 'El comprador inicia la transferencia del dominio en su registrador',
                 requiredActor: 'buyer',
                 automated: false,
             },
-            { id: '3', description: 'Migrar base de datos y archivos de hosting', requiredActor: 'seller', automated: false },
-            { id: '4', description: 'Transferir cuentas afiliadas / AdSense asociadas', requiredActor: 'seller', automated: false },
+            { id: '4', description: 'Migrar base de datos y archivos de hosting', requiredActor: 'seller', automated: false },
+            { id: '5', description: 'Transferir cuentas afiliadas / AdSense asociadas', requiredActor: 'seller', automated: false },
         ];
     }
 

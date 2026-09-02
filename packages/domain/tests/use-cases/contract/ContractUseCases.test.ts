@@ -129,7 +129,8 @@ function unListingTransferible(sellerId = new UniqueEntityID()): Listing {
     const listing = createPublishedListing(sellerId);
     listing.registerPlatformAccess({
         verifiedBy: new UniqueEntityID(),
-        custodyAccountId: new UniqueEntityID(),
+        heldRole: 'manager',
+            custodyAccountId: new UniqueEntityID(),
         accessSince: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
     });
     return listing;
@@ -396,6 +397,7 @@ describe('SignContractUseCase — el tripartito exige un activo transferible', (
         const listing = createPublishedListing();
         listing.registerPlatformAccess({
             verifiedBy: new UniqueEntityID(),
+            heldRole: 'manager',
             custodyAccountId: new UniqueEntityID(),
             accessSince: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
         });

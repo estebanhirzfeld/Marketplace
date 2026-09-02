@@ -240,9 +240,10 @@ describe("PrismaListingRepository — constancia de acceso", () => {
 
         listing.registerPlatformAccess({
             verifiedBy: admin.id,
+            heldRole: 'manager',
             custodyAccountId: cuenta.id,
             accessSince: new Date(Date.now() - 9 * DIA),
-            notes: "Invitada como propietaria de la Cuenta de Marca.",
+            notes: "Invitada como administradora de la Cuenta de Marca.",
         });
         await listingRepo.save(listing);
 
@@ -254,7 +255,10 @@ describe("PrismaListingRepository — constancia de acceso", () => {
         expect(constancia!.custodyAccountId?.toString()).toBe(cuenta.id.toString());
         expect(constancia!.verifiedAt).toBeInstanceOf(Date);
         expect(constancia!.accessSince).toBeInstanceOf(Date);
-        expect(constancia!.notes).toBe("Invitada como propietaria de la Cuenta de Marca.");
+        expect(constancia!.notes).toBe("Invitada como administradora de la Cuenta de Marca.");
+        // El rol vive en el Json y no en columna: no hay tabla a la que
+        // apuntar, así que no hubo motivo para sacarlo.
+        expect(constancia!.heldRole).toBe("manager");
         // Nueve días sobre una ventana de siete: ya se cumplió.
         expect(conAcceso!.isReadyToTransfer()).toBe(true);
     });
@@ -278,6 +282,7 @@ describe("PrismaListingRepository — constancia de acceso", () => {
 
         listing.registerPlatformAccess({
             verifiedBy: admin.id,
+            heldRole: 'manager',
             custodyAccountId: cuenta.id,
             accessSince: new Date(Date.now() - 9 * DIA),
         });
@@ -352,11 +357,13 @@ describe("PrismaCustodyAccountRepository", () => {
         const cuenta = await createPersistedCustodyAccount();
 
         const vivo = await createPersistedListing(seller.id);
-        vivo.registerPlatformAccess({ verifiedBy: admin.id, custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
+        vivo.registerPlatformAccess({ verifiedBy: admin.id, heldRole: 'manager',
+            custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
         await listingRepo.save(vivo);
 
         const vendido = await createPersistedListing(seller.id);
-        vendido.registerPlatformAccess({ verifiedBy: admin.id, custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
+        vendido.registerPlatformAccess({ verifiedBy: admin.id, heldRole: 'manager',
+            custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
         vendido.submitForReview();
         vendido.approve();
         vendido.markInOperation();

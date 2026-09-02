@@ -43,17 +43,30 @@ const corte = pasos.findIndex((p) => p.requiredActor !== 'seller');
 return corte === -1 ? pasos : pasos.slice(0, corte);
 ```
 
-Pasa a:
+El corte se había escrito asumiendo que los pasos del vendedor van todos al principio. Con el paso de promoción eso deja de ser cierto, y el corte lo dejaría invisible — el vendedor no vería el momento en que sí cede el control, que es justo lo que hay que mostrarle.
+
+**Filtrar por actor sería peor.** Una prueba existente lo dice y tiene razón: un sitio web tiene pasos del vendedor *después* del comprador —migrar el hosting, ceder las cuentas afiliadas— que son parte de la entrega al comprador, no de la cesión a la plataforma. Filtrar por rol se los pondría al vendedor en la cara mientras todavía está publicando.
+
+La línea correcta no es quién actúa sino **dónde entra el comprador por primera vez**. Todo lo anterior a eso es meter el activo en custodia; todo lo posterior es entregárselo al comprador.
 
 ```ts
 public handoverSteps(context?: TransferContext): TransferStep[] {
-    return this.props.assetStrategy
-        .getTransferSteps(context)
-        .filter((p) => p.requiredActor === 'seller');
+    const pasos = this.props.assetStrategy.getTransferSteps(context);
+
+    // El comprador marca la frontera: antes de que él aparezca, lo que pasa es
+    // que el activo entra en custodia; después, que sale hacia él. Cortar por
+    // el primer paso ajeno al vendedor dejaría afuera su promoción a
+    // propietario principal, que ocurre entre dos pasos nuestros. Filtrar por
+    // rol le pediría de entrada cosas que son de la entrega, como migrar el
+    // hosting de un sitio.
+    const entraElComprador = pasos.findIndex((p) => p.requiredActor === 'buyer');
+    const custodia = entraElComprador === -1 ? pasos : pasos.slice(0, entraElComprador);
+
+    return custodia.filter((p) => p.requiredActor === 'seller');
 }
 ```
 
-El corte se había escrito asumiendo que los pasos del vendedor van todos al principio. Con el paso de promoción eso deja de ser cierto, y el corte lo dejaría invisible — el vendedor no vería el momento en que sí cede el control, que es justo lo que hay que mostrarle.
+Para un canal devuelve los tres pasos iniciales más la promoción; para un sitio sigue devolviendo solo la entrega del código de autorización, igual que hoy.
 
 **El momento no viaja en el paso.** Un `stage` en `TransferStep` sería la estrategia opinando sobre operaciones, que no conoce. La pantalla ya sabe si hay contrato firmado, así que agrupa por posición: los pasos anteriores al primero de la plataforma son "ahora", los posteriores son "cuando haya trato". Es una decisión de presentación y vive en la vista.
 

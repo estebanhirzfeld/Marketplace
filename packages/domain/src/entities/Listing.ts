@@ -2,6 +2,16 @@ import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
 import { AssetTypeDescriptor, IAssetStrategy, TransferContext, TransferStep } from '../strategies/IAssetStrategy';
+
+/**
+ * Un paso de la cesión, con el momento en que le toca al vendedor.
+ *
+ * `afterPlatformStarts` distingue lo que puede hacer ya de lo que se le va a
+ * pedir con el contrato firmado —promovernos a propietario principal—. Sale de
+ * la posición en el recorrido, así que lo pone la entidad: la estrategia
+ * enumera los pasos, no interpreta cuándo cae cada uno.
+ */
+export type HandoverStep = TransferStep & { afterPlatformStarts: boolean };
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ListingStatus =
@@ -20,6 +30,18 @@ export type ListingStatus =
  * propietarios, y quien es invitado a administrar un canal tampoco puede usar
  * las APIs de YouTube. El estado no es verificable por software.
  */
+/**
+ * Con qué rol figura la plataforma sobre el activo.
+ *
+ * No es lo mismo tener acceso que tener control, y esa diferencia es la
+ * propuesta de valor entera. Google admite que la antigüedad como
+ * administrador cuente para el plazo de siete días, y un administrador no
+ * puede eliminar el canal ni quitar propietarios: el vendedor puede sumarnos
+ * con permisos mínimos, seguir siendo el dueño, y el reloj corre igual
+ * mientras recibe ofertas. El control se cede una sola vez, al final.
+ */
+export type PlatformHeldRole = 'manager' | 'owner';
+
 export interface PlatformAccessRecord {
     verifiedBy: UniqueEntityID;
     verifiedAt: Date;
@@ -39,12 +61,24 @@ export interface PlatformAccessRecord {
      * `registerPlatformAccess` de acá en adelante lo exige.
      */
     custodyAccountId?: UniqueEntityID;
+    /**
+     * Con qué rol quedamos. Opcional en el tipo por el mismo motivo que
+     * `custodyAccountId`: las constancias anteriores a este cambio no lo
+     * tienen y se muestran como "rol sin registrar". Rellenarlas con un valor
+     * plausible sería afirmar algo que nadie atestiguó.
+     */
+    heldRole?: PlatformHeldRole;
     notes?: string;
 }
 
-export type PlatformAccessInput = Omit<PlatformAccessRecord, 'verifiedAt' | 'custodyAccountId'> & {
+export type PlatformAccessInput = Omit<
+    PlatformAccessRecord,
+    'verifiedAt' | 'custodyAccountId' | 'heldRole'
+> & {
     /** Obligatorio en todo registro nuevo: sin cuenta, el vendedor no sabe a quién invitar. */
     custodyAccountId: UniqueEntityID;
+    /** Obligatorio en todo registro nuevo: sin rol, la constancia no dice qué poder tenemos. */
+    heldRole: PlatformHeldRole;
 };
 
 /** De dónde salió la comprobación. Cada fuente expone cosas distintas. */
@@ -185,6 +219,11 @@ export class Listing extends Entity<ListingProps> {
                 'Falta indicar a qué cuenta de custodia se cedió el activo: sin ella el vendedor no sabe a quién invitar.',
             );
         }
+        if (!data.heldRole) {
+            throw new ValidationError(
+                'Falta indicar con qué rol quedó la plataforma sobre el activo.',
+            );
+        }
         if (data.accessSince.getTime() > Date.now()) {
             throw new ValidationError(
                 'La fecha de acceso no puede ser futura: adelantarla adelantaría el plazo de espera.',
@@ -224,10 +263,38 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.describe();
     }
 
-    public handoverSteps(context?: TransferContext): TransferStep[] {
+    public handoverSteps(context?: TransferContext): HandoverStep[] {
         const pasos = this.props.assetStrategy.getTransferSteps(context);
-        const corte = pasos.findIndex((p) => p.requiredActor !== 'seller');
-        return corte === -1 ? pasos : pasos.slice(0, corte);
+
+        /*
+         * El comprador marca la frontera. Antes de que él aparezca, lo que
+         * ocurre es que el activo entra en custodia; después, que sale hacia
+         * él.
+         *
+         * Antes se cortaba en el primer paso ajeno al vendedor, asumiendo que
+         * lo suyo iba todo junto al principio. Dejó de ser cierto cuando se
+         * agregó su promoción a propietario principal, que ocurre entre dos
+         * pasos nuestros: con aquel corte quedaba invisible justo el momento
+         * en que se le pide ceder el control, que es lo que más necesita ver.
+         *
+         * Y filtrar por rol sería peor: un sitio web tiene pasos del vendedor
+         * después del comprador —migrar el hosting, ceder las cuentas
+         * afiliadas— que son de la entrega y no de la cesión.
+         */
+        const entraElComprador = pasos.findIndex((p) => p.requiredActor === 'buyer');
+        const custodia = entraElComprador === -1 ? pasos : pasos.slice(0, entraElComprador);
+
+        // El primer paso nuestro parte la lista en dos momentos. Lo marca la
+        // entidad y no la estrategia porque depende de la posición en el
+        // recorrido completo, que la estrategia enumera pero no interpreta.
+        const entramosNosotros = custodia.findIndex((p) => p.requiredActor === 'platform');
+
+        return custodia
+            .map((paso, i) => ({
+                ...paso,
+                afterPlatformStarts: entramosNosotros !== -1 && i > entramosNosotros,
+            }))
+            .filter((p) => p.requiredActor === 'seller');
     }
 
     /**

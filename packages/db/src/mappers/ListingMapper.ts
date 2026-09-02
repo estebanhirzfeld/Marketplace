@@ -45,6 +45,10 @@ function parseAcceso(raw: unknown, custodyAccountId: string | null): PlatformAcc
         // hay constancia sin columna, es una fila anterior a este cambio:
         // sigue siendo válida y se presenta como "cuenta sin asignar".
         custodyAccountId: custodyAccountId ? new UniqueEntityID(custodyAccountId) : undefined,
+        // El rol sí vive en el Json: no hay tabla a la que apuntar, así que no
+        // hubo motivo para sacarlo a columna. Ausente en las constancias
+        // anteriores a este cambio, que se muestran como "rol sin registrar".
+        heldRole: a.heldRole === "manager" || a.heldRole === "owner" ? a.heldRole : undefined,
         notes: typeof a.notes === "string" ? a.notes : undefined,
     };
 }
@@ -70,6 +74,7 @@ function serializeAcceso(a?: PlatformAccessRecord): {
             verifiedBy: a.verifiedBy.toString(),
             verifiedAt: a.verifiedAt.toISOString(),
             accessSince: a.accessSince.toISOString(),
+            heldRole: a.heldRole ?? null,
             notes: a.notes ?? null,
         },
         custodyAccountId: a.custodyAccountId ? a.custodyAccountId.toString() : null,

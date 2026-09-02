@@ -248,6 +248,11 @@ export interface RegisterPlatformAccessRequest {
      * que no lo dice deja al vendedor sin saber a quién invitar.
      */
     custodyAccountId: string;
+    /**
+     * Con qué rol queda la plataforma. Ausente significa administrador, que es
+     * el caso normal: permisos mínimos con el plazo corriendo igual.
+     */
+    heldRole?: 'manager' | 'owner';
     notes?: string;
 }
 
@@ -411,6 +416,11 @@ export interface MyListingDto {
     assetType: string;
     /** Cómo se llama el activo. Su dueño siempre lo ve. */
     assetName?: string;
+    /**
+     * A qué cuenta tiene que invitarnos el vendedor. Es el único dato que
+     * necesita copiar, así que viaja aparte de la prosa del instructivo.
+     */
+    custodyAccountIdentifier?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
     askingPrice: MoneyDto;
@@ -479,6 +489,12 @@ export interface HandoverStepDto {
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */
     instruction?: string;
+    /**
+     * Si le toca después de que la plataforma entre en escena. Separa lo que
+     * el vendedor puede hacer ya de lo que se le va a pedir con el contrato
+     * firmado, que es el único momento en que cede el control.
+     */
+    afterPlatformStarts?: boolean;
 }
 
 /** Una operación en la que el usuario es parte. */
