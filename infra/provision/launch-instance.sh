@@ -6,7 +6,7 @@
 # que N lanzamientos fallidos no cuestan nada y un éxito reengancha todo):
 #
 #   1. IP pública RESERVADA          -> el DNS sobrevive al reemplazo de la VM
-#   2. Block volume de 20 GB          -> los datos de Postgres, fuera del disco
+#   2. Block volume de 50 GB          -> los datos de Postgres, fuera del disco
 #                                        de arranque; sobreviven a terminar la VM
 #   3. VCN 10.1.0.0/16 propia         -> NUNCA se toca vcn-20260815-0137 (agency)
 #      + subnet pública 10.1.0.0/24
@@ -20,8 +20,11 @@
 # archivo es la fuente para allow-my-ip.sh (--security-list-id) y para el
 # teardown.
 #
+# Es IDEMPOTENTE: cada recurso se busca por su display-name antes de crearse,
+# así que re-ejecutarlo tras un fallo reusa lo que ya existe en vez de duplicarlo.
+#
 # NO toca `agency` ni `agency-demo`: no los lee, no los referencia, y todo lo
-# que crea lo selecciona por el OCID que acaba de generar.
+# que crea lo selecciona por el OCID que acaba de generar o por un nombre propio.
 #
 # Uso:
 #   MARKETPLACE_COMPARTMENT_OCID=ocid1.compartment.oc1..xxx \
@@ -82,8 +85,10 @@ SSH_CIDR="181.47.21.233/32"
 VCN_CIDR="10.1.0.0/16"
 SUBNET_CIDR="10.1.0.0/24"
 SHAPE="VM.Standard.A1.Flex"
-BOOT_VOLUME_GB=50
-DATA_VOLUME_GB=20
+# El disco de arranque se deja en el tamaño de la imagen (~47 GB). Pedir 50
+# explícitamente sumaría 3 GB por instancia contra los 200 GB del tier gratuito,
+# de los que ya hay 97 usados por las dos máquinas del proyecto agency.
+DATA_VOLUME_GB=50 # mínimo que acepta OCI; pedir menos devuelve 400
 OS_NAME="Canonical Ubuntu"
 OS_VERSION="22.04"
 
@@ -122,7 +127,7 @@ cat <<PLAN
   nombre           : ${DISPLAY_NAME}
   shape            : ${SHAPE}  ${SHAPE_OCPUS} OCPU / ${SHAPE_MEM_GB} GB
   imagen           : ${OS_NAME} ${OS_VERSION} aarch64
-  boot / data      : ${BOOT_VOLUME_GB} GB boot  +  ${DATA_VOLUME_GB} GB block volume
+  boot / data      : tamaño de la imagen (~47 GB)  +  ${DATA_VOLUME_GB} GB block volume
   VCN / subnet     : ${VCN_CIDR}  /  ${SUBNET_CIDR}  (nueva, aislada de agency)
   ingress          : 22 <- ${SSH_CIDR} | 80,443 <- 0.0.0.0/0
   clave SSH        : ${PUBKEY_PATH}
@@ -169,48 +174,111 @@ oci_call() {
 
 json_get() { python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]'"$1"')'; }
 
+# ── idempotencia ────────────────────────────────────────────────────────────
+# Un lanzamiento puede fallar a mitad de camino: la capacidad de A1 se agota, o
+# la API rechaza un parámetro. Sin esto, cada re-ejecución crearía una IP
+# reservada más, una VCN más y un volumen más, y habría que limpiarlas a mano.
+#
+# `find_by_name` busca un recurso ya creado por su display-name. Solo mira
+# recursos con ese nombre exacto, que son los que creó este mismo script: nunca
+# puede devolver algo del proyecto agency.
+find_by_name() {
+	local name="$1"
+	shift
+	local out
+	out="$("$@" 2>/dev/null)" || return 1
+	python3 -c '
+import sys, json
+nombre = sys.argv[1]
+try:
+    datos = json.load(sys.stdin).get("data", [])
+except Exception:
+    sys.exit(1)
+vivos = [d for d in datos
+         if d.get("display-name") == nombre
+         and d.get("lifecycle-state") not in ("TERMINATED", "TERMINATING", "FAILED")]
+print(vivos[0]["id"] if vivos else "")
+' "$name" <<<"$out"
+}
+
+# Reporta si un recurso se reusó o se creó, para que el log diga la verdad
+# sobre qué hizo esta corrida.
+reuse_note() { log "  ya existía, se reusa: $1"; }
+
 log "== inicio de aprovisionamiento =="
 
 # ── 1. IP pública reservada ─────────────────────────────────────────────────
 log "→ IP pública reservada"
-IP_JSON="$(oci_call oci network public-ip create \
-	--compartment-id "$COMPARTMENT" --lifetime RESERVED \
-	--display-name "${DISPLAY_NAME}-ip" --region "$REGION")" || exit 1
-RESERVED_IP_OCID="$(json_get '["id"]' <<<"$IP_JSON")"
-RESERVED_IP_ADDR="$(json_get '["ip-address"]' <<<"$IP_JSON")"
+RESERVED_IP_OCID="$(find_by_name "${DISPLAY_NAME}-ip" \
+	oci network public-ip list -c "$COMPARTMENT" --scope REGION --all --region "$REGION")"
+if [[ -n "$RESERVED_IP_OCID" ]]; then
+	reuse_note "$RESERVED_IP_OCID"
+	RESERVED_IP_ADDR="$(oci network public-ip get --public-ip-id "$RESERVED_IP_OCID" \
+		--region "$REGION" 2>/dev/null | json_get '["ip-address"]')"
+else
+	IP_JSON="$(oci_call oci network public-ip create \
+		--compartment-id "$COMPARTMENT" --lifetime RESERVED \
+		--display-name "${DISPLAY_NAME}-ip" --region "$REGION")" || exit 1
+	RESERVED_IP_OCID="$(json_get '["id"]' <<<"$IP_JSON")"
+	RESERVED_IP_ADDR="$(json_get '["ip-address"]' <<<"$IP_JSON")"
+fi
 log "  ip=${RESERVED_IP_ADDR} ocid=${RESERVED_IP_OCID}"
 
 # ── 2. Block volume de datos ────────────────────────────────────────────────
 log "→ block volume ${DATA_VOLUME_GB} GB"
-VOL_JSON="$(oci_call oci bv volume create \
-	--compartment-id "$COMPARTMENT" --availability-domain "$AD" \
-	--size-in-gbs "$DATA_VOLUME_GB" --display-name "${DISPLAY_NAME}-pgdata" \
-	--region "$REGION")" || exit 1
-DATA_VOLUME_OCID="$(json_get '["id"]' <<<"$VOL_JSON")"
+DATA_VOLUME_OCID="$(find_by_name "${DISPLAY_NAME}-pgdata" \
+	oci bv volume list -c "$COMPARTMENT" --availability-domain "$AD" --region "$REGION")"
+if [[ -n "$DATA_VOLUME_OCID" ]]; then
+	reuse_note "$DATA_VOLUME_OCID"
+else
+	VOL_JSON="$(oci_call oci bv volume create \
+		--compartment-id "$COMPARTMENT" --availability-domain "$AD" \
+		--size-in-gbs "$DATA_VOLUME_GB" --display-name "${DISPLAY_NAME}-pgdata" \
+		--region "$REGION")" || exit 1
+	DATA_VOLUME_OCID="$(json_get '["id"]' <<<"$VOL_JSON")"
+fi
 log "  ocid=${DATA_VOLUME_OCID}"
 
 # ── 3. Red ─────────────────────────────────────────────────────────────────
 log "→ VCN ${VCN_CIDR}"
-VCN_JSON="$(oci_call oci network vcn create \
-	--compartment-id "$COMPARTMENT" --cidr-blocks "[\"$VCN_CIDR\"]" \
-	--display-name "${DISPLAY_NAME}-vcn" --region "$REGION")" || exit 1
-VCN_OCID="$(json_get '["id"]' <<<"$VCN_JSON")"
+VCN_OCID="$(find_by_name "${DISPLAY_NAME}-vcn" \
+	oci network vcn list -c "$COMPARTMENT" --region "$REGION")"
+if [[ -n "$VCN_OCID" ]]; then
+	reuse_note "$VCN_OCID"
+else
+	VCN_JSON="$(oci_call oci network vcn create \
+		--compartment-id "$COMPARTMENT" --cidr-blocks "[\"$VCN_CIDR\"]" \
+		--display-name "${DISPLAY_NAME}-vcn" --region "$REGION")" || exit 1
+	VCN_OCID="$(json_get '["id"]' <<<"$VCN_JSON")"
+fi
 log "  ocid=${VCN_OCID}"
 
 log "→ Internet Gateway"
-IGW_JSON="$(oci_call oci network internet-gateway create \
-	--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" --is-enabled true \
-	--display-name "${DISPLAY_NAME}-igw" --region "$REGION")" || exit 1
-IGW_OCID="$(json_get '["id"]' <<<"$IGW_JSON")"
+IGW_OCID="$(find_by_name "${DISPLAY_NAME}-igw" \
+	oci network internet-gateway list -c "$COMPARTMENT" --vcn-id "$VCN_OCID" --region "$REGION")"
+if [[ -n "$IGW_OCID" ]]; then
+	reuse_note "$IGW_OCID"
+else
+	IGW_JSON="$(oci_call oci network internet-gateway create \
+		--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" --is-enabled true \
+		--display-name "${DISPLAY_NAME}-igw" --region "$REGION")" || exit 1
+	IGW_OCID="$(json_get '["id"]' <<<"$IGW_JSON")"
+fi
 log "  ocid=${IGW_OCID}"
 
 log "→ route table"
 RT_RULES="[{\"destination\":\"0.0.0.0/0\",\"destinationType\":\"CIDR_BLOCK\",\"networkEntityId\":\"$IGW_OCID\"}]"
-RT_JSON="$(oci_call oci network route-table create \
-	--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" \
-	--route-rules "$RT_RULES" --display-name "${DISPLAY_NAME}-rt" \
-	--region "$REGION")" || exit 1
-RT_OCID="$(json_get '["id"]' <<<"$RT_JSON")"
+RT_OCID="$(find_by_name "${DISPLAY_NAME}-rt" \
+	oci network route-table list -c "$COMPARTMENT" --vcn-id "$VCN_OCID" --region "$REGION")"
+if [[ -n "$RT_OCID" ]]; then
+	reuse_note "$RT_OCID"
+else
+	RT_JSON="$(oci_call oci network route-table create \
+		--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" \
+		--route-rules "$RT_RULES" --display-name "${DISPLAY_NAME}-rt" \
+		--region "$REGION")" || exit 1
+	RT_OCID="$(json_get '["id"]' <<<"$RT_JSON")"
+fi
 log "  ocid=${RT_OCID}"
 
 log "→ security list (22<-${SSH_CIDR}, 80/443<-0.0.0.0/0)"
@@ -230,19 +298,31 @@ INGRESS="$(
 JSON
 )"
 EGRESS='[{"destination":"0.0.0.0/0","destinationType":"CIDR_BLOCK","protocol":"all","isStateless":false}]'
-SL_JSON="$(oci_call oci network security-list create \
-	--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" \
-	--ingress-security-rules "$INGRESS" --egress-security-rules "$EGRESS" \
-	--display-name "${DISPLAY_NAME}-sl" --region "$REGION")" || exit 1
-SL_OCID="$(json_get '["id"]' <<<"$SL_JSON")"
+SL_OCID="$(find_by_name "${DISPLAY_NAME}-sl" \
+	oci network security-list list -c "$COMPARTMENT" --vcn-id "$VCN_OCID" --region "$REGION")"
+if [[ -n "$SL_OCID" ]]; then
+	reuse_note "$SL_OCID"
+else
+	SL_JSON="$(oci_call oci network security-list create \
+		--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" \
+		--ingress-security-rules "$INGRESS" --egress-security-rules "$EGRESS" \
+		--display-name "${DISPLAY_NAME}-sl" --region "$REGION")" || exit 1
+	SL_OCID="$(json_get '["id"]' <<<"$SL_JSON")"
+fi
 log "  ocid=${SL_OCID}   <-- este es el --security-list-id de allow-my-ip.sh"
 
 log "→ subnet ${SUBNET_CIDR}"
-SUBNET_JSON="$(oci_call oci network subnet create \
-	--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" --cidr-block "$SUBNET_CIDR" \
-	--route-table-id "$RT_OCID" --security-list-ids "[\"$SL_OCID\"]" \
-	--display-name "${DISPLAY_NAME}-subnet" --region "$REGION")" || exit 1
-SUBNET_OCID="$(json_get '["id"]' <<<"$SUBNET_JSON")"
+SUBNET_OCID="$(find_by_name "${DISPLAY_NAME}-subnet" \
+	oci network subnet list -c "$COMPARTMENT" --vcn-id "$VCN_OCID" --region "$REGION")"
+if [[ -n "$SUBNET_OCID" ]]; then
+	reuse_note "$SUBNET_OCID"
+else
+	SUBNET_JSON="$(oci_call oci network subnet create \
+		--compartment-id "$COMPARTMENT" --vcn-id "$VCN_OCID" --cidr-block "$SUBNET_CIDR" \
+		--route-table-id "$RT_OCID" --security-list-ids "[\"$SL_OCID\"]" \
+		--display-name "${DISPLAY_NAME}-subnet" --region "$REGION")" || exit 1
+	SUBNET_OCID="$(json_get '["id"]' <<<"$SUBNET_JSON")"
+fi
 log "  ocid=${SUBNET_OCID}"
 
 # ── imagen aarch64 más reciente ────────────────────────────────────────────
@@ -257,8 +337,13 @@ log "  ocid=${IMAGE_OCID}"
 # ── 4. Loop de lanzamiento ─────────────────────────────────────────────────
 SHAPE_CONFIG="{\"ocpus\":${SHAPE_OCPUS},\"memoryInGBs\":${SHAPE_MEM_GB}}"
 attempt=0
-INSTANCE_OCID=""
-while :; do
+INSTANCE_OCID="$(find_by_name "$DISPLAY_NAME" \
+	oci compute instance list -c "$COMPARTMENT" --region "$REGION")"
+if [[ -n "$INSTANCE_OCID" ]]; then
+	log "→ la instancia ya existe, no se lanza otra"
+	reuse_note "$INSTANCE_OCID"
+fi
+while [[ -z "$INSTANCE_OCID" ]]; do
 	attempt=$((attempt + 1))
 	log "→ launch intento #${attempt} (${SHAPE_OCPUS} OCPU / ${SHAPE_MEM_GB} GB)"
 	set +e
@@ -267,7 +352,6 @@ while :; do
 		--shape "$SHAPE" --shape-config "$SHAPE_CONFIG" \
 		--image-id "$IMAGE_OCID" --subnet-id "$SUBNET_OCID" \
 		--assign-public-ip false \
-		--boot-volume-size-in-gbs "$BOOT_VOLUME_GB" \
 		--display-name "$DISPLAY_NAME" \
 		--ssh-authorized-keys-file "$PUBKEY_PATH" \
 		--region "$REGION")"
