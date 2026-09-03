@@ -50,6 +50,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: prisma generate
+        # `prisma generate` no se conecta a ninguna base: genera el cliente a
+        # partir del schema. Pero prisma.config.ts resuelve DATABASE_URL al
+        # cargarse y aborta si falta, así que en CI se le pasa un valor de
+        # relleno. No apunta a nada y nunca se usa para conectar; el
+        # DATABASE_URL real vive solo en la VM, en un archivo 0600.
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
         run: pnpm --filter @marketplace/db db:generate
 
       - name: typecheck (hard gate)
