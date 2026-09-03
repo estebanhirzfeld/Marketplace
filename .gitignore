@@ -35,3 +35,8 @@ stuff/
 # necesaria porque los tableros también terminan en .html.
 design/*.html
 !design/*.dc.html
+
+# Registro de aprovisionamiento: contiene OCIDs e IPs de la cuenta.
+# El repositorio es público, así que nunca se versiona.
+infra/provision/launch.log
+.oci-baseline/
