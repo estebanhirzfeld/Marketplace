@@ -9,6 +9,25 @@ import type { ListingSummaryDto } from '@marketplace/api-contract';
 type Step = { n: string; title: string; text: string; destacado?: boolean };
 
 /**
+ * Las frases del titular.
+ *
+ * Cada una se parte en tres para poder acentuar el fragmento que carga la
+ * promesa. Sin ese acento el bloque se lee como cuerpo agrandado y pierde foco.
+ *
+ * Ninguna dice "entregar" ni "el activo": en Argentina esas dos palabras juntas
+ * tienen una segunda lectura que arruina un titular a este tamaño. El
+ * vocabulario correcto ya estaba en el nombre del producto — traspaso,
+ * titularidad, transferir — y es además el registro institucional que hace
+ * falta acá.
+ */
+const TITULARES = [
+    { antes: 'Nadie transfiere nada ', acento: 'por adelantado', despues: '.' },
+    { antes: 'Tu canal sigue ', acento: 'a tu nombre', despues: ' mientras negociás.' },
+    { antes: 'No pagás hasta que el sitio esté ', acento: 'verificado', despues: '.' },
+    { antes: 'Tu sitio sigue ', acento: 'a tu nombre', despues: ' mientras negociás.' },
+] as const;
+
+/**
  * El recorrido contado como línea de riesgo, no como procedimiento.
  *
  * Antes eran las etapas del sistema —contrato firmado, entrega, verificación,
@@ -22,29 +41,29 @@ type Step = { n: string; title: string; text: string; destacado?: boolean };
 const PASOS: Step[] = [
     {
         n: '01',
-        title: 'Publicás',
-        text: 'No entregás nada. Nos sumás con permisos mínimos y el activo sigue siendo tuyo.',
+        title: 'Se publica',
+        text: 'La titularidad no se mueve. La plataforma figura con permisos mínimos y el canal sigue a tu nombre.',
     },
     {
         n: '02',
-        title: 'Recibís ofertas',
-        text: 'Tampoco entregás nada. Negociás el precio con el activo todavía en tus manos.',
+        title: 'Llegan las ofertas',
+        text: 'Tampoco se mueve. El precio se negocia con el canal todavía a tu nombre.',
     },
     {
         n: '03',
-        title: 'Firman los dos',
-        text: 'Todavía no entregás nada. El contrato compromete a las dos partes, no al activo.',
+        title: 'Firman las dos partes',
+        text: 'Sigue sin moverse. El contrato compromete a las personas, no a la titularidad.',
     },
     {
         n: '04',
-        title: 'Nos das el control',
-        text: 'Recién acá. Con el precio cerrado, el contrato firmado y el comprador comprometido.',
+        title: 'La titularidad pasa a la plataforma',
+        text: 'Con el precio cerrado, el contrato firmado y el dinero del comprador ya retenido. Es el único momento del recorrido en que cambia de nombre.',
         destacado: true,
     },
     {
         n: '05',
-        title: 'Cobrás',
-        text: 'El comprador ya había pagado: la plata estaba retenida acá desde antes.',
+        title: 'Cada uno recibe lo suyo',
+        text: 'El comprador queda como titular y vos cobrás. El dinero estaba retenido desde antes.',
     },
 ];
 
@@ -61,16 +80,16 @@ const PASOS: Step[] = [
  */
 const NO_TE_PEDIMOS = [
     {
-        que: 'Que entregues el activo para publicarlo',
-        text: 'Nos sumás con permisos mínimos: no podemos eliminarlo, no podemos quitarte a vos, no podemos transferirlo a nadie.',
+        que: 'Transferir el canal para publicarlo',
+        text: 'La plataforma figura con permisos mínimos: no puede eliminarlo, no puede quitarte a vos, no puede transferirlo a nadie.',
     },
     {
-        que: 'Que confíes en el comprador',
-        text: 'No paga por adelantado, pero tampoco recibe nada hasta que el dinero esté acá.',
+        que: 'Confiar en la otra parte',
+        text: 'Ninguno de los dos recibe nada del otro. Los dos tratan con la plataforma, y la plataforma responde ante los dos.',
     },
     {
-        que: 'Que confíes en nosotros',
-        text: 'Todo lo que decimos lo podés comprobar desde tu propia cuenta, sin pedirnos permiso.',
+        que: 'Confiar en la plataforma',
+        text: 'Cada permiso que pide se comprueba desde tu propia cuenta, en la interfaz de Google o la de tu registrador.',
     },
 ] as const;
 
@@ -103,16 +122,38 @@ export default async function Home() {
                             <div className="flex items-center gap-2.5">
                                 <span className="late h-1.5 w-1.5 rounded-full bg-[var(--color-acento)]" />
                                 <span className="font-mono text-[11px] tracking-[0.1em] text-[var(--color-acento)]">
-                                    COMPRAVENTA PROTEGIDA
+                                    CANALES Y SITIOS, CON CUSTODIA
                                 </span>
                             </div>
                         </Reveal>
 
                         <Reveal delay={80}>
-                            <h1 className="text-[42px] font-bold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[55px]">
-                                Primero el activo.
-                                <br />
-                                Después el pago.
+                            {/*
+                                El titular rota entre cuatro frases. La primera le habla a
+                                las dos partes, igual que los dos botones que tiene debajo;
+                                las otras tres se ocupan de cada lado por separado y
+                                alternan canal y sitio, así que en un ciclo completo el
+                                visitante se entera de qué se vende acá sin que ninguna
+                                línea se lo tenga que explicar.
+
+                                Es CSS puro, sin componente cliente: el servidor renderiza
+                                las cuatro y la animación las alterna. La primera es la que
+                                indexa Google y la única que ve quien pidió menos
+                                movimiento en su sistema, así que tiene que valerse sola.
+
+                                La altura está reservada para la más larga — sin eso la
+                                página salta en cada cambio.
+                            */}
+                            <h1 className="titulares-rotativos text-[42px] font-bold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[55px]">
+                                {TITULARES.map(({ antes, acento, despues }, i) => (
+                                    <span key={antes + acento} aria-hidden={i > 0}>
+                                        {antes}
+                                        <em className="not-italic text-[var(--color-acento)]">
+                                            {acento}
+                                        </em>
+                                        {despues}
+                                    </span>
+                                ))}
                             </h1>
                         </Reveal>
 
@@ -123,9 +164,9 @@ export default async function Home() {
                                 impide que alguien publique, así que es el que va primero.
                             */}
                             <p className="max-w-[470px] text-[16px] leading-relaxed text-[var(--color-tenue)] text-pretty">
-                                Publicá y recibí ofertas concretas sin entregar tu activo. Cuando
-                                las dos partes están decididas, lo recibimos nosotros, lo
-                                verificamos, y recién entonces el comprador paga.
+                                El vendedor transfiere la titularidad a la plataforma. El
+                                comprador paga a la plataforma. Recién cuando las dos cosas
+                                están hechas, cada uno recibe lo suyo.
                             </p>
                         </Reveal>
 
@@ -151,7 +192,7 @@ export default async function Home() {
                         <div className="overflow-hidden rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
                             <div className="border-b border-[var(--color-borde)] px-5 py-3.5">
                                 <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
-                                    LO QUE NO TE PEDIMOS
+                                    NO HACE FALTA
                                 </span>
                             </div>
                             <div className="flex flex-col gap-5 p-5">

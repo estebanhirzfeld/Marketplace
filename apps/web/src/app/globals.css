@@ -187,3 +187,44 @@ textarea:focus-visible,
     display: flex !important;
   }
 }
+
+/* ── Titular rotativo de la landing ──────────────────────────────────────────
+   Las cuatro frases se renderizan en el servidor, apiladas en el mismo lugar, y
+   la animación las alterna. Sin JavaScript: no hay componente cliente, no hay
+   hidratación y el HTML que llega ya trae las cuatro.
+
+   La altura se reserva con la más larga, que ocupa el flujo mientras las otras
+   se posicionan encima. Sin eso la página salta en cada cambio.
+
+   Seis segundos por frase, veinticuatro el ciclo. Sin puntos ni flechas: el
+   movimiento tiene que pasar casi desapercibido, no pedir atención. */
+.titulares-rotativos {
+  position: relative;
+  display: grid;
+}
+
+.titulares-rotativos > span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  animation: titular-rota 24s infinite;
+}
+
+.titulares-rotativos > span:nth-child(1) { animation-delay: 0s; }
+.titulares-rotativos > span:nth-child(2) { animation-delay: 6s; }
+.titulares-rotativos > span:nth-child(3) { animation-delay: 12s; }
+.titulares-rotativos > span:nth-child(4) { animation-delay: 18s; }
+
+@keyframes titular-rota {
+  0%   { opacity: 0; transform: translateY(10px); }
+  2%   { opacity: 1; transform: none; }
+  23%  { opacity: 1; transform: none; }
+  25%  { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 0; transform: translateY(10px); }
+}
+
+/* Quien pidió menos movimiento ve la primera y nada más. Es la que renderiza el
+   servidor y la que indexa Google, así que tiene que valerse sola. */
+@media (prefers-reduced-motion: reduce) {
+  .titulares-rotativos > span { animation: none; }
+  .titulares-rotativos > span:nth-child(1) { opacity: 1; }
+}
