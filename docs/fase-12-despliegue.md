@@ -5,9 +5,10 @@
 > **Objetivo**: Que la aplicación sea desplegable de forma continua y accesible por HTTPS desde una VM ARM de Oracle Cloud, sin tocar los proyectos vecinos.
 
 Este documento se completa por partes, siguiendo el orden de los PRs del cambio
-`deploy-vps-oracle`. Esta primera entrega cubre solo el **artefacto de producción
-de la API**; la configuración de infraestructura, el aprovisionamiento y los
-scripts de deploy/rollback llegan en entregas posteriores.
+`deploy-vps-oracle`. La primera entrega (PR1) cubrió el **artefacto de producción
+de la API** y el **aviso de demo** del frontend. La segunda (PR2) cubre la
+**infraestructura**: configuración de producción, aprovisionamiento en OCI y los
+scripts de deploy/redeploy/rollback.
 
 ---
 
@@ -124,3 +125,278 @@ emite `server.js`, no `.mjs`). Con los cambios de esta entrega: **pasa**.
   POST /auth/login -> 403 {"code":"FORBIDDEN","message":"Email o contraseña incorrectos."}
 SMOKE OK
 ```
+
+---
+
+# Infraestructura (PR2)
+
+La topología es una sola VM Ampere A1 en `sa-saopaulo-1`, en su propia VCN, con
+un checkout completo del repo en `/srv/marketplace`. Cuatro procesos de larga
+vida:
+
+```
+Internet ──443──▶ Caddy ──▶ Next :3000 ──▶ Fastify :3001 ──▶ Postgres :5434
+                            (solo server-side)   (loopback)     (/mnt/pgdata,
+                                                              block volume)
+```
+
+Los builds corren en la VM. Un `deploy.sh` idempotente y un `rollback.sh`. Los
+proyectos vecinos `agency` (163.176.174.23) y `agency-demo`
+(`demo.forzalabs.online`) **no se tocan**: nada fuera de la VCN nueva se lee ni
+se referencia, y todo lo que se crea se selecciona por el OCID recién generado.
+
+## Decisión 2 — Instancia, imagen, almacenamiento
+
+| Ítem | Elección | Motivo |
+|---|---|---|
+| Shape | `VM.Standard.A1.Flex`, 2 OCPU / 12 GB | Todo el cupo ARM gratis en una sola VM. Los picos de build importan más que la redundancia. Palanca `--small` (1 OCPU / 6 GB) si A1 está saturado. |
+| Imagen | Canonical Ubuntu 22.04 LTS **aarch64** | glibc 2.35 + openssl 3.0.x = el engine `linux-arm64-openssl-3.0.x` que necesita el CLI de Prisma para migrar. musl queda descartado. |
+| Disco de arranque | 50 GB (default) | 50 boot + 20 datos = 70 GB contra 103 GB libres de los 200 del cupo. |
+| Volumen de datos | **Block volume separado de 20 GB**, ext4, montado en `/mnt/pgdata`, `_netdev,nofail` en `/etc/fstab` | Los datos del disco de arranque mueren con la instancia. Un volumen separado sobrevive a terminarla y recrearla — el punto de todo el ejercicio. |
+| Swap | Archivo de 4 GB en el disco de arranque | Seguro para que `next build` conviva con Postgres y dos procesos Node. |
+| IP pública | **Reservada**, no efímera | El DNS sobrevive al reemplazo de la instancia. Se crea antes que la VM, así que un lanzamiento fallido no la pierde. |
+
+## Decisión 3 — Topología de red
+
+VCN nueva `10.1.0.0/16`, subnet pública `10.1.0.0/24`, Internet Gateway, ruta
+`0.0.0.0/0 → IGW`. La VCN de `agency` (`vcn-20260815-0137`, `10.0.0.0/16`) no se
+toca, no se peerea, no se extiende. Una app estudiantil expuesta a internet no
+puede quedar a una edición de security list de hosts de otro proyecto.
+
+- **Ingress**: 22/tcp desde `181.47.21.233/32` (la IP residencial del operador,
+  **nunca** `0.0.0.0/0`); 80/tcp y 443/tcp desde `0.0.0.0/0`. Nada más.
+- La security list de esta subnet es la autoridad: la subnet tiene exactamente
+  una instancia. `bootstrap-vm.sh` además refleja 22/80/443 en el firewall del
+  host (ufw), porque las imágenes de OCI vienen con iptables restrictivo.
+- **Exposición de puertos**: públicos 80, 443 (Caddy) y 22 (restringido por
+  origen). Solo loopback: 3000 (Next), 3001 (Fastify), 5434 (Postgres). El
+  navegador nunca llama a Fastify directo — todo el tráfico de API pasa por el
+  código server-side de Next. La única excepción es el webhook de MercadoPago
+  (Decisión 6).
+
+## Decisión 4 — Aprovisionamiento y falla de capacidad
+
+`infra/provision/launch-instance.sh` corre `oci compute instance launch` dentro
+de un loop de reintento.
+
+- **Reintenta** solo ante `Out of host capacity` — duerme 60 s ± 15 s de jitter,
+  sin límite, logueando número de intento y código de error de OCI a
+  `infra/provision/launch.log`.
+- **Falla rápido, sin reintentar, ante cualquier 4xx**: shape mala, quota
+  agotada, auth fallida, OCID de subnet malformado. Un loop que reintenta un
+  error de configuración para siempre es peor que no tener loop.
+- **Orden de creación**: IP reservada → block volume → VCN/subnet/IGW/SL → *luego*
+  el loop de la instancia. Cada prerequisito es independiente de la instancia,
+  así que N lanzamientos fallidos no cuestan nada y un éxito reengancha todo.
+- **Palanca de capacidad**: si el loop nunca converge, relanzar con `--small`
+  (1 OCPU / 6 GB). Consecuencia: `next build` se mueve fuera de la VM (Decisión
+  10); se avisa al operador en vez de degradar en silencio.
+- Shell imperativo, no Terraform: una VM, provisionada una vez, y un script
+  legible de ~200 líneas es mejor artefacto de tesis que un archivo de estado
+  que además hay que gestionar.
+
+## Decisión 5 — Supervisión de procesos, orden de arranque, health
+
+Tres units en `infra/systemd/`:
+
+| Unit | ExecStart | Notas |
+|---|---|---|
+| `marketplace-api.service` | `/usr/bin/node /srv/marketplace/apps/api/dist/server.mjs` | `WorkingDirectory=/srv/marketplace/apps/api`, `EnvironmentFile=/etc/marketplace/api.env`, `Restart=always`, `RestartSec=5`, `After=network-online.target docker.service` |
+| `marketplace-web.service` | `apps/web/node_modules/.bin/next start -p 3000` | `EnvironmentFile=/etc/marketplace/web.env`, `Restart=always`, `After=marketplace-api.service` |
+| `marketplace-backup.timer` + `.service` | `infra/scripts/backup-db.sh` | `pg_dump` diario, ver Decisión 7 |
+
+Postgres **no** es una unit de systemd: `docker-compose.prod.yml` declara
+`restart: unless-stopped` y `docker.service` está habilitado, lo que da
+persistencia al reboot con una pieza móvil menos.
+
+Orden de arranque: `docker` → contenedor de Postgres → `marketplace-api` →
+`marketplace-web`. Caddy es independiente y puede arrancar en cualquier momento
+(devuelve 502 hasta que Next esté arriba, que es el comportamiento correcto).
+
+**Límite de `/health`**, ahora que se usa como evidencia: `apps/api/src/app.ts`
+expone `GET /health` que devuelve `{"status":"ok"}` **sin tocar Postgres**.
+Prueba que el proceso está vivo y ruteando, no que la base funciona. Por eso el
+smoke test del deploy (Decisión 9) lee de la base.
+
+> **Limitación conocida**: `server.ts` hace `listen` en `0.0.0.0`, no en
+> `127.0.0.1`. En la VM el puerto 3001 igual queda inalcanzable desde internet
+> porque ni la security list ni ufw lo abren, pero la defensa es el firewall, no
+> el bind. Endurecerlo (bindear loopback en `server.ts`) es un cambio de fuente
+> fuera del alcance de infra y queda anotado.
+
+## Decisión 6 — Reverse proxy y TLS
+
+Caddy 2 del repo apt oficial, `infra/caddy/Caddyfile`:
+
+- TLS automático por Let's Encrypt (HTTP-01, el puerto 80 ya está abierto para el
+  redirect). Caddy renueva solo. Redirect HTTP → HTTPS por defecto.
+- **TLS es obligatorio, no cosmético**: `apps/web/src/lib/session.ts` marca la
+  cookie de sesión `Secure` bajo `NODE_ENV=production`, y el navegador la
+  descarta en claro — el login fallaría sin error visible.
+- **Sin `noindex` en Caddy**: el indexado se gobierna desde `apps/web` con la
+  variable `SEARCH_INDEXING` (`apps/web/src/app/robots.ts`, `force-dynamic`).
+  Cambiarla no requiere rebuild. Esto mueve la decisión 6 del diseño (que ponía
+  un `X-Robots-Tag` en Caddy) al lugar donde la puso PR1.
+- **Excepción localhost-only — el webhook de MercadoPago.** El path
+  `/webhooks/mercadopago` se proxya **directo a Fastify** (`127.0.0.1:3001`); todo
+  el resto va a Next. Es la única ruta pública que no pasa por Next, y es
+  legítima: la llama MercadoPago (no una persona) y del cuerpo solo se toma el
+  ID del pago, que después se consulta contra la pasarela con nuestras
+  credenciales. Un aviso falsificado no puede dar por pagada una operación.
+- **Sin basic auth, sin sala de espera** (decisión del usuario). El aviso de demo
+  es UI, no configuración de proxy.
+
+## Decisión 7 — Base de datos, migraciones, durabilidad
+
+- `docker-compose.prod.yml` (nuevo, separado del de dev): `postgres:16`,
+  `ports: ["127.0.0.1:5434:5432"]`, `volumes: ["/mnt/pgdata:/var/lib/postgresql/data"]`,
+  `restart: unless-stopped`, password desde `/etc/marketplace/db.env`, base
+  **`marketplace`**. `docker-compose.yml` se deja intacto: dos archivos, cada uno
+  honesto con su fin, es mejor que uno que es un compromiso.
+- **El nombre de la base es un peligro real de deploy.** Dev usa
+  `marketplace_dev`; producción usa `marketplace`. Un desajuste aparece recién en
+  la primera query como `P1003 database "..." does not exist` — pasa `/health`
+  limpio. Por eso el smoke test lee de la base en vez de confiar en el health.
+- **Migraciones**: `deploy.sh` corre `cd packages/db && pnpm exec prisma migrate
+  deploy`. El cwd importa — `packages/db/prisma.config.ts` hace `import
+  'dotenv/config'` y lee `env("DATABASE_URL")` relativo a ese directorio. **Nunca
+  `prisma db push`** (destructivo, sin historial). 17 migraciones aplicadas.
+- **Seed**: una vez, a mano, después del primer deploy exitoso. No es parte de
+  `deploy.sh` — re-seedear en cada redeploy borraría lo que la comisión haya
+  hecho en el sitio.
+- **Durabilidad**: el directorio de datos vive en el block volume, así que
+  terminar y recrear la instancia no pierde nada. `backup-db.sh` hace `pg_dump |
+  gzip` diario a `/mnt/pgdata/backups/`, guarda 7. `restore-db.sh <dump>` es el
+  inverso y **debe probarse una vez** antes de la defensa — un restore no probado
+  no es un backup.
+
+## Decisión 8 — Configuración y entrega de secretos
+
+El repo es público y el tooling del asistente tiene bloqueado todo archivo
+`.env`, así que **cada paso con secretos lo ejecuta el operador**, con comandos
+verbatim en `infra/README.md`.
+
+- El inventario de variables versionado vive como `env.example` (sin el punto
+  inicial, porque el tooling bloquea `.env*`). No lo consume ningún proceso: es
+  documentación. 15 variables, solo claves.
+- Tres archivos en la VM, `chmod 600`, `root:root`:
+  - `/etc/marketplace/api.env` → `EnvironmentFile` de `marketplace-api`
+  - `/etc/marketplace/web.env` → `EnvironmentFile` de `marketplace-web`
+  - `/srv/marketplace/packages/db/.env` → lo lee `prisma.config.ts` (dotenv desde
+    ese cwd); ya está gitignoreado
+- **Los dos `DATABASE_URL` (api.env y packages/db/.env) tienen que coincidir y
+  nombrar `marketplace`, no `marketplace_dev`.** Es el error de copy-paste más
+  probable y falla tarde, pasado `/health`.
+- Ningún secreto entra a git. `JWT_SECRET` y el password de Postgres se generan
+  frescos en la VM (`openssl rand -base64 48`), nunca se reusan de dev.
+- **Google/YouTube deshabilitado**: `YOUTUBE_*` queda sin definir. Con esas
+  variables vacías, las rutas de verificación devuelven **503 por diseño** (ver
+  `apps/api/src/routes/listings.ts`), no 500. Habilitarlas después es completar
+  cuatro valores en `api.env` y reiniciar.
+
+## Decisión 9 — Deploy, redeploy, rollback
+
+`deploy.sh` (raíz del repo), corre en la VM, `set -euo pipefail`, aborta si
+`pwd -P` != `/srv/marketplace`:
+
+```
+1-2  infra/scripts/sync-checkout.sh <ref>   # fetch + reset --hard origin/<ref>
+3    pnpm install --frozen-lockfile          # SIN --prod (ver abajo)
+4    pnpm --filter @marketplace/db db:generate
+5    pnpm --filter @marketplace/api typecheck   # hard gate
+6    (cd packages/db && pnpm exec prisma migrate deploy)
+7    pnpm --filter @marketplace/api build       # bundle ESM tsup
+8    pnpm --filter web build                    # next build
+8b   smoke: PORT=3099 node dist/server.mjs ; /health ; una lectura de Postgres ; kill
+9    sudo systemctl restart marketplace-api marketplace-web
+10   poll /health + / hasta 60s ; sale != 0 si hay silencio
+11   git rev-parse HEAD > /var/lib/marketplace/last-good-sha
+```
+
+- **`pnpm install` SIN `--prod`.** `dotenv` es `devDependency` de `apps/api` y se
+  importa en runtime (`apps/api/src/server.ts`). Con `--prod` el servicio no
+  arrancaría. Hay un comentario en el script diciéndolo, para que nadie lo
+  "optimice".
+- **El paso 8b reusa `apps/api/scripts/smoke.sh`** (el de PR1), no inventa un
+  tercer camino de smoke. Le pasa el `DATABASE_URL` de producción, que sale de
+  `packages/db/.env`.
+- **Garantía de abort-before-swap**: los pasos 5, 7, 8 y 8b corren **antes** del
+  restart. Un error de tipos, un build roto o un artefacto muerto dejan los
+  procesos anteriores corriendo y el sitio arriba.
+- **`git reset --hard` en vez de `git pull`**: en el décimo deploy el working
+  tree puede haber sido tocado por SSH. El reset hace que el estado de la VM sea
+  función pura del ref. Los archivos no versionados (`node_modules`,
+  `packages/db/.env`) se conservan — nunca se hace `git clean`.
+- **Regla de migraciones aditivas (expand/contract).** El paso 6 (migrar) va
+  **antes** del 7/8 (build). Consecuencia aceptada y documentada: una migración
+  puede aplicarse mientras el build siguiente falla, dejando el código *viejo*
+  contra un esquema *nuevo*. Es seguro **solo mientras las migraciones sean
+  aditivas** — las 17 actuales lo son. Para futuras: agregar columna/tabla en un
+  release, empezar a usarla en el siguiente, borrar lo viejo en un tercero.
+  Nunca una migración que borre o renombre algo que el código en producción
+  todavía usa.
+- **`next build` no es atómico.** `next build` reemplaza `.next` in place, así que
+  una falla a mitad de build puede dejar `.next` inconsistente mientras el
+  `next start` que sigue corriendo sirve de sus archivos ya cargados. El sitio
+  sobrevive hasta el próximo restart; `rollback.sh` es la salida. Es el único
+  paso genuinamente no atómico y se nombra en vez de fingir lo contrario.
+- **Estado conocido tras cualquier falla**: todo paso es idempotente y
+  re-ejecutable, y la única mutación antes del gate es la migración. Re-correr
+  `deploy.sh` desde cero siempre es seguro.
+
+`rollback.sh <sha|last-good>`: hace checkout del SHA y repite los pasos 3–10
+**salteando el 6** (nunca se auto-revierte una migración). Las caches de pnpm y
+Turbo lo dejan en ~1 minuto.
+
+### Recuperación de migración fallida
+
+1. `infra/scripts/restore-db.sh <último dump>` — recrea `marketplace` desde el
+   `pg_dump` de la noche anterior.
+2. `./rollback.sh last-good` — vuelve el código al último SHA que sirvió.
+3. El sitio queda en el par (código, esquema) anterior, consistente. No se deja a
+   medio actualizar.
+
+### Recuperación de lockout SSH
+
+La IP residencial del operador rota y SSH deja de entrar. `infra/scripts/allow-my-ip.sh
+--security-list-id <ocid>` se corre **desde cualquier máquina con la API key de
+OCI** (no necesita SSH): detecta la IP pública actual y **reescribe** las reglas
+de ingreso de la security list al conjunto canónico (22 desde la IP nueva, 80 y
+443 desde `0.0.0.0/0`). El OCID de la security list está en
+`infra/provision/launch.log`.
+
+## Decisión 10 — ¿`next build` corre en la VM?
+
+**Sí.** 12 GB / 2 OCPU contra un build de Next 16 / Turbopack que pica en 1–2 GB,
+más el swapfile de 4 GB de seguro. Construir en la VM además **garantiza** que
+`prisma generate` y `prisma migrate deploy` reciban un engine ARM nativo
+(`linux-arm64-openssl-3.0.x`), lo que elimina el riesgo de cross-target. Ese
+beneficio es para el **CLI durante las migraciones**, no para el servicio, que
+usa el driver adapter y no carga engine (Decisión 1).
+
+Si la palanca `--small` fuerza 1 OCPU / 6 GB, esta decisión se revisa: construir
+localmente en la Mac (`linux/arm64` coincide con darwin-arm64 para todo salvo el
+engine del CLI de Prisma) o aceptar un build lento apoyado en swap.
+
+## Teardown
+
+Si hay que desmontar todo: terminar la instancia, desadjuntar y borrar el block
+volume, borrar la VCN, quitar el registro DNS. **Impacto cero sobre el proyecto
+`agency`**, porque nada fuera de la VCN nueva se modifica nunca. Los OCID de todo
+lo creado están en `infra/provision/launch.log`.
+
+## Qué queda sin verificar hasta correr en la VM
+
+Estos scripts y archivos se probaron localmente hasta donde se puede
+(`shellcheck`, `bash -n`, `caddy validate`, `docker compose config`,
+`tests/deploy/*.sh`), pero varias cosas solo se prueban sobre la VM real:
+
+- `next build` en `linux-arm64` (la única prueba registrada es darwin-arm64).
+- El loop de capacidad de `launch-instance.sh` contra el error real de OCI.
+- El formato exacto que espera `oci network security-list update` para
+  `--ingress-security-rules` (se usa camelCase; el CLI a veces devuelve kebab).
+- `systemd-analyze verify` de las units (no hay systemd en la máquina de
+  desarrollo).
+- El link estable del block volume (`/dev/oracleoci/oraclevdb`) y el mount.
+- El primer `deploy.sh` completo end-to-end, incluido el smoke contra el Postgres
+  de producción y el `systemctl restart`.
