@@ -2,13 +2,21 @@
 
 > **Estado**: 🚧 En curso
 > **Fecha**: Septiembre 2026
-> **Objetivo**: Que la aplicación sea desplegable de forma continua y accesible por HTTPS desde una VM ARM de Oracle Cloud, sin tocar los proyectos vecinos.
+> **Objetivo**: Que la aplicación sea desplegable de forma continua y accesible por HTTPS desde una VM de Oracle Cloud, sin tocar los proyectos vecinos.
 
 Este documento se completa por partes, siguiendo el orden de los PRs del cambio
 `deploy-vps-oracle`. La primera entrega (PR1) cubrió el **artefacto de producción
 de la API** y el **aviso de demo** del frontend. La segunda (PR2) cubre la
 **infraestructura**: configuración de producción, aprovisionamiento en OCI y los
 scripts de deploy/redeploy/rollback.
+
+> **Reorientación (PR3): el objetivo dejó de ser una VM Ampere ARM.** La
+> capacidad de `VM.Standard.A1.Flex` en `sa-saopaulo-1` está agotada a nivel de
+> host físico (medido: 44 intentos de lanzamiento en ~2 h, con quota libre,
+> siempre `"Out of host capacity"`). El despliegue se reorienta a una
+> `VM.Standard.E2.1.Micro` **x86_64** de 1 GB. El camino A1 se conserva
+> seleccionable (`launch-instance.sh` sin flags) por si se libera capacidad.
+> Detalle completo en la **Decisión 11**.
 
 ---
 
@@ -296,6 +304,14 @@ verbatim en `infra/README.md`.
 
 ## Decisión 9 — Deploy, redeploy, rollback
 
+> **PR3 cambió este flujo.** Los pasos 5, 7 y 8 (typecheck y los dos builds) se
+> movieron a GitHub Actions porque la micro de 1 GB no puede construir; en su
+> lugar `deploy.sh` baja el artefacto prehecho con `fetch-release.sh`, y el
+> `pnpm install` va filtrado a `@marketplace/api...` + `@marketplace/db...`. La
+> verificación final ahora exige un `POST /auth/login` → 403, no solo `/health`.
+> Lo que sigue es el diseño original de PR2; la versión vigente está en la
+> **Decisión 11**.
+
 `deploy.sh` (raíz del repo), corre en la VM, `set -euo pipefail`, aborta si
 `pwd -P` != `/srv/marketplace`:
 
@@ -367,16 +383,158 @@ de ingreso de la security list al conjunto canónico (22 desde la IP nueva, 80 y
 
 ## Decisión 10 — ¿`next build` corre en la VM?
 
-**Sí.** 12 GB / 2 OCPU contra un build de Next 16 / Turbopack que pica en 1–2 GB,
-más el swapfile de 4 GB de seguro. Construir en la VM además **garantiza** que
-`prisma generate` y `prisma migrate deploy` reciban un engine ARM nativo
-(`linux-arm64-openssl-3.0.x`), lo que elimina el riesgo de cross-target. Ese
-beneficio es para el **CLI durante las migraciones**, no para el servicio, que
-usa el driver adapter y no carga engine (Decisión 1).
+**En A1 sí; en la micro NO** (ver Decisión 11 — este es el cambio de PR3).
 
-Si la palanca `--small` fuerza 1 OCPU / 6 GB, esta decisión se revisa: construir
-localmente en la Mac (`linux/arm64` coincide con darwin-arm64 para todo salvo el
-engine del CLI de Prisma) o aceptar un build lento apoyado en swap.
+Con A1 (12 GB / 2 OCPU): sí. Un build de Next 16 / Turbopack pica en 1–2 GB, más
+el swapfile de seguro. Construir en la VM además **garantiza** que `prisma
+generate` y `prisma migrate deploy` reciban un engine ARM nativo
+(`linux-arm64-openssl-3.0.x`). Ese beneficio es para el **CLI durante las
+migraciones**, no para el servicio, que usa el driver adapter y no carga engine
+(Decisión 1).
+
+Con la micro (1 OCPU / 1 GB): imposible. `next build` solo pica más RAM que la
+que hay. Los builds se mueven a **GitHub Actions** (Decisión 11). El engine de
+Prisma para el CLI ahora es `linux-x64` — lo baja `pnpm install` en la VM (que
+es x86_64), igual que antes lo bajaba para ARM.
+
+## Decisión 11 — Reorientación a `VM.Standard.E2.1.Micro` x86 (PR3)
+
+### La evidencia: no es quota, es capacidad de host
+
+44 intentos de `oci compute instance launch` en dos corridas (primero 2 OCPU /
+12 GB, después `--small` 1 OCPU / 6 GB), durante ~2 h, todos con la misma
+respuesta:
+
+    {"code": "InternalError", "message": "Out of host capacity.", "status": 500}
+
+en `sa-saopaulo-1`, que es el único AD de la tenancy. La quota de A1 estuvo
+libre todo el tiempo (2 OCPU disponibles, 0 en uso): lo que falta es capacidad
+física de host, no permiso. Un `InternalError` 500 no es reintentable de forma
+útil más allá de lo que ya se probó.
+
+### El objetivo nuevo
+
+`VM.Standard.E2.1.Micro`, specs verificadas: **1 OCPU, 1.0 GB RAM, AMD EPYC 7551
+— x86_64, NO ARM.** Se liberó un slot terminando la instancia muerta `agency`;
+la quota de micro ahora muestra 1 disponible, 1 en uso.
+
+El camino Ampere **no se borra**. `launch-instance.sh` sin flags sigue apuntando
+a A1; `--micro` es la shape nueva. La IP reservada `144.22.175.14` y el block
+volume `marketplace-traspaso-pgdata` (50 GB, con los datos de Postgres) están
+justamente para que, si se libera capacidad Ampere, se pueda "subir" el host sin
+rehacer nada: relanzar en A1, reasociar la IP, readjuntar el volumen.
+
+`E2.1.Micro` es una **shape fija**: pasarle `--shape-config` es un error 400. El
+script arma un array `SHAPE_CONFIG_ARGS` que queda vacío para la micro y lleva
+`--shape-config {ocpus,memoryInGBs}` para la A1.Flex. La imagen se resuelve con
+el mismo `oci compute image list --shape <shape>` de siempre: OCI solo devuelve
+imágenes compatibles con la shape, así que para la micro salen x86_64 sin
+filtrar por arquitectura a mano.
+
+### Postgres se queda en la caja, con swap
+
+Se evaluó mover Postgres a un managed externo (el argumento: 1 GB es apretado).
+**Decisión del usuario: Postgres en la caja.** Para que entre:
+
+- **Swap de 2 GB** (`bootstrap-vm.sh`) con `vm.swappiness=10` persistido en
+  `/etc/sysctl.d/99-marketplace-swap.conf`. Es un colchón de emergencia, no
+  paginación de rutina: con swappiness 10 el kernel solo toca el swap bajo
+  presión real. Idempotente: si ya hay un `/swapfile` activo no se crea otro.
+- **Postgres 16 afinado** en `docker-compose.prod.yml` vía `command:`:
+
+  | Parámetro | Valor | Por qué |
+  |---|---|---|
+  | `shared_buffers` | `96MB` | ~10 % de 1 GB; el default 128 MB es demasiado para compartir la caja. Se reserva de entrada. |
+  | `effective_cache_size` | `256MB` | Solo una pista al planner — no reserva memoria. Refleja lo que el page cache del SO puede llegar a tener. |
+  | `work_mem` | `2MB` | Por operación de sort/hash. Con `max_connections=20` y pocas queries concurrentes, subirlo no rinde y multiplica el riesgo. |
+  | `maintenance_work_mem` | `32MB` | `VACUUM` y `CREATE INDEX` (las migraciones). |
+  | `max_connections` | `20` | El pool de la API (~10) + una migración + un `psql` de emergencia. El default 100 reserva estructuras para conexiones que nunca existen. |
+  | `wal_buffers` | `4MB` | Proporcional a `shared_buffers`. |
+  | `max_wal_size` / `min_wal_size` | `512MB` / `128MB` | Checkpoints más chicos y frecuentes: menos pico de I/O, menos disco. |
+
+### El build se va de la caja
+
+1 GB no corre `next build` (pico 1–2 GB de heap) ni `tsup`. **El anterior
+ocupante de esta misma shape murió de presión de memoria** — y era justamente
+por construir en la caja. Así que:
+
+- **`.github/workflows/release.yml`**: en cada push a `fase-5-frontend-y-avisos`
+  (o a mano) un runner `ubuntu-latest` —**linux-x64, la misma arquitectura que
+  la micro**— corre `pnpm install`, `db:generate`, `typecheck` (hard gate),
+  `tsup` y `next build` (con `output: 'standalone'`). Ensambla
+  `apps/api/dist` + `apps/web/.next/standalone` (con `static/` y `public/`
+  copiados adentro, que Next no hace por diseño) + un `RELEASE_SHA`, lo empaqueta
+  como `marketplace-release.tar.gz` y publica un **GitHub Release** con tag
+  `release-<sha12>` y el asset + su `.sha256`.
+- Se descartó `scp` desde el runner: el ingress SSH está cerrado a
+  `181.47.21.233/32` y los runners de GitHub tienen IP dinámica. El modelo es
+  **pull**: la VM baja el asset. El repo es público, así que sin credenciales.
+- Se descartó construir en la Mac: es `darwin-arm64` y el target es `linux-x64`.
+  Cualquier binario nativo (el `sharp` del standalone, el engine de Prisma)
+  saldría para la arquitectura equivocada. El runner de GitHub coincide.
+
+**`infra/scripts/fetch-release.sh`** baja el tarball + el `.sha256`, verifica el
+hash (un tarball manipulado o a medio bajar aborta), extrae a staging y comprueba
+que `RELEASE_SHA` sea el commit pedido antes de mover nada al destino.
+
+**`deploy.sh` ya no construye.** Pasos nuevos: `sync-checkout` → `pnpm install`
+**filtrado a `@marketplace/api...` + `@marketplace/db...`** (deja afuera `next`,
+`tailwind`, `turbo`; `install` tolera el swap porque es I/O, no mantiene heaps
+grandes) → `db:generate` → `prisma migrate deploy` → **`fetch-release.sh`** →
+smoke del bundle contra Postgres → `systemctl restart` → verificación. Sigue
+siendo idempotente: re-correrlo baja el mismo tarball, re-extrae, la migración es
+no-op, y todo lo falible pasa **antes** del restart. `rollback.sh` hace lo mismo
+para el SHA destino, salteando la migración.
+
+La verificación final ya **no confía en `/health`** (responde 200 sin tocar la
+base): hace un `POST /auth/login` de un usuario inexistente y exige el **403
+`{"code":"FORBIDDEN"}`** del dominio, que solo se da si la cadena bundle → Prisma
+→ `pg` → Postgres → caso de uso funciona de punta a punta.
+
+### `next start` → server.js del standalone
+
+`apps/web/next.config.ts` gana `output: 'standalone'` y —**gotcha de monorepo**—
+`outputFileTracingRoot` apuntando a la raíz del workspace. Sin eso, el trazado
+toma `apps/web` como raíz y **omite en silencio** las dependencias hoisteadas en
+el store `.pnpm` de la raíz (`next`, `react`, `sharp`…): el bundle compila y
+explota en runtime con `MODULE_NOT_FOUND`. Con el trazado en la raíz, el layout
+del standalone la replica y el entrypoint queda en
+`.next/standalone/apps/web/server.js` — que es lo que arranca
+`marketplace-web.service` (`ExecStart=node .../apps/web/.next/standalone/apps/web/server.js`,
+`HOSTNAME=127.0.0.1` para que quede solo en loopback detrás de Caddy).
+
+**Verificado en local** (darwin-arm64, solo para probar layout y arranque, no
+para desplegar): tras `next build`, copiar `static/` y `public/` adentro del
+standalone y `node server.js` — `GET /`, `/robots.txt` y `/sistema` devuelven
+200 sin ningún `node_modules` instalado aparte del que trae el propio standalone.
+
+### Presupuesto de memoria — 1024 MB
+
+Estimación de RSS en régimen (sitio ocioso o carga liviana). **Ningún número
+está medido sobre la micro real** (no hay acceso a la VM); son estimaciones de
+valores típicos + los números de esta doc. Se marcan como tales.
+
+| Componente | RSS estimado | Base de la estimación |
+|---|---|---|
+| SO + systemd + sshd + journald | 90–140 MB | Ubuntu 22.04 mínimo, típico |
+| `dockerd` + `containerd` | 70–110 MB | típico de un daemon Docker con 1 contenedor |
+| Postgres 16 afinado | 140–200 MB | `shared_buffers` 96 MB + ~5 backends × ~12 MB; derivado de la Decisión 11 |
+| Next standalone (ocioso) | 80–120 MB | medido ~85 MB en darwin-arm64 al arrancar; linux-x64 similar |
+| Bundle API Fastify + pool `pg` | 70–100 MB | medido ~75 MB en el smoke local |
+| Caddy | 15–30 MB | típico, 1 sitio, sin plugins |
+| **Total en régimen** | **~465–700 MB** | |
+| **Headroom sobre 1024 MB** | **~324–559 MB** | para picos de request, page cache y `pnpm install`/`migrate` durante un deploy |
+
+**Conclusión: entra, con margen.** El fallo que se está evitando —el ocupante
+anterior murió de presión de memoria— era por correr `next build` (1–2 GB de
+heap) en la caja. Sacando el build, el pico transitorio más grande que queda es
+`pnpm install` filtrado + `prisma migrate deploy` durante un deploy, y para eso
+está el swap de 2 GB. En régimen no debería tocar el swap nunca.
+
+Números **medidos** (darwin-arm64, no la micro): arranque del standalone ~85 MB,
+smoke del bundle API ~75 MB. Números **estimados**: todo lo demás de la tabla.
+La forma de cerrar esto de verdad es un `systemctl status` / `ps_mem` sobre la
+micro después del primer deploy — está en la lista de "sin verificar".
 
 ## Teardown
 
@@ -389,10 +547,26 @@ lo creado están en `infra/provision/launch.log`.
 
 Estos scripts y archivos se probaron localmente hasta donde se puede
 (`shellcheck`, `bash -n`, `caddy validate`, `docker compose config`,
-`tests/deploy/*.sh`), pero varias cosas solo se prueban sobre la VM real:
+`tests/deploy/*.sh`, `next build` + arranque del standalone en darwin-arm64),
+pero varias cosas solo se prueban sobre la VM real:
 
-- `next build` en `linux-arm64` (la única prueba registrada es darwin-arm64).
-- El loop de capacidad de `launch-instance.sh` contra el error real de OCI.
+- **El presupuesto de memoria sobre la micro real.** Los RSS de la tabla de la
+  Decisión 11 son estimaciones (salvo standalone ~85 MB y bundle API ~75 MB,
+  medidos en darwin-arm64). Cerrar con `systemctl status` / `ps_mem` tras el
+  primer deploy.
+- **El workflow `release.yml` en un runner real**: que `next build` con
+  `output: 'standalone'` produzca `apps/web/.next/standalone/apps/web/server.js`
+  en linux-x64 (el `test -f` del workflow lo aborta si el layout cambió), y que
+  el tarball ensamblado arranque en la micro.
+- `launch-instance.sh --micro` contra OCI: que `E2.1.Micro` lance sin
+  `--shape-config` y que `image list --shape VM.Standard.E2.1.Micro` devuelva
+  una imagen x86_64 de Ubuntu 22.04.
+- `pnpm install --frozen-lockfile --filter "@marketplace/api..." --filter
+  "@marketplace/db..."` sobre 1 GB + swap: tiempo y pico de RAM reales.
+- `prisma migrate deploy` con el engine `linux-x64` que baja `pnpm install` en
+  la micro (antes era ARM).
+- El loop de capacidad de `launch-instance.sh` contra el error real de OCI (el
+  camino A1, que se conserva).
 - El formato exacto que espera `oci network security-list update` para
   `--ingress-security-rules` (se usa camelCase; el CLI a veces devuelve kebab).
 - `systemd-analyze verify` de las units (no hay systemd en la máquina de

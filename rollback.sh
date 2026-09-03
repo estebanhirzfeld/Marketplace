@@ -6,6 +6,10 @@
 #
 #   ./rollback.sh <sha>          # vuelve a ese commit exacto
 #   ./rollback.sh last-good      # vuelve a /var/lib/marketplace/last-good-sha
+#
+# Igual que deploy.sh: el artefacto de build lo produce CI y lo baja
+# fetch-release.sh. El release del commit destino tiene que seguir publicado
+# (los GitHub Releases se conservan; no se borran en cada deploy).
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -18,8 +22,9 @@ fi
 TARGET="${1:?uso: ./rollback.sh <sha|last-good>}"
 LAST_GOOD_DIR="/var/lib/marketplace"
 SMOKE_PORT="${DEPLOY_SMOKE_PORT:-3099}"
-HEALTH_URL="http://127.0.0.1:3000/"
+WEB_URL="http://127.0.0.1:3000/"
 API_HEALTH_URL="http://127.0.0.1:3001/health"
+API_LOGIN_URL="http://127.0.0.1:3001/auth/login"
 
 if [[ "$TARGET" == "last-good" ]]; then
 	[[ -f "${LAST_GOOD_DIR}/last-good-sha" ]] || {
@@ -37,22 +42,26 @@ step "sincronizando checkout a ${TARGET}"
 infra/scripts/sync-checkout.sh "$TARGET"
 ROLLED_SHA="$(git rev-parse HEAD)"
 
-step "pnpm install --frozen-lockfile"
-pnpm install --frozen-lockfile
+step "pnpm install --frozen-lockfile (solo API + db)"
+pnpm install --frozen-lockfile \
+	--filter "@marketplace/api..." \
+	--filter "@marketplace/db..."
 
 step "prisma generate"
 pnpm --filter @marketplace/db db:generate
 
-step "typecheck"
-pnpm --filter @marketplace/api typecheck
-
 # (sin `prisma migrate deploy` — nunca se auto-revierte una migración)
 
-step "build API"
-pnpm --filter @marketplace/api build
-
-step "build web"
-pnpm --filter web build
+step "bajando el artefacto de build prehecho para ${ROLLED_SHA:0:12}"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+infra/scripts/fetch-release.sh "$ROLLED_SHA" "$STAGE"
+rm -rf apps/api/dist apps/web/.next
+mkdir -p apps/api apps/web
+cp -a "${STAGE}/apps/api/dist" apps/api/dist
+cp -a "${STAGE}/apps/web/.next" apps/web/.next
+rm -rf "$STAGE"
+trap - EXIT
 
 step "smoke: arrancar el bundle y leer de Postgres"
 if [[ -f packages/db/.env ]]; then
@@ -62,22 +71,25 @@ if [[ -f packages/db/.env ]]; then
 	set +a
 fi
 : "${DATABASE_URL:?DATABASE_URL no está definida (¿falta packages/db/.env?)}"
-SMOKE_PORT="$SMOKE_PORT" SMOKE_DATABASE_URL="$DATABASE_URL" bash apps/api/scripts/smoke.sh
+SMOKE_PORT="$SMOKE_PORT" SMOKE_DATABASE_URL="$DATABASE_URL" \
+	SMOKE_SKIP_BUILD=1 bash apps/api/scripts/smoke.sh
 
 step "reiniciando servicios"
 sudo systemctl restart marketplace-api marketplace-web
 
-step "verificando (hasta 60s)"
+step "verificando (hasta 60s) — health + lectura real de Postgres"
 ok=0
 for _ in $(seq 1 60); do
-	if curl -sf "$API_HEALTH_URL" >/dev/null && curl -sf -o /dev/null "$HEALTH_URL"; then
-		ok=1
-		break
+	if curl -sf "$API_HEALTH_URL" >/dev/null 2>&1 && curl -sf -o /dev/null "$WEB_URL" 2>/dev/null; then
+		code="$(curl -s -o /dev/null -w '%{http_code}' \
+			-X POST "$API_LOGIN_URL" -H 'content-type: application/json' \
+			-d '{"email":"noexiste@rollback.check","password":"x"}' || true)"
+		[[ "$code" == "403" ]] && ok=1 && break
 	fi
 	sleep 1
 done
 [[ "$ok" -eq 1 ]] || {
-	echo "rollback.sh: los servicios no respondieron" >&2
+	echo "rollback.sh: el stack no verificó tras el restart" >&2
 	exit 1
 }
 

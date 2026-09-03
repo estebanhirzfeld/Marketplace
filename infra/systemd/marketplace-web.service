@@ -5,18 +5,29 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now marketplace-web
 #
-# Arranca DESPUÉS de la API. El binario `next` lo instala pnpm en el
-# node_modules del propio paquete web.
+# Arranca DESPUÉS de la API.
+#
+# La caja de 1 GB no puede correr `next build`: el build se hace en CI y a la VM
+# llega SOLO `.next/standalone` (bundle autocontenido, trae su propio
+# node_modules mínimo). Por eso NO se usa `next start` sino el server.js del
+# standalone. Con `outputFileTracingRoot` apuntando a la raíz del monorepo, el
+# layout del standalone replica esa raíz: el entrypoint queda en
+# `.next/standalone/apps/web/server.js`.
+#
+# El server.js del standalone lee PORT y HOSTNAME del entorno. HOSTNAME=127.0.0.1
+# lo deja solo en loopback: Caddy hace de reverse proxy, nadie llega de afuera.
 [Unit]
-Description=Marketplace Web (Next.js)
+Description=Marketplace Web (Next.js standalone)
 After=network-online.target marketplace-api.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/srv/marketplace/apps/web
+WorkingDirectory=/srv/marketplace/apps/web/.next/standalone/apps/web
 EnvironmentFile=/etc/marketplace/web.env
-ExecStart=/srv/marketplace/apps/web/node_modules/.bin/next start -p 3000
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node /srv/marketplace/apps/web/.next/standalone/apps/web/server.js
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

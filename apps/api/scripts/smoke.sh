@@ -10,8 +10,11 @@
 # cadena completa: bundle -> Prisma -> pg -> Postgres -> caso de uso.
 #
 # Uso:  bash apps/api/scripts/smoke.sh
-# Env:  SMOKE_PORT        (default 3099)
+# Env:  SMOKE_PORT         (default 3099)
 #       SMOKE_DATABASE_URL (default apunta al contenedor de desarrollo)
+#       SMOKE_SKIP_BUILD   (si =1, NO construye: usa el dist/ que ya está —
+#                           lo usa deploy.sh en la micro de 1 GB, que no puede
+#                           correr tsup y recibe el bundle prehecho de CI)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -34,8 +37,12 @@ trap cleanup EXIT
 
 fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 
-echo "→ build"
-pnpm --filter @marketplace/api build >/dev/null
+if [[ "${SMOKE_SKIP_BUILD:-0}" == "1" ]]; then
+    echo "→ build omitido (SMOKE_SKIP_BUILD=1): se usa el dist/ existente"
+else
+    echo "→ build"
+    pnpm --filter @marketplace/api build >/dev/null
+fi
 
 [[ -f "$ARTIFACT" ]] || fail "no se generó $ARTIFACT (¿el build no es un bundle ESM?)"
 

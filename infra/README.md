@@ -12,10 +12,19 @@ Valores fijos de este despliegue:
 | Hostname | `traspaso.forzalabs.online` |
 | Rama a desplegar | `fase-5-frontend-y-avisos` |
 | Región / AD | `sa-saopaulo-1` / `ofEW:SA-SAOPAULO-1-AD-1` |
-| Shape | `VM.Standard.A1.Flex`, 2 OCPU / 12 GB (palanca `--small` = 1/6) |
+| Shape | `VM.Standard.E2.1.Micro`, **x86_64**, 1 OCPU / 1 GB (`launch-instance.sh --micro`) |
+| Shape alternativa | `VM.Standard.A1.Flex` aarch64 2/12 (default del script; A1 sin capacidad hoy) |
+| Build | **en GitHub Actions**, no en la VM — la micro de 1 GB no puede con `next build` |
 | IP SSH permitida | `181.47.21.233/32` (solo esa; **no** `0.0.0.0/0`) |
 | Base de datos | `marketplace` (**no** `marketplace_dev`) |
 | MercadoPago | activo | Google/YouTube | apagado (rutas 503 por diseño) |
+
+> **Por qué la micro x86 y no la A1 ARM.** 44 intentos de lanzar A1 en
+> `sa-saopaulo-1` durante ~2 h dieron siempre `"Out of host capacity"` (quota
+> libre — falta capacidad física). El objetivo pasa a `VM.Standard.E2.1.Micro`
+> (1 GB, AMD EPYC, x86_64). El camino A1 se conserva: si se libera capacidad,
+> `launch-instance.sh` sin flags relanza en A1 y se reasocian la IP reservada y
+> el block volume. Detalle: `docs/fase-12-despliegue.md`, Decisión 11.
 
 > **La VCN nueva es más restrictiva a propósito.** `vcn-20260815-0137` (proyecto
 > `agency`) permite SSH desde cualquier lado. La VCN de este despliegue abre el
@@ -55,10 +64,13 @@ export MARKETPLACE_COMPARTMENT_OCID=ocid1.compartment.oc1..xxxxx
 export MARKETPLACE_SSH_PUBKEY=$HOME/.ssh/id_ed25519.pub
 
 # Ensayo: imprime el plan, no crea nada
-infra/provision/launch-instance.sh --dry-run
+infra/provision/launch-instance.sh --micro --dry-run
 
-# De verdad:
-infra/provision/launch-instance.sh
+# De verdad (micro x86, el objetivo actual):
+infra/provision/launch-instance.sh --micro
+
+# Si algún día se libera capacidad Ampere, el mismo script sin --micro
+# relanza en A1.Flex reusando la IP reservada y el block volume.
 ```
 
 Al terminar, `infra/provision/launch.log` tiene los OCID de todo. Anotá el de la
@@ -86,8 +98,10 @@ sudo BLOCK_VOLUME_DEVICE=/dev/oracleoci/oraclevdb bash infra/provision/bootstrap
 (El repo todavía no está clonado; copiá el script con `scp` o cloná el repo
 primero sin tocar `/srv/marketplace` y corré el script desde ahí.)
 
-Instala Node 20, pnpm, Docker, Caddy, swap de 4 GB, la entrada de `/etc/fstab`
-del volumen y abre 80/443 en ufw. Es idempotente.
+Instala Node 20, pnpm, Docker, Caddy, un swapfile de **2 GB** con
+`vm.swappiness=10` (colchón de emergencia para la caja de 1 GB, no paginación de
+rutina), la entrada de `/etc/fstab` del volumen y abre 80/443 en ufw. Es
+idempotente: correrlo dos veces no crea un segundo swapfile.
 
 ---
 
@@ -182,14 +196,28 @@ sudo systemctl reload caddy
 
 ## 7. Primer deploy (tarea 6.7)
 
+**Prerrequisito: el artefacto de build tiene que estar publicado.** La micro de
+1 GB no construye nada — eso lo hace GitHub Actions (`.github/workflows/release.yml`)
+en cada push a `fase-5-frontend-y-avisos`. Antes de desplegar, confirmá que el
+release del commit existe:
+
+```bash
+# el tag es release-<primeros 12 del sha>
+gh release view "release-$(git -C /srv/marketplace rev-parse HEAD | cut -c1-12)"
+# si no existe: disparalo a mano desde Actions → workflow "release" → Run workflow
+```
+
 ```bash
 # en la VM, en /srv/marketplace
 sudo ./deploy.sh fase-5-frontend-y-avisos
 ```
 
-Corre install → generate → typecheck → migrate deploy → build API → build web →
-**smoke contra Postgres** → restart → verificación. Si el smoke falla, los
-servicios viejos siguen arriba.
+Corre: `sync-checkout` → `pnpm install` (filtrado a API + db) → `db:generate` →
+`prisma migrate deploy` → **baja el artefacto de CI** (`fetch-release.sh`, con
+verificación SHA-256) → **smoke del bundle contra Postgres** → `systemctl
+restart` → verificación (health + un `POST /auth/login` que debe dar 403 del
+dominio — prueba una lectura real de la base). Todo lo falible pasa **antes** del
+restart: si algo falla, los servicios viejos siguen arriba.
 
 ---
 
