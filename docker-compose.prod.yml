@@ -12,6 +12,10 @@
 #   - restart: unless-stopped + docker.service habilitado = persiste al reboot,
 #     sin necesidad de una unit de systemd para Postgres.
 #   - El password sale de /etc/marketplace/db.env (0600), nunca del repo.
+#   - `command` afina Postgres 16 para la micro de 1 GB: comparte esa RAM con
+#     Next standalone, el bundle de la API, Caddy y el SO. Los defaults
+#     (shared_buffers 128 MB, max_connections 100, ~10 MB por backend ocioso)
+#     no entran. Números elegidos y justificados en docs/fase-12-despliegue.md.
 #
 # Uso en la VM:
 #   docker compose -f docker-compose.prod.yml up -d
@@ -20,6 +24,31 @@ services:
   db:
     image: postgres:16
     restart: unless-stopped
+    # Afinado para 1 GB de RAM (ver comentario de cabecera y la Decisión 11).
+    #   shared_buffers=96MB          ~10% de la RAM; el default 128MB es mucho.
+    #   effective_cache_size=256MB   pista al planner, no reserva memoria.
+    #   work_mem=2MB                  por operación de sort/hash; pocos backends.
+    #   maintenance_work_mem=32MB     VACUUM / CREATE INDEX (migraciones).
+    #   max_connections=20           pool de la API + migraciones + un psql.
+    #   max_wal_size=512MB            checkpoints más chicos, menos disco/IO.
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=96MB"
+      - "-c"
+      - "effective_cache_size=256MB"
+      - "-c"
+      - "work_mem=2MB"
+      - "-c"
+      - "maintenance_work_mem=32MB"
+      - "-c"
+      - "max_connections=20"
+      - "-c"
+      - "wal_buffers=4MB"
+      - "-c"
+      - "max_wal_size=512MB"
+      - "-c"
+      - "min_wal_size=128MB"
     # Solo loopback: el puerto queda inalcanzable desde la red.
     ports:
       - "127.0.0.1:5434:5432"

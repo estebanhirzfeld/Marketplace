@@ -12,9 +12,20 @@
 #      + subnet pública 10.1.0.0/24
 #      + Internet Gateway + route
 #      + security list: 22 desde 181.47.21.233/32, 80 y 443 desde 0.0.0.0/0
-#   4. Instancia VM.Standard.A1.Flex (2 OCPU / 12 GB; --small -> 1/6), en un
-#      loop que REINTENTA solo ante "Out of host capacity" y FALLA RÁPIDO ante
-#      cualquier 4xx (shape mala, quota, auth, OCID malformado).
+#   4. La instancia, en un loop que REINTENTA solo ante "Out of host capacity"
+#      y FALLA RÁPIDO ante cualquier 4xx (shape mala, quota, auth, OCID malo):
+#        - default            VM.Standard.A1.Flex 2 OCPU / 12 GB (Ampere aarch64;
+#                             --small -> 1/6). Se conserva: la capacidad Ampere
+#                             puede liberarse, y la IP reservada + el block
+#                             volume están justamente para "subir" el host sin
+#                             rehacer nada.
+#        - --micro            VM.Standard.E2.1.Micro (1 OCPU / 1 GB, AMD EPYC,
+#                             x86_64 — NO ARM). Shape FIJA: NO lleva
+#                             --shape-config (pasárselo es un error de la API).
+#                             Es el objetivo REAL hoy — la capacidad de A1 en
+#                             sa-saopaulo-1 estuvo agotada 2 h seguidas (44
+#                             intentos, "Out of host capacity", quota libre).
+#                             Ver docs/fase-12-despliegue.md, Decisión 11.
 #
 # Los OCID de todo lo creado se anotan en infra/provision/launch.log. Ese
 # archivo es la fuente para allow-my-ip.sh (--security-list-id) y para el
@@ -29,11 +40,15 @@
 # Uso:
 #   MARKETPLACE_COMPARTMENT_OCID=ocid1.compartment.oc1..xxx \
 #   MARKETPLACE_SSH_PUBKEY=$HOME/.ssh/id_ed25519.pub \
-#   infra/provision/launch-instance.sh [--small] [--dry-run]
+#   infra/provision/launch-instance.sh [--micro | --small] [--dry-run]
 #
-#   --small     1 OCPU / 6 GB (se agenda más fácil si A1 está saturado;
-#               obliga a mover `next build` fuera de la VM, ver design Dec. 10)
+#   --micro     VM.Standard.E2.1.Micro (x86_64, 1 OCPU / 1 GB, shape fija). El
+#               objetivo real hoy. Incompatible con --small.
+#   --small     1 OCPU / 6 GB sobre A1 (se agenda más fácil si A1 está saturado).
 #   --dry-run   imprime el plan y sale, sin llamar a OCI para crear nada
+#
+# Con --micro el build NO corre en la VM (1 GB no da): lo hace CI y a la VM
+# llega el artefacto prehecho (deploy.sh + infra/scripts/fetch-release.sh).
 #
 # Variables:
 #   MARKETPLACE_COMPARTMENT_OCID  (obligatoria)
@@ -46,9 +61,11 @@ set -euo pipefail
 
 usage() { awk 'NR>1 && /^[^#]/{exit} NR>1{sub(/^# ?/,"");print}' "$0"; }
 
+TARGET="a1"
 SHAPE_OCPUS=2
 SHAPE_MEM_GB=12
 DRY_RUN=0
+SMALL=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -56,9 +73,12 @@ while [[ $# -gt 0 ]]; do
 		usage
 		exit 0
 		;;
+	--micro)
+		TARGET="micro"
+		shift
+		;;
 	--small)
-		SHAPE_OCPUS=1
-		SHAPE_MEM_GB=6
+		SMALL=1
 		shift
 		;;
 	--dry-run)
@@ -72,6 +92,15 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+if [[ "$TARGET" == "micro" && "$SMALL" -eq 1 ]]; then
+	echo "--micro y --small son incompatibles: la micro es una shape fija" >&2
+	exit 2
+fi
+if [[ "$SMALL" -eq 1 ]]; then
+	SHAPE_OCPUS=1
+	SHAPE_MEM_GB=6
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG="${SCRIPT_DIR}/launch.log"
 
@@ -84,7 +113,23 @@ PUBKEY_PATH="${MARKETPLACE_SSH_PUBKEY:-}"
 SSH_CIDR="181.47.21.233/32"
 VCN_CIDR="10.1.0.0/16"
 SUBNET_CIDR="10.1.0.0/24"
-SHAPE="VM.Standard.A1.Flex"
+
+# ── shape según el objetivo ────────────────────────────────────────────────
+# La micro E2.1.Micro es una shape FIJA: OCI rechaza `--shape-config` sobre
+# ella (400). La A1.Flex es flexible y SÍ necesita `--shape-config`. El array
+# SHAPE_CONFIG_ARGS queda vacío para la micro y con el flag para la A1.
+if [[ "$TARGET" == "micro" ]]; then
+	SHAPE="VM.Standard.E2.1.Micro"
+	ARCH_LABEL="x86_64 (AMD EPYC)"
+	SHAPE_CONFIG_ARGS=()
+	SHAPE_SUMMARY="${SHAPE}  1 OCPU / 1 GB  (shape fija)"
+else
+	SHAPE="VM.Standard.A1.Flex"
+	ARCH_LABEL="aarch64 (Ampere)"
+	SHAPE_CONFIG_ARGS=(--shape-config "{\"ocpus\":${SHAPE_OCPUS},\"memoryInGBs\":${SHAPE_MEM_GB}}")
+	SHAPE_SUMMARY="${SHAPE}  ${SHAPE_OCPUS} OCPU / ${SHAPE_MEM_GB} GB"
+fi
+
 # El disco de arranque se deja en el tamaño de la imagen (~47 GB). Pedir 50
 # explícitamente sumaría 3 GB por instancia contra los 200 GB del tier gratuito,
 # de los que ya hay 97 usados por las dos máquinas del proyecto agency.
@@ -125,8 +170,10 @@ cat <<PLAN
   región / AD      : ${REGION} / ${AD}
   compartment      : ${COMPARTMENT}
   nombre           : ${DISPLAY_NAME}
-  shape            : ${SHAPE}  ${SHAPE_OCPUS} OCPU / ${SHAPE_MEM_GB} GB
-  imagen           : ${OS_NAME} ${OS_VERSION} aarch64
+  objetivo         : ${TARGET}
+  shape            : ${SHAPE_SUMMARY}
+  arquitectura     : ${ARCH_LABEL}
+  imagen           : ${OS_NAME} ${OS_VERSION}  (${ARCH_LABEL})
   boot / data      : tamaño de la imagen (~47 GB)  +  ${DATA_VOLUME_GB} GB block volume
   VCN / subnet     : ${VCN_CIDR}  /  ${SUBNET_CIDR}  (nueva, aislada de agency)
   ingress          : 22 <- ${SSH_CIDR} | 80,443 <- 0.0.0.0/0
@@ -342,17 +389,23 @@ else
 fi
 log "  ocid=${SUBNET_OCID}"
 
-# ── imagen aarch64 más reciente ────────────────────────────────────────────
-log "→ resolviendo imagen ${OS_NAME} ${OS_VERSION} aarch64"
+# ── imagen más reciente para la arquitectura de la shape ───────────────────
+# El filtro `--shape` es lo que hace correcta la selección: OCI solo devuelve
+# imágenes compatibles con esa shape, así que para E2.1.Micro salen imágenes
+# x86_64 y para A1.Flex salen aarch64. No se filtra por arquitectura a mano.
+log "→ resolviendo imagen ${OS_NAME} ${OS_VERSION} para ${SHAPE} (${ARCH_LABEL})"
 IMG_JSON="$(oci_call oci compute image list \
 	--compartment-id "$COMPARTMENT" --operating-system "$OS_NAME" \
 	--operating-system-version "$OS_VERSION" --shape "$SHAPE" \
 	--sort-by TIMECREATED --sort-order DESC --region "$REGION")" || exit 1
 IMAGE_OCID="$(python3 -c 'import sys,json;d=json.load(sys.stdin)["data"];print(d[0]["id"])' <<<"$IMG_JSON")"
+[[ -n "$IMAGE_OCID" ]] || {
+	log "  no se encontró imagen ${OS_NAME} ${OS_VERSION} para ${SHAPE}"
+	exit 1
+}
 log "  ocid=${IMAGE_OCID}"
 
 # ── 4. Loop de lanzamiento ─────────────────────────────────────────────────
-SHAPE_CONFIG="{\"ocpus\":${SHAPE_OCPUS},\"memoryInGBs\":${SHAPE_MEM_GB}}"
 attempt=0
 INSTANCE_OCID="$(find_by_name "$DISPLAY_NAME" \
 	oci compute instance list -c "$COMPARTMENT" --region "$REGION")"
@@ -362,11 +415,13 @@ if [[ -n "$INSTANCE_OCID" ]]; then
 fi
 while [[ -z "$INSTANCE_OCID" ]]; do
 	attempt=$((attempt + 1))
-	log "→ launch intento #${attempt} (${SHAPE_OCPUS} OCPU / ${SHAPE_MEM_GB} GB)"
+	log "→ launch intento #${attempt} — ${SHAPE_SUMMARY}"
 	set +e
+	# SHAPE_CONFIG_ARGS: vacío para la micro (shape fija, --shape-config = 400),
+	# con el flag ocpus/memory para la A1.Flex.
 	INST_JSON="$(oci_call oci compute instance launch \
 		--compartment-id "$COMPARTMENT" --availability-domain "$AD" \
-		--shape "$SHAPE" --shape-config "$SHAPE_CONFIG" \
+		--shape "$SHAPE" ${SHAPE_CONFIG_ARGS[@]+"${SHAPE_CONFIG_ARGS[@]}"} \
 		--image-id "$IMAGE_OCID" --subnet-id "$SUBNET_OCID" \
 		--assign-public-ip false \
 		--display-name "$DISPLAY_NAME" \

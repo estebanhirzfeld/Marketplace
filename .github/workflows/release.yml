@@ -1,0 +1,104 @@
+name: release
+
+# Construye el artefacto de producción FUERA de la VM.
+#
+# La caja de despliegue es una VM.Standard.E2.1.Micro (1 OCPU / 1 GB) y no
+# puede correr `next build` ni `tsup` (picos de 1–2 GB de heap). Los runners de
+# GitHub son linux-x64 — la misma arquitectura que la micro (AMD EPYC, x86_64) —
+# así que lo que se compila acá corre tal cual allá.
+#
+# Publica un GitHub Release con tag `release-<sha12>` y el asset
+# `marketplace-release.tar.gz` (+ su .sha256). En la VM, `deploy.sh` lo baja con
+# `infra/scripts/fetch-release.sh`.
+
+on:
+  push:
+    branches: [fase-5-frontend-y-avisos]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "tsconfig*.json"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # linux-x64 == VM.Standard.E2.1.Micro
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: prisma generate
+        run: pnpm --filter @marketplace/db db:generate
+
+      - name: typecheck (hard gate)
+        run: pnpm --filter @marketplace/api typecheck
+
+      - name: build API (bundle ESM tsup)
+        run: pnpm --filter @marketplace/api build
+
+      - name: build web (next build, output standalone)
+        run: pnpm --filter web build
+
+      - name: assemble release
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+
+          # El server standalone sirve estáticos y /public relativos a su propio
+          # dir; hay que copiarlos adentro (Next no lo hace por diseño).
+          STANDALONE="apps/web/.next/standalone/apps/web"
+          test -f "${STANDALONE}/server.js" || {
+            echo "::error::no está ${STANDALONE}/server.js — ¿cambió el layout del standalone en el monorepo?"
+            find apps/web/.next/standalone -maxdepth 3 -name server.js || true
+            exit 1
+          }
+          cp -r apps/web/.next/static "${STANDALONE}/.next/static"
+          if [ -d apps/web/public ]; then cp -r apps/web/public "${STANDALONE}/public"; fi
+
+          mkdir -p release/apps/api release/apps/web/.next
+          cp -r apps/api/dist              release/apps/api/dist
+          cp -r apps/web/.next/standalone  release/apps/web/.next/standalone
+          printf '%s\n' "$SHA" > release/RELEASE_SHA
+
+          tar czf marketplace-release.tar.gz -C release .
+          sha256sum marketplace-release.tar.gz | tee marketplace-release.tar.gz.sha256
+          ls -lh marketplace-release.tar.gz
+
+      - name: publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          TAG="release-${SHA:0:12}"
+          NOTES="Artefacto de build para ${SHA}. Lo consume deploy.sh en la VM."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              marketplace-release.tar.gz marketplace-release.tar.gz.sha256 --clobber
+          else
+            gh release create "$TAG" \
+              marketplace-release.tar.gz marketplace-release.tar.gz.sha256 \
+              --title "$TAG" --notes "$NOTES" --target "$SHA"
+          fi

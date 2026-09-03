@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Prepara una VM Ubuntu 22.04 aarch64 recién creada para correr el marketplace.
+# Prepara una VM Ubuntu 22.04 recién creada para correr el marketplace.
+# Sirve para ambos objetivos: la micro x86_64 (VM.Standard.E2.1.Micro, el
+# objetivo actual) y la A1 aarch64 (si se libera capacidad Ampere). La
+# arquitectura del repo de Docker se deriva de `dpkg --print-architecture`.
 #
 # Instala: Node 20, corepack + pnpm, Docker CE + plugin compose, Caddy,
-#          un swapfile de 4 GB, la entrada de /etc/fstab para el block volume,
-#          y abre 80/443 en iptables (las imágenes de OCI vienen cerradas).
+#          un swapfile de 2 GB con vm.swappiness bajo (colchón de emergencia
+#          para la micro de 1 GB, no paginación de rutina), la entrada de
+#          /etc/fstab para el block volume, y abre 80/443 en iptables (las
+#          imágenes de OCI vienen cerradas).
 #
 # Es IDEMPOTENTE: se puede correr de nuevo sin romper nada.
 #
@@ -16,7 +21,8 @@
 #   sudo BLOCK_VOLUME_DEVICE=/dev/sdb infra/provision/bootstrap-vm.sh
 #
 #   BLOCK_VOLUME_DEVICE  default /dev/oracleoci/oraclevdb (link estable de OCI)
-#   SWAP_SIZE_GB         default 4
+#   SWAP_SIZE_GB         default 2
+#   SWAPPINESS           default 10  (rango de emergencia; el default del kernel es 60)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -26,8 +32,10 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 BLOCK_VOLUME_DEVICE="${BLOCK_VOLUME_DEVICE:-/dev/oracleoci/oraclevdb}"
-SWAP_SIZE_GB="${SWAP_SIZE_GB:-4}"
+SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
+SWAPPINESS="${SWAPPINESS:-10}"
 PGDATA_MOUNT="/mnt/pgdata"
+SYSCTL_FILE="/etc/sysctl.d/99-marketplace-swap.conf"
 
 step() { echo; echo "── $* ──────────────────────────────────────────────"; }
 
@@ -54,7 +62,7 @@ if ! command -v docker >/dev/null; then
 	curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
 		gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 	chmod a+r /etc/apt/keyrings/docker.gpg
-	echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
 		>/etc/apt/sources.list.d/docker.list
 	apt-get update -y
 	apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
@@ -73,7 +81,11 @@ if ! command -v caddy >/dev/null; then
 fi
 systemctl enable caddy
 
-step "swapfile de ${SWAP_SIZE_GB} GB"
+step "swapfile de ${SWAP_SIZE_GB} GB (swappiness ${SWAPPINESS})"
+# Colchón de emergencia para la micro de 1 GB, NO paginación de rutina. Con
+# swappiness 10 el kernel solo recurre al swap bajo presión real de memoria.
+# Idempotente: si ya hay un /swapfile activo no se crea otro ni se cambia su
+# tamaño (correr esto dos veces es un no-op).
 if ! swapon --show | grep -q '/swapfile'; then
 	if [[ ! -f /swapfile ]]; then
 		fallocate -l "${SWAP_SIZE_GB}G" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=$((SWAP_SIZE_GB * 1024))
@@ -81,8 +93,19 @@ if ! swapon --show | grep -q '/swapfile'; then
 		mkswap /swapfile
 	fi
 	swapon /swapfile
+else
+	echo "  /swapfile ya está activo: $(swapon --show | grep /swapfile)"
 fi
 grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+
+# swappiness + vfs_cache_pressure persistidos. Se reescribe el archivo entero
+# (no se acumulan líneas al re-correr) y se aplica en caliente.
+cat >"$SYSCTL_FILE" <<EOF
+# marketplace — la micro tiene 1 GB; el swap es de emergencia, no de rutina.
+vm.swappiness=${SWAPPINESS}
+vm.vfs_cache_pressure=50
+EOF
+sysctl -p "$SYSCTL_FILE" >/dev/null
 
 step "block volume -> ${PGDATA_MOUNT}"
 if [[ -b "$BLOCK_VOLUME_DEVICE" ]]; then
