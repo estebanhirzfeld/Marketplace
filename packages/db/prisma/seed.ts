@@ -2,6 +2,8 @@ import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { writeFileSync, chmodSync } from "node:fs";
 import { User } from "@marketplace/domain/src/entities/User";
 import { Email } from "@marketplace/domain/src/value-objects/Email";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -43,7 +45,7 @@ function daysAgo(days: number): Date {
 }
 
 /**
- * La contraseña de cada usuario de ejemplo es su propio correo.
+ * En desarrollo, la contraseña de cada usuario de ejemplo es su propio correo.
  *
  * No hace falta recordar nada: quien prueba la aplicación lee el correo en la
  * pantalla de ingreso y ya tiene la contraseña. Antes había una sola clave
@@ -58,6 +60,20 @@ function daysAgo(days: number): Date {
  */
 const SALT_ROUNDS = 12;
 
+/**
+ * En un despliegue público esa comodidad es un agujero: el repositorio es
+ * público, así que cualquiera lee esta misma línea y entra como administrador.
+ *
+ * Definiendo `SEED_CREDENTIALS_FILE` se genera una contraseña aleatoria por
+ * usuario y se escriben ahí, en vez de imprimirlas. El archivo es el único
+ * lugar donde existen en claro y queda en el servidor: nunca pasan por la
+ * salida del comando, que suele terminar en un log o en el historial de una
+ * terminal.
+ */
+const CREDENTIALS_FILE = process.env.SEED_CREDENTIALS_FILE;
+const randomPassword = (): string => randomBytes(18).toString("base64url");
+const seededCredentials: Array<{ email: string; password: string }> = [];
+
 interface UserSeed {
     email: string;
     fullName: string;
@@ -67,13 +83,17 @@ interface UserSeed {
 }
 
 async function createUser({ email, fullName, dni, role, country }: UserSeed): Promise<User> {
+    const password = CREDENTIALS_FILE ? randomPassword() : email;
+    if (CREDENTIALS_FILE) {
+        seededCredentials.push({ email, password });
+    }
     const user = User.create({
         email: Email.create(email),
         fullName,
         dni,
         role,
         country,
-        passwordHash: await bcrypt.hash(email, SALT_ROUNDS),
+        passwordHash: await bcrypt.hash(password, SALT_ROUNDS),
     });
     user.verifyKyc();
     await userRepo.save(user);
@@ -177,7 +197,7 @@ async function main() {
     // El admin es quien atestigua la custodia y el acceso a los activos: sin él
     // ninguno de los dos flujos se puede demostrar.
     const admin = await createUser({
-        email: "admin@traspaso.com",
+        email: "admin@forzalabs.online",
         fullName: "Administración Traspaso",
         dni: "20111222333",
         role: UserRole.ADMIN,
@@ -185,7 +205,7 @@ async function main() {
     });
 
     const seller = await createUser({
-        email: "seller@traspaso.com",
+        email: "seller@forzalabs.online",
         fullName: "Esteban Vendedor",
         dni: "20123456789",
         role: UserRole.SELLER,
@@ -195,7 +215,7 @@ async function main() {
     // Un segundo vendedor para que el mercado no sea el catálogo de una sola
     // persona y el panel de vendedor muestre un subconjunto, no todo.
     const seller2 = await createUser({
-        email: "seller2@traspaso.com",
+        email: "seller2@forzalabs.online",
         fullName: "Lucía Ferreyra",
         dni: "27334455667",
         role: UserRole.SELLER,
@@ -203,7 +223,7 @@ async function main() {
     });
 
     const buyer = await createUser({
-        email: "buyer@traspaso.com",
+        email: "buyer@forzalabs.online",
         fullName: "Marcos Comprador",
         dni: "20998877665",
         role: UserRole.BUYER,
@@ -211,7 +231,7 @@ async function main() {
     });
 
     const buyer2 = await createUser({
-        email: "buyer2@traspaso.com",
+        email: "buyer2@forzalabs.online",
         fullName: "Ana Beltrán",
         dni: "27556677889",
         role: UserRole.BUYER,
@@ -231,13 +251,13 @@ async function main() {
     // registrador. El código funciona; el dato hay que ponerlo.
     const custodiaYouTube = CustodyAccount.create({
         label: "Custodia YouTube 01",
-        identifier: "custodia-yt-01@traspaso.com", // PLACEHOLDER — reemplazar por la cuenta de Google real
+        identifier: "custodia-yt-01@forzalabs.online", // PLACEHOLDER — reemplazar por la cuenta de Google real
         assetType: AssetType.YOUTUBE,
         notes: "Cuenta de Marca propietaria. Reemplazar el identifier por la cuenta real.",
     });
     const custodiaWeb = CustodyAccount.create({
         label: "Custodia Web 01",
-        identifier: "custodia-web-01@traspaso.com", // PLACEHOLDER — reemplazar por el usuario del registrador real
+        identifier: "custodia-web-01@forzalabs.online", // PLACEHOLDER — reemplazar por el usuario del registrador real
         assetType: AssetType.WEB,
         notes: "Usuario del registrador. Reemplazar el identifier por el real.",
     });
@@ -450,13 +470,27 @@ async function main() {
     console.log("✅ 2 NDAs firmados");
 
     console.log("✨ Seed finalizado con éxito!");
+
+    if (CREDENTIALS_FILE) {
+        // Se escriben en un archivo y NO por pantalla: la salida del comando
+        // termina en logs y en el historial de la terminal, el archivo no.
+        const contenido = seededCredentials
+            .map(({ email, password }) => `${email}\t${password}`)
+            .join("\n");
+        writeFileSync(CREDENTIALS_FILE, `${contenido}\n`, { mode: 0o600 });
+        chmodSync(CREDENTIALS_FILE, 0o600);
+        console.log(`   ${seededCredentials.length} credenciales escritas en ${CREDENTIALS_FILE} (0600)`);
+        console.log("   Las contraseñas son aleatorias y solo existen ahí.");
+        return;
+    }
+
     console.log("   La contraseña de cada usuario es su propio correo:");
     for (const email of [
-        "admin@traspaso.com",
-        "seller@traspaso.com",
-        "seller2@traspaso.com",
-        "buyer@traspaso.com",
-        "buyer2@traspaso.com",
+        "admin@forzalabs.online",
+        "seller@forzalabs.online",
+        "seller2@forzalabs.online",
+        "buyer@forzalabs.online",
+        "buyer2@forzalabs.online",
     ]) {
         console.log(`   · ${email}`);
     }
