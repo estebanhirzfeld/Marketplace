@@ -152,9 +152,8 @@ SEARCH_INDEXING=true
 EOF
 
 # ── Prisma dentro del checkout (lo lee prisma.config.ts) ──
-printf 'DATABASE_URL=%s\n' "$DATABASE_URL" | sudo tee /srv/marketplace/packages/db/.env >/dev/null
 
-sudo chmod 600 /etc/marketplace/*.env /srv/marketplace/packages/db/.env
+sudo chmod 600 /etc/marketplace/*.env
 ```
 
 Editá `/etc/marketplace/api.env` y pegá los dos valores de MercadoPago del paso 1.
@@ -225,7 +224,7 @@ restart: si algo falla, los servicios viejos siguen arriba.
 
 ```bash
 # en la VM, en /srv/marketplace
-sudo -E DATABASE_URL="$(sudo grep -h '^DATABASE_URL=' /srv/marketplace/packages/db/.env | cut -d= -f2-)" \
+sudo -E DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)" \
   pnpm --filter @marketplace/db db:seed
 ```
 

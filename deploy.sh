@@ -58,8 +58,17 @@ step "4    prisma generate (cliente para el CLI de migraciones)"
 pnpm --filter @marketplace/db db:generate
 
 step "5    prisma migrate deploy"
-# El cwd importa: packages/db/prisma.config.ts hace `import 'dotenv/config'` y
-# lee env('DATABASE_URL') relativo a ese directorio. NUNCA `prisma db push`.
+# DATABASE_URL sale del MISMO archivo que usa la API, /etc/marketplace/api.env
+# (root, 0600). Antes hacía falta duplicarla en packages/db/.env, y el propio
+# diseño marcaba que desincronizar esas dos copias era el error más probable:
+# falla tarde, porque /health responde 200 igual y el problema recién aparece
+# en el primer pedido real. Con una sola fuente ese modo de falla no existe.
+#
+# `dotenv/config` en prisma.config.ts NO pisa lo que ya está en el entorno, así
+# que exportarla acá alcanza y el archivo del checkout deja de ser necesario.
+DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)"
+export DATABASE_URL
+: "${DATABASE_URL:?no se pudo leer DATABASE_URL de /etc/marketplace/api.env}"
 (cd packages/db && pnpm exec prisma migrate deploy)
 
 step "6    bajando el artefacto de build prehecho (CI) para ${DEPLOY_SHA:0:12}"
@@ -80,15 +89,8 @@ trap - EXIT
 echo "  artefacto en su lugar: apps/api/dist + apps/web/.next/standalone"
 
 step "7    smoke: arrancar el bundle de la API y leer de Postgres"
-# Reusa apps/api/scripts/smoke.sh. Necesita DATABASE_URL de producción: sale
-# del .env del checkout (0600), el mismo que usa prisma.
-if [[ -f packages/db/.env ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	. packages/db/.env
-	set +a
-fi
-: "${DATABASE_URL:?DATABASE_URL no está definida (¿falta packages/db/.env?)}"
+# Reusa apps/api/scripts/smoke.sh, con la misma DATABASE_URL que ya se exportó
+# en el paso 5: una sola fuente para las migraciones, el smoke y la API.
 SMOKE_PORT="$SMOKE_PORT" SMOKE_DATABASE_URL="$DATABASE_URL" \
 	SMOKE_SKIP_BUILD=1 bash apps/api/scripts/smoke.sh
 

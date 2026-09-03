@@ -64,13 +64,9 @@ rm -rf "$STAGE"
 trap - EXIT
 
 step "smoke: arrancar el bundle y leer de Postgres"
-if [[ -f packages/db/.env ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	. packages/db/.env
-	set +a
-fi
-: "${DATABASE_URL:?DATABASE_URL no está definida (¿falta packages/db/.env?)}"
+DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)"
+export DATABASE_URL
+: "${DATABASE_URL:?no se pudo leer DATABASE_URL de /etc/marketplace/api.env}"
 SMOKE_PORT="$SMOKE_PORT" SMOKE_DATABASE_URL="$DATABASE_URL" \
 	SMOKE_SKIP_BUILD=1 bash apps/api/scripts/smoke.sh
 
