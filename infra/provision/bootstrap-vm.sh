@@ -120,7 +120,9 @@ if [[ -b "$BLOCK_VOLUME_DEVICE" ]]; then
 		echo "UUID=${UUID} ${PGDATA_MOUNT} ext4 defaults,_netdev,nofail 0 2" >>/etc/fstab
 	fi
 	mountpoint -q "$PGDATA_MOUNT" || mount "$PGDATA_MOUNT"
-	mkdir -p "${PGDATA_MOUNT}/backups"
+	# `data` es el PGDATA real. Tiene que ser un subdirectorio: Postgres no
+	inicializa sobre la raiz del volumen, que trae lost+found de fabrica.
+	mkdir -p "${PGDATA_MOUNT}/data" "${PGDATA_MOUNT}/backups"
 	echo "  montado: $(df -h "$PGDATA_MOUNT" | tail -1)"
 else
 	echo "  AVISO: ${BLOCK_VOLUME_DEVICE} no es un dispositivo de bloques."
