@@ -1,4 +1,5 @@
 import { Reveal } from '@/components/Reveal';
+import { DemoBanner } from '@/components/DemoBanner';
 import { Timeline } from '@/components/Timeline';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
@@ -132,6 +133,13 @@ export default function Sistema() {
                             ETIQUETA MONO 11 / TRACKING 0.1EM
                         </div>
                     </div>
+                </Section>
+
+                <Section
+                    title="Aviso de entorno de demostración"
+                    note="Barra permanente y no descartable, montada arriba de todo en el layout raíz. Aparece con o sin sesión. Usa gris de segundo plano a propósito: el ámbar está reservado a los datos bajo NDA, así que este aviso informa sin competir con esa señal."
+                >
+                    <DemoBanner />
                 </Section>
 
                 <Section title="Acciones">

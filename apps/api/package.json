@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/server.mjs",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run"
   },
@@ -15,15 +16,18 @@
     "@marketplace/db": "workspace:*",
     "@marketplace/domain": "workspace:^",
     "@marketplace/shared-types": "workspace:*",
+    "@prisma/adapter-pg": "^7.8.0",
     "bcryptjs": "^3.0.3",
     "fastify": "^4.26.2",
     "fastify-cli": "^6.1.1",
-    "fastify-plugin": "^4.5.1"
+    "fastify-plugin": "^4.5.1",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.12.8",
     "dotenv": "^16.4.5",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0"
