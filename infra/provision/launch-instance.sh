@@ -185,15 +185,32 @@ json_get() { python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]'"$1"
 find_by_name() {
 	local name="$1"
 	shift
-	local out
-	out="$("$@" 2>/dev/null)" || return 1
+	local out rc
+	set +e
+	out="$("$@" 2>/dev/null)"
+	rc=$?
+	set -e
+
+	# Cuando no hay ningún recurso del tipo pedido, el CLI de OCI sale con 0 y
+	# no imprime NADA — ni siquiera `{"data": []}`. Parsear eso como JSON falla,
+	# y bajo `set -e` mataría el script sin decir por qué. Vacío significa "no
+	# existe", que es exactamente lo que hay que informar.
+	if [[ "$rc" -ne 0 ]]; then
+		log "  no se pudo consultar recursos existentes de $name; abortando por seguridad"
+		return 1
+	fi
+	[[ -z "${out//[[:space:]]/}" ]] && {
+		printf ''
+		return 0
+	}
+
 	python3 -c '
 import sys, json
 nombre = sys.argv[1]
 try:
-    datos = json.load(sys.stdin).get("data", [])
+    datos = json.load(sys.stdin).get("data", []) or []
 except Exception:
-    sys.exit(1)
+    datos = []
 vivos = [d for d in datos
          if d.get("display-name") == nombre
          and d.get("lifecycle-state") not in ("TERMINATED", "TERMINATING", "FAILED")]
