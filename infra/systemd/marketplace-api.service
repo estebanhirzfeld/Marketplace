@@ -20,8 +20,10 @@ EnvironmentFile=/etc/marketplace/api.env
 ExecStart=/usr/bin/node /srv/marketplace/apps/api/dist/server.mjs
 Restart=always
 RestartSec=5
-# El server.ts hace listen en 0.0.0.0:PORT; en la VM el puerto 3001 solo es
-# alcanzable desde loopback porque la security list y iptables no lo abren.
+# La API escucha en loopback por defecto (resolveListenHost en
+# apps/api/src/config/network.ts). No se define API_HOST a proposito: el unico
+# cliente es el codigo de servidor de Next, en esta misma maquina. El firewall
+# y la security list son la segunda capa, no la unica.
 NoNewPrivileges=true
 
 [Install]
