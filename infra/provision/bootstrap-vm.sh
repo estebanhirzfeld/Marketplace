@@ -20,8 +20,9 @@
 # Uso (en la VM, como root o con sudo):
 #   sudo BLOCK_VOLUME_DEVICE=/dev/sdb infra/provision/bootstrap-vm.sh
 #
-#   BLOCK_VOLUME_DEVICE  si no se pasa, se detecta: el unico disco entero sin
-#                        montar que no es el de arranque (ver detect_data_device)
+#   BLOCK_VOLUME_DEVICE  si no se pasa, se detecta: lo ya montado en
+#                        /mnt/pgdata, o el unico disco entero sin montar que no
+#                        es el de arranque (ver detect_data_device)
 #   SWAP_SIZE_GB         default 2
 #   SWAPPINESS           default 10  (rango de emergencia; el default del kernel es 60)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +45,19 @@ fi
 # tiene nada montado encima, y no es el disco de arranque. Si aparece más de uno
 # el script se planta y pide que se lo indiquen a mano, porque formatear el
 # disco equivocado es irreversible.
+PGDATA_MOUNT="/mnt/pgdata"
+
 detect_data_device() {
+	# Si ya está montado de una corrida anterior, ese es el volumen y no hay
+	# nada que buscar. Sin este caso el script deja de ser idempotente: el
+	# filtro de "disco sin montar" descarta justamente el que ya preparamos.
+	local ya_montado
+	ya_montado="$(findmnt -no SOURCE "$PGDATA_MOUNT" 2>/dev/null || true)"
+	if [[ -n "$ya_montado" ]]; then
+		printf '%s' "$ya_montado"
+		return 0
+	fi
+
 	local candidatos=()
 	local root_disk
 	root_disk="$(lsblk -no PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null || true)"
@@ -78,7 +91,6 @@ if [[ -z "${BLOCK_VOLUME_DEVICE:-}" ]]; then
 fi
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
 SWAPPINESS="${SWAPPINESS:-10}"
-PGDATA_MOUNT="/mnt/pgdata"
 SYSCTL_FILE="/etc/sysctl.d/99-marketplace-swap.conf"
 
 step() { echo; echo "── $* ──────────────────────────────────────────────"; }
@@ -96,9 +108,31 @@ fi
 node -v
 
 step "corepack + pnpm"
+# Corepack, invocado FUERA de un proyecto, ignora lo que se haya preparado y
+# resuelve a la última versión de pnpm. En esta máquina eso bajó pnpm 11, que
+# exige Node >= 22.13 y muere en Node 20 buscando `node:sqlite`. Dentro del
+# checkout no pasa, porque el package.json raíz declara pnpm@9.0.0 — pero
+# depender de eso deja un `pnpm` roto para cualquiera que lo tipee en otro lado.
+export COREPACK_DEFAULT_TO_LATEST=0
+grep -q '^COREPACK_DEFAULT_TO_LATEST=' /etc/environment ||
+	echo 'COREPACK_DEFAULT_TO_LATEST=0' >>/etc/environment
+
 corepack enable
 corepack prepare pnpm@9.0.0 --activate
-pnpm -v
+
+# `pnpm -v` a secas no verifica nada útil: lo que importa es qué versión resuelve
+# dentro de un proyecto, que es donde corre el deploy. Se comprueba con un
+# package.json descartable que declara la misma versión que el repo.
+PNPM_ESPERADO="9.0.0"
+PROBE="$(mktemp -d)"
+printf '{"name":"probe","packageManager":"pnpm@%s"}' "$PNPM_ESPERADO" >"${PROBE}/package.json"
+PNPM_REAL="$(cd "$PROBE" && pnpm -v 2>/dev/null | tail -1 || true)"
+rm -rf "$PROBE"
+if [[ "$PNPM_REAL" != "$PNPM_ESPERADO" ]]; then
+	echo "  pnpm dentro de un proyecto resolvió '${PNPM_REAL:-nada}', se esperaba ${PNPM_ESPERADO}" >&2
+	exit 1
+fi
+echo "  pnpm ${PNPM_REAL} (dentro de un proyecto)"
 
 step "Docker CE + compose plugin"
 if ! command -v docker >/dev/null; then
