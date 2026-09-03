@@ -54,21 +54,26 @@ pnpm install --frozen-lockfile \
 	--filter "@marketplace/api..." \
 	--filter "@marketplace/db..."
 
-step "4    prisma generate (cliente para el CLI de migraciones)"
-pnpm --filter @marketplace/db db:generate
-
-step "5    prisma migrate deploy"
 # DATABASE_URL sale del MISMO archivo que usa la API, /etc/marketplace/api.env
-# (root, 0600). Antes hacía falta duplicarla en packages/db/.env, y el propio
+# (root, 0600). Antes había que duplicarla en packages/db/.env, y el propio
 # diseño marcaba que desincronizar esas dos copias era el error más probable:
 # falla tarde, porque /health responde 200 igual y el problema recién aparece
 # en el primer pedido real. Con una sola fuente ese modo de falla no existe.
 #
-# `dotenv/config` en prisma.config.ts NO pisa lo que ya está en el entorno, así
-# que exportarla acá alcanza y el archivo del checkout deja de ser necesario.
+# Se exporta ACÁ, antes del paso 4, porque `prisma generate` ya carga
+# prisma.config.ts y ese archivo resuelve env('DATABASE_URL') al importarse —
+# no solo `migrate deploy`. `dotenv/config` no pisa lo que ya está en el
+# entorno, así que exportarla alcanza para los dos pasos y para el smoke.
 DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)"
 export DATABASE_URL
 : "${DATABASE_URL:?no se pudo leer DATABASE_URL de /etc/marketplace/api.env}"
+
+step "4    prisma generate (cliente para el CLI de migraciones)"
+pnpm --filter @marketplace/db db:generate
+
+step "5    prisma migrate deploy"
+# El cwd importa: prisma.config.ts se resuelve relativo a packages/db.
+# NUNCA `prisma db push`. DATABASE_URL ya está exportada más arriba.
 (cd packages/db && pnpm exec prisma migrate deploy)
 
 step "6    bajando el artefacto de build prehecho (CI) para ${DEPLOY_SHA:0:12}"

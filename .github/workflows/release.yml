@@ -14,14 +14,11 @@ name: release
 on:
   push:
     branches: [fase-5-frontend-y-avisos]
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - "tsconfig*.json"
-      - ".github/workflows/release.yml"
+    # SIN filtro de rutas, a proposito. deploy.sh exige un release para el SHA
+    # EXACTO de HEAD; con un filtro, cualquier commit que solo toque infra/ o
+    # deploy.sh deja a la rama sin artefacto y el despliegue aborta. Filtrar
+    # ahorra minutos de CI y rompe la propiedad que hace confiable al deploy:
+    # que el binario corresponde exactamente al commit desplegado.
   workflow_dispatch:
 
 concurrency:

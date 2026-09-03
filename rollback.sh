@@ -47,6 +47,12 @@ pnpm install --frozen-lockfile \
 	--filter "@marketplace/api..." \
 	--filter "@marketplace/db..."
 
+# DATABASE_URL antes del paso de prisma: prisma.config.ts la resuelve al
+# importarse, asi que `prisma generate` ya la necesita, no solo el smoke.
+DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)"
+export DATABASE_URL
+: "${DATABASE_URL:?no se pudo leer DATABASE_URL de /etc/marketplace/api.env}"
+
 step "prisma generate"
 pnpm --filter @marketplace/db db:generate
 
@@ -64,9 +70,6 @@ rm -rf "$STAGE"
 trap - EXIT
 
 step "smoke: arrancar el bundle y leer de Postgres"
-DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)"
-export DATABASE_URL
-: "${DATABASE_URL:?no se pudo leer DATABASE_URL de /etc/marketplace/api.env}"
 SMOKE_PORT="$SMOKE_PORT" SMOKE_DATABASE_URL="$DATABASE_URL" \
 	SMOKE_SKIP_BUILD=1 bash apps/api/scripts/smoke.sh
 
