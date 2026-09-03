@@ -59,6 +59,15 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
         run: pnpm --filter @marketplace/db db:generate
 
+      - name: build de los paquetes del workspace
+        # `shared-types` y `domain` declaran `main`/`types` apuntando a dist/, y
+        # dist está en .gitignore. En una máquina de desarrollo suele existir de
+        # alguna compilación anterior, así que el typecheck pasa; en un checkout
+        # limpio no existe y `@marketplace/shared-types` no resuelve. Hay que
+        # construirlos antes de cualquier paso que los importe por su nombre.
+        # `-r` saltea los paquetes que no declaran build (db, api-contract).
+        run: pnpm -r --filter "./packages/*" build
+
       - name: typecheck (hard gate)
         run: pnpm --filter @marketplace/api typecheck
 
