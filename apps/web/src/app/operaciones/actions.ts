@@ -13,16 +13,17 @@ import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/guards';
+import { money } from '@/lib/format';
 
-export type ActionState = { error?: string };
+/** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
+export type ActionState = { error?: string; ok?: boolean; message?: string };
 
-type Step = 'accept' | 'cancel' | 'transfer' | 'complete';
+type Step = 'accept' | 'cancel' | 'transfer';
 
 const EJECUTAR: Record<Step, (id: string) => Promise<void>> = {
     accept: (id) => api().acceptOffer(id),
     cancel: (id) => api().cancelOperation(id),
     transfer: (id) => api().initiateTransfer(id),
-    complete: (id) => api().completeOperation(id),
 };
 
 /**
@@ -44,7 +45,72 @@ export async function advanceOperation(
 
     revalidatePath(`/operaciones/${operationId}`);
     revalidatePath('/operaciones');
-    return {};
+    return paso === 'accept'
+        ? {
+              ok: true,
+              message:
+                  'Aceptaste la oferta. Se cancelaron las demás sobre este activo y ahora falta firmar el contrato.',
+          }
+        : {};
+}
+
+/**
+ * El comprador declara dónde quiere recibir el activo.
+ *
+ * Es una tarea pendiente suya: puede resolverla desde que hay contrato y es
+ * inevitable recién al cerrar. La autorización —que sea el comprador— la hace
+ * el dominio; acá solo se valida que el identificador no venga vacío.
+ */
+export async function declareRecipientIdentity(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+    const identifier = String(form.get('identifier') ?? '').trim();
+    if (!identifier) {
+        return { error: 'Indicá la cuenta donde querés recibir el activo.' };
+    }
+
+    try {
+        await api().declareRecipientIdentity(operationId, { identifier });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar tu cuenta receptora.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: 'Registramos dónde querés recibir el activo.' };
+}
+
+/**
+ * Cierra la operación: registra la constancia de entrega y transiciona a
+ * completada, en un solo acto. `deliveredToIdentifier` no viaja: lo copia el
+ * dominio de la identidad que el comprador declaró, para no entregar a un
+ * destino que nunca eligió.
+ */
+export async function completeOperation(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+
+    try {
+        await api().completeOperation(operationId, {
+            buyerIsPrimaryOwner: form.get('buyerIsPrimaryOwner') === 'on',
+            accessTransferred: form.get('accessTransferred') === 'on',
+            sellerRemoved: form.get('sellerRemoved') === 'on',
+            notes: String(form.get('notes') ?? '').trim() || undefined,
+        });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos cerrar la operación.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    revalidatePath('/operaciones');
+    return { ok: true, message: 'Cerramos la operación. El comprador tiene el activo y el vendedor cobró su parte.' };
 }
 
 export async function counterOffer(
@@ -68,7 +134,10 @@ export async function counterOffer(
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return {};
+    return {
+        ok: true,
+        message: `Propusiste ${money({ cents: Math.round(amount * 100), currency: 'USD' })}. Ahora le toca responder a la otra parte.`,
+    };
 }
 
 export async function signContract(
@@ -85,7 +154,10 @@ export async function signContract(
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return {};
+    return {
+        ok: true,
+        message: 'Firmaste el contrato. Cuando firme la otra parte, la operación avanza sola.',
+    };
 }
 
 /**
@@ -169,11 +241,20 @@ export async function goToCheckout(operationId: string): Promise<void> {
  * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
  * acá: los confirma el webhook contra la propia pasarela.
  */
+/**
+ * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
+ * acá: los confirma el webhook contra la propia pasarela.
+ *
+ * Devolvía `void` y se tragaba el error con un comentario que decía que se
+ * vería al recargar. No se veía: la pantalla quedaba igual, sin registrar el
+ * pago y sin decir por qué.
+ */
 export async function confirmBankTransfer(
     operationId: string,
     amountCents: number,
     currency: string,
-): Promise<void> {
+    _estado: ActionState,
+): Promise<ActionState> {
     await requireSession();
     try {
         await api().confirmPayment(operationId, {
@@ -181,9 +262,11 @@ export async function confirmBankTransfer(
             amountCents,
             currency,
         });
-    } catch {
-        // El error se ve al recargar: el estado de la operación no cambió.
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar la transferencia. Probá de nuevo.' };
     }
 
     revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: 'Registramos el pago. Falta entregar el activo y liquidar al vendedor.' };
 }

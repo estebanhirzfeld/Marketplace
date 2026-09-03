@@ -21,7 +21,7 @@ import { AssetType } from "@marketplace/shared-types";
  * cálculo del plazo, así que si vuelve como texto el listing queda listo o
  * bloqueado por accidente.
  */
-function parseAcceso(raw: unknown): PlatformAccessRecord | undefined {
+function parseAcceso(raw: unknown, custodyAccountId: string | null): PlatformAccessRecord | undefined {
     if (raw === null || raw === undefined) return undefined;
     if (typeof raw !== "object" || Array.isArray(raw)) {
         throw new Error("Columna `platformAccess` corrupta: se esperaba un objeto.");
@@ -41,23 +41,43 @@ function parseAcceso(raw: unknown): PlatformAccessRecord | undefined {
         verifiedBy: new UniqueEntityID(a.verifiedBy),
         verifiedAt: new Date(a.verifiedAt),
         accessSince: new Date(a.accessSince),
+        // La cuenta de custodia vive en su propia columna, no en el Json. Si
+        // hay constancia sin columna, es una fila anterior a este cambio:
+        // sigue siendo válida y se presenta como "cuenta sin asignar".
+        custodyAccountId: custodyAccountId ? new UniqueEntityID(custodyAccountId) : undefined,
+        // El rol sí vive en el Json: no hay tabla a la que apuntar, así que no
+        // hubo motivo para sacarlo a columna. Ausente en las constancias
+        // anteriores a este cambio, que se muestran como "rol sin registrar".
+        heldRole: a.heldRole === "manager" || a.heldRole === "owner" ? a.heldRole : undefined,
         notes: typeof a.notes === "string" ? a.notes : undefined,
     };
 }
 
 /**
- * `null` y no `undefined`, al revés que la custodia: el acceso SÍ se revoca
- * —el vendedor puede expulsar a la plataforma— y un `undefined` en un update
- * de Prisma significa "no tocar", con lo que la constancia revocada
- * sobreviviría. `Prisma.DbNull` es la forma de vaciar una columna Json.
+ * Devuelve el par para las dos columnas. El Json `platformAccess` NO repite el
+ * `custodyAccountId`: una sola copia guardada, la columna, así no hay dos que
+ * puedan divergir.
+ *
+ * `Prisma.DbNull` y no `undefined` cuando no hay constancia: el acceso SÍ se
+ * revoca —el vendedor puede expulsar a la plataforma— y un `undefined` en un
+ * update de Prisma significa "no tocar", con lo que la constancia revocada
+ * sobreviviría. Una constancia revocada que conserva la FK seguiría contando
+ * la cuenta como sosteniendo el activo.
  */
-function serializeAcceso(a?: PlatformAccessRecord) {
-    if (!a) return Prisma.DbNull;
+function serializeAcceso(a?: PlatformAccessRecord): {
+    platformAccess: Prisma.InputJsonValue | typeof Prisma.DbNull;
+    custodyAccountId: string | null;
+} {
+    if (!a) return { platformAccess: Prisma.DbNull, custodyAccountId: null };
     return {
-        verifiedBy: a.verifiedBy.toString(),
-        verifiedAt: a.verifiedAt.toISOString(),
-        accessSince: a.accessSince.toISOString(),
-        notes: a.notes ?? null,
+        platformAccess: {
+            verifiedBy: a.verifiedBy.toString(),
+            verifiedAt: a.verifiedAt.toISOString(),
+            accessSince: a.accessSince.toISOString(),
+            heldRole: a.heldRole ?? null,
+            notes: a.notes ?? null,
+        },
+        custodyAccountId: a.custodyAccountId ? a.custodyAccountId.toString() : null,
     };
 }
 
@@ -119,7 +139,7 @@ export class ListingMapper {
             askingPrice: Money.fromCents(raw.askingPrice, raw.currency),
             publishedAt: raw.publishedAt ?? undefined,
             rejectionReason: raw.rejectionReason ?? undefined,
-            platformAccess: parseAcceso(raw.platformAccess),
+            platformAccess: parseAcceso(raw.platformAccess, raw.custodyAccountId),
             ownershipVerification: parseOwnership(raw.ownershipCheck),
         };
 
@@ -132,6 +152,7 @@ export class ListingMapper {
 
     public static toPersistence(listing: Listing, assetType: AssetType, assetData: Record<string, any>) {
         const { id, createdAt, props } = listing.toSnapshot();
+        const acceso = serializeAcceso(props.platformAccess);
 
         return {
             id,
@@ -143,7 +164,8 @@ export class ListingMapper {
             currency: props.askingPrice.getCurrency(),
             publishedAt: props.publishedAt ?? null,
             rejectionReason: props.rejectionReason ?? null,
-            platformAccess: serializeAcceso(props.platformAccess),
+            platformAccess: acceso.platformAccess,
+            custodyAccountId: acceso.custodyAccountId,
             ownershipCheck: serializeOwnership(props.ownershipVerification),
             createdAt,
         };

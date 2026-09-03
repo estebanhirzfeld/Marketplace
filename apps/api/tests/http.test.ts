@@ -11,11 +11,14 @@ import { Email } from '@marketplace/domain/src/value-objects/Email';
 import { Money } from '@marketplace/domain/src/value-objects/Money';
 import { UniqueEntityID } from '@marketplace/domain/src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '@marketplace/domain/src/strategies/YouTubeStrategy';
+import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
+import { AssetType } from '@marketplace/shared-types';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import {
     PrismaUserRepository,
     PrismaListingRepository,
     PrismaOperationRepository,
+    PrismaCustodyAccountRepository,
 } from '@marketplace/db';
 
 /**
@@ -84,6 +87,7 @@ async function limpiar() {
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
+    await prisma.custodyAccount.deleteMany();
     await prisma.user.deleteMany();
 }
 
@@ -1067,20 +1071,28 @@ describe('POST /operations/:id/custody', () => {
  */
 describe('POST y DELETE /admin/listings/:id/acceso', () => {
     const DIA = 24 * 60 * 60 * 1000;
+    let custodyAccountId = '';
 
     async function unListingPublicado(): Promise<string> {
         const seller = await crearUsuario('seller-acc@test.com', UserRole.SELLER);
         await crearUsuario('admin-acc@test.com', UserRole.ADMIN);
         const listing = await crearListingPublicado(seller.id);
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia acceso',
+            identifier: `acceso-${Date.now()}@traspaso.com`,
+            assetType: AssetType.YOUTUBE,
+        });
+        await new PrismaCustodyAccountRepository().save(cuenta);
+        custodyAccountId = cuenta.id.toString();
         return listing.id.toString();
     }
 
-    async function registrar(id: string, email: string, payload: unknown) {
+    async function registrar(id: string, email: string, payload: Record<string, unknown>) {
         return app.inject({
             method: 'POST',
             url: `/admin/listings/${id}/acceso`,
             headers: { authorization: `Bearer ${await tokenDe(email)}` },
-            payload,
+            payload: { custodyAccountId, ...payload },
         });
     }
 
@@ -1455,5 +1467,59 @@ describe('GET /health', () => {
         const res = await app.inject({ method: 'GET', url: '/health' });
         expect(res.statusCode).toBe(200);
         expect(res.json()).toEqual({ status: 'ok' });
+    });
+});
+
+describe('ABM de cuentas de custodia — solo admin', () => {
+    async function seedActores() {
+        await crearUsuario('admin-cc@test.com', UserRole.ADMIN);
+        await crearUsuario('buyer-cc@test.com', UserRole.BUYER);
+        await crearUsuario('seller-cc@test.com', UserRole.SELLER);
+    }
+
+    const rutasNoAdmin: Array<{ method: 'GET' | 'POST' | 'PATCH'; url: string; payload?: unknown }> = [
+        { method: 'GET', url: '/admin/custody-accounts' },
+        { method: 'POST', url: '/admin/custody-accounts', payload: { label: 'X', identifier: 'x@y.com', assetType: 'youtube' } },
+        { method: 'PATCH', url: '/admin/custody-accounts/algun-id', payload: { label: 'Y' } },
+        { method: 'POST', url: '/admin/custody-accounts/algun-id/baja' },
+        { method: 'POST', url: '/admin/custody-accounts/algun-id/alta' },
+    ];
+
+    for (const actor of ['buyer-cc@test.com', 'seller-cc@test.com']) {
+        for (const ruta of rutasNoAdmin) {
+            it(`${ruta.method} ${ruta.url} responde 403 a ${actor}`, async () => {
+                await seedActores();
+                const res = await app.inject({
+                    method: ruta.method,
+                    url: ruta.url,
+                    headers: { authorization: `Bearer ${await tokenDe(actor)}` },
+                    payload: ruta.payload as never,
+                });
+                expect(res.statusCode).toBe(403);
+            });
+        }
+    }
+
+    it('un admin da de alta una cuenta y la lista con heldAssets 0', async () => {
+        await seedActores();
+        const token = await tokenDe('admin-cc@test.com');
+
+        const creada = await app.inject({
+            method: 'POST',
+            url: '/admin/custody-accounts',
+            headers: { authorization: `Bearer ${token}` },
+            payload: { label: 'Custodia YT 1', identifier: 'cc-1@traspaso.com', assetType: 'youtube' },
+        });
+        expect(creada.statusCode).toBe(201);
+        expect(creada.json().isActive).toBe(true);
+
+        const lista = await app.inject({
+            method: 'GET',
+            url: '/admin/custody-accounts',
+            headers: { authorization: `Bearer ${token}` },
+        });
+        expect(lista.statusCode).toBe(200);
+        expect(lista.json()).toHaveLength(1);
+        expect(lista.json()[0].heldAssets).toBe(0);
     });
 });

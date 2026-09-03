@@ -16,6 +16,18 @@ export type OperationStatus =
 
 export type NegotiatingParty = 'buyer' | 'seller';
 
+/**
+ * Cómo se llama una parte cuando hay que nombrarla en un mensaje.
+ *
+ * `buyer` y `seller` son tokens del código, no palabras: un mensaje que dice
+ * "No es el turno de seller" le habla a una persona en un idioma que no es el
+ * suyo sobre un concepto que no conoce. La pantalla ya traduce en otros
+ * lugares; los errores del dominio también son texto para leer.
+ */
+function nombreDeLaParte(parte: NegotiatingParty): string {
+    return parte === 'buyer' ? 'el comprador' : 'el vendedor';
+}
+
 export interface Negotiation {
     amount: number;            // centavos — sin Money para serialización limpia
     currency: string;
@@ -48,11 +60,78 @@ export interface CustodyVerification {
     accessSecured: boolean;
     /** Foto de las métricas al momento de la recepción. */
     metrics: Record<string, number>;
+    /**
+     * Desde qué cuenta de custodia salió el activo. Copia congelada del
+     * `custodyAccountId` del `platformAccess` vigente al confirmar: si el
+     * listing revoca y vuelve a registrar el acceso con otra cuenta más tarde,
+     * esta constancia sigue diciendo cuál era la de origen. Opcional porque las
+     * constancias ya guardadas no lo tienen.
+     */
+    custodyAccountId?: UniqueEntityID;
     notes?: string;
 }
 
 /** Lo que aporta quien verifica; la fecha la pone la entidad. */
 export type CustodyVerificationInput = Omit<CustodyVerification, 'verifiedAt'>;
+
+/**
+ * Dónde quiere recibir el activo el comprador.
+ *
+ * Va en la operación y no en el usuario porque un comprador puede querer dos
+ * activos en dos cuentas distintas: la identidad solo significa algo respecto
+ * de una entrega concreta. El comprador la declara como tarea pendiente —
+ * disponible desde `contract_pending`, exigible recién al cerrar.
+ */
+export interface RecipientIdentity {
+    identifier: string;
+    declaredAt: Date;
+    notes?: string;
+}
+
+/**
+ * Constancia de entrega, simétrica a `CustodyVerification`.
+ *
+ * `complete()` la exige, igual que `confirmAssetCustody()` exige la suya: sin
+ * ella el estado terminal se alcanzaba sin registrar destinatario ni
+ * confirmación, que es el agujero que este cambio cierra.
+ */
+export interface DeliveryVerification {
+    verifiedBy: UniqueEntityID;
+    verifiedAt: Date;
+    /**
+     * Copia congelada del identificador al que efectivamente se entregó. Se
+     * llama `deliveredToIdentifier` y no `recipientIdentifier` porque chocaría
+     * con la `recipientIdentity` de la operación, y esa distinción es el
+     * punto: una es lo que el comprador declaró, la otra a dónde se entregó.
+     */
+    deliveredToIdentifier: string;
+    /**
+     * Si el comprador quedó como propietario principal. Es también lo que
+     * atestigua que su espera de siete días se cumplió: sin esos días Google
+     * no permite el cambio, así que no hace falta un temporizador nuevo.
+     */
+    buyerIsPrimaryOwner: boolean;
+    /**
+     * Si los accesos (correos de recuperación, segundo factor) se cedieron.
+     * `accessTransferred` y no `accessSecured` porque en la custodia los
+     * accesos se aseguran y en la entrega se ceden: direcciones opuestas.
+     */
+    accessTransferred: boolean;
+    /** Si la plataforma quitó al vendedor del activo. */
+    sellerRemoved: boolean;
+    notes?: string;
+}
+
+/**
+ * Lo que aporta quien cierra. `verifiedAt` la pone la entidad;
+ * `deliveredToIdentifier` lo copia de la `recipientIdentity` declarada —
+ * dejar que lo aporte quien llama permitiría entregar a un destino que el
+ * comprador nunca declaró.
+ */
+export type DeliveryVerificationInput = Omit<
+    DeliveryVerification,
+    'verifiedAt' | 'deliveredToIdentifier'
+>;
 
 /** De dónde entró la plata. */
 export type PaymentProvider = 'mercadopago' | 'transferencia';
@@ -93,6 +172,8 @@ export interface OperationProps {
     platformEarns?: Money;
     custodyVerification?: CustodyVerification;
     payment?: PaymentRecord;
+    recipientIdentity?: RecipientIdentity;
+    deliveryVerification?: DeliveryVerification;
     completedAt?: Date;
 }
 
@@ -239,6 +320,13 @@ export class Operation extends Entity<OperationProps> {
         }
     }
 
+    /** Para los pasos que solo le corresponden a quien recibe el activo. */
+    public assertIsBuyer(actorId: string): void {
+        if (this.partyFor(actorId) !== 'buyer') {
+            throw new ForbiddenError('Solo el comprador de la operación puede hacer esto.');
+        }
+    }
+
     // ── Negociación ─────────────────────────────────────────
 
     /**
@@ -275,13 +363,13 @@ export class Operation extends Entity<OperationProps> {
     private assertCanNegotiate(by: NegotiatingParty): void {
         if (this.props.status !== 'offer_sent' && this.props.status !== 'negotiating') {
             throw new InvalidStateError(
-                `Solo se puede negociar en estado offer_sent o negotiating, estado actual: ${this.props.status}`
+                'El precio de esta operación ya está cerrado: no se puede seguir negociando.'
             );
         }
 
         if (this.pendingResponseFrom !== by) {
             throw new InvalidStateError(
-                `No es el turno de ${by}. Le toca responder a ${this.pendingResponseFrom}.`
+                `No es tu turno: le toca responder ${nombreDeLaParte(this.pendingResponseFrom)}.`
             );
         }
     }
@@ -368,7 +456,7 @@ export class Operation extends Entity<OperationProps> {
 
     public signContract(): void {
         if (this.props.status !== 'contract_pending') {
-            throw new InvalidStateError('Operación no está esperando contrato');
+            throw new InvalidStateError('Esta operación no está esperando que se firme el contrato.');
         }
         this.props.status = 'contract_signed';
     }
@@ -421,6 +509,54 @@ export class Operation extends Entity<OperationProps> {
         return this.props.custodyVerification;
     }
 
+    /** Dónde declaró el comprador que quiere recibir el activo. */
+    public get recipientIdentity(): RecipientIdentity | undefined {
+        return this.props.recipientIdentity;
+    }
+
+    /** La constancia de entrega, una vez cerrada la operación. */
+    public get deliveryCheck(): DeliveryVerification | undefined {
+        return this.props.deliveryVerification;
+    }
+
+    /**
+     * El comprador declara dónde quiere recibir el activo.
+     *
+     * Es una tarea pendiente suya: puede resolverla desde `contract_pending` y
+     * es inevitable recién en `complete()`. Re-declarable mientras la operación
+     * siga abierta y no exista todavía la constancia de entrega —corrige un
+     * tipeo—; después de cerrada, la constancia manda.
+     */
+    public declareRecipientIdentity(identifier: string, by: string): void {
+        this.assertIsBuyer(by);
+
+        if (this.props.deliveryVerification) {
+            throw new InvalidStateError(
+                'La entrega ya quedó registrada: la identidad receptora no se puede cambiar.',
+            );
+        }
+
+        const declarableEn: OperationStatus[] = [
+            'contract_pending',
+            'contract_signed',
+            'transfer_in_progress',
+            'asset_in_custody',
+            'payment_received',
+        ];
+        if (!declarableEn.includes(this.props.status)) {
+            throw new InvalidStateError(
+                'Todavía no se puede declarar la identidad receptora: recién cuando las dos partes quedaron comprometidas tiene sentido.',
+            );
+        }
+
+        const limpio = identifier?.trim() ?? '';
+        if (limpio === '') {
+            throw new ValidationError('Indicá la cuenta donde querés recibir el activo.');
+        }
+
+        this.props.recipientIdentity = { identifier: limpio, declaredAt: new Date() };
+    }
+
     /**
      * Confirma el pago del comprador con la constancia de por dónde entró.
      *
@@ -454,10 +590,46 @@ export class Operation extends Entity<OperationProps> {
         this.props.status = 'payment_received';
     }
 
-    public complete(): void {
+    /**
+     * Registra la constancia de entrega y cierra, en un solo acto.
+     *
+     * No hay un `complete()` sin argumentos ni un método aparte de registro: un
+     * segundo camino al estado terminal se saltearía la constancia, que es el
+     * agujero que este cambio cierra. El precedente manda —`confirmAssetCustody`
+     * registra y transiciona sin un `takeCustody()` suelto al lado.
+     *
+     * `deliveredToIdentifier` no viene en el argumento: lo copia de la
+     * `recipientIdentity` declarada. Que lo aportara quien llama permitiría
+     * entregar a un destino que el comprador nunca declaró.
+     */
+    public complete(data: DeliveryVerificationInput): void {
         if (this.props.status !== 'payment_received') {
             throw new InvalidStateError('El pago debe estar confirmado para completar la operación');
         }
+        if (!data.verifiedBy) {
+            throw new ValidationError('Falta registrar quién verificó la entrega.');
+        }
+        if (!this.props.recipientIdentity) {
+            throw new InvalidStateError(
+                'El comprador todavía no declaró dónde quiere recibir el activo: sin eso no hay constancia de entrega posible.',
+            );
+        }
+        if (!data.buyerIsPrimaryOwner) {
+            throw new InvalidStateError(
+                'El comprador todavía no es propietario principal del activo: la entrega no es efectiva.',
+            );
+        }
+        if (!data.accessTransferred) {
+            throw new InvalidStateError(
+                'Faltan ceder los accesos del activo (correos de recuperación y segundo factor).',
+            );
+        }
+
+        this.props.deliveryVerification = {
+            ...data,
+            deliveredToIdentifier: this.props.recipientIdentity.identifier,
+            verifiedAt: new Date(),
+        };
         this.props.status = 'completed';
         this.props.completedAt = new Date();
     }
@@ -468,7 +640,11 @@ export class Operation extends Entity<OperationProps> {
             'offer_sent', 'negotiating', 'contract_pending'
         ];
         if (!cancellableStates.includes(this.props.status)) {
-            throw new InvalidStateError(`No se puede cancelar una operación en estado ${this.props.status}`);
+            // Sin interpolar el estado: 'asset_in_custody' no le dice nada a
+            // nadie, y el motivo real es siempre el mismo.
+            throw new InvalidStateError(
+                'Ya no se puede cancelar: el contrato está firmado y las dos partes quedaron comprometidas.'
+            );
         }
         this.props.status = 'cancelled';
     }

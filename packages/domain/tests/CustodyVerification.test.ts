@@ -142,6 +142,32 @@ describe('El pago solo se pide con la custodia registrada', () => {
 });
 
 
+describe('CustodyVerification congela la cuenta de custodia de origen', () => {
+    /**
+     * La constancia guarda desde qué cuenta salió el activo. Es una copia: si
+     * más tarde el listing revoca y vuelve a registrar el acceso apuntando a
+     * otra cuenta, esta constancia no cambia. Quién resuelve cuál era la cuenta
+     * vigente es el use case —cruza a `Listing`—; la entidad solo la recibe y
+     * la guarda.
+     */
+    it('guarda el custodyAccountId que le pasa quien confirma', () => {
+        const op = unaOperacionEnTransferencia();
+        const cuenta = new UniqueEntityID();
+
+        op.confirmAssetCustody(unaVerificacion({ custodyAccountId: cuenta }));
+
+        expect(op.custodyVerification?.custodyAccountId?.toString()).toBe(cuenta.toString());
+    });
+
+    it('sigue aceptando una confirmación sin cuenta (constancias previas)', () => {
+        const op = unaOperacionEnTransferencia();
+
+        op.confirmAssetCustody(unaVerificacion());
+
+        expect(op.custodyVerification?.custodyAccountId).toBeUndefined();
+    });
+});
+
 /** El pago que una operación espera: exactamente lo que el comprador debe. */
 function unPagoDe(op: Operation) {
     return {

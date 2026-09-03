@@ -9,6 +9,8 @@ import {
     CustodyVerification,
     PaymentProvider,
     PaymentRecord,
+    RecipientIdentity,
+    DeliveryVerification,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -75,7 +77,83 @@ function parseCustodia(raw: unknown): CustodyVerification | undefined {
             typeof c.metrics === "object" && c.metrics !== null && !Array.isArray(c.metrics)
                 ? (c.metrics as Record<string, number>)
                 : {},
+        custodyAccountId:
+            typeof c.custodyAccountId === "string" ? new UniqueEntityID(c.custodyAccountId) : undefined,
         notes: typeof c.notes === "string" ? c.notes : undefined,
+    };
+}
+
+/**
+ * Dónde declaró el comprador que quiere recibir el activo. Vive en la columna
+ * `recipientIdentity`.
+ */
+function parseRecipientIdentity(raw: unknown): RecipientIdentity | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("Columna `recipientIdentity` corrupta: se esperaba un objeto.");
+    }
+
+    const r = raw as Record<string, unknown>;
+    if (typeof r.identifier !== "string" || typeof r.declaredAt !== "string") {
+        throw new Error("Identidad receptora corrupta: falta el identificador o la fecha.");
+    }
+
+    return {
+        identifier: r.identifier,
+        declaredAt: new Date(r.declaredAt),
+        notes: typeof r.notes === "string" ? r.notes : undefined,
+    };
+}
+
+function serializeRecipientIdentity(r?: RecipientIdentity) {
+    if (!r) return undefined;
+    return {
+        identifier: r.identifier,
+        declaredAt: r.declaredAt.toISOString(),
+        notes: r.notes ?? null,
+    };
+}
+
+/**
+ * Constancia de entrega. Espejo de `custodyCheck`: mismo `undefined` en vez de
+ * `Prisma.DbNull` porque se registra una vez y nunca se borra.
+ */
+function parseEntrega(raw: unknown): DeliveryVerification | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("Columna `deliveryCheck` corrupta: se esperaba un objeto.");
+    }
+
+    const d = raw as Record<string, unknown>;
+    if (
+        typeof d.verifiedBy !== "string" ||
+        typeof d.verifiedAt !== "string" ||
+        typeof d.deliveredToIdentifier !== "string"
+    ) {
+        throw new Error("Constancia de entrega corrupta: faltan datos obligatorios.");
+    }
+
+    return {
+        verifiedBy: new UniqueEntityID(d.verifiedBy),
+        verifiedAt: new Date(d.verifiedAt),
+        deliveredToIdentifier: d.deliveredToIdentifier,
+        buyerIsPrimaryOwner: d.buyerIsPrimaryOwner === true,
+        accessTransferred: d.accessTransferred === true,
+        sellerRemoved: d.sellerRemoved === true,
+        notes: typeof d.notes === "string" ? d.notes : undefined,
+    };
+}
+
+function serializeEntrega(d?: DeliveryVerification) {
+    if (!d) return undefined;
+    return {
+        verifiedBy: d.verifiedBy.toString(),
+        verifiedAt: d.verifiedAt.toISOString(),
+        deliveredToIdentifier: d.deliveredToIdentifier,
+        buyerIsPrimaryOwner: d.buyerIsPrimaryOwner,
+        accessTransferred: d.accessTransferred,
+        sellerRemoved: d.sellerRemoved,
+        notes: d.notes ?? null,
     };
 }
 
@@ -92,6 +170,7 @@ function serializeCustodia(v?: CustodyVerification) {
         isPrimaryOwner: v.isPrimaryOwner,
         accessSecured: v.accessSecured,
         metrics: v.metrics,
+        custodyAccountId: v.custodyAccountId ? v.custodyAccountId.toString() : null,
         notes: v.notes ?? null,
     };
 }
@@ -174,6 +253,8 @@ export class OperationMapper {
             platformEarns: raw.platformEarns ? Money.fromCents(raw.platformEarns, raw.currency) : undefined,
             custodyVerification: parseCustodia(raw.custodyCheck),
             payment: parsePayment(raw.payment),
+            recipientIdentity: parseRecipientIdentity(raw.recipientIdentity),
+            deliveryVerification: parseEntrega(raw.deliveryCheck),
             completedAt: raw.completedAt ?? undefined,
         };
 
@@ -204,6 +285,8 @@ export class OperationMapper {
             negotiations: serializeNegotiations(props.negotiations),
             custodyCheck: serializeCustodia(props.custodyVerification),
             payment: serializePayment(props.payment),
+            recipientIdentity: serializeRecipientIdentity(props.recipientIdentity),
+            deliveryCheck: serializeEntrega(props.deliveryVerification),
             completedAt: props.completedAt ?? null,
             createdAt,
         };

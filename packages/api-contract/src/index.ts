@@ -175,6 +175,14 @@ export interface ListingDetailDto {
      * el acceso de la plataforma — sin acceso no hay fecha que prometer.
      */
     transferableFrom?: string;
+    /**
+     * Lo que le falta hacer al vendedor para cedernos el activo. Lo ve el
+     * admin, que es quien atestigua el acceso: es el contexto de lo que está
+     * dando por cumplido.
+     */
+    handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
 }
 
@@ -235,6 +243,51 @@ export interface ListingFiltersQuery {
 export interface RegisterPlatformAccessRequest {
     /** Desde cuándo hay acceso, en ISO. No puede ser futura. */
     accessSince: string;
+    /**
+     * A qué cuenta de custodia se cedió el activo. Obligatorio: una constancia
+     * que no lo dice deja al vendedor sin saber a quién invitar.
+     */
+    custodyAccountId: string;
+    /**
+     * Con qué rol queda la plataforma. Ausente significa administrador, que es
+     * el caso normal: permisos mínimos con el plazo corriendo igual.
+     */
+    heldRole?: 'manager' | 'owner';
+    notes?: string;
+}
+
+// ── Cuentas de custodia ──────────────────────────────────
+
+export type AssetTypeDto = 'youtube' | 'web';
+
+/**
+ * La identidad que sostiene activos en custodia de la plataforma. Solo se
+ * guarda su `identifier` —nunca credenciales.
+ */
+export interface CustodyAccountDto {
+    id: string;
+    label: string;
+    identifier: string;
+    assetType: AssetTypeDto;
+    isActive: boolean;
+    notes?: string;
+    /** Cuántos activos sostiene ahora mismo. La baja lo necesita; la lista lo muestra. */
+    heldAssets: number;
+    createdAt: string;
+}
+
+export interface CreateCustodyAccountRequest {
+    label: string;
+    identifier: string;
+    assetType: AssetTypeDto;
+    notes?: string;
+}
+
+export interface UpdateCustodyAccountRequest {
+    label?: string;
+    identifier?: string;
+    /** No se puede cambiar mientras la cuenta sostenga activos. */
+    assetType?: AssetTypeDto;
     notes?: string;
 }
 
@@ -361,6 +414,13 @@ export interface MyListingDto {
     id: string;
     status: ListingStatusDto;
     assetType: string;
+    /** Cómo se llama el activo. Su dueño siempre lo ve. */
+    assetName?: string;
+    /**
+     * A qué cuenta tiene que invitarnos el vendedor. Es el único dato que
+     * necesita copiar, así que viaja aparte de la prosa del instructivo.
+     */
+    custodyAccountIdentifier?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
     askingPrice: MoneyDto;
@@ -378,13 +438,71 @@ export interface MyListingDto {
      * el acceso de la plataforma — sin acceso no hay fecha que prometer.
      */
     transferableFrom?: string;
+    /**
+     * Lo que el vendedor tiene que hacer para cedernos el activo. Depende del
+     * tipo: un canal se convierte a Cuenta de Marca y nos invita; un dominio
+     * se cede con su código de autorización.
+     */
+    handoverSteps: HandoverStepDto[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptorDto;
     createdAt: string;
+}
+
+/**
+ * Lo que un tipo de activo sabe de sí mismo.
+ *
+ * Viaja para que la interfaz deje de preguntar "¿de qué tipo sos?" y decidir
+ * por su cuenta. Es un espejo de `AssetTypeDescriptor` del dominio: semántica,
+ * no presentación — el formato de los números y los colores siguen siendo de
+ * la vista.
+ */
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+
+export interface AssetFieldDto {
+    key: string;
+    label: string;
+    kind: AssetFieldKindDto;
+    confidential: boolean;
+}
+
+export interface AssetTypeDescriptorDto {
+    assetType: string;
+    label: string;
+    identityField: AssetFieldDto;
+    fields: AssetFieldDto[];
+    summaryMetricKeys: string[];
+    ownershipSource: 'youtube' | 'adsense';
+    transferWaitingDays: number;
+    /** Por qué la cesión del acceso la registra una persona. */
+    handoverNotice: string;
+    /** Por qué hay que esperar. Ausente cuando la transferencia es inmediata. */
+    waitingNotice?: string;
+    /** Qué pasa con el ingreso declarado: si se comprueba o queda declarado. */
+    revenueNotice: string;
+}
+
+/** Un paso de la cesión del activo a la plataforma. */
+export interface HandoverStepDto {
+    id: string;
+    /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
+    description: string;
+    /** El mismo paso dicho al vendedor, que es quien lo hace. */
+    instruction?: string;
+    /**
+     * Si le toca después de que la plataforma entre en escena. Separa lo que
+     * el vendedor puede hacer ya de lo que se le va a pedir con el contrato
+     * firmado, que es el único momento en que cede el control.
+     */
+    afterPlatformStarts?: boolean;
 }
 
 /** Una operación en la que el usuario es parte. */
 export interface MyOperationDto {
     id: string;
     listingId: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
     /**
      * Con qué nombrar el activo en una lista. Son los campos que la strategy
      * declara públicos —los mismos que el mercado muestra sin NDA—, así que
@@ -408,6 +526,14 @@ export interface NegotiationDto {
 
 /** Una operación esperando un movimiento de la plataforma. */
 export interface PendingOperationDto {
+    /**
+     * Con qué reconocer la fila. El panel mostraba solo el estado y el monto,
+     * así que dos operaciones esperando lo mismo eran indistinguibles.
+     */
+    assetName?: string;
+    assetType?: string;
+    buyerName?: string;
+    sellerName?: string;
     id: string;
     status: OperationStatusDto;
     listingId: string;
@@ -439,6 +565,16 @@ export interface OperationDetailDto {
      */
     assetType?: string;
     niche?: string;
+    /** Cómo se llama el activo. Ausente sin acceso a los datos reservados. */
+    assetName?: string;
+    /**
+     * Si el activo ya se puede transferir. Firmar el contrato tripartito lo
+     * exige, así que la pantalla lo necesita para no ofrecer una firma que el
+     * dominio va a rechazar.
+     */
+    transferable?: boolean;
+    /** Desde cuándo. Ausente mientras la plataforma no tenga acceso al activo. */
+    transferableFrom?: string;
     id: string;
     listingId: string;
     status: OperationStatusDto;
@@ -463,7 +599,48 @@ export interface OperationDetailDto {
     custody?: CustodyVerificationDto;
     /** Presente desde que el pago del comprador quedó confirmado. */
     payment?: PaymentRecordDto;
+    /** Dónde declaró el comprador que quiere recibir el activo. Tarea pendiente si falta. */
+    recipientIdentity?: RecipientIdentityDto;
+    /** Constancia de entrega, una vez cerrada la operación. */
+    delivery?: DeliveryVerificationDto;
     createdAt: string;
+}
+
+/** Dónde el comprador quiere recibir el activo. */
+export interface RecipientIdentityDto {
+    identifier: string;
+    declaredAt: string;
+    notes?: string;
+}
+
+export interface DeclareRecipientIdentityRequest {
+    identifier: string;
+}
+
+/**
+ * Constancia de entrega, simétrica a `CustodyVerificationDto`.
+ * `deliveredToIdentifier` es copia congelada de la identidad declarada.
+ */
+export interface DeliveryVerificationDto {
+    verifiedBy: string;
+    verifiedAt: string;
+    deliveredToIdentifier: string;
+    buyerIsPrimaryOwner: boolean;
+    accessTransferred: boolean;
+    sellerRemoved: boolean;
+    notes?: string;
+}
+
+/**
+ * `complete()` registra la constancia y cierra en un solo acto.
+ * `deliveredToIdentifier` NO viaja: lo copia el dominio de la identidad
+ * declarada, para no entregar a un destino que el comprador nunca eligió.
+ */
+export interface CompleteOperationRequest {
+    buyerIsPrimaryOwner: boolean;
+    accessTransferred: boolean;
+    sellerRemoved: boolean;
+    notes?: string;
 }
 
 /**
@@ -624,7 +801,12 @@ export type NotificationTypeDto =
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
-    | 'denuncia_recibida';
+    | 'denuncia_recibida'
+    /** Los que le tocan a la plataforma. */
+    | 'revision_pendiente'
+    | 'acceso_pendiente'
+    | 'custodia_pendiente'
+    | 'liquidacion_pendiente';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

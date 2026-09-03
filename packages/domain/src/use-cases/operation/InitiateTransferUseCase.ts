@@ -1,5 +1,6 @@
 import { IOperationRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
+import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -9,6 +10,7 @@ import { NotFoundError } from '../../errors/DomainError';
 export class InitiateTransferUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
+        private readonly avisosDePlataforma?: PlatformNotifier,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<void> {
@@ -21,5 +23,9 @@ export class InitiateTransferUseCase {
 
         operation.initiateTransfer();
         await this.operationRepo.save(operation);
+
+        // A partir de acá el próximo movimiento es de la plataforma: verificar
+        // el activo y declarar la custodia.
+        await this.avisosDePlataforma?.custodyNeeded(operation);
     }
 }

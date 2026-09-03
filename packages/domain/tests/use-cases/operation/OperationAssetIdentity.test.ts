@@ -58,6 +58,7 @@ function armar(listing: Listing | null) {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([unaOperacion()]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
     const listingRepo: IListingRepository = {
@@ -65,9 +66,16 @@ function armar(listing: Listing | null) {
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
-    return new GetMyOperationsUseCase(operationRepo, listingRepo);
+    return new GetMyOperationsUseCase(operationRepo, listingRepo, {
+            findById: vi.fn().mockResolvedValue(null),
+            findByOperation: vi.fn().mockResolvedValue([]),
+            findByListingAndSigner: vi.fn().mockResolvedValue(null),
+            findAllByListing: vi.fn().mockResolvedValue([]),
+            save: vi.fn().mockResolvedValue(undefined),
+        });
 }
 
 describe('GetMyOperationsUseCase — identidad del activo', () => {

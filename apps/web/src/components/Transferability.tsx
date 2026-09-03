@@ -2,9 +2,12 @@
  * Cuándo se puede cerrar la operación sobre este activo.
  *
  * Nunca dice "listo" a secas. La plataforma no puede comprobar por API que
- * sigue teniendo acceso al canal —YouTube no expone quiénes son los
- * propietarios— así que lo único honesto es mostrar la fecha del cálculo y
- * dejar que quien mira saque su conclusión.
+ * sigue teniendo el acceso, así que lo único honesto es mostrar la fecha del
+ * cálculo y dejar que quien mira saque su conclusión.
+ *
+ * El motivo de la espera lo pone el tipo de activo, no este componente: acá
+ * decía "YouTube exige esperar siete días" para cualquier activo, incluido un
+ * sitio web que se transfiere de inmediato y no tiene ninguna espera.
  */
 
 const FORMATO: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
@@ -23,7 +26,7 @@ export function TransferableBadge({
 }) {
     if (transferable) {
         return (
-            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-listo)]">
+            <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-listo)] italic">
                 TRANSFERENCIA INMEDIATA
             </span>
         );
@@ -44,9 +47,12 @@ export function TransferableBadge({
 export function TransferStatus({
     transferable,
     transferableFrom,
+    waitingNotice,
 }: {
     transferable: boolean;
     transferableFrom?: string;
+    /** Por qué hay que esperar, en las palabras del propio tipo de activo. */
+    waitingNotice?: string;
 }) {
     if (transferable) {
         return (
@@ -60,9 +66,8 @@ export function TransferStatus({
     if (transferableFrom) {
         return (
             <Block title={`Transferible desde el ${fechaCorta(transferableFrom)}`}>
-                El vendedor ya cedió el acceso, pero YouTube exige esperar siete días antes de
-                permitir el cambio de titularidad. Podés ofertar y negociar desde ahora: el
-                contrato se firma cuando se cumple ese plazo.
+                El vendedor ya cedió el acceso.{waitingNotice ? ` ${waitingNotice}` : ''} Podés
+                ofertar y negociar desde ahora: el contrato se firma cuando se cumple ese plazo.
             </Block>
         );
     }
@@ -70,8 +75,8 @@ export function TransferStatus({
     return (
         <Block title="El acceso todavía no está cedido">
             El vendedor todavía no le dio acceso al activo a la plataforma. Podés ofertar y
-            negociar, pero el contrato no se va a poder firmar hasta que lo haga y se cumpla el
-            plazo de espera que exige YouTube.
+            negociar, pero el contrato no se va a poder firmar hasta que lo haga
+            {waitingNotice ? ' y se cumpla el plazo de espera' : ''}.
         </Block>
     );
 }

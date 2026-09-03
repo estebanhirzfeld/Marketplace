@@ -43,6 +43,7 @@ function createMockUserRepo(over: Partial<IUserRepository> = {}): IUserRepositor
     return {
         findById: vi.fn().mockResolvedValue(unUsuario()),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...over,
     };
@@ -54,6 +55,7 @@ function createMockListingRepo(over: Partial<IListingRepository> = {}): IListing
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...over,
     };
@@ -64,6 +66,7 @@ function createMockOperationRepo(over: Partial<IOperationRepository> = {}): IOpe
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...over,
     };

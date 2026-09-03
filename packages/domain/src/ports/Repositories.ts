@@ -3,11 +3,25 @@ import { User } from '../entities/User';
 import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
+import { CustodyAccount } from '../entities/CustodyAccount';
 import { ListingStatus } from '../entities/Listing';
+import { AssetType, UserRole } from '@marketplace/shared-types';
 
 export interface IUserRepository {
     findById(id: string): Promise<User | null>;
     findByEmail(email: string): Promise<User | null>;
+    /**
+     * Los usuarios de un rol.
+     *
+     * Existe para poder avisarle a la plataforma. Un aviso apunta siempre a
+     * una persona —`Notification.userId` es obligatorio— así que sin esta
+     * consulta no había forma de que un administrador recibiera ninguno: la
+     * campana estaba en su barra desde el principio y nunca podía tener nada.
+     *
+     * Devuelve una lista y no uno solo a propósito: hoy hay un admin, pero
+     * asumirlo sería construir una plataforma de una sola persona.
+     */
+    findByRole(role: UserRole): Promise<User[]>;
     save(user: User): Promise<void>;
 }
 
@@ -69,7 +83,30 @@ export interface IListingRepository {
     findBySeller(sellerId: string): Promise<Listing[]>;
     /** Para la cola de revisión del admin. */
     findByStatus(status: ListingStatus): Promise<Listing[]>;
+    /**
+     * Los activos que esta cuenta de custodia sostiene AHORA: los que tienen un
+     * `platformAccess` vigente cuyo `custodyAccountId` apunta a ella. Excluye
+     * los vendidos —la constancia se conserva como evidencia de la operación
+     * cerrada, pero la plataforma ya no los tiene. El radio de daño de perder
+     * una cuenta es lo que sostiene en este momento, no lo que pasó alguna vez.
+     */
+    findHeldBy(custodyAccountId: string): Promise<Listing[]>;
     save(listing: Listing): Promise<void>;
+}
+
+/**
+ * La identidad que sostiene activos en custodia.
+ *
+ * La consulta inversa —qué activos sostiene una cuenta— vive en
+ * `IListingRepository.findHeldBy`, no acá: los listings son listings, y
+ * ponerla en este puerto lo haría devolver otro agregado.
+ */
+export interface ICustodyAccountRepository {
+    findById(id: string): Promise<CustodyAccount | null>;
+    findAll(): Promise<CustodyAccount[]>;
+    /** Las activas, opcionalmente acotadas a un tipo de activo. */
+    findActive(assetType?: AssetType): Promise<CustodyAccount[]>;
+    save(account: CustodyAccount): Promise<void>;
 }
 
 export interface IOperationRepository {

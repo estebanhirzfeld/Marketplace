@@ -51,12 +51,16 @@
 }
 
 html {
-  background: var(--color-fondo);
+  background-color: var(--color-fondo);
   color-scheme: dark;
 }
 
 body {
-  background: var(--color-fondo);
+  background-color: var(--color-fondo);
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(207, 242, 69, 0.07), transparent),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+  background-attachment: fixed;
   color: var(--color-tinta);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -166,11 +170,20 @@ textarea:focus-visible,
 
 /* Los filtros del mercado se pliegan en pantallas chicas y quedan siempre
    desplegados de `lg` para arriba, sin que el usuario tenga que abrirlos.
-   Se fuerza el `display` del contenido porque el navegador esconde por su
-   cuenta todo lo que no sea el `<summary>` mientras el `<details>` está
-   cerrado. */
+
+   Hacen falta las dos reglas porque los navegadores esconden el contenido de
+   un `<details>` cerrado de dos maneras distintas. Chrome moderno lo hace con
+   `content-visibility` sobre `::details-content`, y ahí forzar el `display`
+   del hijo no anula nada: esa fue la razón por la que el panel entero
+   desapareció en escritorio. Los navegadores que todavía lo esconden por
+   `display` necesitan la segunda. */
 @media (min-width: 1024px) {
-  details[data-filtros] > div {
+  details[data-filtros]::details-content {
+    content-visibility: visible;
+    block-size: auto;
+  }
+
+  details[data-filtros]:not([open]) > div {
     display: flex !important;
   }
 }

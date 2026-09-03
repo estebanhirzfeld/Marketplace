@@ -1,6 +1,11 @@
-import { IListingRepository, IOperationRepository } from '../../ports/Repositories';
+import {
+    IContractRepository,
+    IListingRepository,
+    IOperationRepository,
+} from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { Operation } from '../../entities/Operation';
+import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 
 /**
  * Una operación con lo mínimo para poder nombrarla en una lista.
@@ -18,6 +23,12 @@ export interface MyOperationView {
     /** Ausentes si el activo ya no está: la operación sigue siendo válida. */
     assetType?: string;
     niche?: string;
+    /**
+     * Cómo se llama el activo. Ausente para quien no tiene acceso a los datos
+     * reservados — un comprador que todavía no firmó el acuerdo ve el rubro y
+     * el tipo, que es con lo que el mercado lo anuncia.
+     */
+    name?: string;
 }
 
 /** Las operaciones donde el actor es parte, compre o venda. */
@@ -25,6 +36,7 @@ export class GetMyOperationsUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
+        private readonly contractRepo: IContractRepository,
     ) {}
 
     async execute(actor: Actor): Promise<MyOperationView[]> {
@@ -40,18 +52,32 @@ export class GetMyOperationsUseCase {
             ),
         );
 
+        // Quién puede ver los datos reservados se resuelve una vez por activo y
+        // no una por operación: son varias operaciones sobre los mismos pocos
+        // activos, y la respuesta solo depende del activo y de quién mira.
+        const acceso = new ConfidentialAccess(this.contractRepo);
+        const permitido = new Map(
+            await Promise.all(
+                ids.map(async (id) => {
+                    const listing = activos.get(id);
+                    return [id, listing ? await acceso.allowed(listing, actor) : false] as const;
+                }),
+            ),
+        );
+
         return operaciones.map((operation) => {
-            const listing = activos.get(operation.listingId.toString());
+            const listingId = operation.listingId.toString();
+            const listing = activos.get(listingId);
             if (!listing) return { operation };
 
-            // `false` porque esto es una lista: alcanza con lo público, y así
-            // no hay forma de que un dato reservado se escape por acá.
-            const { assetType, assetData } = listing.assetDataFor(false);
+            const { assetType, assetData } = listing.assetDataFor(permitido.get(listingId) ?? false);
+            const name = typeof assetData.name === 'string' ? assetData.name : '';
 
             return {
                 operation,
                 assetType,
                 niche: typeof assetData.niche === 'string' ? assetData.niche : undefined,
+                name: name || undefined,
             };
         });
     }

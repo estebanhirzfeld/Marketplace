@@ -55,6 +55,23 @@ export class PrismaListingRepository implements IListingRepository {
         return rows.map(ListingMapper.toDomain);
     }
 
+    /**
+     * Los activos que la cuenta sostiene AHORA. Excluye los vendidos: la
+     * constancia se conserva como evidencia de la operación cerrada, pero la
+     * plataforma ya no los tiene, así que no cuentan para el radio de daño de
+     * perder la cuenta.
+     */
+    async findHeldBy(custodyAccountId: string): Promise<Listing[]> {
+        const rows = await this.db.listing.findMany({
+            where: {
+                custodyAccountId,
+                status: { not: "sold" },
+            },
+            orderBy: { createdAt: "asc" },
+        });
+        return rows.map(ListingMapper.toDomain);
+    }
+
     async save(listing: Listing): Promise<void> {
         const { id, createdAt, props } = listing.toSnapshot();
 

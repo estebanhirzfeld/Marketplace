@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
-import type { ListingDetailDto } from '@marketplace/api-contract';
+import type { ListingDetailDto, CustodyAccountDto } from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
@@ -12,38 +12,9 @@ import { OfferForm } from '@/components/OfferForm';
 import { ButtonLink, Panel } from '@/components/ui';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { LockIcon } from '@/components/LockIcon';
-import { money, formatNumber, percentage } from '@/lib/format';
+import { fieldValue, money } from '@/lib/format';
 import { signNda, makeOffer } from './actions';
 import { registerPlatformAccess, revokePlatformAccess } from '../../admin/actions';
-
-/** Nombres legibles para las claves crudas que devuelve la strategy. */
-/**
- * Las claves son las de `assetData`, tal como las emite cada estrategia. Si
- * alguna no está acá, la pantalla mostraría el nombre técnico del campo.
- */
-const ETIQUETAS: Record<string, string> = {
-    niche: 'Rubro',
-    subscribers: 'Suscriptores',
-    monthlyRevenueUsdCents: 'Ingreso mensual',
-    currency: 'Moneda',
-    growthFactor: 'Factor de crecimiento',
-    isMonetized: 'Monetizado',
-    audienceTopCountry: 'País principal de la audiencia',
-    hasNoFaceContent: 'Contenido sin rostro',
-    channelUrl: 'Dirección del canal',
-    domainAuthority: 'Autoridad de dominio',
-    domain: 'Dominio',
-};
-
-function readableValue(key: string, value: unknown): string {
-    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-    if (key === 'monthlyRevenueUsdCents' && typeof value === 'number') {
-        return money({ cents: value, currency: 'USD' });
-    }
-    if (key === 'engagementRate' && typeof value === 'number') return percentage(value);
-    if (typeof value === 'number') return formatNumber(value);
-    return String(value);
-}
 
 export default async function DetalleListing(props: { params: Promise<{ id: string }> }) {
     // En Next 16 `params` es una promesa: el acceso sincrónico se eliminó.
@@ -59,12 +30,30 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
         throw e;
     }
 
+    // Solo el admin necesita las cuentas de custodia, y solo para registrar el
+    // acceso. Se filtran a las activas y del tipo del activo: es lo que la
+    // constancia admite.
+    let custodyAccounts: { id: string; label: string; identifier: string }[] = [];
+    if (actor?.role === UserRole.ADMIN) {
+        try {
+            const todas: CustodyAccountDto[] = await api().listCustodyAccounts();
+            custodyAccounts = todas
+                .filter((c) => c.isActive && c.assetType === listing.descriptor.assetType)
+                .map((c) => ({ id: c.id, label: c.label, identifier: c.identifier }));
+        } catch {
+            custodyAccounts = [];
+        }
+    }
+
     const hidden = listing.hiddenFields.length > 0;
     // Solo un activo publicado admite ofertas. El dominio ya lo rechaza
     // (`Solo se puede ofertar sobre activos publicados`), pero la pantalla lo
     // ofrecía igual y la persona se enteraba recién al apretar.
     const disponible = listing.status === 'published';
-    const visibleFields = Object.entries(listing.assetData);
+    // Los campos ocultos llegan como claves crudas; el descriptor les pone
+    // nombre. Si el tipo no describe alguno, se muestra la clave antes que nada.
+    const etiqueta = (clave: string) =>
+        listing.descriptor.fields.find((f) => f.key === clave)?.label ?? clave;
 
     return (
         <div className="mx-auto max-w-[1400px] px-6 py-14 sm:px-12">
@@ -100,25 +89,32 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
             </Reveal>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-                {/* Datos del activo */}
-                <Reveal>
+                {/*
+                    Los datos del activo y, debajo, el acuerdo que los desbloquea:
+                    el panel del NDA vive junto a las filas borroneadas que promete
+                    revelar, y no en la columna de acciones donde competía con la
+                    oferta.
+                */}
+                <Reveal className="grid gap-6">
                     <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                            {visibleFields.map(([key, value]) => (
-                                <div key={key} className="flex items-center justify-between py-3 text-[14px]">
-                                    <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS[key] ?? key}
-                                    </span>
-                                    <span className="font-mono">{readableValue(key, value)}</span>
-                                </div>
-                            ))}
+                            {listing.descriptor.fields
+                                .filter((f) => f.key in listing.assetData)
+                                .map((f) => (
+                                    <div key={f.key} className="flex items-center justify-between py-3 text-[14px]">
+                                        <span className="text-[var(--color-tenue)]">{f.label}</span>
+                                        <span className="font-mono">
+                                            {fieldValue(f.kind, listing.assetData[f.key])}
+                                        </span>
+                                    </div>
+                                ))}
 
                             {/* Los campos ocultos se muestran como filas ciegas: el
                                 comprador ve qué le falta, no un vacío inexplicable. */}
                             {listing.hiddenFields.map((campo) => (
                                 <div key={campo} className="flex items-center justify-between py-3 text-[14px]">
                                     <span className="text-[var(--color-tenue)]">
-                                        {ETIQUETAS[campo] ?? campo}
+                                        {etiqueta(campo)}
                                     </span>
                                     <span className="flex items-center gap-2">
                                         <LockIcon tamano={12} color="var(--color-fantasma)" />
@@ -130,22 +126,22 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                             ))}
                         </div>
                     </Panel>
+                    {hidden && (
+                        <NdaPanel
+                            action={signNda.bind(null, id)}
+                            hiddenFields={listing.hiddenFields.map(etiqueta)}
+                            authenticated={Boolean(actor)}
+                        />
+                    )}
                 </Reveal>
 
                 {/* Acción */}
                 <Reveal delay={100}>
                     <div className="flex flex-col gap-5">
-                        {hidden && (
-                            <NdaPanel
-                                action={signNda.bind(null, id)}
-                                hiddenFields={listing.hiddenFields.map((c) => ETIQUETAS[c] ?? c)}
-                                authenticated={Boolean(actor)}
-                            />
-                        )}
-
                         <TransferStatus
                             transferable={listing.transferable}
                             transferableFrom={listing.transferableFrom}
+                            waitingNotice={listing.descriptor.waitingNotice}
                         />
 
                         {actor?.role === UserRole.ADMIN && (
@@ -155,6 +151,8 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                                     revocar={revokePlatformAccess.bind(null, id)}
                                     transferable={listing.transferable}
                                     transferableFrom={listing.transferableFrom}
+                                    handoverSteps={listing.handoverSteps}
+                                    custodyAccounts={custodyAccounts}
                                 />
                             </Panel>
                         )}

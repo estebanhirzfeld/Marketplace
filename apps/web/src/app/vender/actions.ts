@@ -15,7 +15,8 @@ import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
 
-export type ActionState = { error?: string; ok?: boolean };
+/** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
+export type ActionState = { error?: string; ok?: boolean; message?: string };
 
 /**
  * Publicar un activo. El assetData se arma según el tipo: su forma la valida
@@ -45,6 +46,10 @@ export async function publishListing(
         // El rubro vale para los dos tipos y lo valida el factory contra la
         // lista cerrada, así que acá se reenvía tal cual llega.
         niche: String(form.get('niche') ?? 'other'),
+        // El nombre es parte del blindaje, igual que la dirección: con él se
+        // encuentra el activo buscándolo. Lo ven el vendedor, la plataforma y
+        // el comprador que firmó el acuerdo.
+        name: String(form.get('nombre') ?? '').trim(),
     };
 
     // La identidad del activo es lo único que un listing blind reserva. Sin
@@ -75,7 +80,7 @@ export async function publishListing(
         return { error: 'No pudimos publicar el activo. Probá de nuevo.' };
     }
 
-    revalidatePath('/vender');
+    revalidatePath('/activos');
     return { ok: true };
 }
 
@@ -103,14 +108,30 @@ export async function estimateListingPrice(
     }
 }
 
-export async function submitForReview(listingId: string): Promise<void> {
+/**
+ * Manda el activo a la cola de revisión.
+ *
+ * Devolvía `void` y se tragaba el error con un comentario que decía que se
+ * vería al recargar. No se veía: el activo seguía en borrador y la pantalla no
+ * daba ninguna señal. El motivo más común es justamente uno que hay que
+ * explicar —falta verificar la titularidad, falta el KYC— así que esconderlo
+ * dejaba al vendedor sin saber qué le falta.
+ */
+export async function submitForReview(
+    listingId: string,
+    _estado: ActionState,
+): Promise<ActionState> {
     await requireCounterparty();
     try {
         await api().submitListing(listingId);
-    } catch {
-        // El error se ve al recargar: el estado del listing no cambió.
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos enviarlo a revisión. Probá de nuevo.' };
     }
-    revalidatePath('/vender');
+
+    revalidatePath('/activos');
+    revalidatePath(`/activos/${listingId}`);
+    return { ok: true, message: 'Lo enviamos a revisión. Te avisamos cuando salga al mercado.' };
 }
 
 /**
@@ -130,10 +151,11 @@ export async function startVerification(
     try {
         ({ url } = await api().authorizationUrl(listingId, source));
     } catch {
-        // Sin credenciales de Google la API responde 503. Se vuelve a la
-        // pantalla con el motivo en la dirección, igual que hace la vuelta del
-        // consentimiento, en vez de dejar al vendedor sin respuesta.
-        redirect('/vender?verificacion=no-configurada');
+        // Sin credenciales de Google la API responde 503. Se vuelve al activo
+        // del que salió —no a la pantalla de publicar, que ya no muestra este
+        // aviso— con el motivo en la dirección, igual que hace la vuelta del
+        // consentimiento.
+        redirect(`/activos/${listingId}?ver=verificaciones&verificacion=no-configurada`);
     }
 
     redirect(url);

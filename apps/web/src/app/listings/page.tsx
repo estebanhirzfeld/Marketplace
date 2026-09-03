@@ -4,6 +4,7 @@ import { ApiError } from '@marketplace/api-client';
 import { anonymousApi } from '@/lib/api';
 import { Reveal } from '@/components/Reveal';
 import { ListingCard } from '@/components/ListingCard';
+import { assetTypes } from '@/lib/assetTypes';
 import { MarketFilters, type FiltrosDeBusqueda } from '@/components/MarketFilters';
 import { MarketSort } from '@/components/MarketSort';
 import { ButtonLink, Heading, EmptyState } from '@/components/ui';
@@ -91,6 +92,9 @@ export default async function Listings(props: {
 
     const { busqueda, consulta } = leerFiltros(params);
 
+    // La metadata del catálogo se pide una vez para toda la grilla.
+    const porTipo = new Map((await assetTypes()).map((d) => [d.assetType, d]));
+
     let listings: ListingSummaryDto[] = [];
     let problema: string | undefined;
 
@@ -149,7 +153,7 @@ export default async function Listings(props: {
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             {listings.map((l, i) => (
                                 <Reveal key={l.id} delay={Math.min(i, 6) * 70}>
-                                    <ListingCard listing={l} />
+                                    <ListingCard listing={l} descriptor={porTipo.get(l.assetType)} />
                                 </Reveal>
                             ))}
                         </div>

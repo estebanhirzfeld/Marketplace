@@ -61,6 +61,7 @@ function listingRepoCon(listing: Listing | null): IListingRepository {
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -70,6 +71,7 @@ function operationRepoVacio(): IOperationRepository {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -88,6 +90,7 @@ function userRepoCon(user: User): IUserRepository {
     return {
         findById: vi.fn().mockResolvedValue(user),
         findByEmail: vi.fn().mockResolvedValue(user),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

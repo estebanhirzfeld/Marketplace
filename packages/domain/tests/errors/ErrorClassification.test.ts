@@ -48,6 +48,7 @@ function createMockListingRepo(
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -60,6 +61,7 @@ function createMockOperationRepo(
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -136,7 +138,12 @@ describe('Clasificación de errores de dominio', () => {
                 offerPrice: Money.fromFloat(1000),
             });
 
-            expect(() => operation.complete()).toThrow(InvalidStateError);
+            expect(() => operation.complete({
+                verifiedBy: new UniqueEntityID(),
+                buyerIsPrimaryOwner: true,
+                accessTransferred: true,
+                sellerRemoved: true,
+            })).toThrow(InvalidStateError);
         });
 
         it('negociar fuera de turno', () => {

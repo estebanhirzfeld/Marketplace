@@ -43,6 +43,7 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -53,6 +54,7 @@ function createMockOperationRepo(overrides: Partial<IOperationRepository> = {}):
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -62,6 +64,7 @@ function createMockUserRepo(overrides: Partial<IUserRepository> = {}): IUserRepo
     return {
         findById: vi.fn().mockResolvedValue(null),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
@@ -126,6 +129,8 @@ function unListingTransferible(sellerId = new UniqueEntityID()): Listing {
     const listing = createPublishedListing(sellerId);
     listing.registerPlatformAccess({
         verifiedBy: new UniqueEntityID(),
+        heldRole: 'manager',
+            custodyAccountId: new UniqueEntityID(),
         accessSince: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
     });
     return listing;
@@ -346,7 +351,7 @@ describe('SignContractUseCase', () => {
 
         await expect(
             useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId)),
-        ).rejects.toThrow('ya firmó');
+        ).rejects.toThrow('Ya firmaste');
     });
 });
 
@@ -392,6 +397,8 @@ describe('SignContractUseCase — el tripartito exige un activo transferible', (
         const listing = createPublishedListing();
         listing.registerPlatformAccess({
             verifiedBy: new UniqueEntityID(),
+            heldRole: 'manager',
+            custodyAccountId: new UniqueEntityID(),
             accessSince: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
         });
 

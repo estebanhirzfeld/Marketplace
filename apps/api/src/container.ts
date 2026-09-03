@@ -6,6 +6,7 @@ import {
     PrismaContractRepository,
     PrismaUnitOfWork,
     PrismaNotificationRepository,
+    PrismaCustodyAccountRepository,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -67,10 +68,19 @@ import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
+import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
+import {
+    CreateCustodyAccountUseCase,
+    UpdateCustodyAccountUseCase,
+    ActivateCustodyAccountUseCase,
+    DeactivateCustodyAccountUseCase,
+    ListCustodyAccountsUseCase,
+} from '@marketplace/domain/src/use-cases/admin/CustodyAccountUseCases';
 
 import { GetMyNotificationsUseCase } from '@marketplace/domain/src/use-cases/notification/GetMyNotificationsUseCase';
 import { MarkNotificationReadUseCase } from '@marketplace/domain/src/use-cases/notification/MarkNotificationReadUseCase';
 import { NegotiationNotifier } from '@marketplace/domain/src/services/NegotiationNotifier';
+import { PlatformNotifier } from '@marketplace/domain/src/services/PlatformNotifier';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import { IListingRepository } from '@marketplace/domain/src/ports/Repositories';
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
@@ -145,6 +155,12 @@ export interface Container {
     legajo: GetEvidenceDossierUseCase;
     confirmPayment: ConfirmPaymentUseCase;
     completeOperation: CompleteOperationUseCase;
+    declareRecipientIdentity: DeclareRecipientIdentityUseCase;
+    crearCuentaCustodia: CreateCustodyAccountUseCase;
+    editarCuentaCustodia: UpdateCustodyAccountUseCase;
+    activarCuentaCustodia: ActivateCustodyAccountUseCase;
+    darDeBajaCuentaCustodia: DeactivateCustodyAccountUseCase;
+    listarCuentasCustodia: ListCustodyAccountsUseCase;
 }
 
 export function createContainer(
@@ -179,10 +195,14 @@ export function createContainer(
     const operationRepo = new PrismaOperationRepository();
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
+    const custodyRepo = new PrismaCustodyAccountRepository();
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
     const avisos = new NegotiationNotifier(notificationRepo);
+    // Los avisos dirigidos a la plataforma van aparte porque el destinatario
+    // no sale de la operación: hay que buscar quiénes son los administradores.
+    const avisosDePlataforma = new PlatformNotifier(notificationRepo, userRepo);
 
     // Una sola definición de qué entra en el documento de un contrato: si el
     // armado divergiera entre firmar y leer, los hashes no coincidirían.
@@ -200,7 +220,7 @@ export function createContainer(
 
         createListing: new CreateListingUseCase(listingRepo, userRepo),
         estimateListingPrice: new EstimateListingPriceUseCase(),
-        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo),
+        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo, avisosDePlataforma),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         verifyChannelMetrics: youtubeApiKey
@@ -221,34 +241,34 @@ export function createContainer(
         verifyWebsiteRevenue: googleOAuth
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
             : undefined,
-        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo),
+        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),
-        getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo),
-        misListings: new GetMyListingsUseCase(listingRepo),
+        getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo, custodyRepo),
+        misListings: new GetMyListingsUseCase(listingRepo, custodyRepo),
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
-        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo),
-        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo),
+        tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
+        misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
         detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
         // Único use case que necesita atomicidad: la cascada multi-oferta.
-        acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos),
-        cancelOperation: new CancelOperationUseCase(operationRepo),
+        acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos, avisosDePlataforma),
+        cancelOperation: new CancelOperationUseCase(new PrismaUnitOfWork()),
         getSellerOffers: new GetSellerOffersUseCase(operationRepo, listingRepo, userRepo),
 
         signNda: new SignNdaUseCase(contractRepo, listingRepo, userRepo, armador),
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
         signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
 
-        initiateTransfer: new InitiateTransferUseCase(operationRepo),
+        initiateTransfer: new InitiateTransferUseCase(operationRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, avisos),
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
             : undefined,
         confirmarPagoDePasarela: mercadoPago
-            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos)
+            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos, avisosDePlataforma)
             : undefined,
         mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
         denunciar: new FileReportUseCase(reportRepo, operationRepo, notificationRepo),
@@ -261,7 +281,13 @@ export function createContainer(
             contractRepo,
             userRepo,
         ),
-        confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos),
+        confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
         completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos),
+        declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo),
+        crearCuentaCustodia: new CreateCustodyAccountUseCase(custodyRepo),
+        editarCuentaCustodia: new UpdateCustodyAccountUseCase(custodyRepo, listingRepo),
+        activarCuentaCustodia: new ActivateCustodyAccountUseCase(custodyRepo),
+        darDeBajaCuentaCustodia: new DeactivateCustodyAccountUseCase(custodyRepo, listingRepo),
+        listarCuentasCustodia: new ListCustodyAccountsUseCase(custodyRepo, listingRepo),
     };
 }

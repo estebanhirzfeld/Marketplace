@@ -1,4 +1,4 @@
-import type { MoneyDto } from '@marketplace/api-contract';
+import type { AssetFieldKindDto, MoneyDto } from '@marketplace/api-contract';
 
 /**
  * El símbolo se pone acá y no lo elige `Intl`.
@@ -39,13 +39,17 @@ export function percentage(n: number): string {
     return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)} %`;
 }
 
-const TIPOS: Record<string, string> = {
-    youtube: 'CANAL DE YOUTUBE',
-    web: 'SITIO WEB',
-};
-
-export function assetTypeLabel(assetType: string): string {
-    return TIPOS[assetType] ?? assetType.toUpperCase();
+/**
+ * Una fecha escrita como se lee en voz alta. Se usa donde la fecha es la
+ * explicación de por qué algo todavía no se puede hacer: ahí un `12/9/2026`
+ * obliga a descifrar, y el punto es que se entienda de una.
+ */
+export function fechaLarga(iso: string): string {
+    return new Date(iso).toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
 }
 
 /**
@@ -73,40 +77,29 @@ export function nicheLabel(niche: unknown): string {
 }
 
 /**
- * Extrae las métricas que se muestran en una tarjeta según el tipo de activo.
- * Solo lee campos públicos: los confidenciales ni llegan desde la API cuando
- * el listing es blind y no hay NDA firmado.
+ * Escribe el valor de un campo según lo que su tipo de activo dijo que es.
+ *
+ * Antes había acá un mapa de claves —`monthlyRevenueUsdCents` es dinero,
+ * `niche` es un rubro— que duplicaba lo que cada estrategia ya sabía de sus
+ * propios campos, y que se desactualizaba solo: un campo nuevo salía a
+ * pantalla con su nombre técnico y su valor crudo. Ahora el tipo de dato viaja
+ * en el descriptor y acá queda únicamente el formato, que sí es de la vista.
  */
-export function cardMetrics(
-    assetType: string,
-    data: Record<string, unknown>,
-): Array<[string, string]> {
-    const num = (k: string) => (typeof data[k] === 'number' ? formatNumber(data[k] as number) : '—');
-    const dinero = (k: string) =>
-        typeof data[k] === 'number'
-            ? money({ cents: data[k] as number, currency: String(data.currency ?? 'USD') })
-            : '—';
+export function fieldValue(kind: AssetFieldKindDto, value: unknown): string {
+    if (value === undefined || value === null || value === '') return '—';
 
-    // La primera fila es el título de la tarjeta; el resto, métricas.
-    //
-    // El título es el RUBRO y no el tipo de activo: el tipo ya está arriba, en
-    // el sello de la tarjeta, y repetirlo dejaba "CANAL DE YOUTUBE" sobre
-    // "Canal de YouTube" sin decir en ningún lado de qué trata el canal.
-    switch (assetType) {
-        case 'youtube':
-            return [
-                ['titulo', nicheLabel(data.niche)],
-                ['suscriptores', num('subscribers')],
-                ['ingreso/mes', dinero('monthlyRevenueUsdCents')],
-                ['país', String(data.audienceTopCountry ?? '—')],
-            ];
-        case 'web':
-            return [
-                ['titulo', nicheLabel(data.niche)],
-                ['autoridad', num('domainAuthority')],
-                ['ingreso/mes', dinero('monthlyRevenueUsdCents')],
-            ];
+    switch (kind) {
+        case 'money':
+            return typeof value === 'number' ? money({ cents: value, currency: 'USD' }) : String(value);
+        case 'number':
+            return typeof value === 'number' ? formatNumber(value) : String(value);
+        case 'percentage':
+            return typeof value === 'number' ? percentage(value) : String(value);
+        case 'boolean':
+            return value ? 'Sí' : 'No';
+        case 'niche':
+            return nicheLabel(value);
         default:
-            return [['titulo', 'Activo digital']];
+            return String(value);
     }
 }

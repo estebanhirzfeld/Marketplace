@@ -1,7 +1,13 @@
-import { IListingRepository, IContractRepository } from '../../ports/Repositories';
+import {
+    IListingRepository,
+    IContractRepository,
+    ICustodyAccountRepository,
+} from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
-import { ListingStatus, OwnershipVerification } from '../../entities/Listing';
+import { Listing, ListingStatus, OwnershipVerification } from '../../entities/Listing';
+import { AssetTypeDescriptor, TransferContext, TransferStep } from '../../strategies/IAssetStrategy';
 import { NotFoundError } from '../../errors/DomainError';
+import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { UserRole } from '@marketplace/shared-types';
 
 export interface ListingDetailView {
@@ -24,6 +30,10 @@ export interface ListingDetailView {
     ownership?: OwnershipVerification;
     transferable: boolean;
     transferableFrom?: Date;
+    /** Lo que le falta al vendedor para cedernos el activo. */
+    handoverSteps: TransferStep[];
+    /** Lo que este tipo de activo sabe de sí mismo. */
+    descriptor: AssetTypeDescriptor;
     createdAt: Date;
 }
 
@@ -45,7 +55,39 @@ export class GetListingDetailsUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly contractRepo: IContractRepository,
+        /**
+         * Opcional para no romper los llamadores que solo miran el blindaje. Sin
+         * él, los pasos de traspaso salen en su variante genérica: es la lectura
+         * pública, y ahí nombrar una cuenta no aporta nada.
+         */
+        private readonly custodyRepo?: ICustodyAccountRepository,
     ) {}
+
+    /**
+     * La cuenta a nombrar en el paso de invitación:
+     *   la ya asignada al listing (`platformAccess.custodyAccountId`)
+     *   ─ si no hay ─
+     *   la primera cuenta activa para el `AssetType` del listing.
+     *
+     * La segunda mitad es la que importa: el vendedor tiene que saber a quién
+     * invitar ANTES de que exista ninguna constancia de acceso.
+     */
+    private async resolveContext(listing: Listing): Promise<TransferContext | undefined> {
+        if (!this.custodyRepo) return undefined;
+
+        const asignada = listing.platformAccess?.custodyAccountId;
+        if (asignada) {
+            const cuenta = await this.custodyRepo.findById(asignada.toString());
+            if (cuenta) return { custodyAccountIdentifier: cuenta.identifier };
+        }
+
+        const activas = await this.custodyRepo.findActive(listing.describeAssetType().assetType);
+        if (activas.length > 0) {
+            return { custodyAccountIdentifier: activas[0].identifier };
+        }
+
+        return undefined;
+    }
 
     async execute(listingId: string, actor?: Actor): Promise<ListingDetailView> {
         const listing = await this.listingRepo.findById(listingId);
@@ -73,8 +115,15 @@ export class GetListingDetailsUseCase {
         }
 
         // El filtrado lo decide la entidad: una sola regla, un solo lugar.
-        const puedeVerTodo = await this.puedeVerTodo(esDuenio, listingId, actor);
+        const puedeVerTodo = await new ConfidentialAccess(this.contractRepo).allowed(listing, actor);
         const data = listing.assetDataFor(puedeVerTodo);
+
+        // Los pasos de traspaso son para quien los ejecuta o los atestigua: el
+        // vendedor del activo o un administrador. A un comprador o a un
+        // visitante no le dicen nada y, con la cuenta de custodia nombrada,
+        // filtrarían un identificador operativo de la plataforma.
+        const puedeVerPasos = esDuenio || esPlataforma;
+        const contexto = puedeVerPasos ? await this.resolveContext(listing) : undefined;
 
         return {
             id: listing.id.toString(),
@@ -92,31 +141,10 @@ export class GetListingDetailsUseCase {
             isOwnedByViewer: esDuenio,
             transferable: listing.isReadyToTransfer(),
             transferableFrom: listing.transferableFrom(),
+            handoverSteps: puedeVerPasos ? listing.handoverSteps(contexto) : [],
+            descriptor: listing.describeAssetType(),
             createdAt: listing.toSnapshot().createdAt,
         };
     }
 
-    private async puedeVerTodo(
-        esDuenio: boolean,
-        listingId: string,
-        actor?: Actor,
-    ): Promise<boolean> {
-        // El vendedor nunca necesita un NDA para ver su propio activo.
-        if (esDuenio) return true;
-        if (!actor) return false;
-
-        // Tampoco la plataforma. El blindaje protege al vendedor de que le
-        // copien el activo sin comprarlo, y la plataforma no es ese tercero:
-        // es la custodia. Un operador que no sabe de qué canal se trata no
-        // puede comprobar la titularidad ni atestiguar que lo tenemos. El
-        // resto del código ya lo daba por hecho —las verificaciones de
-        // métricas y de titularidad dejan pasar al admin—, así que pedirle un
-        // NDA acá era además incoherente: se lo firmaría a sí mismo.
-        if (actor.role === UserRole.ADMIN) return true;
-
-        const contract = await this.contractRepo.findByListingAndSigner(listingId, actor.id);
-        if (!contract) return false;
-
-        return contract.type === 'buyer_nda' && contract.isFullySigned();
-    }
 }

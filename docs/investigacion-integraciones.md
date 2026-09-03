@@ -56,6 +56,106 @@ Durante los 7 días en que la plataforma es propietaria pero **todavía no princ
 
 Esto no invalida el modelo, pero cambia cuándo se le puede pedir el pago al comprador: **recién cuando la plataforma es propietaria principal**, no cuando fue invitada.
 
+### Corrección: la espera de 7 días corre para las dos partes
+
+La cita de arriba —*"To become primary owner, you must have been an owner for 7 days or more"*— describe solo la mitad de la regla. La página de Google sobre cambiar quién administra una Cuenta de Marca la enuncia completa, y son **dos** condiciones simultáneas:
+
+> *"The person making the change has been an owner for 7 days or more"*
+
+> *"The person becoming the new primary owner has been a manager or owner for 7 days or more"*
+
+Si alguna no se cumple, Google devuelve un error.
+
+Para nuestro flujo el piso de 14 días no cambia, porque quien cede siempre lleva más de 7 días como propietario: el vendedor lo es desde antes de publicar, y la plataforma cumple sus 7 días al volverse principal. Pero la regla es más estricta de lo que decíamos, y conviene tenerla escrita entera: **la plataforma no puede cederle el canal al comprador el mismo día en que lo recibió**, aunque el comprador ya llevara sus 7 días esperando.
+
+### Un paso que faltaba: salir del modelo nuevo de permisos
+
+YouTube está migrando la administración de accesos desde los roles de Cuenta de Marca hacia los **permisos de canal** de YouTube Studio. Los dos modelos coexisten, y son incompatibles con la transferencia:
+
+> *"Only opt out of channel permissions if you need to complete a channel transfer."*
+
+Para mover un canal entre Cuentas de Marca hay que **salir de los permisos de canal** en YouTube Studio y no tener a nadie más con acceso otorgado por esa vía. Un canal que use el modelo nuevo —cada vez más son así— no se puede transferir hasta que su propietario principal lo desactive.
+
+Esto es un paso previo del vendedor que `getTransferSteps()` no contempla, y es de los que rompen el traspaso con un error incomprensible: el vendedor invita a la plataforma, la invitación parece funcionar, y el cambio de propietario principal falla sin explicar por qué.
+
+---
+
+## 1bis. ¿Una cuenta nuestra puede sostener varios activos a la vez?
+
+La pregunta importa porque define el esquema de datos: si la plataforma necesitara una cuenta de Google por operación, la identidad de custodia sería un campo de la operación; si alcanza con una, sería configuración.
+
+### Lo que dice Google
+
+> *"You can use one Google Account to manage multiple Brand Accounts connected to YouTube channels."*
+
+> *"If you have multiple YouTube channels connected to Brand Accounts, you can manage them all through one Google Account without signing out."*
+
+Y sobre la unicidad, que es lo que podría haber sido un impedimento:
+
+> *"An account must have one primary owner."*
+
+La restricción es **por Cuenta de Marca, no por cuenta de Google**: cada canal necesita exactamente un propietario principal, pero nada impide que la misma cuenta de Google ocupe ese lugar en varios canales a la vez.
+
+**Respuesta: sí.** Una sola cuenta puede sostener múltiples canales en custodia simultáneamente.
+
+### Lo que Google NO dice
+
+No hay un límite documentado —ni de Cuentas de Marca por cuenta de Google, ni de propietarios por Cuenta de Marca—. Circulan cifras de 50 o 100 canales por cuenta, pero **ninguna sale de documentación oficial** y no conviene apoyar un diseño en ellas. Que no esté documentado no es lo mismo que garantizar que no exista.
+
+### El argumento en contra de una sola cuenta
+
+Que se pueda no quiere decir que convenga, y la razón está en una cita que ya teníamos:
+
+> *"If you delete the primary owner account linked to your channel, the channel will also be deleted."*
+
+Con una única cuenta de custodia, perderla —suspensión, recuperación fallida, un error de Google— **destruye todos los canales que la plataforma tenga en custodia al mismo tiempo**, no uno. Es la diferencia entre un incidente y el fin del negocio.
+
+### Recomendación para el modelo de datos
+
+Registrar **qué cuenta sostiene qué activo**, sea cual sea la política operativa. Así "una sola cuenta" y "una por operación" dejan de ser decisiones de esquema y pasan a ser decisiones de operación, reversibles sin migrar nada. Además es el dato que hoy falta para que el traspaso sea ejecutable: el vendedor no tiene a quién invitar y el comprador no sabe de quién va a recibir la invitación.
+
+Para sitios web el problema no existe: una cuenta de registrador administra tantos dominios como se quiera, y no hay ventana de espera.
+
+---
+
+## 1ter. Dominios: el bloqueo de 60 días y qué bloquea de verdad
+
+La custodia de un sitio web no tiene un equivalente al rol de administrador de una Cuenta de Marca, así que la protección que la plataforma puede ofrecerle a un vendedor de dominios es distinta —y menor— que la que puede ofrecerle a uno de canales. Conviene que el producto no afirme lo contrario.
+
+### El bloqueo existe, pero es más angosto de lo que parece
+
+La política de transferencias de la ICANN, vigente desde el 1 de diciembre de 2016:
+
+> *"After December 1, 2016, registrars must impose a lock that will prevent any transfer to another registrar for sixty (60) days following a change to a registrant's information."*
+
+Lo importante es qué bloquea exactamente: **transferencias entre registradores**, no cambios de titular. Un cambio de titular posterior dentro del mismo registrador sigue siendo posible, y la mayoría de los registradores permiten además "empujar" un dominio a otra cuenta de la misma empresa sin que eso cuente como transferencia.
+
+Para el escrow eso significa que el traspaso es viable: el vendedor empuja el dominio a la cuenta de la plataforma en su mismo registrador, y la plataforma después lo empuja a la del comprador. La propiedad se mueve sin chocar contra el bloqueo.
+
+### Lo que sí hay que decirle al comprador
+
+Que durante 60 días desde el cambio de titular **no va a poder mover el dominio a otro registrador**. Es una limitación real sobre algo que acaba de comprar, y callarla sería venderle una libertad que no tiene.
+
+El vendedor puede eximirse del bloqueo **antes** de hacer el cambio, si su registrador ofrece esa opción —la política lo permite pero no lo obliga—:
+
+> *"the Registrar may allow the Registered Name Holder to opt out of the 60-day inter-registrar transfer lock prior to any Change of Registrant request"*
+
+Y una vez empezado el bloqueo no hay salida:
+
+> *"registrars may not allow registrants to opt out of the 60-day inter-registrar transfer lock during the 60-day lock"*
+
+Así que si hay que eximirse, es un paso del vendedor y va antes de cedernos el dominio.
+
+### La asimetría con los canales, dicha sin adornos
+
+| | Canal de YouTube | Sitio web |
+|---|---|---|
+| ¿Puede el vendedor darnos acceso sin ceder control? | **Sí.** Como administrador: no podemos borrar el canal ni quitarlo a él, y el plazo corre igual | **No de forma estándar.** Algunos registradores tienen roles delegados, pero varía y no se puede prometer |
+| ¿Qué espera impone la plataforma del activo? | 7 días para volverse propietario principal, dos veces | 60 días sin poder cambiar de registrador, después del cambio de titular |
+| ¿La espera corre antes de la venta? | **Sí**, si el vendedor nos suma temprano | **No.** Empieza recién cuando se cede el dominio |
+
+La conclusión de producto: el argumento "publicá y recibí ofertas sin comprometer tu activo" es fuerte y verdadero para canales, y no se puede sostener igual para sitios. Para dominios el argumento honesto es el escrow clásico —custodia antes del pago— más el legajo probatorio, sin prometer acceso limitado.
+
 ---
 
 ## 2. El ingreso mensual no se puede verificar
@@ -183,6 +283,10 @@ Ordenado por valor sobre esfuerzo:
 ## Fuentes
 
 - [Change channel owners & managers with a Brand Account — YouTube Help](https://support.google.com/youtube/answer/4628007?hl=en)
+- [Change who manages your Brand Account — Google Account Help](https://support.google.com/accounts/answer/7311601?hl=en&co=GENIE.Platform%3DDesktop) — la regla de los 7 días completa, para las dos partes
+- [Manage your Brand Account — Google Account Help](https://support.google.com/accounts/answer/7001996?hl=en&co=GENIE.Platform%3DDesktop) — una cuenta de Google administra varias Cuentas de Marca
+- [Manage YouTube channels — YouTube Help](https://support.google.com/youtube/answer/4642409?hl=en)
+- [Move your YouTube channel from one Brand Account to another — YouTube Help](https://support.google.com/youtube/answer/3056283?hl=en)
 - [Migrate from Brand Account user access to channel permissions — YouTube Help](https://support.google.com/youtube/answer/9367690?hl=en)
 - [YouTube Data API v3 — Getting Started](https://developers.google.com/youtube/v3/getting-started)
 - [YouTube Data API — Channels resource](https://developers.google.com/youtube/v3/docs/channels)
@@ -190,4 +294,7 @@ Ordenado por valor sobre esfuerzo:
 - [YouTube Analytics API — Channel Reports](https://developers.google.com/youtube/analytics/channel_reports)
 - [YouTube Analytics API — Content Owner Reports](https://developers.google.com/youtube/analytics/content_owner_reports)
 - [TikTok — Terms of Service](https://www.tiktok.com/legal/page/us/terms-of-service/en)
+- [ICANN — Transfer Policy](https://www.icann.org/en/contracted-parties/accredited-registrars/transfer-policy-01-06-2016-en) — el bloqueo de 60 días y su alcance
+- [ICANN — FAQs for Registrants: Transferring Your Domain Name](https://www.icann.org/resources/pages/name-holder-faqs-2017-10-10-en)
+- [ICANN — About Change of Registrant](https://www.icann.org/resources/pages/ownership-2013-05-03-en)
 - [Ley 25.506 de Firma Digital — InfoLEG](https://servicios.infoleg.gob.ar/infolegInternet/anexos/70000-74999/70749/norma.htm)

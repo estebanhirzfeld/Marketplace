@@ -54,6 +54,7 @@ function armar(existentes: Operation[]) {
         findById: vi.fn().mockResolvedValue(null),
         findByListing: vi.fn().mockResolvedValue(existentes),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
     const listingRepo: IListingRepository = {
@@ -61,6 +62,7 @@ function armar(existentes: Operation[]) {
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
     return { uso: new CreateOfferUseCase(operationRepo, listingRepo), operationRepo };

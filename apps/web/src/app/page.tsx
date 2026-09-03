@@ -2,47 +2,75 @@ import Link from 'next/link';
 import { anonymousApi } from '@/lib/api';
 import { Reveal } from '@/components/Reveal';
 import { ListingCard } from '@/components/ListingCard';
+import { assetTypes } from '@/lib/assetTypes';
 import { LockIcon } from '@/components/LockIcon';
 import type { ListingSummaryDto } from '@marketplace/api-contract';
 
 type Step = { n: string; title: string; text: string; destacado?: boolean };
 
+/**
+ * El recorrido contado como línea de riesgo, no como procedimiento.
+ *
+ * Antes eran las etapas del sistema —contrato firmado, entrega, verificación,
+ * cierre—: la máquina de estados con mejores palabras. Contestaba qué hace la
+ * plataforma, que no es lo que alguien se pregunta antes de publicar.
+ *
+ * Lo que se pregunta es qué arriesga y cuándo. Y la respuesta, repetida tres
+ * veces, es que no arriesga nada hasta el final. Que sea monótona es el punto:
+ * la monotonía ES el mensaje.
+ */
 const PASOS: Step[] = [
     {
         n: '01',
-        title: 'Contrato firmado',
-        text: 'Las tres partes firman el mismo documento.',
+        title: 'Publicás',
+        text: 'No entregás nada. Nos sumás con permisos mínimos y el activo sigue siendo tuyo.',
     },
     {
         n: '02',
-        title: 'El vendedor lo entrega',
-        text: 'A la plataforma, no al comprador.',
+        title: 'Recibís ofertas',
+        text: 'Tampoco entregás nada. Negociás el precio con el activo todavía en tus manos.',
     },
     {
         n: '03',
-        title: 'Lo verificamos',
-        text: 'Que sea lo que decía la publicación. Recién entonces se paga.',
-        destacado: true,
+        title: 'Firman los dos',
+        text: 'Todavía no entregás nada. El contrato compromete a las dos partes, no al activo.',
     },
     {
         n: '04',
-        title: 'Listo',
-        text: 'El comprador lo recibe y el vendedor cobra.',
+        title: 'Nos das el control',
+        text: 'Recién acá. Con el precio cerrado, el contrato firmado y el comprador comprometido.',
+        destacado: true,
+    },
+    {
+        n: '05',
+        title: 'Cobrás',
+        text: 'El comprador ya había pagado: la plata estaba retenida acá desde antes.',
     },
 ];
 
-const COBERTURA = [
+/**
+ * La promesa en negativo.
+ *
+ * Reemplaza a una tarjeta que se llamaba "quién queda cubierto" y listaba al
+ * vendedor, al comprador y a los dos: una taxonomía, no un mensaje, y con
+ * nombre de póliza de seguro.
+ *
+ * Va en negativo por el mismo motivo que el instructivo del vendedor: cada
+ * línea la puede verificar por su cuenta. Una promesa en positivo le pide que
+ * nos crea, y la desconfianza es justamente lo que lo frena.
+ */
+const NO_TE_PEDIMOS = [
     {
-        parte: 'El vendedor',
-        text: 'No lo entrega a un desconocido que prometió pagarle.',
+        que: 'Que entregues el activo para publicarlo',
+        text: 'Nos sumás con permisos mínimos: no podemos eliminarlo, no podemos quitarte a vos, no podemos transferirlo a nadie.',
     },
     {
-        parte: 'El comprador',
-        text: 'No paga por adelantado: el activo ya está verificado y bajo custodia.',
+        que: 'Que confíes en el comprador',
+        text: 'No paga por adelantado, pero tampoco recibe nada hasta que el dinero esté acá.',
     },
     {
-        parte: 'Los dos',
-        text: 'Los números son públicos; cuál es el activo, recién al firmar.',
+        que: 'Que confíes en nosotros',
+        text: 'Todo lo que decimos lo podés comprobar desde tu propia cuenta, sin pedirnos permiso.',
     },
 ] as const;
 
@@ -52,6 +80,10 @@ const COBERTURA = [
  * campos públicos de cada activo — el filtrado lo hace el dominio, no la UI.
  */
 export default async function Home() {
+    // La metadata del catálogo se pide una vez para toda la grilla: repetirla
+    // en cada tarjeta sería mandar lo mismo seis veces.
+    const porTipo = new Map((await assetTypes()).map((d) => [d.assetType, d]));
+
     let listings: ListingSummaryDto[] = [];
     try {
         listings = await anonymousApi().listings();
@@ -85,9 +117,15 @@ export default async function Home() {
                         </Reveal>
 
                         <Reveal delay={160}>
+                            {/*
+                                Antes esto solo contestaba el miedo del comprador. El del
+                                vendedor —"si lo publico, ¿pierdo el control?"— es el que
+                                impide que alguien publique, así que es el que va primero.
+                            */}
                             <p className="max-w-[470px] text-[16px] leading-relaxed text-[var(--color-tenue)] text-pretty">
-                                El vendedor nos entrega el activo a nosotros, no al comprador.
-                                Lo verificamos, y recién entonces el comprador paga.
+                                Publicá y recibí ofertas concretas sin entregar tu activo. Cuando
+                                las dos partes están decididas, lo recibimos nosotros, lo
+                                verificamos, y recién entonces el comprador paga.
                             </p>
                         </Reveal>
 
@@ -113,15 +151,14 @@ export default async function Home() {
                         <div className="overflow-hidden rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
                             <div className="border-b border-[var(--color-borde)] px-5 py-3.5">
                                 <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
-                                    QUIÉN QUEDA CUBIERTO
+                                    LO QUE NO TE PEDIMOS
                                 </span>
                             </div>
                             <div className="flex flex-col gap-5 p-5">
-                                {COBERTURA.map((c, i) => (
-                                    <div key={c.parte} className="flex flex-col gap-1.5">
-                                        {i > 0 && <span className="sr-only" />}
+                                {NO_TE_PEDIMOS.map((c) => (
+                                    <div key={c.que} className="flex flex-col gap-1.5">
                                         <span className="text-[14px] font-medium text-[var(--color-acento)]">
-                                            {c.parte}
+                                            {c.que}
                                         </span>
                                         <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
                                             {c.text}
@@ -145,7 +182,7 @@ export default async function Home() {
                         </Reveal>
                         <Reveal delay={80}>
                             <span className="font-mono text-[12px] text-[var(--color-apagado)]">
-                                4 ETAPAS
+                                QUÉ ARRIESGA CADA UNO
                             </span>
                         </Reveal>
                     </div>
@@ -156,7 +193,7 @@ export default async function Home() {
                         <div className="mb-8 h-px bg-[var(--color-acento)]" />
                     </Reveal>
 
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                         {PASOS.map((paso, i) => (
                             <Reveal key={paso.n} delay={i * 110}>
                                 <div
@@ -185,6 +222,24 @@ export default async function Home() {
                             </Reveal>
                         ))}
                     </div>
+
+                    {/*
+                        Los plazos concretos —siete días en un canal, el bloqueo de la
+                        ICANN en un dominio— contestan "¿cómo funciona para MI activo?",
+                        que es otra pregunta y otro momento. Viven en la ficha de cada
+                        activo, donde el dato es específico y no un promedio.
+                    */}
+                    <Reveal delay={120}>
+                        <p className="mt-8 text-[14px] leading-relaxed text-[var(--color-apagado)]">
+                            Los plazos dependen de dónde vive el activo: un canal de YouTube y un
+                            dominio tienen reglas distintas, y las impone su plataforma, no
+                            nosotros.{' '}
+                            <Link href="/listings" className="text-[var(--color-acento)]">
+                                Están en la ficha de cada activo
+                            </Link>
+                            .
+                        </p>
+                    </Reveal>
                 </div>
             </section>
 
@@ -211,7 +266,7 @@ export default async function Home() {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {listings.slice(0, 3).map((l, i) => (
                                 <Reveal key={l.id} delay={i * 100}>
-                                    <ListingCard listing={l} />
+                                    <ListingCard listing={l} descriptor={porTipo.get(l.assetType)} />
                                 </Reveal>
                             ))}
                         </div>

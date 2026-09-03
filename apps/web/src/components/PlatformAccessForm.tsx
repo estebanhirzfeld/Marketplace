@@ -22,12 +22,26 @@ export function PlatformAccessForm({
     revocar,
     transferableFrom,
     transferable,
+    handoverSteps = [],
+    custodyAccounts = [],
 }: {
     registerUser: (state: State, form: FormData) => Promise<State>;
     revocar: (state: State) => Promise<State>;
     /** Solo viene cuando ya hay constancia de acceso registrada. */
     transferableFrom?: string;
     transferable: boolean;
+    /**
+     * Lo que el vendedor tenía que hacer para cedernos el activo. Se muestra
+     * como contexto de lo que se está dando por cumplido: la constancia la
+     * firma una persona, así que conviene que tenga a la vista qué atestigua.
+     */
+    handoverSteps?: { id: string; description: string; instruction?: string }[];
+    /**
+     * Las cuentas de custodia activas y compatibles con este activo. La
+     * constancia tiene que decir a cuál se cedió: sin eso el vendedor no sabe
+     * a quién invitar.
+     */
+    custodyAccounts?: { id: string; label: string; identifier: string }[];
 }) {
     const [estadoRegistrar, enviarRegistrar, registrando] = useActionState(registerUser, {});
     const [estadoRevocar, enviarRevocar, revocando] = useActionState(revocar, {});
@@ -97,6 +111,57 @@ export function PlatformAccessForm({
         <form action={enviarRegistrar} className="flex flex-col gap-4">
             {estadoRegistrar.error && <Alert>{estadoRegistrar.error}</Alert>}
 
+            {handoverSteps.length > 0 && (
+                <div className="flex flex-col gap-3 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
+                    <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                        Antes de registrar, comprobá que el vendedor hizo lo suyo:
+                    </span>
+                    <ol className="flex flex-col gap-2">
+                        {handoverSteps.map((paso, i) => (
+                            <li key={paso.id} className="flex gap-3 text-[13px]">
+                                <span className="font-mono text-[12px] text-[var(--color-acento)]">
+                                    {i + 1}
+                                </span>
+                                <span className="leading-relaxed text-[var(--color-tenue)]">
+                                    {paso.description}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            )}
+
+            <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-medium">Cuenta de custodia</span>
+                {custodyAccounts.length === 0 ? (
+                    <p className="rounded-lg border border-[var(--color-alerta)]/40 p-2.5 text-[12px] leading-relaxed text-[var(--color-alerta)]">
+                        No hay ninguna cuenta de custodia activa y compatible con este activo. Creá
+                        una en <span className="font-mono">Cuentas</span> antes de registrar el
+                        acceso: sin ella el vendedor no sabría a quién invitar.
+                    </p>
+                ) : (
+                    <select
+                        name="custodyAccountId"
+                        required
+                        defaultValue=""
+                        className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 text-[13px] outline-none focus:border-[var(--color-acento)]"
+                    >
+                        <option value="" disabled>
+                            Elegí la cuenta que sostiene este activo
+                        </option>
+                        {custodyAccounts.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.label} — {c.identifier}
+                            </option>
+                        ))}
+                    </select>
+                )}
+                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                    La identidad que el vendedor invitó como propietaria. Queda congelada en la
+                    constancia.
+                </span>
+            </label>
+
             <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium">Con acceso desde</span>
                 <input
@@ -123,7 +188,7 @@ export function PlatformAccessForm({
                 />
             </label>
 
-            <Button type="submit" disabled={registrando}>
+            <Button type="submit" disabled={registrando || custodyAccounts.length === 0}>
                 {registrando ? 'Registrando…' : 'Registrar el acceso'}
             </Button>
         </form>

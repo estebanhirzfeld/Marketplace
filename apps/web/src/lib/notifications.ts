@@ -44,6 +44,27 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         title: 'Se confirmó el pago',
         cuerpo: (n) => (n.amount ? `Vas a recibir ${money(n.amount)} al cerrarse la operación.` : 'La operación está por cerrarse.'),
     },
+    revision_pendiente: {
+        title: 'Hay un activo esperando revisión',
+        cuerpo: () => 'Un vendedor lo mandó al mercado. Falta aprobarlo o rechazarlo con un motivo.',
+    },
+    acceso_pendiente: {
+        title: 'Una firma está esperándonos',
+        cuerpo: () =>
+            'Las partes acordaron el precio y no pueden firmar hasta que dejemos constancia de que tenemos acceso al activo.',
+    },
+    custodia_pendiente: {
+        title: 'Hay que verificar un activo',
+        cuerpo: () =>
+            'El vendedor lo cedió. Al declarar la custodia se le pide el pago al comprador, así que es el punto de control.',
+    },
+    liquidacion_pendiente: {
+        title: 'Hay que cerrar una operación',
+        cuerpo: (n) =>
+            n.amount
+                ? `El pago está confirmado. Falta entregar el activo y liquidarle ${money(n.amount)} al vendedor.`
+                : 'El pago está confirmado. Falta entregar el activo y liquidar al vendedor.',
+    },
     denuncia_recibida: {
         title: 'Recibiste una denuncia',
         cuerpo: () =>
@@ -61,7 +82,11 @@ export function textFor(n: NotificationDto): { title: string; cuerpo: string } {
 }
 
 /** A dónde lleva el aviso. La operación gana sobre el listing. */
+/** Los avisos de la plataforma que no apuntan a una operación se resuelven en el panel. */
+const AL_PANEL: NotificationTypeDto[] = ['revision_pendiente'];
+
 export function linkFor(n: NotificationDto): string {
+    if (AL_PANEL.includes(n.type)) return '/admin';
     if (n.operationId) return `/operaciones/${n.operationId}`;
     if (n.listingId) return `/listings/${n.listingId}`;
     return '/operaciones';

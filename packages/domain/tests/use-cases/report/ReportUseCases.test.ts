@@ -40,6 +40,7 @@ function createMockReportRepo(report: Report | null = null): IReportRepository {
         findById: vi.fn().mockResolvedValue(report),
         findByUser: vi.fn().mockResolvedValue([]),
         findByOperation: vi.fn().mockResolvedValue([]),
+        findOpen: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -49,6 +50,7 @@ function createMockOperationRepo(operation: Operation | null): IOperationReposit
         findById: vi.fn().mockResolvedValue(operation),
         findByListing: vi.fn().mockResolvedValue([]),
         findByParty: vi.fn().mockResolvedValue([]),
+        findByStatuses: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -59,6 +61,7 @@ function createMockListingRepo(listing: Listing | null): IListingRepository {
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
+        findHeldBy: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }
@@ -77,6 +80,7 @@ function createMockUserRepo(): IUserRepository {
     return {
         findById: vi.fn().mockImplementation(async (id: string) => unUsuario(id)),
         findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
         save: vi.fn().mockResolvedValue(undefined),
     };
 }

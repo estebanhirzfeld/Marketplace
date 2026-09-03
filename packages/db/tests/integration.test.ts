@@ -14,6 +14,9 @@ import { Operation } from "@marketplace/domain/src/entities/Operation";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
 import { Report } from "@marketplace/domain/src/entities/Report";
 import { PrismaReportRepository } from "../src/repositories/PrismaReportRepository";
+import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
+import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
+import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
 
 const userRepo = new PrismaUserRepository();
@@ -21,6 +24,21 @@ const listingRepo = new PrismaListingRepository();
 const contractRepo = new PrismaContractRepository();
 const operationRepo = new PrismaOperationRepository();
 const reportRepo = new PrismaReportRepository();
+const custodyRepo = new PrismaCustodyAccountRepository();
+
+let custodySeq = 0;
+async function createPersistedCustodyAccount(
+    assetType: AssetType = AssetType.YOUTUBE,
+): Promise<CustodyAccount> {
+    custodySeq += 1;
+    const account = CustodyAccount.create({
+        label: `Custodia ${custodySeq}`,
+        identifier: `custodia-${custodySeq}-${Date.now()}@test.com`,
+        assetType,
+    });
+    await custodyRepo.save(account);
+    return account;
+}
 
 // ── Helpers ──────────────────────────────────────────────
 // Cada test debe crear su propia data. Estos helpers evitan
@@ -73,6 +91,7 @@ beforeEach(async () => {
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
+    await prisma.custodyAccount.deleteMany();
     await prisma.user.deleteMany();
 });
 
@@ -213,6 +232,7 @@ describe("PrismaListingRepository — constancia de acceso", () => {
             role: UserRole.ADMIN,
         });
         const listing = await createPersistedListing(seller.id);
+        const cuenta = await createPersistedCustodyAccount();
 
         const sinAcceso = await listingRepo.findById(listing.id.toString());
         expect(sinAcceso!.platformAccess).toBeUndefined();
@@ -220,8 +240,10 @@ describe("PrismaListingRepository — constancia de acceso", () => {
 
         listing.registerPlatformAccess({
             verifiedBy: admin.id,
+            heldRole: 'manager',
+            custodyAccountId: cuenta.id,
             accessSince: new Date(Date.now() - 9 * DIA),
-            notes: "Invitada como propietaria de la Cuenta de Marca.",
+            notes: "Invitada como administradora de la Cuenta de Marca.",
         });
         await listingRepo.save(listing);
 
@@ -230,9 +252,13 @@ describe("PrismaListingRepository — constancia de acceso", () => {
 
         expect(constancia).toBeDefined();
         expect(constancia!.verifiedBy.toString()).toBe(admin.id.toString());
+        expect(constancia!.custodyAccountId?.toString()).toBe(cuenta.id.toString());
         expect(constancia!.verifiedAt).toBeInstanceOf(Date);
         expect(constancia!.accessSince).toBeInstanceOf(Date);
-        expect(constancia!.notes).toBe("Invitada como propietaria de la Cuenta de Marca.");
+        expect(constancia!.notes).toBe("Invitada como administradora de la Cuenta de Marca.");
+        // El rol vive en el Json y no en columna: no hay tabla a la que
+        // apuntar, así que no hubo motivo para sacarlo.
+        expect(constancia!.heldRole).toBe("manager");
         // Nueve días sobre una ventana de siete: ya se cumplió.
         expect(conAcceso!.isReadyToTransfer()).toBe(true);
     });
@@ -252,9 +278,12 @@ describe("PrismaListingRepository — constancia de acceso", () => {
             role: UserRole.ADMIN,
         });
         const listing = await createPersistedListing(seller.id);
+        const cuenta = await createPersistedCustodyAccount();
 
         listing.registerPlatformAccess({
             verifiedBy: admin.id,
+            heldRole: 'manager',
+            custodyAccountId: cuenta.id,
             accessSince: new Date(Date.now() - 9 * DIA),
         });
         await listingRepo.save(listing);
@@ -265,6 +294,110 @@ describe("PrismaListingRepository — constancia de acceso", () => {
         const revocado = await listingRepo.findById(listing.id.toString());
         expect(revocado!.platformAccess).toBeUndefined();
         expect(revocado!.isReadyToTransfer()).toBe(false);
+
+        // La columna FK también quedó en nulo: si sobreviviera, la cuenta
+        // seguiría contando este activo como sostenido.
+        const fila = await prisma.listing.findUnique({ where: { id: listing.id.toString() } });
+        expect(fila!.custodyAccountId).toBeNull();
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// CustodyAccount
+// ═════════════════════════════════════════════════════════
+
+describe("PrismaCustodyAccountRepository", () => {
+    it("hace ida y vuelta de una cuenta con todos sus campos", async () => {
+        const cuenta = CustodyAccount.create({
+            label: "Custodia YouTube 01",
+            identifier: `custodia-rt-${Date.now()}@test.com`,
+            assetType: AssetType.YOUTUBE,
+            notes: "Cuenta de Marca principal.",
+        });
+        await custodyRepo.save(cuenta);
+
+        const leida = await custodyRepo.findById(cuenta.id.toString());
+        expect(leida).not.toBeNull();
+        expect(leida!.label).toBe("Custodia YouTube 01");
+        expect(leida!.identifier).toBe(cuenta.identifier);
+        expect(leida!.assetType).toBe(AssetType.YOUTUBE);
+        expect(leida!.isActive).toBe(true);
+        expect(leida!.notes).toBe("Cuenta de Marca principal.");
+    });
+
+    it("un identifier duplicado falla", async () => {
+        const identifier = `dup-${Date.now()}@test.com`;
+        await custodyRepo.save(
+            CustodyAccount.create({ label: "A", identifier, assetType: AssetType.YOUTUBE }),
+        );
+        await expect(
+            custodyRepo.save(
+                CustodyAccount.create({ label: "B", identifier, assetType: AssetType.WEB }),
+            ),
+        ).rejects.toThrow();
+    });
+
+    it("findActive filtra por isActive y opcionalmente por assetType", async () => {
+        const activa = await createPersistedCustodyAccount(AssetType.YOUTUBE);
+        const web = await createPersistedCustodyAccount(AssetType.WEB);
+        const inactiva = await createPersistedCustodyAccount(AssetType.YOUTUBE);
+        inactiva.deactivate(0);
+        await custodyRepo.save(inactiva);
+
+        const activasYt = await custodyRepo.findActive(AssetType.YOUTUBE);
+        const ids = activasYt.map((c) => c.id.toString());
+        expect(ids).toContain(activa.id.toString());
+        expect(ids).not.toContain(web.id.toString());
+        expect(ids).not.toContain(inactiva.id.toString());
+    });
+
+    it("findHeldBy devuelve los activos con acceso vigente apuntando a la cuenta y excluye los vendidos", async () => {
+        const seller = await createPersistedUser({ email: `s-held-${Date.now()}@test.com`, role: UserRole.SELLER });
+        const admin = await createPersistedUser({ email: `a-held-${Date.now()}@test.com`, role: UserRole.ADMIN });
+        const cuenta = await createPersistedCustodyAccount();
+
+        const vivo = await createPersistedListing(seller.id);
+        vivo.registerPlatformAccess({ verifiedBy: admin.id, heldRole: 'manager',
+            custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
+        await listingRepo.save(vivo);
+
+        const vendido = await createPersistedListing(seller.id);
+        vendido.registerPlatformAccess({ verifiedBy: admin.id, heldRole: 'manager',
+            custodyAccountId: cuenta.id, accessSince: new Date(Date.now() - 9 * 86400000) });
+        vendido.submitForReview();
+        vendido.approve();
+        vendido.markInOperation();
+        vendido.markSold();
+        await listingRepo.save(vendido);
+
+        const sostenidos = await listingRepo.findHeldBy(cuenta.id.toString());
+        const ids = sostenidos.map((l) => l.id.toString());
+        expect(ids).toContain(vivo.id.toString());
+        expect(ids).not.toContain(vendido.id.toString());
+    });
+
+    it("un platformAccess con custodyAccountId NULL sigue siendo válido y transferible", async () => {
+        const seller = await createPersistedUser({ email: `s-null-${Date.now()}@test.com`, role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+
+        // Simula una constancia previa a este cambio: Json sin la columna FK.
+        await prisma.listing.update({
+            where: { id: listing.id.toString() },
+            data: {
+                platformAccess: {
+                    verifiedBy: seller.id.toString(),
+                    verifiedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+                    accessSince: new Date(Date.now() - 10 * 86400000).toISOString(),
+                    notes: null,
+                },
+                custodyAccountId: null,
+            },
+        });
+
+        const leido = await listingRepo.findById(listing.id.toString());
+        expect(leido!.platformAccess).toBeDefined();
+        expect(leido!.platformAccess!.custodyAccountId).toBeUndefined();
+        expect(leido!.isReadyToTransfer()).toBe(true);
     });
 });
 

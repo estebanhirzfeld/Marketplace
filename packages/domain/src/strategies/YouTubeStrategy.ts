@@ -1,4 +1,11 @@
-import { IAssetStrategy, MetricKey, TransferStep } from './IAssetStrategy';
+import {
+  AssetFieldDescriptor,
+  AssetTypeDescriptor,
+  IAssetStrategy,
+  MetricKey,
+  TransferContext,
+  TransferStep,
+} from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
@@ -11,6 +18,12 @@ interface YouTubeStrategyProps {
   hasNoFaceContent?: boolean;
   /** Dirección del canal. Es lo que identifica al activo, así que es reservado. */
   channelUrl?: string;
+  /**
+   * Cómo se llama el canal. Reservado por el mismo motivo que la dirección:
+   * con el nombre se lo encuentra buscándolo, así que publicarlo dejaría el
+   * acuerdo de confidencialidad sin nada que proteger.
+   */
+  name?: string;
   /** Rubro del canal. Público: dice de qué trata, no cuál es. */
   niche?: string;
 }
@@ -29,6 +42,7 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly audienceTopCountry: string;
   private readonly hasNoFaceContent: boolean;
   private readonly channelUrl: string;
+  private readonly name: string;
   private readonly niche: string;
 
   constructor({
@@ -39,6 +53,7 @@ export class YouTubeStrategy implements IAssetStrategy {
     audienceTopCountry = 'AR',
     hasNoFaceContent = false,
     channelUrl = '',
+    name = '',
     niche = AssetNiche.OTHER,
   }: YouTubeStrategyProps) {
     this.niche = niche;
@@ -49,6 +64,43 @@ export class YouTubeStrategy implements IAssetStrategy {
     this.audienceTopCountry = audienceTopCountry;
     this.hasNoFaceContent = hasNoFaceContent;
     this.channelUrl = channelUrl;
+    this.name = name;
+  }
+
+  public describe(): AssetTypeDescriptor {
+    const channelUrl: AssetFieldDescriptor = {
+      key: 'channelUrl',
+      label: 'Dirección del canal',
+      kind: 'text',
+      confidential: true,
+    };
+
+    return {
+      assetType: AssetType.YOUTUBE,
+      label: 'Canal de YouTube',
+      identityField: channelUrl,
+      fields: [
+        { key: 'niche', label: 'Rubro', kind: 'niche', confidential: false },
+        { key: 'subscribers', label: 'Suscriptores', kind: 'number', confidential: false },
+        { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
+        { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
+        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false },
+        { key: 'isMonetized', label: 'Monetizado', kind: 'boolean', confidential: false },
+        { key: 'audienceTopCountry', label: 'País principal de la audiencia', kind: 'text', confidential: false },
+        { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },
+        { key: 'name', label: 'Nombre del canal', kind: 'text', confidential: true },
+        channelUrl,
+      ],
+      summaryMetricKeys: ['subscribers', 'monthlyRevenueUsdCents', 'audienceTopCountry'],
+      ownershipSource: 'youtube',
+      transferWaitingDays: this.transferWaitingDays(),
+      handoverNotice:
+        'No lo detectamos solos: la API de YouTube no dice si un canal es Cuenta de Marca ni quiénes son sus propietarios.',
+      waitingNotice:
+        'YouTube exige haber sido administrador o propietario del canal durante siete días antes de permitir el cambio de propietario principal. Por eso alcanza con sumarnos como administrador: el plazo corre igual y vos seguís siendo el dueño. La espera la impone la plataforma del activo, no nosotros.',
+      revenueNotice:
+        'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada.',
+    };
   }
 
   // -------------------------------------------------------------------
@@ -172,22 +224,53 @@ export class YouTubeStrategy implements IAssetStrategy {
    * cada cambio de propietario principal, y por eso el cierre tiene un piso
    * realista de dos semanas.
    */
-  public getTransferSteps(): TransferStep[] {
-    return [
+  public getTransferSteps(context?: TransferContext): TransferStep[] {
+    // A quién invita el vendedor. Sin contexto, "la plataforma": es la frase
+    // del catálogo, dicha antes de que exista ninguna cuenta asignada.
+    const custodia = context?.custodyAccountIdentifier?.trim();
+    const aQuienInvita = custodia ? custodia : 'la plataforma';
+    const comprador = context?.recipientIdentifier?.trim();
+
+    // Los `id` son posicionales: se arman al final para que agregar o mover un
+    // paso no obligue a renumerar a mano. No se persisten en ningún lado, solo
+    // viajan al DTO como clave de render.
+    const pasos: Omit<TransferStep, 'id'>[] = [
       {
-        id: '1',
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
+        instruction: 'Convertí el canal a Cuenta de Marca, si todavía no lo es',
         requiredActor: 'seller',
         automated: false,
       },
       {
-        id: '2',
-        description: 'El vendedor invita a la plataforma como propietaria del canal',
+        // El paso que faltaba: mientras el vendedor conserve permisos de canal
+        // heredados en YouTube Studio, la invitación parece funcionar pero el
+        // cambio de propietario principal falla sin explicar por qué. Va ANTES
+        // de invitar porque es la causa de ese error incomprensible.
+        description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
+        instruction: 'Entrá a YouTube Studio → Configuración → Permisos y quitá tu propio acceso de nivel de canal: solo tiene que quedar el de la Cuenta de Marca. Si no lo hacés, la invitación va a parecer aceptada pero el cambio de propietario principal va a fallar sin avisar por qué.',
         requiredActor: 'seller',
         automated: false,
       },
       {
-        id: '3',
+        /*
+         * Administrador y no propietario, y eso es el producto entero.
+         *
+         * Google admite que la antigüedad como administrador cuente para el
+         * plazo de siete días, y un administrador no puede eliminar el canal
+         * ni quitar propietarios. Pedir propietario acá era pedir más poder
+         * del necesario — justamente el que el vendedor teme ceder— sin
+         * ningún beneficio: el reloj corre igual.
+         *
+         * La instrucción enumera lo que NO podemos hacer. Una promesa en
+         * negativo el vendedor la puede verificar en la interfaz de Google;
+         * una en positivo le pide que nos crea.
+         */
+        description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
+        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca. No como propietario: un administrador no puede eliminar el canal, no puede quitarte a vos, y no puede transferir nada. Lo único que cambia es que arranca el plazo de siete días que exige Google — y ese plazo corre mientras seguís recibiendo ofertas.`,
+        requiredActor: 'seller',
+        automated: false,
+      },
+      {
         // Verificar la titularidad por API es posible con un OAuth del
         // vendedor (`channels.list` con `mine=true`), pero todavía no está
         // implementado: hasta que lo esté, esto lo hace una persona.
@@ -196,47 +279,59 @@ export class YouTubeStrategy implements IAssetStrategy {
         automated: false,
       },
       {
-        id: '4',
-        // La espera que la investigación encontró y que faltaba acá: mientras
-        // no se complete, el vendedor sigue siendo propietario principal y
-        // conserva la facultad de expulsar a la plataforma.
-        description: 'Pasados 7 días desde la invitación, la plataforma se convierte en propietaria principal y toma la custodia',
+        // Informativo: a los 7 días se cumple el requisito de Google, pero no
+        // pasa nada solo. El cambio de propietario principal lo hace el
+        // vendedor, y es el paso siguiente.
+        description: 'Pasados 7 días desde la invitación, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
         automated: false,
       },
       {
-        id: '5',
+        /*
+         * El único momento en que el vendedor cede el control, y ocurre entre
+         * dos pasos nuestros. Se le muestra desde el principio a propósito: la
+         * promesa del producto es que no cede control AHORA, y eso solo
+         * tranquiliza si puede ver cuándo sí lo va a ceder. Escondérselo lo
+         * convertiría en una sorpresa tardía, que es la desconfianza que el
+         * producto intenta eliminar.
+         */
+        description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
+        instruction: `Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.`,
+        requiredActor: 'seller',
+        automated: false,
+      },
+      {
         description: 'El comprador transfiere el dinero, que queda retenido por la plataforma',
         requiredActor: 'buyer',
         automated: false,
       },
       {
-        id: '6',
-        description: 'La plataforma invita al comprador como propietario del canal',
+        description: comprador
+          ? `La plataforma invita al comprador (${comprador}) como propietario del canal`
+          : 'La plataforma invita al comprador como propietario del canal',
         requiredActor: 'platform',
         automated: false,
       },
       {
-        id: '7',
         description: 'El comprador acepta la invitación e inicia su propia espera de 7 días',
         requiredActor: 'buyer',
         automated: false,
       },
       {
-        id: '8',
         description: 'El comprador se convierte en propietario principal y asegura sus accesos (correos, teléfonos, AdSense)',
         requiredActor: 'buyer',
         automated: false,
       },
       {
-        id: '9',
-        // Estaba marcado como automatizable y no lo es: quitar a un
-        // propietario se hace a mano en la interfaz de Cuentas de Marca.
+        // Quitar a un propietario se hace a mano en la interfaz de Cuentas de
+        // Marca: no hay endpoint.
         description: 'La plataforma quita al vendedor del canal, le liquida su parte y cierra la operación',
         requiredActor: 'platform',
         automated: false,
       },
     ];
+
+    return pasos.map((paso, i) => ({ ...paso, id: String(i + 1) }));
   }
 
   // -------------------------------------------------------------------
@@ -266,7 +361,7 @@ export class YouTubeStrategy implements IAssetStrategy {
    * métricas alcanza para valuar, y hace falta el NDA para saber qué canal es.
    */
   public getConfidentialFields(): string[] {
-    return ['channelUrl'];
+    return ['name', 'channelUrl'];
   }
 
   public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -281,6 +376,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         isMonetized: this.isMonetized,
         audienceTopCountry: this.audienceTopCountry,
         hasNoFaceContent: this.hasNoFaceContent,
+        name: this.name,
         channelUrl: this.channelUrl,
       }
     };
