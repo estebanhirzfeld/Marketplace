@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Postgres de PRODUCCIÓN para la VM de Oracle Cloud.
+#
+# Archivo aparte de docker-compose.yml a propósito: el de dev usa la base
+# `marketplace_dev`, un password fijo y expone el puerto en todas las interfaces
+# porque son ergonomías de desarrollo. Acá cada cosa es honesta con su fin.
+#
+#   - La base es `marketplace` (NO `marketplace_dev`).
+#   - El puerto se publica solo en 127.0.0.1: nadie desde internet toca Postgres.
+#   - Los datos viven en /mnt/pgdata, que es un block volume separado del disco
+#     de arranque: terminar y recrear la instancia no pierde nada.
+#   - restart: unless-stopped + docker.service habilitado = persiste al reboot,
+#     sin necesidad de una unit de systemd para Postgres.
+#   - El password sale de /etc/marketplace/db.env (0600), nunca del repo.
+#
+# Uso en la VM:
+#   docker compose -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    # Solo loopback: el puerto queda inalcanzable desde la red.
+    ports:
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_DB: marketplace
+      # POSTGRES_PASSWORD llega por env_file; no hay default acá a propósito.
+    env_file:
+      # En la VM este archivo (0600, root) trae POSTGRES_PASSWORD. required:false
+      # solo para que `docker compose config` valide en una máquina sin él; en
+      # la VM DEBE existir o Postgres arranca sin password.
+      - path: /etc/marketplace/db.env
+        required: false
+    volumes:
+      - /mnt/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d marketplace"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

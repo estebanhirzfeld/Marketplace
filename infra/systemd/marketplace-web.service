@@ -1,0 +1,25 @@
+# marketplace-web — frontend Next (apps/web) en modo producción.
+#
+# Instalar:
+#   sudo cp infra/systemd/marketplace-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marketplace-web
+#
+# Arranca DESPUÉS de la API. El binario `next` lo instala pnpm en el
+# node_modules del propio paquete web.
+[Unit]
+Description=Marketplace Web (Next.js)
+After=network-online.target marketplace-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/marketplace/apps/web
+EnvironmentFile=/etc/marketplace/web.env
+ExecStart=/srv/marketplace/apps/web/node_modules/.bin/next start -p 3000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

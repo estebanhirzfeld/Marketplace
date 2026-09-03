@@ -1,0 +1,13 @@
+# marketplace-backup.timer — corre backup-db.sh todos los días.
+#
+# Persistent=true: si la VM estuvo apagada a la hora prevista, corre al volver.
+[Unit]
+Description=Marketplace DB backup diario
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+Unit=marketplace-backup.service
+
+[Install]
+WantedBy=timers.target
