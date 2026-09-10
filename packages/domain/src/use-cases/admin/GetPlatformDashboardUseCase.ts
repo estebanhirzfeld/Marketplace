@@ -54,6 +54,11 @@ export interface PlatformDashboard {
     currency: string;
     /** Las operaciones cuyo próximo paso lo da un admin, más vieja primero. */
     pending: PendingOperation[];
+    /**
+     * Las operaciones cuyo próximo paso es del vendedor. La plataforma no
+     * puede destrabarlas — solo avisar y esperar la declaración.
+     */
+    waitingOnSeller: PendingOperation[];
 }
 
 /**
@@ -71,6 +76,14 @@ const ESPERAN_A_LA_PLATAFORMA: OperationStatus[] = [
 ];
 
 /**
+ * Las etapas donde el próximo movimiento es del vendedor y no nuestro.
+ *
+ * `contract_signed` espera que ceda el control del activo y lo declare. La
+ * plataforma no puede destrabarlo: solo avisar.
+ */
+const ESPERAN_AL_VENDEDOR: OperationStatus[] = ['contract_signed'];
+
+/**
  * `contract_pending` va aparte porque depende del activo.
  *
  * Firmar el tripartito exige que la plataforma ya pueda tomar la custodia
@@ -82,7 +95,7 @@ const ESPERAN_A_LA_PLATAFORMA: OperationStatus[] = [
  */
 const EN_CURSO: OperationStatus[] = [
     'contract_pending',
-    'contract_signed',
+    ...ESPERAN_AL_VENDEDOR,
     ...ESPERAN_A_LA_PLATAFORMA,
 ];
 
@@ -107,12 +120,13 @@ export class GetPlatformDashboardUseCase {
             throw new ForbiddenError('Solo la plataforma puede ver este tablero.');
         }
 
-        const [enRevision, publicados, enCurso, esperando, firmaPendiente, completadas, abiertas] =
+        const [enRevision, publicados, enCurso, esperando, esperandoAlVendedor, firmaPendiente, completadas, abiertas] =
             await Promise.all([
                 this.listingRepo.findByStatus('under_review'),
                 this.listingRepo.findByStatus('published'),
                 this.operationRepo.findByStatuses(EN_CURSO),
                 this.operationRepo.findByStatuses(ESPERAN_A_LA_PLATAFORMA),
+                this.operationRepo.findByStatuses(ESPERAN_AL_VENDEDOR),
                 this.operationRepo.findByStatuses(['contract_pending']),
                 this.operationRepo.findByStatuses(['completed']),
                 this.reportRepo.findOpen(),
@@ -151,6 +165,7 @@ export class GetPlatformDashboardUseCase {
             earnedCents,
             currency,
             pending: await this.describir([...trabadasPorAcceso, ...esperando]),
+            waitingOnSeller: await this.describir(esperandoAlVendedor),
         };
     }
     /**

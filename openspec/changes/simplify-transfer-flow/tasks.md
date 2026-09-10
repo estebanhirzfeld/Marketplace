@@ -122,8 +122,8 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 9: Tablero — `ESPERAN_AL_VENDEDOR`
 
-- [ ] 9.1 **[TEST]** ampliar tests de `GetPlatformDashboardUseCase`: `contract_signed` aparece en `waitingOnSeller` y no en `pending`; `operationsInProgress`/`EN_CURSO` no cambian (siguen siendo los mismos 5 estados); el sexto `findByStatuses` corre dentro del mismo `Promise.all` ya existente. — deps: ninguna
-- [ ] 9.2 `packages/domain/src/use-cases/admin/GetPlatformDashboardUseCase.ts`: `ESPERAN_AL_VENDEDOR: OperationStatus[] = ['contract_signed']`; `EN_CURSO` derivado por spread en vez de nombrar `contract_signed` a mano; campo `waitingOnSeller: PendingOperation[]` en `PlatformDashboard`, alimentado por `findByStatuses(ESPERAN_AL_VENDEDOR)` y descrito por `describir()`. — deps: 9.1
+- [x] 9.1 **[TEST]** ampliar tests de `GetPlatformDashboardUseCase`: `contract_signed` aparece en `waitingOnSeller` y no en `pending`; `operationsInProgress`/`EN_CURSO` no cambian (siguen siendo los mismos 5 estados); el sexto `findByStatuses` corre dentro del mismo `Promise.all` ya existente. — deps: ninguna
+- [x] 9.2 `packages/domain/src/use-cases/admin/GetPlatformDashboardUseCase.ts`: `ESPERAN_AL_VENDEDOR: OperationStatus[] = ['contract_signed']`; `EN_CURSO` derivado por spread en vez de nombrar `contract_signed` a mano; campo `waitingOnSeller: PendingOperation[]` en `PlatformDashboard`, alimentado por `findByStatuses(ESPERAN_AL_VENDEDOR)` y descrito por `describir()`. — deps: 9.1
 
 ## Fase 10: Contrato y transporte
 
