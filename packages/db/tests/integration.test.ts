@@ -656,7 +656,7 @@ describe("PrismaOperationRepository", () => {
 
         operation.acceptCurrentOffer("seller");
         operation.signContract();
-        operation.initiateTransfer();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
         operation.confirmAssetCustody({
             verifiedBy: admin.id,
             isPrimaryOwner: true,
@@ -714,7 +714,7 @@ describe("PrismaOperationRepository", () => {
         });
         operation.acceptCurrentOffer("seller");
         operation.signContract();
-        operation.initiateTransfer();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
         operation.confirmAssetCustody({
             verifiedBy: admin.id,
             isPrimaryOwner: true,

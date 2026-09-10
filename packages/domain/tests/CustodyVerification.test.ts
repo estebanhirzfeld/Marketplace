@@ -17,17 +17,18 @@ import { InvalidStateError, ValidationError } from '../src/errors/DomainError';
  */
 
 const ADMIN = new UniqueEntityID();
+const SELLER_ID = new UniqueEntityID();
 
 function unaOperacionEnTransferencia(): Operation {
     const op = Operation.create({
         listingId: new UniqueEntityID(),
         buyerId: new UniqueEntityID(),
-        sellerId: new UniqueEntityID(),
+        sellerId: SELLER_ID,
         offerPrice: Money.fromCents(1_500_000, 'USD'),
     });
     op.acceptCurrentOffer('seller');
     op.signContract();
-    op.initiateTransfer();
+    op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true });
     return op;
 }
 

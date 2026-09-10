@@ -42,7 +42,7 @@ function operacionEn(estado: Operation['status']): Operation {
     if (estado === 'contract_pending') return op;
     op.signContract(); // contract_signed
     if (estado === 'contract_signed') return op;
-    op.initiateTransfer(); // transfer_in_progress
+    op.initiateTransfer({ declaredBy: SELLER, controlCeded: true }); // transfer_in_progress
     if (estado === 'transfer_in_progress') return op;
     op.confirmAssetCustody({
         verifiedBy: ADMIN,

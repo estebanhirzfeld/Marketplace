@@ -990,7 +990,7 @@ describe('POST /operations/:id/custody', () => {
         });
         operation.acceptCurrentOffer('seller');
         operation.signContract();
-        operation.initiateTransfer();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
         await new PrismaOperationRepository().save(operation);
 
         return operation.id.toString();

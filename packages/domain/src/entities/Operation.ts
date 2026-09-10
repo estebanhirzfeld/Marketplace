@@ -39,6 +39,31 @@ const COMMISSION_RATE = 5; // 5% a cada parte
 
 
 /**
+ * Constancia de que el vendedor cedió el control del activo.
+ *
+ * Es la única transición del escrow que la plataforma no puede ejecutar ni
+ * verificar en el momento: la hace el vendedor en la plataforma del activo.
+ * Por eso lo que queda registrado es su declaración —quién, cuándo, a qué
+ * cuenta— y no una comprobación nuestra. La comprobación viene después, y es
+ * de otro: `confirmAssetCustody()`.
+ */
+export interface TransferInitiation {
+    declaredBy: UniqueEntityID;
+    declaredAt: Date;
+    /** El vendedor afirma haber cedido el control del activo. */
+    controlCeded: boolean;
+    /**
+     * Copia congelada de la cuenta de custodia vigente al declarar. Opcional
+     * porque una constancia de acceso anterior a `asset-custody-identity` no
+     * nombra ninguna cuenta, y afirmar una que nadie registró sería inventarla.
+     */
+    custodyAccountId?: UniqueEntityID;
+    notes?: string;
+}
+
+export type TransferInitiationInput = Omit<TransferInitiation, 'declaredAt'>;
+
+/**
  * Constancia de qué verificó la plataforma al tomar el activo en custodia.
  *
  * Antes de esto, confirmar custodia era un botón sin registro: nadie podía
@@ -170,6 +195,7 @@ export interface OperationProps {
     buyerPays?: Money;
     sellerReceives?: Money;
     platformEarns?: Money;
+    transferInitiation?: TransferInitiation;
     custodyVerification?: CustodyVerification;
     payment?: PaymentRecord;
     recipientIdentity?: RecipientIdentity;
@@ -461,10 +487,41 @@ export class Operation extends Entity<OperationProps> {
         this.props.status = 'contract_signed';
     }
 
-    public initiateTransfer(): void {
+    /**
+     * El vendedor declara haber cedido el control del activo.
+     *
+     * Es la única transición del escrow que la plataforma no puede ejecutar
+     * ni verificar en el momento, así que lo que exige es una declaración
+     * atribuida y positiva, no una comprobación propia — esa llega después,
+     * en `confirmAssetCustody()`.
+     *
+     * La guarda de pertenencia (`assertIsSeller` sobre `data.declaredBy`) va
+     * antes que la de estado a propósito: un tercero no debería poder deducir
+     * en qué etapa está una operación ajena por el tipo de error que recibe.
+     * Se omite si `declaredBy` todavía no llegó —el payload puede estar mal
+     * formado pese a que el tipo lo declara obligatorio— y en ese caso la
+     * guarda de presencia, más abajo, es la que responde.
+     */
+    public initiateTransfer(data: TransferInitiationInput): void {
+        if (data.declaredBy) {
+            this.assertIsSeller(data.declaredBy.toString());
+        }
+
         if (this.props.status !== 'contract_signed') {
             throw new InvalidStateError('El contrato debe estar firmado para iniciar la transferencia');
         }
+
+        if (!data.declaredBy) {
+            throw new ValidationError('Falta registrar quién declaró la cesión.');
+        }
+
+        if (data.controlCeded !== true) {
+            throw new InvalidStateError(
+                'Para iniciar la transferencia tenés que declarar que ya cediste el control del activo.'
+            );
+        }
+
+        this.props.transferInitiation = { ...data, declaredAt: new Date() };
         this.props.status = 'transfer_in_progress';
     }
 
@@ -507,6 +564,11 @@ export class Operation extends Entity<OperationProps> {
 
     public get custodyVerification(): CustodyVerification | undefined {
         return this.props.custodyVerification;
+    }
+
+    /** La declaración del vendedor de haber cedido el control del activo. */
+    public get transferInitiation(): TransferInitiation | undefined {
+        return this.props.transferInitiation;
     }
 
     /** Dónde declaró el comprador que quiere recibir el activo. */

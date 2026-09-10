@@ -98,7 +98,7 @@ function createOperationInState(targetState: string) {
     if (targetState === 'contract_pending') return op;
     op.signContract();
     if (targetState === 'contract_signed') return op;
-    op.initiateTransfer();
+    op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true });
     if (targetState === 'transfer_in_progress') return op;
     op.confirmAssetCustody({
         verifiedBy: new UniqueEntityID(),
