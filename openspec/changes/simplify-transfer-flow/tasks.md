@@ -80,12 +80,12 @@ emisor llega a un entorno sin el valor, Prisma tira `Invalid value for argument 
 hace silencioso — el vendedor no se entera y nadie ve el fallo. Por eso la Fase 3 depende de que **toda**
 esta fase esté cerrada, no solo de una parte.
 
-- [ ] 2.1 `packages/domain/src/entities/Notification.ts:11-31`: sumar `'cesion_pendiente'` a `NotificationType`. — deps: ninguna
-- [ ] 2.2 `packages/db/prisma/schema.prisma:45`: sumar `cesion_pendiente` al `enum NotificationType`. — deps: ninguna
-- [ ] 2.3 Migración `packages/db/prisma/migrations/<ts>_add_cesion_pendiente_notification/migration.sql`: `ALTER TYPE "NotificationType" ADD VALUE 'cesion_pendiente';`, generada con `pnpm --filter @marketplace/db exec prisma migrate dev --name add_cesion_pendiente_notification`; regenerar cliente (`db:generate`). Aditiva, no usa el valor en la misma transacción — mismo precedente que `20260901120000_repair_platform_notification_types`. — deps: 2.2
-- [ ] 2.4 `packages/api-contract/src/index.ts:793-809`: sumar `'cesion_pendiente'` a `NotificationTypeDto`. — deps: ninguna
-- [ ] 2.5 `apps/web/src/lib/notifications.ts:10-77`: entrada `cesion_pendiente` en `TEXTOS` (el `Record` es total: sin ella no compila) — *"Te toca ceder el control del activo"* / *"El contrato quedó firmado. Cedenos el control del activo y declaralo desde la operación: recién ahí lo verificamos y lo tomamos en custodia."* — deps: 2.4
-- [ ] 2.6 Checkpoint de la barrera: `pnpm --filter @marketplace/domain exec tsc --noEmit` y `pnpm --filter @marketplace/db exec tsc --noEmit` en verde con las cinco declaraciones (2.1–2.5) en su lugar y **nadie todavía emitiendo el valor**. No avanzar a la Fase 3 sin este checkpoint. — deps: 2.1, 2.2, 2.3, 2.4, 2.5
+- [x] 2.1 `packages/domain/src/entities/Notification.ts:11-31`: sumar `'cesion_pendiente'` a `NotificationType`. — deps: ninguna
+- [x] 2.2 `packages/db/prisma/schema.prisma:45`: sumar `cesion_pendiente` al `enum NotificationType`. — deps: ninguna
+- [x] 2.3 Migración `packages/db/prisma/migrations/<ts>_add_cesion_pendiente_notification/migration.sql`: `ALTER TYPE "NotificationType" ADD VALUE 'cesion_pendiente';`, generada con `pnpm --filter @marketplace/db exec prisma migrate dev --name add_cesion_pendiente_notification`; regenerar cliente (`db:generate`). Aditiva, no usa el valor en la misma transacción — mismo precedente que `20260901120000_repair_platform_notification_types`. — deps: 2.2
+- [x] 2.4 `packages/api-contract/src/index.ts:793-809`: sumar `'cesion_pendiente'` a `NotificationTypeDto`. — deps: ninguna
+- [x] 2.5 `apps/web/src/lib/notifications.ts:10-77`: entrada `cesion_pendiente` en `TEXTOS` (el `Record` es total: sin ella no compila) — *"Te toca ceder el control del activo"* / *"El contrato quedó firmado. Cedenos el control del activo y declaralo desde la operación: recién ahí lo verificamos y lo tomamos en custodia."* — deps: 2.4
+- [x] 2.6 Checkpoint de la barrera: `pnpm --filter @marketplace/domain exec tsc --noEmit` y `pnpm --filter @marketplace/db exec tsc --noEmit` en verde con las cinco declaraciones (2.1–2.5) en su lugar y **nadie todavía emitiendo el valor**. No avanzar a la Fase 3 sin este checkpoint. — deps: 2.1, 2.2, 2.3, 2.4, 2.5
 
 ## Fase 3: `NegotiationNotifier.contractSigned()` — un tipo por parte
 

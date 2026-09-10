@@ -804,6 +804,8 @@ export type NotificationTypeDto =
     | 'listing_aprobado'
     | 'listing_rechazado'
     | 'contrato_firmado'
+    /** Al vendedor, en vez de `contrato_firmado`: le toca ceder el control. */
+    | 'cesion_pendiente'
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
