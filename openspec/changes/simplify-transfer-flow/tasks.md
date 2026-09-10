@@ -103,10 +103,10 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 6: Persistencia — columna y mapper de la constancia
 
-- [ ] 6.1 `packages/db/prisma/schema.prisma`: `operations.transferInitiation Json?`. — deps: 4.2
-- [ ] 6.2 Migración `packages/db/prisma/migrations/<ts>_add_transfer_initiation/migration.sql`: `ALTER TABLE "operations" ADD COLUMN "transferInitiation" JSONB;` vía `prisma migrate dev --name add_transfer_initiation`; regenerar cliente. — deps: 6.1
-- [ ] 6.3 `packages/db/src/mappers/OperationMapper.ts`: `parseCesion`/`serializeCesion`, espejo de `parseCustodia`/`serializeCustodia` (`:59-84`, `:165-176`) — `undefined`, nunca `Prisma.DbNull`. — deps: 6.2, 4.2
-- [ ] 6.4 **[TEST]** `packages/db/tests/integration.test.ts`: ida y vuelta de `transferInitiation`; una operación en `transfer_in_progress` con la columna en `null` se rehidrata sin romper ("declaración sin registrar"). — deps: 6.3
+- [x] 6.1 `packages/db/prisma/schema.prisma`: `operations.transferInitiation Json?`. — deps: 4.2
+- [x] 6.2 Migración `packages/db/prisma/migrations/<ts>_add_transfer_initiation/migration.sql`: `ALTER TABLE "operations" ADD COLUMN "transferInitiation" JSONB;` vía `prisma migrate dev --name add_transfer_initiation`; regenerar cliente. — deps: 6.1
+- [x] 6.3 `packages/db/src/mappers/OperationMapper.ts`: `parseCesion`/`serializeCesion`, espejo de `parseCustodia`/`serializeCustodia` (`:59-84`, `:165-176`) — `undefined`, nunca `Prisma.DbNull`. — deps: 6.2, 4.2
+- [x] 6.4 **[TEST]** `packages/db/tests/integration.test.ts`: ida y vuelta de `transferInitiation`; una operación en `transfer_in_progress` con la columna en `null` se rehidrata sin romper ("declaración sin registrar"). — deps: 6.3
 
 ## Fase 7: Use case — congelar la cuenta y cablear `listingRepo`
 

@@ -6,6 +6,7 @@ import {
     OperationStatus,
     Negotiation,
     NegotiatingParty,
+    TransferInitiation,
     CustodyVerification,
     PaymentProvider,
     PaymentRecord,
@@ -50,6 +51,45 @@ function parseNegotiations(raw: PrismaOperation["negotiations"]): Negotiation[] 
 
         return { amount, currency, proposedBy, proposedAt: new Date(proposedAt) };
     });
+}
+
+/**
+ * Lee la declaración de cesión del vendedor. Espejo de `parseCustodia`: el
+ * Date viaja como string ISO y hay que revivirlo al leer. `undefined` no es
+ * un dato corrupto acá — es la "declaración sin registrar" de una operación
+ * que ya estaba en `transfer_in_progress` antes de este cambio.
+ */
+function parseCesion(raw: unknown): TransferInitiation | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("Columna `transferInitiation` corrupta: se esperaba un objeto.");
+    }
+
+    const c = raw as Record<string, unknown>;
+
+    if (typeof c.declaredBy !== "string" || typeof c.declaredAt !== "string") {
+        throw new Error("Declaración de cesión corrupta: falta quién declaró o cuándo.");
+    }
+
+    return {
+        declaredBy: new UniqueEntityID(c.declaredBy),
+        declaredAt: new Date(c.declaredAt),
+        controlCeded: c.controlCeded === true,
+        custodyAccountId:
+            typeof c.custodyAccountId === "string" ? new UniqueEntityID(c.custodyAccountId) : undefined,
+        notes: typeof c.notes === "string" ? c.notes : undefined,
+    };
+}
+
+function serializeCesion(v?: TransferInitiation) {
+    if (!v) return undefined;
+    return {
+        declaredBy: v.declaredBy.toString(),
+        declaredAt: v.declaredAt.toISOString(),
+        controlCeded: v.controlCeded,
+        custodyAccountId: v.custodyAccountId ? v.custodyAccountId.toString() : null,
+        notes: v.notes ?? null,
+    };
 }
 
 /**
@@ -251,6 +291,7 @@ export class OperationMapper {
             buyerPays: raw.buyerPays ? Money.fromCents(raw.buyerPays, raw.currency) : undefined,
             sellerReceives: raw.sellerReceives ? Money.fromCents(raw.sellerReceives, raw.currency) : undefined,
             platformEarns: raw.platformEarns ? Money.fromCents(raw.platformEarns, raw.currency) : undefined,
+            transferInitiation: parseCesion(raw.transferInitiation),
             custodyVerification: parseCustodia(raw.custodyCheck),
             payment: parsePayment(raw.payment),
             recipientIdentity: parseRecipientIdentity(raw.recipientIdentity),
@@ -283,6 +324,7 @@ export class OperationMapper {
             platformEarns: props.platformEarns?.getCents() ?? null,
             currency: props.offerPrice.getCurrency(),
             negotiations: serializeNegotiations(props.negotiations),
+            transferInitiation: serializeCesion(props.transferInitiation),
             custodyCheck: serializeCustodia(props.custodyVerification),
             payment: serializePayment(props.payment),
             recipientIdentity: serializeRecipientIdentity(props.recipientIdentity),

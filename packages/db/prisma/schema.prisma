@@ -201,6 +201,10 @@ model Operation {
   platformEarns    Int?
   currency         String          @default("USD")
   negotiations     Json            @default("[]")
+  // La declaración del vendedor de haber cedido el control del activo.
+  // Nullable y aditiva: las operaciones que ya estaban en transfer_in_progress
+  // quedan sin ella y se muestran como "declaración sin registrar".
+  transferInitiation Json?
   custodyCheck     Json?
   payment          Json?
   // Dónde declaró el comprador que quiere recibir el activo. Nullable y
