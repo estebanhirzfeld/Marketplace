@@ -355,6 +355,7 @@ export default async function DetalleDeActivo(props: {
                             y no en el medio de una venta ya acordada.
                         */}
                         <Panel title="ACCESO DE LA PLATAFORMA">
+                            <>
                             {mio.transferable ? (
                                 <div className="flex flex-col gap-2">
                                     <span className="text-[15px] text-[var(--color-listo)]">
@@ -457,34 +458,37 @@ export default async function DetalleDeActivo(props: {
                                         </ol>
                                     )}
 
-                                    {/*
-                                        El momento en que sí cede el control, mostrado desde el
-                                        principio. La promesa es que no cede nada AHORA, y eso solo
-                                        tranquiliza si puede ver cuándo sí: esconderlo lo volvería
-                                        una sorpresa tardía.
-                                    */}
-                                    {despues.length > 0 && (
-                                        <div className="flex flex-col gap-2 border-t border-[var(--color-borde)] pt-4">
-                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                                                Y MÁS ADELANTE, CON EL CONTRATO FIRMADO
-                                            </span>
-                                            {despues.map((paso) => (
-                                                <span
-                                                    key={paso.id}
-                                                    className="text-[13px] leading-relaxed text-[var(--color-tenue)]"
-                                                >
-                                                    {paso.instruction ?? paso.description}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-
                                     <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
                                         Cuando lo hagas, avisanos y lo dejamos registrado.{' '}
                                         {listing.descriptor.handoverNotice}
                                     </p>
                                 </div>
                             )}
+
+                            {/*
+                                El momento en que sí cede el control, mostrado desde el
+                                principio y en las tres ramas —no solo en la de "todavía
+                                sin acceso"—: la promesa es que no cede nada AHORA, y eso
+                                solo tranquiliza si puede seguir viendo cuándo sí, incluso
+                                después de registrado el acceso. Antes se desvanecía justo
+                                en el momento en que empezaba a aplicar.
+                            */}
+                            {despues.length > 0 && (
+                                <div className="flex flex-col gap-2 border-t border-[var(--color-borde)] pt-4">
+                                    <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                                        Y MÁS ADELANTE, CON EL CONTRATO FIRMADO
+                                    </span>
+                                    {despues.map((paso) => (
+                                        <span
+                                            key={paso.id}
+                                            className="text-[13px] leading-relaxed text-[var(--color-tenue)]"
+                                        >
+                                            {paso.instruction ?? paso.description}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                            </>
                         </Panel>
 
                         <Panel title="LOS DATOS PUBLICADOS">

@@ -55,7 +55,7 @@ const ESTADOS: Record<OperationStatusDto, { text: string; clase: string }> = {
     negotiating: { text: 'NEGOCIANDO', clase: 'text-[var(--color-alerta)] border-[var(--color-alerta)]/40' },
     contract_pending: { text: 'ESPERANDO FIRMAS', clase: 'text-[var(--color-alerta)] border-[var(--color-alerta)]/40' },
     contract_signed: { text: 'CONTRATO FIRMADO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
-    transfer_in_progress: { text: 'TRANSFIRIENDO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
+    transfer_in_progress: { text: 'VERIFICANDO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
     asset_in_custody: { text: 'EN CUSTODIA', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]/50' },
     payment_received: { text: 'PAGO RECIBIDO', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]/50' },
     completed: { text: 'COMPLETADA', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]' },

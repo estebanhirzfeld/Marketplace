@@ -135,13 +135,13 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 11: Web — formulario y textos
 
-- [ ] 11.1 `apps/web/src/components/TransferInitiationForm.tsx` (nuevo): modelado sobre `CustodyVerificationForm.tsx` — `useActionState`, `Alert`, `<ol>` de `steps: HandoverStepDto[]` solo si `length > 0`, casilla `controlCeded` que habilita el submit, `notes` opcional, la frase genérica del error siempre visible. Sobrevive una lista vacía (caso web) sin filtrar vocabulario de YouTube. — deps: 10.1
-- [ ] 11.2 `apps/web/src/app/operaciones/actions.ts`: `'transfer'` sale de `Step`/`EJECUTAR` (`:21-27`); nueva acción `initiateTransfer(operationId, _estado, form)` con la forma de `declareRecipientIdentity` (`:64-84`). — deps: 10.5
-- [ ] 11.3 `apps/web/src/app/operaciones/[id]/page.tsx`: reemplazar el `OperationAction` de `:502-508` por `<TransferInitiationForm>` bajo la misma condición (`contract_signed && miParte === 'seller'`); `queEsperar()` corregido para `contract_signed` — vendedor: *"Queda un último paso tuyo: cedernos el control del activo..."*; plataforma: *"Esperamos que el vendedor nos ceda el control y lo declare."* — deps: 11.1, 11.2
-- [ ] 11.4 `apps/web/src/components/ui.tsx:58`: badge de `transfer_in_progress` de `TRANSFIRIENDO` a `VERIFICANDO`. — deps: ninguna
-- [ ] 11.5 `apps/web/src/components/Timeline.tsx:21`: título *Verificación* y texto *"El vendedor declaró haber cedido el control. La plataforma verifica y toma la custodia."* — deps: ninguna
-- [ ] 11.6 `apps/web/src/app/activos/[id]/page.tsx:357-488`: sacar el bloque `despues` (`:466-480`) del ternario de `ACCESO DE LA PLATAFORMA` para que se dibuje en las tres ramas, no solo en la de "todavía sin acceso". — deps: ninguna
-- [ ] 11.7 `apps/web/src/app/sistema/page.tsx` (+ `noop` en `actions.ts` si hace falta): catalogar `TransferInitiationForm`, junto a `CustodyVerificationForm`/`RecipientIdentityForm`. — deps: 11.1
+- [x] 11.1 `apps/web/src/components/TransferInitiationForm.tsx` (nuevo): modelado sobre `CustodyVerificationForm.tsx` — `useActionState`, `Alert`, `<ol>` de `steps: HandoverStepDto[]` solo si `length > 0`, casilla `controlCeded` que habilita el submit, `notes` opcional, la frase genérica del error siempre visible. Sobrevive una lista vacía (caso web) sin filtrar vocabulario de YouTube. — deps: 10.1
+- [x] 11.2 `apps/web/src/app/operaciones/actions.ts`: `'transfer'` sale de `Step`/`EJECUTAR` (`:21-27`); nueva acción `initiateTransfer(operationId, _estado, form)` con la forma de `declareRecipientIdentity` (`:64-84`). — deps: 10.5
+- [x] 11.3 `apps/web/src/app/operaciones/[id]/page.tsx`: reemplazar el `OperationAction` de `:502-508` por `<TransferInitiationForm>` bajo la misma condición (`contract_signed && miParte === 'seller'`); `queEsperar()` corregido para `contract_signed` — vendedor: *"Queda un último paso tuyo: cedernos el control del activo..."*; plataforma: *"Esperamos que el vendedor nos ceda el control y lo declare."* — deps: 11.1, 11.2
+- [x] 11.4 `apps/web/src/components/ui.tsx:58`: badge de `transfer_in_progress` de `TRANSFIRIENDO` a `VERIFICANDO`. — deps: ninguna
+- [x] 11.5 `apps/web/src/components/Timeline.tsx:21`: título *Verificación* y texto *"El vendedor declaró haber cedido el control. La plataforma verifica y toma la custodia."* — deps: ninguna
+- [x] 11.6 `apps/web/src/app/activos/[id]/page.tsx:357-488`: sacar el bloque `despues` (`:466-480`) del ternario de `ACCESO DE LA PLATAFORMA` para que se dibuje en las tres ramas, no solo en la de "todavía sin acceso". — deps: ninguna
+- [x] 11.7 `apps/web/src/app/sistema/page.tsx` (+ `noop` en `actions.ts` si hace falta): catalogar `TransferInitiationForm`, junto a `CustodyVerificationForm`/`RecipientIdentityForm`. — deps: 11.1
 
 ## Fase 12: Web — tablero de admin
 
