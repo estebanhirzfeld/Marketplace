@@ -1,5 +1,6 @@
 import {
     IContractRepository,
+    ICustodyAccountRepository,
     IListingRepository,
     IOperationRepository,
     IUserRepository,
@@ -12,6 +13,8 @@ import {
     DeliveryVerification,
 } from '../../entities/Operation';
 import { Contract } from '../../entities/Contract';
+import { Listing, HandoverStep } from '../../entities/Listing';
+import { TransferContext } from '../../strategies/IAssetStrategy';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -73,6 +76,13 @@ export interface OperationDetailView {
     recipientIdentity?: RecipientIdentity;
     /** La constancia de entrega, una vez cerrada la operación. */
     deliveryCheck?: DeliveryVerification;
+    /**
+     * Lo que le falta al vendedor ceder DESPUÉS de la firma —promovernos a
+     * propietario principal en YouTube, o lo que enumere su estrategia—.
+     * `undefined` sin `custodyRepo`, para no romper a quien construya este
+     * use case sin él.
+     */
+    handoverSteps?: HandoverStep[];
 }
 
 /**
@@ -87,7 +97,54 @@ export class GetOperationDetailsUseCase {
         private readonly contractRepo: IContractRepository,
         private readonly userRepo: IUserRepository,
         private readonly listingRepo: IListingRepository,
+        /**
+         * Opcional para no romper a quien construya este use case sin él. Sin
+         * `custodyRepo` no hay forma de resolver el identificador de la
+         * cuenta a nombrar, así que `handoverSteps` queda `undefined`.
+         */
+        private readonly custodyRepo?: ICustodyAccountRepository,
     ) {}
+
+    /**
+     * La cuenta a nombrar en el paso de cesión:
+     *   la que ya congeló `TransferInitiation` (a la que efectivamente se
+     *   cedió el control)
+     *   ─ si no hay ─
+     *   la vigente en `platformAccess` del listing
+     *   ─ si no hay ─
+     *   la primera cuenta activa para el `AssetType` del listing.
+     *
+     * No es la misma política que `GetListingDetailsUseCase.resolveContext`:
+     * ahí solo existe la cuenta vigente, porque todavía no hay ninguna cesión
+     * declarada. Acá, una vez declarada, la operación tiene que nombrar la
+     * cuenta a la que el vendedor efectivamente cedió — no la que hoy esté
+     * asignada, si el acceso se volvió a registrar en el medio.
+     */
+    private async resolveContext(
+        operation: Operation,
+        listing: Listing,
+    ): Promise<TransferContext | undefined> {
+        if (!this.custodyRepo) return undefined;
+
+        const declarada = operation.transferInitiation?.custodyAccountId;
+        if (declarada) {
+            const cuenta = await this.custodyRepo.findById(declarada.toString());
+            if (cuenta) return { custodyAccountIdentifier: cuenta.identifier };
+        }
+
+        const vigente = listing.platformAccess?.custodyAccountId;
+        if (vigente) {
+            const cuenta = await this.custodyRepo.findById(vigente.toString());
+            if (cuenta) return { custodyAccountIdentifier: cuenta.identifier };
+        }
+
+        const activas = await this.custodyRepo.findActive(listing.describeAssetType().assetType);
+        if (activas.length > 0) {
+            return { custodyAccountIdentifier: activas[0].identifier };
+        }
+
+        return undefined;
+    }
 
     async execute(operationId: string, actor: Actor): Promise<OperationDetailView> {
         const operation = await this.operationRepo.findById(operationId);
@@ -138,6 +195,15 @@ export class GetOperationDetailsUseCase {
             };
         }
 
+        // Filtrado en el use case, no en la pantalla: acá solo el tramo
+        // posterior a la firma significa algo. `undefined` sin `custodyRepo`
+        // — no hay forma de resolver el identificador de la cuenta.
+        let handoverSteps: HandoverStep[] | undefined;
+        if (this.custodyRepo && listing) {
+            const contexto = await this.resolveContext(operation, listing);
+            handoverSteps = listing.handoverSteps(contexto).filter((p) => p.afterPlatformStarts);
+        }
+
         return {
             operation,
             asset,
@@ -147,6 +213,7 @@ export class GetOperationDetailsUseCase {
             seller,
             recipientIdentity: operation.recipientIdentity,
             deliveryCheck: operation.deliveryCheck,
+            handoverSteps,
         };
     }
 

@@ -249,7 +249,7 @@ export function createContainer(
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
-        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
+        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo, custodyRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),

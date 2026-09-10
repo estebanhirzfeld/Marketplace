@@ -15,6 +15,7 @@ import { Operation } from '../../../src/entities/Operation';
 import { Listing } from '../../../src/entities/Listing';
 import { CustodyAccount } from '../../../src/entities/CustodyAccount';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
@@ -233,5 +234,176 @@ describe('GetOperationDetailsUseCase', () => {
     it('falla si la operación no existe', async () => {
         await expect(armar(null).execute('no-existe', actorDe(BUYER_ID)))
             .rejects.toThrow(NotFoundError);
+    });
+});
+
+describe('GetOperationDetailsUseCase — handoverSteps', () => {
+    const usuariosVacios: IUserRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+
+    function unaOperacionFirmada(): Operation {
+        const op = unaOperacion();
+        op.acceptCurrentOffer('seller');
+        op.signContract();
+        return op;
+    }
+
+    function armarConCustodia(
+        operacion: Operation,
+        listing: Listing,
+        custodyRepo?: ICustodyAccountRepository,
+    ) {
+        return new GetOperationDetailsUseCase(
+            createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operacion) }),
+            createMockContractRepo(),
+            usuariosVacios,
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            custodyRepo,
+        );
+    }
+
+    it('con custodyRepo, handoverSteps trae solo los pasos afterPlatformStarts', async () => {
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia YT',
+            identifier: 'custodia-yt@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const listing = unListingDe(SELLER_ID);
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuenta.id,
+            heldRole: 'owner',
+        });
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps).toBeDefined();
+        expect(vista.handoverSteps!.length).toBeGreaterThan(0);
+        expect(vista.handoverSteps!.every((p) => p.afterPlatformStarts)).toBe(true);
+    });
+
+    it('cascada: usa la cuenta de transferInitiation antes que la del platformAccess vigente', async () => {
+        const cuentaDeclarada = CustodyAccount.create({
+            label: 'Declarada',
+            identifier: 'declarada@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const cuentaVigente = CustodyAccount.create({
+            label: 'Vigente',
+            identifier: 'vigente@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const listing = unListingDe(SELLER_ID);
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuentaVigente.id,
+            heldRole: 'owner',
+        });
+        const op = unaOperacionFirmada();
+        op.initiateTransfer({
+            declaredBy: SELLER_ID,
+            controlCeded: true,
+            custodyAccountId: cuentaDeclarada.id,
+        });
+        const custodyRepo = createMockCustodyRepo({
+            findById: vi.fn((id: string) =>
+                Promise.resolve(id === cuentaDeclarada.id.toString() ? cuentaDeclarada : cuentaVigente),
+            ),
+        });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        const promocion = vista.handoverSteps!.find((p) => p.description.includes('propietario principal'));
+        expect(promocion?.description).toContain('declarada@traspaso.com');
+        expect(promocion?.description).not.toContain('vigente@traspaso.com');
+    });
+
+    it('cascada: sin transferInitiation ni cuenta en el acceso, usa la primera cuenta activa', async () => {
+        const cuentaActiva = CustodyAccount.create({
+            label: 'Activa',
+            identifier: 'activa@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        // Constancia de acceso anterior a asset-custody-identity: sin cuenta.
+        const listing = Listing.reconstitute(
+            {
+                sellerId: SELLER_ID,
+                assetStrategy: new YouTubeStrategy({
+                    monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                    subscribers: 10000,
+                    isMonetized: true,
+                }),
+                askingPrice: Money.fromCents(1_000_000, 'USD'),
+                status: 'in_operation',
+                platformAccess: {
+                    verifiedBy: new UniqueEntityID(),
+                    verifiedAt: new Date(),
+                    accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+                },
+            },
+            new UniqueEntityID(),
+            new Date(),
+        );
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({
+            findActive: vi.fn().mockResolvedValue([cuentaActiva]),
+        });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        const promocion = vista.handoverSteps!.find((p) => p.description.includes('propietario principal'));
+        expect(promocion?.description).toContain('activa@traspaso.com');
+    });
+
+    it('para un listing web, handoverSteps queda vacío sin romper', async () => {
+        const listing = Listing.create({
+            sellerId: SELLER_ID,
+            assetStrategy: new WebStrategy(Money.fromCents(120000, 'USD'), 45),
+            askingPrice: Money.fromCents(500000, 'USD'),
+        });
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: new UniqueEntityID(),
+            heldRole: 'owner',
+        });
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo();
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps).toEqual([]);
+    });
+
+    it('sin custodyRepo, handoverSteps queda indefinido', async () => {
+        const listing = unListingDe(SELLER_ID);
+        const op = unaOperacionFirmada();
+
+        const vista = await armarConCustodia(op, listing, undefined).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps).toBeUndefined();
     });
 });

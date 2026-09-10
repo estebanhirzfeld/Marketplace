@@ -116,9 +116,9 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 8: `handoverSteps` en el detalle de la operación
 
-- [ ] 8.1 **[TEST]** `packages/domain/tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo): con `custodyRepo`, `handoverSteps` trae solo los pasos `afterPlatformStarts`; para YouTube incluye el paso de promoción con el identificador correcto según la cascada `transferInitiation → platformAccess → primera cuenta activa`; para web, lista vacía sin romper; sin `custodyRepo` (parámetro opcional ausente), `handoverSteps` queda `undefined`. — deps: 4.2
-- [ ] 8.2 `packages/domain/src/use-cases/operation/GetOperationDetailsUseCase.ts`: sumar `custodyRepo?: ICustodyAccountRepository` (último parámetro opcional, misma forma que `GetListingDetailsUseCase:58-63`); `handoverSteps?: HandoverStep[]` en `OperationDetailView`, filtrado a `afterPlatformStarts`, resuelto con la cascada propia del diseño §6 — **no reutiliza** `resolveContext` de `GetListingDetailsUseCase`, que resuelve una política distinta (la cuenta vigente, no la que efectivamente recibió la cesión). — deps: 8.1
-- [ ] 8.3 `apps/api/src/container.ts:252`: sumar `custodyRepo` a `detalleOperacion`. — deps: 8.2
+- [x] 8.1 **[TEST]** `packages/domain/tests/use-cases/operation/OperationUseCases.test.ts` (o archivo nuevo): con `custodyRepo`, `handoverSteps` trae solo los pasos `afterPlatformStarts`; para YouTube incluye el paso de promoción con el identificador correcto según la cascada `transferInitiation → platformAccess → primera cuenta activa`; para web, lista vacía sin romper; sin `custodyRepo` (parámetro opcional ausente), `handoverSteps` queda `undefined`. — deps: 4.2
+- [x] 8.2 `packages/domain/src/use-cases/operation/GetOperationDetailsUseCase.ts`: sumar `custodyRepo?: ICustodyAccountRepository` (último parámetro opcional, misma forma que `GetListingDetailsUseCase:58-63`); `handoverSteps?: HandoverStep[]` en `OperationDetailView`, filtrado a `afterPlatformStarts`, resuelto con la cascada propia del diseño §6 — **no reutiliza** `resolveContext` de `GetListingDetailsUseCase`, que resuelve una política distinta (la cuenta vigente, no la que efectivamente recibió la cesión). — deps: 8.1
+- [x] 8.3 `apps/api/src/container.ts:252`: sumar `custodyRepo` a `detalleOperacion`. — deps: 8.2
 
 ## Fase 9: Tablero — `ESPERAN_AL_VENDEDOR`
 
