@@ -9,6 +9,7 @@ import { Listing } from '../../../src/entities/Listing';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
 import { Actor } from '../../../src/ports/Actor';
 import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -125,8 +126,15 @@ describe('InitiateTransferUseCase', () => {
     it('debería iniciar la transferencia desde contract_signed', async () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
 
-        await new InitiateTransferUseCase(repo).execute(op.id.toString(), SELLER);
+        await new InitiateTransferUseCase(repo, listingRepo).execute(
+            op.id.toString(),
+            { controlCeded: true },
+            SELLER,
+        );
 
         expect(op.status).toBe('transfer_in_progress');
         expect(repo.save).toHaveBeenCalledOnce();
@@ -134,16 +142,128 @@ describe('InitiateTransferUseCase', () => {
 
     it('debería fallar si la operación no existe', async () => {
         const repo = createMockOperationRepo();
-        await expect(new InitiateTransferUseCase(repo).execute('x', SELLER))
-            .rejects.toThrow('Operación no encontrada');
+        const listingRepo = createMockListingRepo();
+
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo).execute('x', { controlCeded: true }, SELLER),
+        ).rejects.toThrow('Operación no encontrada');
     });
 
     it('debería fallar si no está en contract_signed', async () => {
         const op = createOperationInState('offer_sent');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
 
-        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), SELLER))
-            .rejects.toThrow('El contrato debe estar firmado');
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo).execute(
+                op.id.toString(),
+                { controlCeded: true },
+                SELLER,
+            ),
+        ).rejects.toThrow('El contrato debe estar firmado');
+    });
+
+    it('congela custodyAccountId desde el platformAccess vigente del listing', async () => {
+        const op = createOperationInState('contract_signed');
+        const cuenta = new UniqueEntityID();
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso(cuenta)),
+        });
+
+        await new InitiateTransferUseCase(repo, listingRepo).execute(
+            op.id.toString(),
+            { controlCeded: true },
+            SELLER,
+        );
+
+        expect(op.transferInitiation?.custodyAccountId?.toString()).toBe(cuenta.toString());
+    });
+
+    it('sin cuenta asignada en el acceso, avanza igual con custodyAccountId indefinido', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso(undefined)),
+        });
+
+        await new InitiateTransferUseCase(repo, listingRepo).execute(
+            op.id.toString(),
+            { controlCeded: true },
+            SELLER,
+        );
+
+        expect(op.status).toBe('transfer_in_progress');
+        expect(op.transferInitiation?.custodyAccountId).toBeUndefined();
+    });
+
+    it('sin listing → NotFoundError', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(null) });
+
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo).execute(
+                op.id.toString(),
+                { controlCeded: true },
+                SELLER,
+            ),
+        ).rejects.toThrow(NotFoundError);
+    });
+
+    it('declaredBy sale del actor, no de lo que aporte quien llama', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
+
+        await new InitiateTransferUseCase(repo, listingRepo).execute(
+            op.id.toString(),
+            { controlCeded: true },
+            SELLER,
+        );
+
+        expect(op.transferInitiation?.declaredBy.toString()).toBe(SELLER_ID.toString());
+    });
+
+    it('custodia_pendiente sale exactamente una vez, después de la declaración', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
+        const avisos = { custodyNeeded: vi.fn().mockResolvedValue(undefined) } as unknown as PlatformNotifier;
+
+        await new InitiateTransferUseCase(repo, listingRepo, avisos).execute(
+            op.id.toString(),
+            { controlCeded: true },
+            SELLER,
+        );
+
+        expect(avisos.custodyNeeded).toHaveBeenCalledOnce();
+    });
+
+    it('custodia_pendiente no sale si la declaración se rechaza', async () => {
+        const op = createOperationInState('contract_signed');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
+        const avisos = { custodyNeeded: vi.fn().mockResolvedValue(undefined) } as unknown as PlatformNotifier;
+
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo, avisos).execute(
+                op.id.toString(),
+                { controlCeded: false },
+                SELLER,
+            ),
+        ).rejects.toThrow();
+
+        expect(avisos.custodyNeeded).not.toHaveBeenCalled();
+        expect(repo.save).not.toHaveBeenCalled();
     });
 });
 
@@ -294,18 +414,22 @@ describe('Autorización de los pasos de la operación', () => {
     it('el buyer no puede iniciar la transferencia — la entrega es del seller', async () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo();
 
-        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), BUYER))
-            .rejects.toThrow(ForbiddenError);
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo).execute(op.id.toString(), { controlCeded: true }, BUYER),
+        ).rejects.toThrow(ForbiddenError);
     });
 
     it('un tercero no puede iniciar la transferencia', async () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo();
         const ajeno: Actor = { id: new UniqueEntityID().toString(), role: UserRole.SELLER };
 
-        await expect(new InitiateTransferUseCase(repo).execute(op.id.toString(), ajeno))
-            .rejects.toThrow(ForbiddenError);
+        await expect(
+            new InitiateTransferUseCase(repo, listingRepo).execute(op.id.toString(), { controlCeded: true }, ajeno),
+        ).rejects.toThrow(ForbiddenError);
     });
 
     it('confirmar custodia es exclusivo de la plataforma', async () => {

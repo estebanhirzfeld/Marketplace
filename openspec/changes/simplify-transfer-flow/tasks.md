@@ -99,7 +99,7 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 5: Mecánico — los 11 call sites de la firma vieja
 
-- [ ] 5.1 Actualizar las 10 llamadas de test + la interna del use case a `{ declaredBy, controlCeded: true }` en los 8 archivos que lista el diseño: `CustodyVerification.test.ts:30`, `PaymentRecord.test.ts:25`, `Operation.test.ts:174/232/242/294`, `AssetDelivery.test.ts:45`, `PaymentUseCases.test.ts:36`, `OperationUseCases.test.ts:72` (dentro de `createOperationInState`) más sus 5 constructores `new InitiateTransferUseCase(repo)` en `:100/108/116/229/238` que ahora también exigen `listingRepo`, `integration.test.ts:659`, `http.test.ts:993`. Criterio: `tsc --noEmit` no marca ningún call site roto. — deps: 4.2, 7.2
+- [x] 5.1 Actualizar las 10 llamadas de test + la interna del use case a `{ declaredBy, controlCeded: true }` en los 8 archivos que lista el diseño: `CustodyVerification.test.ts:30`, `PaymentRecord.test.ts:25`, `Operation.test.ts:174/232/242/294`, `AssetDelivery.test.ts:45`, `PaymentUseCases.test.ts:36`, `OperationUseCases.test.ts:72` (dentro de `createOperationInState`) más sus 5 constructores `new InitiateTransferUseCase(repo)` en `:100/108/116/229/238` que ahora también exigen `listingRepo`, `integration.test.ts:659`, `http.test.ts:993`. Criterio: `tsc --noEmit` no marca ningún call site roto. — deps: 4.2, 7.2
 
 ## Fase 6: Persistencia — columna y mapper de la constancia
 
@@ -110,9 +110,9 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 7: Use case — congelar la cuenta y cablear `listingRepo`
 
-- [ ] 7.1 **[TEST]** `packages/domain/tests/use-cases/operation/OperationUseCases.test.ts`: congela `custodyAccountId` del `platformAccess` vigente; sin `platformAccess` avanza igual con `undefined`; sin listing → `NotFoundError`; `declaredBy` = `actor.id`; `custodia_pendiente` sale exactamente una vez, después de la declaración, nunca en `contract_signed`. — deps: 4.2
-- [ ] 7.2 `packages/domain/src/use-cases/operation/InitiateTransferUseCase.ts`: sumar `listingRepo: IListingRepository` (entre `operationRepo` y el `avisosDePlataforma?` opcional); input `{ controlCeded, notes? }`; construir el `TransferInitiationInput`. — deps: 7.1
-- [ ] 7.3 `apps/api/src/container.ts:265`: sumar `listingRepo` a `initiateTransfer`. — deps: 7.2
+- [x] 7.1 **[TEST]** `packages/domain/tests/use-cases/operation/OperationUseCases.test.ts`: congela `custodyAccountId` del `platformAccess` vigente; sin `platformAccess` avanza igual con `undefined`; sin listing → `NotFoundError`; `declaredBy` = `actor.id`; `custodia_pendiente` sale exactamente una vez, después de la declaración, nunca en `contract_signed`. — deps: 4.2
+- [x] 7.2 `packages/domain/src/use-cases/operation/InitiateTransferUseCase.ts`: sumar `listingRepo: IListingRepository` (entre `operationRepo` y el `avisosDePlataforma?` opcional); input `{ controlCeded, notes? }`; construir el `TransferInitiationInput`. — deps: 7.1
+- [x] 7.3 `apps/api/src/container.ts:265`: sumar `listingRepo` a `initiateTransfer`. — deps: 7.2
 
 ## Fase 8: `handoverSteps` en el detalle de la operación
 

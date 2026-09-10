@@ -262,7 +262,7 @@ export function createContainer(
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
         signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
 
-        initiateTransfer: new InitiateTransferUseCase(operationRepo, avisosDePlataforma),
+        initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
