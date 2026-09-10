@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { ApiError } from '@marketplace/api-client';
-import type { MyListingDto, OperationStatusDto, PlatformDashboardDto } from '@marketplace/api-contract';
+import type {
+    MyListingDto,
+    OperationStatusDto,
+    PendingOperationDto,
+    PlatformDashboardDto,
+} from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireAdmin } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
@@ -22,6 +27,9 @@ const PROXIMO_PASO: Partial<Record<OperationStatusDto, string>> = {
     // dominio rechaza la firma sin ella, así que acá la operación está parada
     // esperándonos a nosotros.
     contract_pending: 'Registrar nuestro acceso al activo para habilitar la firma',
+    // No es una acción nuestra: es una espera nombrada. La plataforma no
+    // puede destrabar contract_signed, solo avisar y esperar la declaración.
+    contract_signed: 'Esperando que el vendedor ceda el control y lo declare',
     transfer_in_progress: 'Verificar el activo y declarar la custodia',
     asset_in_custody: 'Esperando el pago del comprador',
     payment_received: 'Liquidar al vendedor y cerrar la operación',
@@ -47,6 +55,46 @@ function Metrica({
             </span>
             <span className="text-[12px] leading-relaxed text-[var(--color-tenue)]">{etiqueta}</span>
         </div>
+    );
+}
+
+/**
+ * Una fila del tablero: misma forma para "esperando a la plataforma" y para
+ * "esperando al vendedor". Lo único que cambia entre las dos listas es de
+ * quién es el turno, y eso ya lo dice `PROXIMO_PASO[p.status]`.
+ */
+function FilaDeEspera({ p }: { p: PendingOperationDto }) {
+    return (
+        <Link
+            href={`/operaciones/${p.id}`}
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-borde)] py-3 last:border-0 transition-colors hover:text-[var(--color-acento)]"
+        >
+            <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-3">
+                    <OperationStatusBadge state={p.status} />
+                    {/* Con qué reconocer la fila. Antes solo estaban el estado y el
+                        monto, así que dos operaciones esperando lo mismo eran
+                        indistinguibles. */}
+                    <span className="text-[14px] font-medium text-[var(--color-tinta)]">
+                        {p.assetName ?? 'Activo sin nombre'}
+                    </span>
+                    {p.assetType && (
+                        <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                            {p.assetType.toUpperCase()}
+                        </span>
+                    )}
+                </div>
+                <span className="text-[13px] text-[var(--color-tenue)]">
+                    {PROXIMO_PASO[p.status] ?? 'Revisar la operación'}
+                </span>
+                {(p.buyerName || p.sellerName) && (
+                    <span className="text-[12px] text-[var(--color-apagado)]">
+                        {p.sellerName ?? '—'} → {p.buyerName ?? '—'}
+                    </span>
+                )}
+            </div>
+            <span className="font-mono text-[13px]">{p.amount ? money(p.amount) : '—'}</span>
+        </Link>
     );
 }
 
@@ -127,40 +175,22 @@ export default async function Admin() {
                             <Panel title="ESPERANDO A LA PLATAFORMA">
                                 <div className="flex flex-col">
                                     {tablero.pending.map((p) => (
-                                        <Link
-                                            key={p.id}
-                                            href={`/operaciones/${p.id}`}
-                                            className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-borde)] py-3 last:border-0 transition-colors hover:text-[var(--color-acento)]"
-                                        >
-                                            <div className="flex flex-col gap-1.5">
-                                                <div className="flex flex-wrap items-center gap-3">
-                                                    <OperationStatusBadge state={p.status} />
-                                                    {/* Con qué reconocer la fila. Antes solo
-                                                        estaban el estado y el monto, así que dos
-                                                        operaciones esperando lo mismo eran
-                                                        indistinguibles. */}
-                                                    <span className="text-[14px] font-medium text-[var(--color-tinta)]">
-                                                        {p.assetName ?? 'Activo sin nombre'}
-                                                    </span>
-                                                    {p.assetType && (
-                                                        <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                                                            {p.assetType.toUpperCase()}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="text-[13px] text-[var(--color-tenue)]">
-                                                    {PROXIMO_PASO[p.status] ?? 'Revisar la operación'}
-                                                </span>
-                                                {(p.buyerName || p.sellerName) && (
-                                                    <span className="text-[12px] text-[var(--color-apagado)]">
-                                                        {p.sellerName ?? '—'} → {p.buyerName ?? '—'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="font-mono text-[13px]">
-                                                {p.amount ? money(p.amount) : '—'}
-                                            </span>
-                                        </Link>
+                                        <FilaDeEspera key={p.id} p={p} />
+                                    ))}
+                                </div>
+                            </Panel>
+                        </div>
+                    )}
+
+                    {/* Subordinado al de arriba: son operaciones en curso, pero el
+                        próximo movimiento es del vendedor y la plataforma no puede
+                        destrabarlas — solo avisar y esperar la declaración. */}
+                    {tablero.waitingOnSeller.length > 0 && (
+                        <div className="mt-4">
+                            <Panel title="ESPERANDO AL VENDEDOR">
+                                <div className="flex flex-col">
+                                    {tablero.waitingOnSeller.map((p) => (
+                                        <FilaDeEspera key={p.id} p={p} />
                                     ))}
                                 </div>
                             </Panel>

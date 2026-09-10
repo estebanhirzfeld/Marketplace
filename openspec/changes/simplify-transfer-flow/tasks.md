@@ -145,7 +145,7 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 12: Web — tablero de admin
 
-- [ ] 12.1 `apps/web/src/app/admin/page.tsx`: `PROXIMO_PASO['contract_signed'] = 'Esperando que el vendedor ceda el control y lo declare'`; segundo `Panel` "ESPERANDO AL VENDEDOR" alimentado por `tablero.waitingOnSeller`, subordinado al de "ESPERANDO A LA PLATAFORMA" (`:125-168`), reusando el mismo renderizado de fila. — deps: 10.3
+- [x] 12.1 `apps/web/src/app/admin/page.tsx`: `PROXIMO_PASO['contract_signed'] = 'Esperando que el vendedor ceda el control y lo declare'`; segundo `Panel` "ESPERANDO AL VENDEDOR" alimentado por `tablero.waitingOnSeller`, subordinado al de "ESPERANDO A LA PLATAFORMA" (`:125-168`), reusando el mismo renderizado de fila. — deps: 10.3
 
 ## Fase 13: Documentación y specs hermanas
 
