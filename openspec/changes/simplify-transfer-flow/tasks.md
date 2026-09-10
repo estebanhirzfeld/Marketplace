@@ -89,8 +89,8 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 3: `NegotiationNotifier.contractSigned()` — un tipo por parte
 
-- [ ] 3.1 **[TEST]** doble de `INotifier` en las pruebas de `NegotiationNotifier`/`SignContractUseCase`: `contractSigned()` emite `contrato_firmado` solo al comprador y `cesion_pendiente` solo al vendedor; ninguno recibe el aviso del otro; se emite igual para un listing web cuya estrategia no enumera pasos posteriores a la firma. — deps: 2.6
-- [ ] 3.2 `packages/domain/src/services/NegotiationNotifier.ts:103-105`: `contractSigned()` deja de usar `toBothParties` y arma las dos notificaciones a mano. `toBothParties` sigue viva para `operationCompleted()`. — deps: 3.1
+- [x] 3.1 **[TEST]** doble de `INotifier` en las pruebas de `NegotiationNotifier`/`SignContractUseCase`: `contractSigned()` emite `contrato_firmado` solo al comprador y `cesion_pendiente` solo al vendedor; ninguno recibe el aviso del otro; se emite igual para un listing web cuya estrategia no enumera pasos posteriores a la firma. — deps: 2.6
+- [x] 3.2 `packages/domain/src/services/NegotiationNotifier.ts:103-105`: `contractSigned()` deja de usar `toBothParties` y arma las dos notificaciones a mano. `toBothParties` sigue viva para `operationCompleted()`. — deps: 3.1
 
 ## Fase 4: Dominio — `TransferInitiation` y las guardas de `initiateTransfer(data)`
 

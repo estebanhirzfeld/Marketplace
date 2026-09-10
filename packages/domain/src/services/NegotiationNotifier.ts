@@ -99,9 +99,31 @@ export class NegotiationNotifier {
         ]);
     }
 
-    /** Las dos partes se enteran de que el contrato quedó cerrado. */
+    /**
+     * El contrato quedó cerrado, pero no les toca lo mismo a las dos partes:
+     * al comprador no le queda nada pendiente y conserva `contrato_firmado`;
+     * al vendedor le toca ceder el control del activo y declararlo, así que
+     * recibe `cesion_pendiente` en vez del texto pasivo del otro aviso. Sale
+     * igual sin importar el tipo de activo: la instrucción concreta la
+     * resuelve la pantalla, no este método.
+     */
     async contractSigned(operation: Operation): Promise<void> {
-        await this.toBothParties(operation, 'contrato_firmado');
+        const { props } = operation.toSnapshot();
+
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'contrato_firmado',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+            Notification.create({
+                userId: props.sellerId,
+                type: 'cesion_pendiente',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+        ]);
     }
 
     /** El activo llegó a custodia: al comprador le toca pagar. */
