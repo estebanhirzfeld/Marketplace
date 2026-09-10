@@ -155,8 +155,8 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 14: Verificación
 
-- [ ] 14.1 `make test` (suite completa: dominio, db, api, api-client) en verde. — deps: todas
-- [ ] 14.2 `tsc --noEmit` en `domain`, `db`, `api-contract`, `api`, `api-client`, `web` — vitest no typechequea, así que este gate es aparte y obligatorio. — deps: todas
+- [x] 14.1 `make test` (suite completa: dominio, db, api, api-client) en verde. — deps: todas
+- [x] 14.2 `tsc --noEmit` en `domain`, `db`, `api-contract`, `api`, `api-client`, `web` — vitest no typechequea, así que este gate es aparte y obligatorio. — deps: todas
 - [ ] 14.3 **[USUARIO]** `make db-reset` aplica las dos migraciones nuevas (`add_cesion_pendiente_notification`, `add_transfer_initiation`) sin intervención. Prisma bloquea `migrate reset` para agentes de IA sin consentimiento explícito del usuario. — deps: 2.3, 6.2
-- [ ] 14.4 `pnpm --filter web build`. — deps: Fase 11, Fase 12
+- [x] 14.4 `pnpm --filter web build`. — deps: Fase 11, Fase 12
 - [ ] 14.5 **[USUARIO]** Walkthrough manual: (a) vendedor de YouTube declara la cesión y ve su paso concreto; (b) vendedor de un listing web declara con la lista vacía; (c) admin confirma custodia y puede leer las dos cuentas congeladas (declarada y verificada); (d) el vendedor recibe `cesion_pendiente` y el comprador `contrato_firmado`; (e) el tablero separa `contract_signed` de las esperas a la plataforma. — deps: 14.4
