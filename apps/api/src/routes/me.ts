@@ -9,11 +9,13 @@ import type {
     PlatformDashboardDto,
     MyOperationDto,
     OperationDetailDto,
+    PendingOperationDto,
     RegisterPlatformAccessRequest,
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
 } from '@marketplace/api-contract';
+import { PendingOperation } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { HandoverStep } from '@marketplace/domain/src/entities/Listing';
@@ -119,6 +121,24 @@ function aMyOperationDto(
         },
         pendingResponseFrom: operation.pendingResponseFrom,
         createdAt: createdAt.toISOString(),
+    };
+}
+
+/** Una fila del tablero: espera a la plataforma o espera al vendedor, misma forma. */
+function aPendingOperationDto(p: PendingOperation): PendingOperationDto {
+    return {
+        id: p.id,
+        status: p.status,
+        listingId: p.listingId,
+        amount:
+            p.amountCents === undefined || p.currency === undefined
+                ? undefined
+                : { cents: p.amountCents, currency: p.currency },
+        waitingSince: p.waitingSince.toISOString(),
+        assetName: p.assetName,
+        assetType: p.assetType,
+        buyerName: p.buyerName,
+        sellerName: p.sellerName,
     };
 }
 
@@ -267,20 +287,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 operationsInProgress: t.operationsInProgress,
                 openReports: t.openReports,
                 earned: { cents: t.earnedCents, currency: t.currency },
-                pending: t.pending.map((p) => ({
-                    id: p.id,
-                    status: p.status,
-                    listingId: p.listingId,
-                    amount:
-                        p.amountCents === undefined || p.currency === undefined
-                            ? undefined
-                            : { cents: p.amountCents, currency: p.currency },
-                    waitingSince: p.waitingSince.toISOString(),
-                    assetName: p.assetName,
-                    assetType: p.assetType,
-                    buyerName: p.buyerName,
-                    sellerName: p.sellerName,
-                })),
+                pending: t.pending.map(aPendingOperationDto),
+                waitingOnSeller: t.waitingOnSeller.map(aPendingOperationDto),
             });
         },
     );
@@ -424,7 +432,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -478,6 +486,15 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     verifiedBy: operation.deliveryCheck.verifiedBy.toString(),
                     verifiedAt: operation.deliveryCheck.verifiedAt.toISOString(),
                 },
+                // declaredBy no viaja al DTO a propósito: asimetría
+                // documentada respecto de CustodyVerificationDto.verifiedBy.
+                transferInitiation: operation.transferInitiation && {
+                    declaredAt: operation.transferInitiation.declaredAt.toISOString(),
+                    controlCeded: operation.transferInitiation.controlCeded,
+                    custodyAccountId: operation.transferInitiation.custodyAccountId?.toString(),
+                    notes: operation.transferInitiation.notes,
+                },
+                handoverSteps,
                 createdAt: createdAt.toISOString(),
             };
 

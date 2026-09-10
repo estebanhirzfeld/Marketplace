@@ -127,11 +127,11 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 10: Contrato y transporte
 
-- [ ] 10.1 `packages/api-contract/src/index.ts`: `TransferInitiationDto { declaredAt, controlCeded, custodyAccountId?, notes? }`; `InitiateTransferRequest { controlCeded: boolean; notes?: string }`; `OperationDetailDto` suma `transferInitiation?: TransferInitiationDto` y `handoverSteps?: HandoverStepDto[]`; `PlatformDashboardDto` suma `waitingOnSeller: PendingOperationDto[]`. `declaredBy` no viaja, igual que `CustodyVerificationDto` no expone `verifiedBy`... salvo que sí lo expone — mantener la asimetría documentada: `declaredBy` se omite a propósito. — deps: 4.2, 8.2, 9.2
-- [ ] 10.2 `apps/api/src/routes/operations.ts:175-192`: sacar `['transfer', ...]` de la tabla `pasos`; ruta propia `POST /operations/:id/transfer` con `schema.body.required: ['controlCeded']`, calcada de `/complete` (`:152-173`). — deps: 7.2, 10.1
-- [ ] 10.3 `apps/api/src/routes/me.ts`: en `GET /operations/:id` (`:422-485`) mapear `transferInitiation` (con `declaredAt`/`custodyAccountId` convertidos a string) y `handoverSteps`; en `GET /admin/dashboard` (`:258-286`) mapear `waitingOnSeller` con la misma forma que `pending`. — deps: 10.1, 8.2, 9.2
-- [ ] 10.4 **[TEST]** `apps/api/tests/http.test.ts`: `POST /operations/:id/transfer` sin `controlCeded` → 400 por schema; con `controlCeded: false` → 409; desde el comprador → 403; camino feliz → 204 y el detalle trae la constancia. — deps: 10.2
-- [ ] 10.5 `packages/api-client/src/MarketplaceClient.ts:276-278`: `initiateTransfer(operationId, body: InitiateTransferRequest)` deja de ser un `operationStep` sin cuerpo. — deps: 10.1
+- [x] 10.1 `packages/api-contract/src/index.ts`: `TransferInitiationDto { declaredAt, controlCeded, custodyAccountId?, notes? }`; `InitiateTransferRequest { controlCeded: boolean; notes?: string }`; `OperationDetailDto` suma `transferInitiation?: TransferInitiationDto` y `handoverSteps?: HandoverStepDto[]`; `PlatformDashboardDto` suma `waitingOnSeller: PendingOperationDto[]`. `declaredBy` no viaja, igual que `CustodyVerificationDto` no expone `verifiedBy`... salvo que sí lo expone — mantener la asimetría documentada: `declaredBy` se omite a propósito. — deps: 4.2, 8.2, 9.2
+- [x] 10.2 `apps/api/src/routes/operations.ts:175-192`: sacar `['transfer', ...]` de la tabla `pasos`; ruta propia `POST /operations/:id/transfer` con `schema.body.required: ['controlCeded']`, calcada de `/complete` (`:152-173`). — deps: 7.2, 10.1
+- [x] 10.3 `apps/api/src/routes/me.ts`: en `GET /operations/:id` (`:422-485`) mapear `transferInitiation` (con `declaredAt`/`custodyAccountId` convertidos a string) y `handoverSteps`; en `GET /admin/dashboard` (`:258-286`) mapear `waitingOnSeller` con la misma forma que `pending`. — deps: 10.1, 8.2, 9.2
+- [x] 10.4 **[TEST]** `apps/api/tests/http.test.ts`: `POST /operations/:id/transfer` sin `controlCeded` → 400 por schema; con `controlCeded: false` → 409; desde el comprador → 403; camino feliz → 204 y el detalle trae la constancia. — deps: 10.2
+- [x] 10.5 `packages/api-client/src/MarketplaceClient.ts:276-278`: `initiateTransfer(operationId, body: InitiateTransferRequest)` deja de ser un `operationStep` sin cuerpo. — deps: 10.1
 
 ## Fase 11: Web — formulario y textos
 

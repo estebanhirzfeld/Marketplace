@@ -972,6 +972,89 @@ describe('Documento del contrato', () => {
 });
 
 /**
+ * Iniciar la transferencia dejó de ser un botón sin cuerpo: el vendedor
+ * declara haber cedido el control. Se prueba aparte del bucle de pasos por lo
+ * mismo que `/custody`: es la única de las dos que ahora lleva body.
+ */
+describe('POST /operations/:id/transfer', () => {
+    async function unaOperacionFirmada(): Promise<{ id: string; sellerEmail: string; buyerEmail: string }> {
+        const sellerEmail = `seller-transfer-${Date.now()}@test.com`;
+        const buyerEmail = `buyer-transfer-${Date.now()}@test.com`;
+        const buyer = await crearUsuario(buyerEmail, UserRole.BUYER);
+        const seller = await crearUsuario(sellerEmail, UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        await new PrismaOperationRepository().save(operation);
+
+        return { id: operation.id.toString(), sellerEmail, buyerEmail };
+    }
+
+    async function declarar(id: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/operations/${id}/transfer`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('400 por schema si falta controlCeded', async () => {
+        const { id, sellerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, {});
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('409 si controlCeded llega en false', async () => {
+        const { id, sellerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, { controlCeded: false });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    it('403 si quien declara es el comprador', async () => {
+        const { id, buyerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, buyerEmail, { controlCeded: true });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('204 en el camino feliz, y el detalle trae la constancia', async () => {
+        const { id, sellerEmail, buyerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, {
+            controlCeded: true,
+            notes: 'Ya promoví a la plataforma.',
+        });
+        expect(res.statusCode).toBe(204);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe(buyerEmail)}` },
+        });
+
+        const cuerpo = detalle.json();
+        expect(cuerpo.status).toBe('transfer_in_progress');
+        expect(cuerpo.transferInitiation.controlCeded).toBe(true);
+        expect(cuerpo.transferInitiation.notes).toBe('Ya promoví a la plataforma.');
+        expect(cuerpo.transferInitiation.declaredAt).toEqual(expect.any(String));
+    });
+});
+
+/**
  * Confirmar la custodia dejó de ser un botón: el admin declara qué verificó.
  * La ruta se probó aparte del resto de los pasos porque es la única con cuerpo.
  */
