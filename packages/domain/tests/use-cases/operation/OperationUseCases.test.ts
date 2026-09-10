@@ -10,7 +10,7 @@ import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { Actor } from '../../../src/ports/Actor';
-import { ForbiddenError } from '../../../src/errors/DomainError';
+import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
 // Identidades fijas: los pasos de la operación ahora se autorizan por
@@ -52,6 +52,35 @@ function createMockListingRepo(overrides: Partial<IListingRepository> = {}): ILi
         save: vi.fn().mockResolvedValue(undefined),
         ...overrides,
     };
+}
+
+/**
+ * Un listing con acceso de plataforma ya registrado, opcionalmente apuntando
+ * a una cuenta de custodia. `custodyAccountId` ausente simula una constancia
+ * anterior a `asset-custody-identity`, que no nombra ninguna cuenta.
+ */
+function unListingConAcceso(custodyAccountId?: UniqueEntityID): Listing {
+    return Listing.reconstitute(
+        {
+            sellerId: SELLER_ID,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                subscribers: 10000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+            status: 'in_operation',
+            platformAccess: {
+                verifiedBy: new UniqueEntityID(),
+                verifiedAt: new Date(),
+                accessSince: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
+                custodyAccountId,
+                heldRole: 'owner',
+            },
+        },
+        new UniqueEntityID(),
+        new Date(),
+    );
 }
 
 /** Crea una operación en el estado deseado para testear transiciones */
@@ -126,8 +155,11 @@ describe('ConfirmCustodyUseCase', () => {
     it('debería confirmar custodia del activo', async () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
 
-        await new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, ADMIN);
+        await new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, ADMIN);
 
         expect(op.status).toBe('asset_in_custody');
     });
@@ -135,9 +167,46 @@ describe('ConfirmCustodyUseCase', () => {
     it('debería fallar si no hay transferencia en curso', async () => {
         const op = createOperationInState('contract_signed');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
 
-        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, ADMIN))
+        await expect(new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, ADMIN))
             .rejects.toThrow('No hay transferencia en curso');
+    });
+
+    it('congela custodyAccountId desde el platformAccess vigente del listing', async () => {
+        const op = createOperationInState('transfer_in_progress');
+        const cuenta = new UniqueEntityID();
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso(cuenta)),
+        });
+
+        await new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, ADMIN);
+
+        expect(op.custodyVerification?.custodyAccountId?.toString()).toBe(cuenta.toString());
+    });
+
+    it('sin cuenta asignada en el acceso, persiste custodyAccountId indefinido', async () => {
+        const op = createOperationInState('transfer_in_progress');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso(undefined)),
+        });
+
+        await new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, ADMIN);
+
+        expect(op.custodyVerification?.custodyAccountId).toBeUndefined();
+    });
+
+    it('sin listing → NotFoundError', async () => {
+        const op = createOperationInState('transfer_in_progress');
+        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(null) });
+
+        await expect(new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, ADMIN))
+            .rejects.toThrow(NotFoundError);
     });
 });
 
@@ -242,8 +311,11 @@ describe('Autorización de los pasos de la operación', () => {
     it('confirmar custodia es exclusivo de la plataforma', async () => {
         const op = createOperationInState('transfer_in_progress');
         const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({
+            findById: vi.fn().mockResolvedValue(unListingConAcceso()),
+        });
 
-        await expect(new ConfirmCustodyUseCase(repo).execute(op.id.toString(), CUSTODIA_OK, SELLER))
+        await expect(new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, SELLER))
             .rejects.toThrow(ForbiddenError);
     });
 

@@ -675,6 +675,12 @@ export interface CustodyVerificationDto {
     isPrimaryOwner: boolean;
     accessSecured: boolean;
     metrics: Record<string, number>;
+    /**
+     * Copia congelada de la cuenta de custodia al confirmar. Ausente en
+     * constancias anteriores a `asset-custody-identity`: se muestra como
+     * "sin registrar", nunca se inventa.
+     */
+    custodyAccountId?: string;
     notes?: string;
 }
 

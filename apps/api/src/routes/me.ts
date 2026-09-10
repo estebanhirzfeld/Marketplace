@@ -466,6 +466,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     ...props.custodyVerification,
                     verifiedBy: props.custodyVerification.verifiedBy.toString(),
                     verifiedAt: props.custodyVerification.verifiedAt.toISOString(),
+                    custodyAccountId: props.custodyVerification.custodyAccountId?.toString(),
                 },
                 recipientIdentity: operation.recipientIdentity && {
                     identifier: operation.recipientIdentity.identifier,

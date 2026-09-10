@@ -683,6 +683,51 @@ describe("PrismaOperationRepository", () => {
         const result = await operationRepo.findById(new UniqueEntityID().toString());
         expect(result).toBeNull();
     });
+
+    /**
+     * `custodyVerification.custodyAccountId` estaba declarado en el mapper —lo
+     * leía y lo escribía— pero nunca se probó la ida y vuelta real: el defecto
+     * que motivó cablearlo en `ConfirmCustodyUseCase` es exactamente que nada
+     * lo comprobaba contra la base.
+     */
+    it("debería persistir y leer de vuelta custodyVerification.custodyAccountId", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-cuenta@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-cuenta@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+        const admin = await createPersistedUser({
+            email: "admin-cuenta@test.com",
+            role: UserRole.ADMIN,
+        });
+        const cuenta = new UniqueEntityID();
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(500000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        operation.initiateTransfer();
+        operation.confirmAssetCustody({
+            verifiedBy: admin.id,
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+            custodyAccountId: cuenta,
+        });
+        await operationRepo.save(operation);
+
+        const releida = await operationRepo.findById(operation.id.toString());
+
+        expect(releida!.custodyVerification?.custodyAccountId?.toString()).toBe(cuenta.toString());
+    });
 });
 
 // ═════════════════════════════════════════════════════════
