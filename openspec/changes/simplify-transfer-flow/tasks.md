@@ -149,9 +149,9 @@ esta fase esté cerrada, no solo de una parte.
 
 ## Fase 13: Documentación y specs hermanas
 
-- [ ] 13.1 `CLAUDE.md:80`: borrar la línea *"Known gap: `payment_pending`..."* — corrección documental, ninguna conducta del sistema cambia. — deps: ninguna
-- [ ] 13.2 `docs/fase-N-transferencia-simplificada.md` (numerar según la última fase escrita): write-up de la fase, según convención del proyecto. — deps: todas las anteriores
-- [ ] 13.3 Editar en el momento `openspec/changes/asset-custody-identity/specs/asset-delivery/spec.md:47-51` y `openspec/changes/asset-custody-identity/specs/custody-account/spec.md:124-127`, reemplazando los dos escenarios señalados por el contenido ya redactado en `specs/asset-delivery/spec.md` y `specs/custody-account/spec.md` **de este cambio**. Ningún requirement queda invalidado; esto no es un archivado. — deps: 4.2, 1.2
+- [x] 13.1 `CLAUDE.md:80`: borrar la línea *"Known gap: `payment_pending`..."* — corrección documental, ninguna conducta del sistema cambia. — deps: ninguna
+- [x] 13.2 `docs/fase-N-transferencia-simplificada.md` (numerar según la última fase escrita): write-up de la fase, según convención del proyecto. — deps: todas las anteriores
+- [x] 13.3 Editar en el momento `openspec/changes/asset-custody-identity/specs/asset-delivery/spec.md:47-51` y `openspec/changes/asset-custody-identity/specs/custody-account/spec.md:124-127`, reemplazando los dos escenarios señalados por el contenido ya redactado en `specs/asset-delivery/spec.md` y `specs/custody-account/spec.md` **de este cambio**. Ningún requirement queda invalidado; esto no es un archivado. — deps: 4.2, 1.2
 
 ## Fase 14: Verificación
 
