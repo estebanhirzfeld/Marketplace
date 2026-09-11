@@ -656,7 +656,7 @@ describe("PrismaOperationRepository", () => {
 
         operation.acceptCurrentOffer("seller");
         operation.signContract();
-        operation.initiateTransfer();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
         operation.confirmAssetCustody({
             verifiedBy: admin.id,
             isPrimaryOwner: true,
@@ -682,6 +682,134 @@ describe("PrismaOperationRepository", () => {
     it("debería devolver null si la Operation no existe", async () => {
         const result = await operationRepo.findById(new UniqueEntityID().toString());
         expect(result).toBeNull();
+    });
+
+    /**
+     * La declaración de cesión del vendedor vive en una columna Json, espejo
+     * de `custodyCheck`: el Date viaja como string ISO y hay que revivirlo.
+     */
+    it("debería persistir y leer de vuelta transferInitiation", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-cesion@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-cesion@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+        const cuenta = new UniqueEntityID();
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(500000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        operation.initiateTransfer({
+            declaredBy: seller.id,
+            controlCeded: true,
+            custodyAccountId: cuenta,
+            notes: "Ya te promoví a propietario principal.",
+        });
+        await operationRepo.save(operation);
+
+        const releida = await operationRepo.findById(operation.id.toString());
+        const constancia = releida!.transferInitiation;
+
+        expect(releida!.status).toBe("transfer_in_progress");
+        expect(constancia).toBeDefined();
+        expect(constancia!.declaredBy.toString()).toBe(seller.id.toString());
+        expect(constancia!.declaredAt).toBeInstanceOf(Date);
+        expect(constancia!.controlCeded).toBe(true);
+        expect(constancia!.custodyAccountId?.toString()).toBe(cuenta.toString());
+        expect(constancia!.notes).toBe("Ya te promoví a propietario principal.");
+    });
+
+    /**
+     * Las operaciones que ya estaban en `transfer_in_progress` antes de este
+     * cambio quedan con la columna en NULL. Rehidratarlas no debe romper:
+     * es la "declaración sin registrar", no un dato corrupto.
+     */
+    it("una operación en transfer_in_progress con transferInitiation en NULL se rehidrata sin romper", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-sinreg@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-sinreg@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(500000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        await operationRepo.save(operation);
+
+        // Simula una fila anterior a este cambio: el estado ya avanzó pero la
+        // columna nunca se escribió (queda en su NULL por defecto).
+        await prisma.operation.update({
+            where: { id: operation.id.toString() },
+            data: { status: "transfer_in_progress" },
+        });
+
+        const releida = await operationRepo.findById(operation.id.toString());
+
+        expect(releida!.status).toBe("transfer_in_progress");
+        expect(releida!.transferInitiation).toBeUndefined();
+    });
+
+    /**
+     * `custodyVerification.custodyAccountId` estaba declarado en el mapper —lo
+     * leía y lo escribía— pero nunca se probó la ida y vuelta real: el defecto
+     * que motivó cablearlo en `ConfirmCustodyUseCase` es exactamente que nada
+     * lo comprobaba contra la base.
+     */
+    it("debería persistir y leer de vuelta custodyVerification.custodyAccountId", async () => {
+        const buyer = await createPersistedUser({
+            email: "buyer-cuenta@test.com",
+            role: UserRole.BUYER,
+        });
+        const seller = await createPersistedUser({
+            email: "seller-cuenta@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+        const admin = await createPersistedUser({
+            email: "admin-cuenta@test.com",
+            role: UserRole.ADMIN,
+        });
+        const cuenta = new UniqueEntityID();
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(500000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({
+            verifiedBy: admin.id,
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+            custodyAccountId: cuenta,
+        });
+        await operationRepo.save(operation);
+
+        const releida = await operationRepo.findById(operation.id.toString());
+
+        expect(releida!.custodyVerification?.custodyAccountId?.toString()).toBe(cuenta.toString());
     });
 });
 

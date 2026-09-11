@@ -10,6 +10,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { Timeline } from '@/components/Timeline';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
+import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
 import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
@@ -25,6 +26,7 @@ import {
     counterOffer,
     declareRecipientIdentity,
     goToCheckout,
+    initiateTransfer,
     signContract,
 } from '../actions';
 import { fileReport } from '../../denuncias/actions';
@@ -74,12 +76,12 @@ function queEsperar(
 
     if (status === 'contract_signed') {
         if (parte === 'seller') {
-            return 'El contrato está firmado y ya nos cediste el acceso al activo. Ahora completamos el cambio de titularidad: no necesitamos nada más de vos por ahora.';
+            return 'El contrato está firmado. Queda un último paso tuyo: cedernos el control del activo. Cuando lo hagas, declaralo acá y lo verificamos.';
         }
         if (parte === 'buyer') {
             return 'El contrato está firmado. Todavía no te toca pagar, y es a propósito: primero tomamos el activo en custodia y verificamos que lo tengamos de verdad. Si nunca llega, no pusiste un peso.';
         }
-        return 'El contrato está firmado. Falta completar el cambio de titularidad para poder declarar la custodia.';
+        return 'El contrato está firmado. Esperamos que el vendedor nos ceda el control y lo declare.';
     }
 
     if (status === 'transfer_in_progress') {
@@ -500,10 +502,9 @@ export default async function DetalleOperacion(props: {
                                 )}
 
                                 {op.status === 'contract_signed' && op.miParte === 'seller' && (
-                                    <OperationAction
-                                        action={advanceOperation.bind(null, id, 'transfer')}
-                                        text="Iniciar la transferencia"
-                                        note="Cedés la titularidad del activo a la plataforma."
+                                    <TransferInitiationForm
+                                        action={initiateTransfer.bind(null, id)}
+                                        steps={op.handoverSteps ?? []}
                                     />
                                 )}
 

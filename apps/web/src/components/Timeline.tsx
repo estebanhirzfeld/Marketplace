@@ -12,13 +12,15 @@ const ETAPAS: Array<{ state: OperationStatusDto; title: string; text: string }> 
     { state: 'contract_pending', title: 'Contrato pendiente', text: 'Falta que firmen comprador y vendedor.' },
     { state: 'contract_signed', title: 'Contrato firmado', text: 'Las tres partes quedaron obligadas.' },
     /*
-     * Decía "El vendedor cede la titularidad a la plataforma", que describe la
-     * cesión de acceso —el paso que ocurre ANTES de firmar, y que es lo que
-     * habilita la firma—. Contarlo acá hacía leer dos entregas del activo
-     * donde hay una sola: la cesión al principio, y el cambio de propietario
-     * principal que la plataforma completa después.
+     * Decía "Transferencia" / "La plataforma completa el cambio de
+     * titularidad sobre el activo cedido", que ponía a la plataforma como
+     * protagonista en un momento en que, antes de este cambio, todavía no
+     * había ninguna declaración del vendedor detrás del estado. Ahora sí la
+     * hay —`initiateTransfer` la exige—, así que el texto puede decir lo que
+     * de verdad pasa acá: el vendedor ya declaró, y lo que resta es nuestra
+     * verificación.
      */
-    { state: 'transfer_in_progress', title: 'Transferencia', text: 'La plataforma completa el cambio de titularidad sobre el activo cedido.' },
+    { state: 'transfer_in_progress', title: 'Verificación', text: 'El vendedor declaró haber cedido el control. La plataforma verifica y toma la custodia.' },
     { state: 'asset_in_custody', title: 'Activo en custodia', text: 'La plataforma verificó el activo. Recién acá se pide el pago.' },
     { state: 'payment_received', title: 'Pago recibido', text: 'El comprador transfirió. Falta liquidar y entregar.' },
     { state: 'completed', title: 'Operación cerrada', text: 'El comprador tiene el activo; el vendedor, su plata.' },

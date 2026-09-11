@@ -7,6 +7,7 @@ import { TransferStatus, TransferableBadge } from '@/components/Transferability'
 import { CustodyAccountForm } from '@/components/CustodyAccountForm';
 import { PlatformAccessForm } from '@/components/PlatformAccessForm';
 import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
+import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
 import { noop } from './actions';
 import {
@@ -307,6 +308,22 @@ export default function Sistema() {
                                     ]}
                                     custodyAccounts={[
                                         { id: 'a', label: 'Custodia YouTube 01', identifier: 'custodia-yt-01@traspaso.com' },
+                                    ]}
+                                />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">DECLARACIÓN DE CESIÓN DEL VENDEDOR</div>
+                            <Panel title="INICIAR LA TRANSFERENCIA">
+                                <TransferInitiationForm
+                                    action={noop}
+                                    steps={[
+                                        {
+                                            id: '1',
+                                            description: 'El vendedor promueve a custodia-yt-01@traspaso.com de administrador a propietario principal',
+                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+                                            afterPlatformStarts: true,
+                                        },
                                     ]}
                                 />
                             </Panel>

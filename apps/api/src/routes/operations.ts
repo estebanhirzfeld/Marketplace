@@ -8,6 +8,7 @@ import type {
     ConfirmPaymentRequest,
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
+    InitiateTransferRequest,
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
@@ -53,6 +54,32 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                 { operationId: request.params.id, price: request.body.price },
                 actorOf(request),
             );
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * El vendedor declara haber cedido el control del activo. Sale del bucle
+     * de pasos porque ya no es un botón sin cuerpo: exige afirmar la cesión,
+     * calcada de `/complete`.
+     */
+    app.post<{ Params: IdParams; Body: InitiateTransferRequest }>(
+        '/operations/:id/transfer',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['controlCeded'],
+                    properties: {
+                        controlCeded: { type: 'boolean' },
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.initiateTransfer.execute(request.params.id, request.body, actorOf(request));
             return reply.code(204).send();
         },
     );
@@ -175,7 +202,6 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
     const pasos: Array<[string, (id: string, actor: ReturnType<typeof actorOf>) => Promise<void>]> = [
         ['accept', (id, actor) => c.acceptOffer.execute(id, actor)],
         ['cancel', (id, actor) => c.cancelOperation.execute(id, actor)],
-        ['transfer', (id, actor) => c.initiateTransfer.execute(id, actor)],
     ];
 
     // Todos comparten la misma forma: id en la ruta, actor del token, 204 al

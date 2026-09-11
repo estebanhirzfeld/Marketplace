@@ -10,6 +10,7 @@ import {
     CheckoutDto,
     ConfirmCustodyRequest,
     ConfirmPaymentRequest,
+    InitiateTransferRequest,
     EvidenceDossierDto,
     FileReportRequest,
     ReportDto,
@@ -273,8 +274,9 @@ export class MarketplaceClient {
         return this.operationStep(operationId, 'cancel');
     }
 
-    initiateTransfer(operationId: string): Promise<void> {
-        return this.operationStep(operationId, 'transfer');
+    /** El vendedor declara haber cedido el control del activo. */
+    initiateTransfer(operationId: string, body: InitiateTransferRequest): Promise<void> {
+        return this.operationStep(operationId, 'transfer', body);
     }
 
     confirmCustody(operationId: string, body: ConfirmCustodyRequest): Promise<void> {

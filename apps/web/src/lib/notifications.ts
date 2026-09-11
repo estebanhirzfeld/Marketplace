@@ -36,6 +36,11 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         title: 'El contrato quedó firmado',
         cuerpo: () => 'Las tres partes firmaron. Sigue la transferencia del activo.',
     },
+    cesion_pendiente: {
+        title: 'Te toca ceder el control del activo',
+        cuerpo: () =>
+            'El contrato quedó firmado. Cedenos el control del activo y declaralo desde la operación: recién ahí lo verificamos y lo tomamos en custodia.',
+    },
     activo_en_custodia: {
         title: 'El activo está en custodia',
         cuerpo: (n) => (n.amount ? `Verificamos el activo. Te toca transferir ${money(n.amount)}.` : 'Verificamos el activo. Te toca pagar.'),

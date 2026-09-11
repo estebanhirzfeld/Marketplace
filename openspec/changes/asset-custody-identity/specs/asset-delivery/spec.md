@@ -45,8 +45,8 @@ El comprador de la operación MUST poder declarar `recipientIdentity` (el identi
 Mientras no esté declarada, el sistema MUST exponer la identidad receptora como tarea pendiente del comprador desde `contract_pending`. Esa tarea MUST NOT bloquear ninguna transición anterior a `complete()`. Desde `asset_in_custody` la tarea MUST señalarse como urgente, porque a partir de ahí demora la propia entrega del comprador. Una vez declarada, la tarea MUST desaparecer. Es el mismo patrón que las verificaciones pendientes del vendedor y los pasos de ACCESO DE LA PLATAFORMA.
 
 #### Scenario: Avanza sin la identidad declarada
-- GIVEN una operación en contract_signed sin identidad receptora
-- WHEN se inicia la transferencia
+- GIVEN una operación en contract_signed sin identidad receptora, cuyo vendedor ya declaró la cesión del control (`simplify-transfer-flow`)
+- WHEN se inicia la transferencia con esa declaración
 - THEN la operación pasa a transfer_in_progress
 - AND la tarea de declarar la identidad figura como pendiente para el comprador
 

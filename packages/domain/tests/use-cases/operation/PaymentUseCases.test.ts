@@ -33,7 +33,7 @@ function unaOperacion(hasta: OperationStatus = 'asset_in_custody'): Operation {
     op.signContract();
     if (hasta === 'contract_signed') return op;
 
-    op.initiateTransfer();
+    op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true });
     if (hasta === 'transfer_in_progress') return op;
 
     op.confirmAssetCustody({

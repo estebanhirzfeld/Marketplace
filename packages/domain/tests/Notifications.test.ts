@@ -92,6 +92,57 @@ describe('NegotiationNotifier', () => {
         expect(notifier.enviadas[0].userId.toString()).toBe(BUYER.toString());
     });
 
+    /**
+     * `contractSigned()` dejó de mandar `contrato_firmado` a las dos partes:
+     * al vendedor le toca ceder el control, y ese aviso no puede seguir
+     * enunciando su paso en voz pasiva.
+     */
+    it('al firmarse el contrato, el comprador recibe contrato_firmado y el vendedor cesion_pendiente', async () => {
+        const notifier = unNotificadorFalso();
+        const op = unaOperacion();
+
+        await new NegotiationNotifier(notifier).contractSigned(op);
+
+        expect(notifier.enviadas).toHaveLength(2);
+
+        const paraComprador = notifier.enviadas.find((n) => n.userId.toString() === BUYER.toString());
+        const paraVendedor = notifier.enviadas.find((n) => n.userId.toString() === SELLER.toString());
+
+        expect(paraComprador?.type).toBe('contrato_firmado');
+        expect(paraVendedor?.type).toBe('cesion_pendiente');
+    });
+
+    it('ninguna de las dos partes recibe el aviso de la otra', async () => {
+        const notifier = unNotificadorFalso();
+        const op = unaOperacion();
+
+        await new NegotiationNotifier(notifier).contractSigned(op);
+
+        const tiposDelComprador = notifier.enviadas
+            .filter((n) => n.userId.toString() === BUYER.toString())
+            .map((n) => n.type);
+        const tiposDelVendedor = notifier.enviadas
+            .filter((n) => n.userId.toString() === SELLER.toString())
+            .map((n) => n.type);
+
+        expect(tiposDelComprador).not.toContain('cesion_pendiente');
+        expect(tiposDelVendedor).not.toContain('contrato_firmado');
+    });
+
+    /**
+     * `contractSigned()` no recibe ni consulta ninguna estrategia de activo:
+     * el aviso al vendedor sale igual sin importar si su tipo de activo
+     * enumera algún paso posterior a la firma (el caso de un listing web).
+     */
+    it('el vendedor recibe cesion_pendiente aunque su estrategia no enumere ningún paso posterior a la firma', async () => {
+        const notifier = unNotificadorFalso();
+        const op = unaOperacion();
+
+        await new NegotiationNotifier(notifier).contractSigned(op);
+
+        expect(notifier.enviadas.some((n) => n.type === 'cesion_pendiente')).toBe(true);
+    });
+
     it('aceptar avisa a la otra parte', async () => {
         const notifier = unNotificadorFalso();
         const op = unaOperacion();

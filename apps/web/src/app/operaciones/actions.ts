@@ -18,12 +18,11 @@ import { money } from '@/lib/format';
 /** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
-type Step = 'accept' | 'cancel' | 'transfer';
+type Step = 'accept' | 'cancel';
 
 const EJECUTAR: Record<Step, (id: string) => Promise<void>> = {
     accept: (id) => api().acceptOffer(id),
     cancel: (id) => api().cancelOperation(id),
-    transfer: (id) => api().initiateTransfer(id),
 };
 
 /**
@@ -81,6 +80,41 @@ export async function declareRecipientIdentity(
 
     revalidatePath(`/operaciones/${operationId}`);
     return { ok: true, message: 'Registramos dónde querés recibir el activo.' };
+}
+
+/**
+ * El vendedor declara haber cedido el control del activo.
+ *
+ * Es la única transición del escrow que la plataforma no puede ejecutar: la
+ * hace el vendedor en la plataforma del activo. Acá solo se valida que
+ * afirme la cesión; el dominio rechaza una declaración negativa.
+ */
+export async function initiateTransfer(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+    const controlCeded = form.get('controlCeded') === 'on';
+    if (!controlCeded) {
+        return { error: 'Tenés que confirmar que ya cediste el control del activo.' };
+    }
+
+    const notes = String(form.get('notes') ?? '').trim();
+
+    try {
+        await api().initiateTransfer(operationId, {
+            controlCeded,
+            notes: notes || undefined,
+        });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar la declaración. Probá de nuevo.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    revalidatePath('/operaciones');
+    return { ok: true, message: 'Declaraste la cesión. Ahora verificamos el activo y confirmamos la custodia.' };
 }
 
 /**

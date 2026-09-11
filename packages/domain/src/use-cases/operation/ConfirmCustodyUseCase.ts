@@ -1,4 +1,4 @@
-import { IOperationRepository } from '../../ports/Repositories';
+import { IOperationRepository, IListingRepository } from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
@@ -25,6 +25,7 @@ export interface ConfirmCustodyInput {
 export class ConfirmCustodyUseCase {
     constructor(
         private readonly operationRepo: IOperationRepository,
+        private readonly listingRepo: IListingRepository,
         private readonly avisos?: NegotiationNotifier,
     ) {}
 
@@ -40,13 +41,23 @@ export class ConfirmCustodyUseCase {
             throw new NotFoundError('Operación no encontrada');
         }
 
+        const listing = await this.listingRepo.findById(operation.listingId.toString());
+        if (!listing) {
+            throw new NotFoundError('Activo no encontrado');
+        }
+
         // La entidad rechaza declarar custodia sin propiedad principal ni
-        // accesos asegurados.
+        // accesos asegurados. `custodyAccountId` sale del `platformAccess`
+        // vigente del listing —congelado acá, igual que en
+        // `InitiateTransferUseCase`— y no de lo que envíe quien llama: así
+        // se puede comparar después contra la cuenta que el vendedor declaró
+        // al ceder el control.
         operation.confirmAssetCustody({
             verifiedBy: new UniqueEntityID(actor.id),
             isPrimaryOwner: input.isPrimaryOwner,
             accessSecured: input.accessSecured,
             metrics: input.metrics,
+            custodyAccountId: listing.platformAccess?.custodyAccountId,
             notes: input.notes,
         });
 

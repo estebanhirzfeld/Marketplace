@@ -16,6 +16,12 @@ export type NotificationType =
     | 'listing_aprobado'
     | 'listing_rechazado'
     | 'contrato_firmado'
+    /**
+     * Al vendedor, en vez de `contrato_firmado`: a él sí le toca algo —ceder
+     * el control del activo y declararlo—, y `contrato_firmado` lo enunciaba
+     * en voz pasiva como si no le tocara nada.
+     */
+    | 'cesion_pendiente'
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'

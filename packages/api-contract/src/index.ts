@@ -550,6 +550,11 @@ export interface PlatformDashboardDto {
     /** Solo de operaciones completadas: comprometido no es cobrado. */
     earned: MoneyDto;
     pending: PendingOperationDto[];
+    /**
+     * Las operaciones cuyo próximo paso es del vendedor. La plataforma no
+     * puede destrabarlas: solo avisar y esperar la declaración.
+     */
+    waitingOnSeller: PendingOperationDto[];
 }
 
 /** Una de las dos partes de una operación, con nombre para poder mostrarla. */
@@ -603,6 +608,13 @@ export interface OperationDetailDto {
     recipientIdentity?: RecipientIdentityDto;
     /** Constancia de entrega, una vez cerrada la operación. */
     delivery?: DeliveryVerificationDto;
+    /** La declaración del vendedor de haber cedido el control del activo. */
+    transferInitiation?: TransferInitiationDto;
+    /**
+     * Lo que le falta al vendedor ceder después de la firma. Ausente si quien
+     * arma el DTO no resolvió cuenta de custodia.
+     */
+    handoverSteps?: HandoverStepDto[];
     createdAt: string;
 }
 
@@ -669,12 +681,44 @@ export interface ConfirmPaymentRequest {
     currency: string;
 }
 
+/**
+ * La declaración del vendedor de haber cedido el control del activo.
+ *
+ * `declaredBy` no viaja, igual que `CustodyVerificationDto` no expone
+ * `verifiedBy`: la asimetría con el resto de los campos es a propósito.
+ */
+export interface TransferInitiationDto {
+    declaredAt: string;
+    controlCeded: boolean;
+    /** Copia congelada al declarar. Ausente si el acceso no nombraba cuenta. */
+    custodyAccountId?: string;
+    notes?: string;
+}
+
+/**
+ * Iniciar la transferencia exige declarar la cesión de control.
+ *
+ * `controlCeded` distinto de `true` es un vendedor que todavía no terminó, no
+ * un dato faltante: el dominio lo rechaza igual que rechaza `isPrimaryOwner:
+ * false` en la custodia.
+ */
+export interface InitiateTransferRequest {
+    controlCeded: boolean;
+    notes?: string;
+}
+
 export interface CustodyVerificationDto {
     verifiedBy: string;
     verifiedAt: string;
     isPrimaryOwner: boolean;
     accessSecured: boolean;
     metrics: Record<string, number>;
+    /**
+     * Copia congelada de la cuenta de custodia al confirmar. Ausente en
+     * constancias anteriores a `asset-custody-identity`: se muestra como
+     * "sin registrar", nunca se inventa.
+     */
+    custodyAccountId?: string;
     notes?: string;
 }
 
@@ -798,6 +842,8 @@ export type NotificationTypeDto =
     | 'listing_aprobado'
     | 'listing_rechazado'
     | 'contrato_firmado'
+    /** Al vendedor, en vez de `contrato_firmado`: le toca ceder el control. */
+    | 'cesion_pendiente'
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'

@@ -77,8 +77,6 @@ It touches four places and will fail at runtime if you miss the mapper:
 - **Blind listings**: when `Listing.isBlind` and the requester has no fully-signed `buyer_nda`, `GetListingDetailsUseCase` filters `assetData` down to the strategy's `getPublicFields()` and returns `hiddenFields[]` so the frontend knows what to blur.
 - `SignContractUseCase` auto-transitions the Operation to `contract_signed` once a tripartite contract reaches full signature.
 
-Known gap: `payment_pending` exists in the `OperationStatus` union and the Prisma enum but no transition ever produces it.
-
 ## Conventions
 
 - TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; `packages/db/tests/integration.test.ts` hits a real database — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.

@@ -249,7 +249,7 @@ export function createContainer(
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
-        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo),
+        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo, custodyRepo),
 
         createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
@@ -262,8 +262,8 @@ export function createContainer(
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
         signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
 
-        initiateTransfer: new InitiateTransferUseCase(operationRepo, avisosDePlataforma),
-        confirmCustody: new ConfirmCustodyUseCase(operationRepo, avisos),
+        initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
+        confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
             : undefined,

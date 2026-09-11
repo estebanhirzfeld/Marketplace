@@ -50,6 +50,9 @@ enum NotificationType {
   listing_aprobado
   listing_rechazado
   contrato_firmado
+  // Al vendedor, en vez de contrato_firmado: a él le toca ceder el control
+  // del activo y declararlo.
+  cesion_pendiente
   activo_en_custodia
   pago_confirmado
   operacion_completada
@@ -198,6 +201,10 @@ model Operation {
   platformEarns    Int?
   currency         String          @default("USD")
   negotiations     Json            @default("[]")
+  // La declaración del vendedor de haber cedido el control del activo.
+  // Nullable y aditiva: las operaciones que ya estaban en transfer_in_progress
+  // quedan sin ella y se muestran como "declaración sin registrar".
+  transferInitiation Json?
   custodyCheck     Json?
   payment          Json?
   // Dónde declaró el comprador que quiere recibir el activo. Nullable y
