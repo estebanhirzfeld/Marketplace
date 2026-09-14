@@ -38,7 +38,7 @@ This is precisely the criterion `platform-access-role` set and did not meet
 
 `payment_pending` is ALREADY removed — union, Prisma enum and DTO are clean;
 `migrations/20260830010140_remove_payment_pending/` did it, and
-`docs/fase-5.1-kyc-y-deudas.md:43-51` records it as resolved. The only surviving
+`docs/fase-05.1-kyc-y-deudas.md:43-51` records it as resolved. The only surviving
 reference is the stale "Known gap" line in `CLAUDE.md:80`. Action: delete that
 sentence. Nothing to design.
 
@@ -95,7 +95,7 @@ pressed a button" critique survives.
 1. The seller has real work in the window that the platform cannot perform, so
    A and C must resurface the instruction anyway. B is the only option that
    gives it a home *and* records it.
-2. It completes an established project pattern. `docs/fase-7-contratos-y-constancias.md:15`
+2. It completes an established project pattern. `docs/fase-07-contratos-y-constancias.md:15`
    converted "actos con consecuencias y sin constancia" into constancias
    (`OwnershipVerification`, `CustodyVerification`, `DeliveryVerification`).
    `initiateTransfer` is the last holdout.

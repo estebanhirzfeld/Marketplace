@@ -119,7 +119,7 @@ administradores mientras la plataforma en realidad está esperando al *vendedor*
 nada. Es una mentira peor que la que se está corrigiendo. Bajo B el aviso conserva su significado
 actual y correcto: el vendedor declaró, así que ahora nos toca a nosotros.
 
-**Completa un patrón ya establecido en el proyecto.** `docs/fase-7-contratos-y-constancias.md:15`
+**Completa un patrón ya establecido en el proyecto.** `docs/fase-07-contratos-y-constancias.md:15`
 planteó el trabajo como convertir *"actos con consecuencias y sin constancia"* en constancias, y
 produjo `OwnershipVerification`, `CustodyVerification` y `DeliveryVerification`. `initiateTransfer`
 es el último que queda afuera. La simetría acá no es estética: es el argumento de que el producto de
