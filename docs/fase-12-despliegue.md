@@ -20,7 +20,7 @@ scripts de deploy/redeploy/rollback.
 
 ---
 
-## El artefacto de producción de la API
+## Decisión 1 — Artefacto de producción de la API
 
 ### El defecto
 
@@ -41,7 +41,7 @@ El fondo del problema: `tsconfig.base.json` declara `"module": "ESNext"` +
 un bundler, no Node directamente*. `apps/web` lo respeta porque Next bundlea.
 `apps/api` lo rompía al alimentar `tsc` directo a `node`.
 
-### La decisión: bundlear `apps/api` a un único archivo ESM, sin tocar ninguna fuente
+### Bundlear `apps/api` a un único archivo ESM
 
 Se agrega `tsup` (encima de esbuild) como única dependencia nueva y un
 `apps/api/tsup.config.ts`. Cero cambios en código fuente: los 255+ imports
@@ -60,7 +60,7 @@ Cambios exactos:
 | `apps/api/tsconfig.json` | `noEmit: true`; se quitan `outDir`/`rootDir`. Pasa a ser la config del typecheck; el emit lo hace tsup. |
 | `turbo.json` | Nueva tarea `typecheck` cacheable, `dependsOn: ["^db:generate"]`. |
 
-### Por qué ESM, y por qué el banner no es opcional — tres configuraciones, medidas
+### Formato de salida: ESM con banner `createRequire`
 
 | Config | Build | Runtime | Causa |
 |---|---|---|---|
@@ -95,7 +95,7 @@ Ambos hacen ESM la salida. Se elige `.mjs` porque:
   módulos, así que `node dist/server.mjs` se comporta igual sin importar qué diga
   cualquier `package.json` por encima.
 
-### Por qué un bundle de un solo archivo funciona acá: el driver adapter
+### El driver adapter permite un bundle de un solo archivo
 
 `packages/db/src/client.ts` construye el cliente sobre un **driver adapter**
 (`@prisma/adapter-pg`) encima de un `Pool` de `pg` puro JavaScript. Con un driver
@@ -136,11 +136,13 @@ SMOKE OK
 
 ---
 
-# Infraestructura (PR2)
+## Infraestructura
 
-La topología es una sola VM Ampere A1 en `sa-saopaulo-1`, en su propia VCN, con
-un checkout completo del repo en `/srv/marketplace`. Cuatro procesos de larga
-vida:
+La topología es una sola VM en `sa-saopaulo-1`, en su propia VCN, con un checkout
+completo del repo en `/srv/marketplace`. La shape vigente es
+`VM.Standard.E2.1.Micro` x86_64 (Decisión 11); la `VM.Standard.A1.Flex` ARM que
+describe la Decisión 2 sigue siendo el objetivo preferido y seleccionable, a la
+espera de que se libere capacidad de host. Cuatro procesos de larga vida:
 
 ```
 Internet ──443──▶ Caddy ──▶ Next :3000 ──▶ Fastify :3001 ──▶ Postgres :5434
@@ -148,12 +150,13 @@ Internet ──443──▶ Caddy ──▶ Next :3000 ──▶ Fastify :3001 �
                                                               block volume)
 ```
 
-Los builds corren en la VM. Un `deploy.sh` idempotente y un `rollback.sh`. Los
-proyectos vecinos `agency` (163.176.174.23) y `agency-demo`
+Los builds corrían en la VM mientras el objetivo fue A1; sobre la micro de 1 GB se
+mueven a GitHub Actions (Decisión 11). Un `deploy.sh` idempotente y un
+`rollback.sh`. Los proyectos vecinos `agency` (163.176.174.23) y `agency-demo`
 (`demo.forzalabs.online`) **no se tocan**: nada fuera de la VCN nueva se lee ni
 se referencia, y todo lo que se crea se selecciona por el OCID recién generado.
 
-## Decisión 2 — Instancia, imagen, almacenamiento
+### Decisión 2 — Instancia, imagen, almacenamiento
 
 | Ítem | Elección | Motivo |
 |---|---|---|
@@ -164,7 +167,7 @@ se referencia, y todo lo que se crea se selecciona por el OCID recién generado.
 | Swap | Archivo de 4 GB en el disco de arranque | Seguro para que `next build` conviva con Postgres y dos procesos Node. |
 | IP pública | **Reservada**, no efímera | El DNS sobrevive al reemplazo de la instancia. Se crea antes que la VM, así que un lanzamiento fallido no la pierde. |
 
-## Decisión 3 — Topología de red
+### Decisión 3 — Topología de red
 
 VCN nueva `10.1.0.0/16`, subnet pública `10.1.0.0/24`, Internet Gateway, ruta
 `0.0.0.0/0 → IGW`. La VCN de `agency` (`vcn-20260815-0137`, `10.0.0.0/16`) no se
@@ -182,7 +185,7 @@ puede quedar a una edición de security list de hosts de otro proyecto.
   código server-side de Next. La única excepción es el webhook de MercadoPago
   (Decisión 6).
 
-## Decisión 4 — Aprovisionamiento y falla de capacidad
+### Decisión 4 — Aprovisionamiento y falla de capacidad
 
 `infra/provision/launch-instance.sh` corre `oci compute instance launch` dentro
 de un loop de reintento.
@@ -203,7 +206,7 @@ de un loop de reintento.
   legible de ~200 líneas es mejor artefacto de tesis que un archivo de estado
   que además hay que gestionar.
 
-## Decisión 5 — Supervisión de procesos, orden de arranque, health
+### Decisión 5 — Supervisión de procesos, orden de arranque, health
 
 Tres units en `infra/systemd/`:
 
@@ -232,7 +235,7 @@ smoke test del deploy (Decisión 9) lee de la base.
 > el bind. Endurecerlo (bindear loopback en `server.ts`) es un cambio de fuente
 > fuera del alcance de infra y queda anotado.
 
-## Decisión 6 — Reverse proxy y TLS
+### Decisión 6 — Reverse proxy y TLS
 
 Caddy 2 del repo apt oficial, `infra/caddy/Caddyfile`:
 
@@ -254,7 +257,7 @@ Caddy 2 del repo apt oficial, `infra/caddy/Caddyfile`:
 - **Sin basic auth, sin sala de espera** (decisión del usuario). El aviso de demo
   es UI, no configuración de proxy.
 
-## Decisión 7 — Base de datos, migraciones, durabilidad
+### Decisión 7 — Base de datos, migraciones, durabilidad
 
 - `docker-compose.prod.yml` (nuevo, separado del de dev): `postgres:16`,
   `ports: ["127.0.0.1:5434:5432"]`, `volumes: ["/mnt/pgdata:/var/lib/postgresql/data"]`,
@@ -278,7 +281,7 @@ Caddy 2 del repo apt oficial, `infra/caddy/Caddyfile`:
   inverso y **debe probarse una vez** antes de la defensa — un restore no probado
   no es un backup.
 
-## Decisión 8 — Configuración y entrega de secretos
+### Decisión 8 — Configuración y entrega de secretos
 
 El repo es público y el tooling del asistente tiene bloqueado todo archivo
 `.env`, así que **cada paso con secretos lo ejecuta el operador**, con comandos
@@ -302,7 +305,7 @@ verbatim en `infra/README.md`.
   `apps/api/src/routes/listings.ts`), no 500. Habilitarlas después es completar
   cuatro valores en `api.env` y reiniciar.
 
-## Decisión 9 — Deploy, redeploy, rollback
+### Decisión 9 — Deploy, redeploy, rollback
 
 > **PR3 cambió este flujo.** Los pasos 5, 7 y 8 (typecheck y los dos builds) se
 > movieron a GitHub Actions porque la micro de 1 GB no puede construir; en su
@@ -364,7 +367,7 @@ verbatim en `infra/README.md`.
 **salteando el 6** (nunca se auto-revierte una migración). Las caches de pnpm y
 Turbo lo dejan en ~1 minuto.
 
-### Recuperación de migración fallida
+#### Recuperación de migración fallida
 
 1. `infra/scripts/restore-db.sh <último dump>` — recrea `marketplace` desde el
    `pg_dump` de la noche anterior.
@@ -372,7 +375,7 @@ Turbo lo dejan en ~1 minuto.
 3. El sitio queda en el par (código, esquema) anterior, consistente. No se deja a
    medio actualizar.
 
-### Recuperación de lockout SSH
+#### Recuperación de bloqueo de acceso SSH
 
 La IP residencial del operador rota y SSH deja de entrar. `infra/scripts/allow-my-ip.sh
 --security-list-id <ocid>` se corre **desde cualquier máquina con la API key de
@@ -381,7 +384,7 @@ de ingreso de la security list al conjunto canónico (22 desde la IP nueva, 80 y
 443 desde `0.0.0.0/0`). El OCID de la security list está en
 `infra/provision/launch.log`.
 
-## Decisión 10 — ¿`next build` corre en la VM?
+### Decisión 10 — ¿`next build` corre en la VM?
 
 **En A1 sí; en la micro NO** (ver Decisión 11 — este es el cambio de PR3).
 
@@ -397,9 +400,9 @@ que hay. Los builds se mueven a **GitHub Actions** (Decisión 11). El engine de
 Prisma para el CLI ahora es `linux-x64` — lo baja `pnpm install` en la VM (que
 es x86_64), igual que antes lo bajaba para ARM.
 
-## Decisión 11 — Reorientación a `VM.Standard.E2.1.Micro` x86 (PR3)
+### Decisión 11 — Reorientación a `VM.Standard.E2.1.Micro` x86
 
-### La evidencia: no es quota, es capacidad de host
+#### Causa del fallo de lanzamiento: capacidad de host agotada
 
 44 intentos de `oci compute instance launch` en dos corridas (primero 2 OCPU /
 12 GB, después `--small` 1 OCPU / 6 GB), durante ~2 h, todos con la misma
@@ -412,7 +415,7 @@ libre todo el tiempo (2 OCPU disponibles, 0 en uso): lo que falta es capacidad
 física de host, no permiso. Un `InternalError` 500 no es reintentable de forma
 útil más allá de lo que ya se probó.
 
-### El objetivo nuevo
+#### Shape de destino: `VM.Standard.E2.1.Micro`
 
 `VM.Standard.E2.1.Micro`, specs verificadas: **1 OCPU, 1.0 GB RAM, AMD EPYC 7551
 — x86_64, NO ARM.** Se liberó un slot terminando la instancia muerta `agency`;
@@ -431,7 +434,7 @@ el mismo `oci compute image list --shape <shape>` de siempre: OCI solo devuelve
 imágenes compatibles con la shape, así que para la micro salen x86_64 sin
 filtrar por arquitectura a mano.
 
-### Postgres se queda en la caja, con swap
+#### Postgres en la misma VM, con swap de 2 GB
 
 Se evaluó mover Postgres a un managed externo (el argumento: 1 GB es apretado).
 **Decisión del usuario: Postgres en la caja.** Para que entre:
@@ -452,7 +455,7 @@ Se evaluó mover Postgres a un managed externo (el argumento: 1 GB es apretado).
   | `wal_buffers` | `4MB` | Proporcional a `shared_buffers`. |
   | `max_wal_size` / `min_wal_size` | `512MB` / `128MB` | Checkpoints más chicos y frecuentes: menos pico de I/O, menos disco. |
 
-### El build se va de la caja
+#### El build se mueve a GitHub Actions
 
 1 GB no corre `next build` (pico 1–2 GB de heap) ni `tsup`. **El anterior
 ocupante de esta misma shape murió de presión de memoria** — y era justamente
@@ -491,7 +494,7 @@ base): hace un `POST /auth/login` de un usuario inexistente y exige el **403
 `{"code":"FORBIDDEN"}`** del dominio, que solo se da si la cadena bundle → Prisma
 → `pg` → Postgres → caso de uso funciona de punta a punta.
 
-### `next start` → server.js del standalone
+#### `next start` → server.js del standalone
 
 `apps/web/next.config.ts` gana `output: 'standalone'` y —**gotcha de monorepo**—
 `outputFileTracingRoot` apuntando a la raíz del workspace. Sin eso, el trazado
@@ -508,7 +511,7 @@ para desplegar): tras `next build`, copiar `static/` y `public/` adentro del
 standalone y `node server.js` — `GET /`, `/robots.txt` y `/sistema` devuelven
 200 sin ningún `node_modules` instalado aparte del que trae el propio standalone.
 
-### Presupuesto de memoria — 1024 MB
+#### Presupuesto de memoria — 1024 MB
 
 Estimación de RSS en régimen (sitio ocioso o carga liviana). **Ningún número
 está medido sobre la micro real** (no hay acceso a la VM); son estimaciones de
@@ -536,14 +539,14 @@ smoke del bundle API ~75 MB. Números **estimados**: todo lo demás de la tabla.
 La forma de cerrar esto de verdad es un `systemctl status` / `ps_mem` sobre la
 micro después del primer deploy — está en la lista de "sin verificar".
 
-## Teardown
+## Desmontaje de la infraestructura
 
 Si hay que desmontar todo: terminar la instancia, desadjuntar y borrar el block
 volume, borrar la VCN, quitar el registro DNS. **Impacto cero sobre el proyecto
 `agency`**, porque nada fuera de la VCN nueva se modifica nunca. Los OCID de todo
 lo creado están en `infra/provision/launch.log`.
 
-## Qué queda sin verificar hasta correr en la VM
+## Pendiente de verificación en la VM
 
 Estos scripts y archivos se probaron localmente hasta donde se puede
 (`shellcheck`, `bash -n`, `caddy validate`, `docker compose config`,

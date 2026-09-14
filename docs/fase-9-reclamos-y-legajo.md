@@ -6,15 +6,15 @@
 
 ---
 
-## La decisión de negocio que ordena la fase
-
-Hubo un intento anterior, y se descartó. Se había diseñado una retención sobre el ingreso declarado: parte del cobro del vendedor quedaba retenida y se liberaba en proporción al ingreso real, de modo que inflar el número no rindiera.
-
-El mecanismo era coherente y estaba probado, y **estaba mal**: movía a la plataforma de intermediaria a garante. Esa es una decisión de modelo de negocio, y ya estaba tomada.
+## Decisión de negocio: la plataforma no es garante
 
 > La plataforma cobra 5% a cada parte y no asume el riesgo de que una de ellas mienta. Ante un fraude no retiene fondos ni ajusta el precio: entrega la documentación y los datos de la parte en falta a su contraparte para que inicie las acciones legales que correspondan.
 
-Se revirtió por completo. Lo que sigue es lo que la plataforma sí puede ofrecer con honestidad.
+Es una decisión de modelo de negocio y ya estaba tomada antes de esta fase. Lo que sigue es lo que la plataforma sí puede ofrecer con honestidad.
+
+### Alternativa descartada: retención sobre el ingreso declarado
+
+Se había diseñado una retención sobre el ingreso declarado: parte del cobro del vendedor quedaba retenida y se liberaba en proporción al ingreso real, de modo que inflar el número no rindiera. El mecanismo era coherente y estaba probado, y aun así **estaba mal**: movía a la plataforma de intermediaria a garante. Se revirtió por completo.
 
 ---
 
@@ -26,7 +26,7 @@ De ahí que el trabajo de esta fase no sea arbitrar nada, sino **reunir y entreg
 
 ---
 
-## Ningún estado dice quién tiene razón
+## Estados del reclamo: `open` y `closed`
 
 `Report` tiene exactamente dos estados: `open` y `closed`.
 
@@ -46,7 +46,7 @@ Cerrar un reclamo no significa que fuera infundado: significa que la plataforma 
 
 ---
 
-## Tres reglas que salieron del dominio existente
+## Tres reglas del reclamo
 
 **No se puede reclamar antes de firmar el contrato.** La razón reusa una regla que ya estaba: hasta ese punto cancelar es legal, así que retirarse es el remedio. Recién cuando la cancelación deja de estar disponible el reclamo tiene sentido.
 
@@ -56,7 +56,7 @@ Cerrar un reclamo no significa que fuera infundado: significa que la plataforma 
 
 ---
 
-## El legajo
+## El legajo probatorio
 
 Es el producto real de la fase. Reúne en un solo lugar lo que la plataforma ya venía registrando y que hasta ahora no estaba junto en ninguna parte:
 
@@ -74,7 +74,7 @@ Entregar el nombre y el DNI de la contraparte parecía el punto espinoso, y no l
 
 ---
 
-## Estado
+## Dónde quedó cada pieza
 
 | Pieza | Dónde |
 |---|---|

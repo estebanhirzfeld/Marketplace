@@ -136,7 +136,7 @@ Respeta `prefers-reduced-motion`: quien pidió menos movimiento recibe menos mov
 
 ---
 
-## Endpoints que hubo que agregar
+## Endpoints agregados
 
 Construir el front expuso que la API no tenía forma de responder tres preguntas:
 
