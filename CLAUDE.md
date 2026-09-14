@@ -108,8 +108,8 @@ Heading rules, in force for every write-up:
 - No jargon or anglicisms in headings (`la VM`, not `la caja`; `desmontaje`, not
   `teardown`).
 
-Templates to copy rather than improvise: `docs/fase-4.1-unit-of-work.md` is the cleanest
-in the repo, and `docs/fase-0-scaffold.md` and `docs/fase-1-dominio.md` hold the canonical
+Templates to copy rather than improvise: `docs/fase-04.1-unit-of-work.md` is the cleanest
+in the repo, and `docs/fase-00-scaffold.md` and `docs/fase-01-dominio.md` hold the canonical
 skeleton — status blockquote, summary paragraph, `## Objetivos cumplidos`, decisions
 numbered under `##`, `## Tests`, `## Deuda técnica conocida`, `## Siguiente paso`. Closing
 sections are named for what they hold: `## Tests` for suite results, `## Dónde quedó cada
