@@ -8,7 +8,7 @@ Se implementaron los **16 use cases** que orquestan los 4 flujos de negocio del 
 
 ---
 
-## 🎯 Objetivos cumplidos
+## Objetivos cumplidos
 
 - 16 use cases organizados en 4 módulos de negocio.
 - 44 tests unitarios con repositorios mockeados.

@@ -8,7 +8,7 @@ Esta sub-fase completó la verificación end-to-end de la persistencia: serializ
 
 ---
 
-## 🎯 Objetivos cumplidos
+## Objetivos cumplidos
 
 - Implementar `toJSON()` en todas las strategies para serialización a Prisma (columna JSON).
 - Configurar Vitest para el paquete `@marketplace/db`.
@@ -17,7 +17,7 @@ Esta sub-fase completó la verificación end-to-end de la persistencia: serializ
 
 ---
 
-## 🛠 Cambios realizados
+## Cambios realizados
 
 ### 1. `toJSON()` en las Asset Strategies
 
@@ -76,7 +76,7 @@ Se escribieron **8 tests** organizados en 3 bloques `describe`:
 
 ---
 
-## 🚀 Comandos
+## Comandos
 
 ```bash
 # Requiere Docker corriendo (PostgreSQL en puerto 5433)
