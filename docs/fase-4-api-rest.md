@@ -6,7 +6,7 @@
 
 ---
 
-## Por qué esta fase no es "solo endpoints"
+## Por qué la fase incluye autorización y composition root
 
 Los use cases de la Fase 3 fueron escritos asumiendo un **llamador confiable**. Hoy eso es cierto porque el único llamador son los tests. En el momento en que exista un endpoint HTTP, deja de serlo:
 
@@ -92,7 +92,7 @@ Queda deliberadamente abierto si el proceso de **cambiar el owner/holding de la 
 
 ---
 
-## 🐞 Bug encontrado: los listings blind nunca se desbloquean
+## Bug: los listings blind nunca se desbloquean
 
 Detectado al analizar la decisión 4. **Es un bug de producción, no una decisión de diseño.**
 
@@ -110,7 +110,7 @@ La decisión 4 lo arregla: `SignNdaUseCase` firma la parte del actor **y** llama
 
 ---
 
-## 🐞 Bug encontrado: `signedAt` volvía de la base como string, no como `Date`
+## Bug: `signedAt` se lee de la base como string, no como `Date`
 
 Detectado al destrabar el typecheck de `packages/db`. **Un cast estaba ocultando un bug de runtime.**
 
@@ -170,11 +170,11 @@ Cada `throw` del dominio es `new Error('mensaje en español')`. La API no puede 
 
 ---
 
-## Tareas (orden TDD estricto)
+## Plan de implementación (orden TDD estricto)
 
 Cada bloque arranca por el test que falla.
 
-### Bloque A — Errores tipados de dominio ✅
+### Bloque A — Errores tipados de dominio
 
 1. ✅ Test: cada error de dominio expone un `code` estable y es distinguible por tipo.
 2. ✅ Crear `packages/domain/src/errors/DomainError.ts`: `DomainError` base + `NotFoundError`, `ForbiddenError`, `InvalidStateError`, `ValidationError`.
@@ -196,7 +196,7 @@ Queda deliberadamente como `Error` crudo el único `throw` que no expresa una re
 
 La distinción entre 403 y 409 en la negociación es deliberada: *no ser parte* de la operación es `Forbidden`; *ser parte pero fuera de turno* es `InvalidState`.
 
-### Bloque B — Identidad y credenciales ✅
+### Bloque B — Identidad y credenciales
 
 5. ✅ `Password` value object con la política de fortaleza.
 6. ✅ `passwordHash` en `UserProps` y el puerto `IPasswordHasher`.
@@ -232,7 +232,7 @@ A diferencia de `Email`, `Password` **no** hace `trim()` ni `toLowerCase()`: en 
 - **`bcryptjs` en lugar de `bcrypt`**: JavaScript puro, sin compilación de binarios nativos en el monorepo. Es más lento, lo que en un hasher no es un defecto.
 - La contraseña de cada usuario del seed es su propio correo, así que quien prueba la aplicación la lee en la misma pantalla de ingreso. El seed las hashea al sembrar con las mismas doce rondas que usa la API.
 
-### Bloque C — Pertenencia y KYC en las entidades ✅
+### Bloque C — Pertenencia y KYC en las entidades
 
 10. ✅ `Operation.partyFor(actorId)` devuelve `'buyer' | 'seller'` y lanza `ForbiddenError` si el actor no es parte.
 11. ✅ `Listing.isOwnedBy()` y `assertOwnedBy()`.
@@ -240,7 +240,7 @@ A diferencia de `Email`, `Password` **no** hace `trim()` ni `toLowerCase()`: en 
 13. ✅ `Contract.signAsPlatform()` firma el rol `platform` con `'system'` como IP.
 14. ✅ Implementados, más `Operation.assertIsSeller()` y `assertIsAdmin(actor)`.
 
-### Bloque D — Actor y migración de firmas ✅
+### Bloque D — Actor y migración de firmas
 
 15. ✅ `ports/Actor.ts` (adelantado en el Bloque B).
 16. ✅ Migradas las 16 firmas según la tabla de abajo, con un test de autorización negativo **antes** de cada cambio.
@@ -262,18 +262,18 @@ Con los tests dentro del typecheck, los 58 errores de compilación funcionaron c
 
 Lección para la defensa: un test verde no prueba que el comportamiento sea correcto, solo que coincide con lo que alguien escribió que esperaba.
 
-### Bloque E — Fix del bug de listings blind ✅
+### Bloque E — Corrección del bug de listings blind
 
 20. ✅ Test de integración sin mocks: buyer con KYC firma NDA sobre un listing blind → `GetListingDetails` devuelve los campos confidenciales y `hiddenFields` vacío.
 21. ✅ `SignNdaUseCase` firma la parte del actor y llama a `signAsPlatform()`.
 
-### Bloque F — Composition root ✅
+### Bloque F — Composition root
 
 22. ✅ `apps/api/src/container.ts`: instancia repositorios Prisma y cablea los 16 use cases. Sin framework de DI — construcción explícita.
 23. ✅ Plugin `authenticate` y `authenticateOptional`: verifica el JWT y adjunta `req.actor`.
 24. ✅ Error handler global: `DomainError` → status HTTP.
 
-### Bloque G — Endpoints ✅
+### Bloque G — Endpoints
 
 25. ✅ Por cada ruta: test con `fastify.inject()` (200 feliz + 401 sin token + 403 actor equivocado) y después la ruta.
 26. ✅ Schemas de validación de body/params en cada endpoint.
@@ -305,7 +305,7 @@ El mapeo `assetType → IAssetStrategy` vivía **solo** dentro de `ListingMapper
 
 Saber qué tipos de activo existen y qué campos requiere cada uno es **regla de negocio**, no detalle de persistencia. El factory se movió al dominio y `ListingMapper` ahora delega en él, eliminando la duplicación.
 
-### La simetría es el contrato
+### Simetría entre `createAssetStrategy()` y `toJSON()`
 
 `createAssetStrategy()` es la contraparte exacta de `IAssetStrategy.toJSON()`. Los tests lo fijan como propiedad de round-trip, para las cuatro variantes de activo:
 
@@ -320,7 +320,7 @@ expect(reconstruida.calculateEstimatedPrice().getCents())
 
 Que el precio estimado coincida es más fuerte que comparar el JSON: prueba que la strategy quedó funcionalmente equivalente, no solo con los mismos campos.
 
-### Validación de verdad, no confianza en la forma
+### Validación de los datos del activo en el factory
 
 El factory recibe datos de **dos orígenes con distinta confianza**: filas de la base propia y bodies de requests ajenos. Se decidió validar los dos con el mismo rigor en vez de tener dos caminos: cada campo se lee con un helper que verifica tipo y lanza `ValidationError` nombrando el campo que falla.
 

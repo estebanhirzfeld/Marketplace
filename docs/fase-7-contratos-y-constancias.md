@@ -87,7 +87,7 @@ Los NDA quedaron deliberadamente fuera del candado, con un test que lo fija: obl
 
 ---
 
-## Un patrón que se repitió tres veces
+## Forma común de las tres constancias
 
 Las tres constancias tienen la misma forma: **quién verificó, cuándo, y qué encontró**. No es casualidad — es la respuesta a un problema estructural del proyecto.
 
@@ -97,7 +97,7 @@ Ese patrón se volvió después la base del legajo de la Fase 9.
 
 ---
 
-## Lo que se rompió al arreglarlo
+## Tests y seed afectados por el cambio
 
 Agregar la constancia a `confirmAssetCustody()` puso en rojo ocho tests que confirmaban la custodia sin verificar nada. Eran tests que pasaban describiendo un comportamiento que no queríamos.
 
@@ -105,7 +105,7 @@ Y una revisión de `Contract.sign()` mostró que el seed llevaba tiempo roto: fi
 
 ---
 
-## Estado
+## Dónde quedó cada pieza
 
 | Pieza | Dónde |
 |---|---|

@@ -83,3 +83,34 @@ It touches four places and will fail at runtime if you miss the mapper:
 - **Identifiers are English; prose is Spanish.** Every name the compiler sees — functions, methods, classes, interfaces, type aliases, object and DTO properties, variables, React components, server actions, file names — is in English. Comments, error messages, UI copy and the `docs/` write-ups are in Spanish. Match the surrounding file.
 - Conventional commits. Never add `Co-Authored-By` or AI attribution.
 - Each completed phase gets a write-up in `docs/fase-*.md`.
+
+## Phase write-ups (`docs/fase-*.md`)
+
+A phase is planned, discussed, then coded; the `.md` goes up when the work is done,
+not while it is in progress. A phase with a decimal (`2.1`, `4.1`, `5.1`) is a
+**deviation that surfaced during planning** — necessary for the parent phase but too
+small to justify a phase of its own. Open a subphase instead of stretching the parent's
+scope or inventing a new phase. `docs/gant.json` records every phase, its commit window
+and its parent; update it when a phase closes.
+
+Heading rules, in force for every write-up:
+
+- A heading is a **noun phrase**. It names its subject and stops there. No moral, no
+  conclusion, no colour commentary. "Métricas públicas: redondeo de `subscriberCount`"
+  — not "Métricas públicas: el redondeo obliga a pensar".
+- If a heading uses a colon, what follows is *which one specifically*, never *what it
+  means*. Compare "Titularidad: se compara por ID, no por handle" (good) with
+  "El dato que definió la arquitectura" (a teaser that hides its own subject).
+- **No emoji in headings.** The `✅ Completa` / `🚧 En curso` of the status blockquote is
+  not a heading and stays.
+- Identifiers go in backticks, in headings too.
+- One `#` H1 per document, and it follows `# Fase N — <noun phrase>`.
+- No jargon or anglicisms in headings (`la VM`, not `la caja`; `desmontaje`, not
+  `teardown`).
+
+Templates to copy rather than improvise: `docs/fase-4.1-unit-of-work.md` is the cleanest
+in the repo, and `docs/fase-0-scaffold.md` and `docs/fase-1-dominio.md` hold the canonical
+skeleton — status blockquote, summary paragraph, `## Objetivos cumplidos`, decisions
+numbered under `##`, `## Tests`, `## Deuda técnica conocida`, `## Siguiente paso`. Closing
+sections are named for what they hold: `## Tests` for suite results, `## Dónde quedó cada
+pieza` for the `Pieza | Dónde` map, `## Pendiente` for what remains.

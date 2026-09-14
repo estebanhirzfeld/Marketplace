@@ -6,7 +6,7 @@
 
 ---
 
-## Una fuga de confidencialidad, y por qué pasó
+## Fuga de confidencialidad por `isBlind`
 
 En el mercado se veía la dirección del canal de un activo publicado, **sin iniciar sesión y sin NDA**. La causa era un corto-circuito:
 
@@ -26,7 +26,7 @@ El test que lo fija no confía en la lista de campos: verifica que el JSON seria
 
 ---
 
-## Los textos eran para el desarrollador
+## Vocabulario de la interfaz: identificadores en inglés en la copy
 
 La interfaz mezclaba "asset" y "activo" para lo mismo, y explicaba mecanismos internos en vez de decirle a la persona qué iba a pasar. Se unificó en **"activo"**, que ya era lo que usaban el título del sitio, la línea de tiempo y todos los avisos.
 
@@ -69,7 +69,7 @@ En la URL los precios van en unidades enteras, no en centavos: es lo que la pers
 
 ---
 
-## Estado
+## Tests
 
 ```
 domain      418 passed

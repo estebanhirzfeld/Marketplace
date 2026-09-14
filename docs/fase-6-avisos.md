@@ -52,7 +52,7 @@ El aviso de la cascada no es un detalle: sin él, los compradores cuyas ofertas 
 
 ---
 
-## Tres decisiones que hacen la diferencia
+## Tres decisiones sobre el envío de avisos
 
 ### Los avisos salen después de que la transacción confirma
 
@@ -69,7 +69,7 @@ await this.avisos?.ofertasCanceladasPorCascada(resultado.canceladas);
 
 Es un detalle que solo aparece porque la fase anterior introdujo la transacción.
 
-### Un aviso que falla no tumba la venta
+### Un fallo del notificador no interrumpe la operación
 
 Todos los métodos de `AvisosDeNegociacion` se tragan los errores del notificador a propósito. Que un aviso no salga es molesto; que se caiga una venta porque el correo no anduvo es inaceptable.
 
@@ -117,7 +117,7 @@ Los ids de aviso son adivinables, así que `MarkNotificationReadUseCase` chequea
 
 ---
 
-## Un tropiezo que dejó lección
+## Orden de limpieza de los tests HTTP
 
 La foreign key de `notifications` hacia `users` rompió el `limpiar()` de los tests HTTP: borraba usuarios antes que sus avisos. El orden de limpieza tiene que respetar las FKs, igual que ya hacía `integration.test.ts` con contratos, operaciones y listings.
 
