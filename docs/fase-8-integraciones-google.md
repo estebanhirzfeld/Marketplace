@@ -6,7 +6,7 @@
 
 ---
 
-## La investigación primero
+## Investigación previa de las APIs
 
 Antes de escribir una línea de adaptador se investigó qué exponen realmente las APIs. El resultado está en `docs/investigacion-integraciones.md` y cambió el diseño más de una vez.
 
@@ -22,7 +22,7 @@ Un sitio web queda verificable casi por completo, incluido el dato que fija el p
 
 ---
 
-## Lo que no se puede, y por qué importa
+## Límites de las APIs de YouTube
 
 **El ingreso de un canal no es consultable.** La documentación de YouTube Analytics dice que las métricas de ingreso *"are not currently supported for channel reports"*, y remata que el scope `yt-analytics-monetary.readonly` **no da acceso a datos monetarios en esos reportes**. Aunque el vendedor conceda todos los permisos que existen, Google no devuelve el número. Solo existe para content owners certificados, que no somos.
 
@@ -32,7 +32,7 @@ Un sitio web queda verificable casi por completo, incluido el dato que fija el p
 
 ---
 
-## Métricas públicas: el redondeo obliga a pensar
+## Métricas públicas: redondeo de `subscriberCount`
 
 `channels.list` con una clave de API devuelve suscriptores, vistas y videos de cualquier canal. Pero **`subscriberCount` viene redondeado hacia abajo a tres cifras significativas**.
 
@@ -63,7 +63,7 @@ Elimina el fraude principal del rubro: vender un canal ajeno.
 
 ---
 
-## AdSense: la verificación que alcanza el precio
+## AdSense: verificación del ingreso del sitio
 
 La dimensión se llama `OWNED_SITE_DOMAIN_NAME` y la documentación la define como *"Domain name of a verified site"* — Google ya comprobó por su cuenta que ese sitio pertenece a esa cuenta.
 
@@ -81,9 +81,9 @@ Lo que **no** se puede afirmar es que lo siga controlando hoy, y la interfaz no 
 
 ---
 
-## Un defecto que apareció de costado
+## Desajuste entre las listas de campos y `assetData`
 
-Buscando dónde se guardaba la dirección del canal se descubrió que no existía. `getConfidentialFields()` declaraba `channel_url`, `channel_id`, `raw_metrics` y `has_strikes`; `toJSON()` no emitía ninguno.
+La dirección del canal no se guardaba en ningún lado. `getConfidentialFields()` declaraba `channel_url`, `channel_id`, `raw_metrics` y `has_strikes`; `toJSON()` no emitía ninguno.
 
 El problema era más grande: **las listas estaban en snake_case y `assetData` en camelCase**, así que el filtro de los listings blind no encontraba coincidencias. Un canal blind mostraba solo `{subscribers}` —se comía el ingreso, la monetización y el país que él mismo declaraba públicos— y `hiddenFields` nombraba cuatro campos inexistentes.
 

@@ -8,7 +8,7 @@ Esta sub-fase extendió la entidad `Operation` con negociación bidireccional (c
 
 ---
 
-## 🎯 Objetivos cumplidos
+## Objetivos cumplidos
 
 - Implementar contraofertas bidireccionales en la entidad `Operation`.
 - Agregar campo `negotiations` (JSON) al schema de Prisma.
@@ -18,7 +18,7 @@ Esta sub-fase extendió la entidad `Operation` con negociación bidireccional (c
 
 ---
 
-## 🛠 Cambios realizados
+## Cambios realizados
 
 ### 1. Negociación bidireccional en `Operation`
 
@@ -89,7 +89,7 @@ El archivo `packages/domain/tests/Operation.test.ts` pasó de una cobertura bás
 
 ---
 
-## 🚀 Comandos
+## Comandos
 
 ```bash
 # Tests unitarios de Operation (sin Docker)

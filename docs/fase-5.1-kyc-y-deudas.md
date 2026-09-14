@@ -6,7 +6,7 @@
 
 ---
 
-## 🐞 El producto no cerraba para ningún usuario nuevo
+## El KYC no tenía punto de entrada
 
 `User.verifyKyc()` **solo se llamaba en los tests y en el seed**. No había use case, ni ruta, ni pantalla. Y el KYC bloquea tres acciones:
 
@@ -20,7 +20,7 @@ Una persona se registraba, cargaba su canal, apretaba "Enviar a revisión" y rec
 
 Había además un segundo impedimento: al registrarse solo se piden email, nombre y contraseña, así que `verifyKyc()` habría fallado igual por falta de DNI aunque algo lo hubiera llamado.
 
-### Por qué 218 tests en verde no lo detectaron
+### Por qué los tests no lo detectaron
 
 El seed llama `verifyKyc()` a mano y **todos los helpers de test crean usuarios ya verificados**. Ninguna suite pasaba nunca por el camino de un usuario real.
 
@@ -40,7 +40,7 @@ La verificación es manual: se comprueba la forma del documento, no su existenci
 
 ---
 
-## Deuda 1 — `payment_pending` era un estado fantasma
+## Deuda 1 — `payment_pending`: estado sin transición que lo produzca
 
 Figuraba en la union del dominio, en el enum de Prisma y en el contrato. **Ninguna transición lo producía.** Un lector del enum lo iba a interpretar como una etapa real del escrow.
 
@@ -50,7 +50,7 @@ Postgres no permite quitar un valor de un enum, así que la migración **recrea 
 
 ---
 
-## Deuda 2 — `findPublished(filters?: any)` no era solo un `any` feo
+## Deuda 2 — `findPublished`: spread de filtros dentro del `where`
 
 Al tiparlo apareció por qué importaba. El repositorio hacía esto:
 
@@ -64,7 +64,7 @@ Ahora `ListingFilters` tiene forma declarada, el repositorio **traduce criterio 
 
 De paso el mercado ganó filtros reales por tipo de activo y rango de precio, como enlaces con URL propia: se comparten, se indexan y funcionan sin JavaScript.
 
-### Y un bug encontrado antes de cometerlo
+### Bug en `GET /listings`: se salteaba el filtrado blind
 
 `GET /listings` leía `listingRepo.findPublished()` **directo desde la ruta**, salteándose el filtrado blind que vivía dentro de `GetListingDetailsUseCase`. Era inofensivo solo porque el DTO no llevaba datos del activo — que es justo lo que la grilla necesitaba.
 
@@ -81,7 +81,7 @@ listing.datosDelActivo(revelarConfidenciales)
 
 ---
 
-## Deuda 3 — La contraoferta: el `TODO` estaba mal planteado
+## Deuda 3 — Contraoferta: monotonía por parte
 
 La nota decía `CounterOffer >= current offer`. **Esa regla no es simétrica**:
 
@@ -105,11 +105,11 @@ Comprador  15.000   ✓ supera sus 13.000
 
 Distancia inicial 8.000; final 1.000. El rango se cierra solo.
 
-### El argumento decisivo fue la terminación, no la equidad
+### Justificación: terminación de la negociación
 
 `TIMEOUT` aparece en `OperationMachine` pero **nadie lo implementa**. Sin monotonía, dos partes pueden oscilar indefinidamente y la operación queda viva bloqueando el listing.
 
-### El caso del NDA ya tenía salida
+### El caso del NDA: cancelar y volver a ofertar
 
 La objeción real era: el comprador firma el NDA en medio de la negociación, ve los datos reales, descubre algo malo y queda atado a una oferta hecha a ciegas.
 

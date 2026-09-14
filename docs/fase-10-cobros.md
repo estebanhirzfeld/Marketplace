@@ -6,7 +6,7 @@
 
 ---
 
-## El dato que definió la arquitectura
+## El límite de 7 días de la captura diferida
 
 MercadoPago ofrece reserva con captura diferida: `capture: false` autoriza sin debitar y después se captura. Parece hecho a medida para un escrow.
 
@@ -59,7 +59,7 @@ Y es idempotente, porque las pasarelas reintentan: si la operación ya está pag
 
 ---
 
-## El cambio de dominio que vino con esto
+## `confirmBuyerPayment()`: constancia y validación del monto
 
 `confirmBuyerPayment()` era un botón sin registro de por dónde había entrado la plata. Ahora exige la constancia y **valida que el monto coincida exactamente** con lo que el comprador debía.
 

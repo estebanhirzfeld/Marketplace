@@ -1,4 +1,4 @@
-# Fase 13 — La ventana de transferencia registra lo que hizo el vendedor
+# Fase 13 — Constancia de inicio de transferencia
 
 > **Estado**: ✅ Completa (dos tareas de usuario pendientes — ver el final)
 > **Fecha**: Septiembre 2026
@@ -20,7 +20,7 @@ Los tres son el mismo criterio de aceptación que la fase de acceso de plataform
 
 ---
 
-## La constancia: espejo de `CustodyVerification`
+## La constancia `TransferInitiation`
 
 ```typescript
 export interface TransferInitiation {
@@ -60,7 +60,7 @@ La guarda de pertenencia se comprueba solo si `declaredBy` llegó: el tipo lo de
 
 `controlCeded: false` se rechaza, no se guarda: una declaración negativa es un vendedor que todavía no terminó, no una transición.
 
-### El congelado de la cuenta
+### Congelado de `custodyAccountId`
 
 `InitiateTransferUseCase` suma `IListingRepository` y congela `custodyAccountId` desde el `platformAccess` vigente del listing al momento de la declaración — la entidad no busca un `Listing`, así que el use case es quien cruza los dos agregados:
 
@@ -102,7 +102,7 @@ async contractSigned(operation: Operation): Promise<void> {
 
 ---
 
-## El tablero: a quién se está esperando
+## El tablero: operaciones que esperan al vendedor
 
 `contract_signed` contaba como "en curso" pero no tenía categoría propia: ni esperaba a la plataforma, ni tenía entrada en el panel de próximos pasos. Ahora:
 
@@ -120,7 +120,7 @@ const EN_CURSO: OperationStatus[] = [
 
 ---
 
-## La pantalla: de un botón a un formulario
+## La pantalla: formulario de inicio de transferencia
 
 `TransferInitiationForm` reemplaza al `OperationAction` sin cuerpo: una casilla `controlCeded` que habilita el submit, la instrucción concreta que le exige su tipo de activo (`handoverSteps`, resuelto por `GetOperationDetailsUseCase` con una cascada propia — la cuenta declarada, si no la vigente, si no la primera activa), y notas opcionales.
 
@@ -130,14 +130,14 @@ El bloque de pasos posteriores a la firma en la pantalla del activo (`activos/[i
 
 ---
 
-## Lo que no cambió, a propósito
+## Decisiones de no modificar
 
 - **El valor del enum `transfer_in_progress` se conserva.** El identificador nunca fue la mentira — lo eran los textos. Renombrarlo hubiera costado una recreación de enum con riesgo de aborto sobre el despliegue vivo, para comprar una precisión que ninguna comisión iba a notar.
 - **La comisión 5%/5% y el orden asset-first del escrow no se tocan.**
 - **La declaración no se verifica con ninguna API.** Es evidencia, no seguro: la plataforma registra quién afirmó qué y cuándo; `confirmAssetCustody()` sigue siendo la comprobación independiente, atestiguada por un administrador.
 - **Las operaciones que ya estaban en `transfer_in_progress` no se rellenan.** Quedan con `transferInitiation` en NULL y se muestran como "declaración sin registrar" — fabricar una constancia que nadie firmó sería el defecto, no el arreglo.
 
-## Fuera de alcance, señalado y no resuelto acá
+## Fuera de alcance
 
 - El defecto de fondo de `WebStrategy` (cero pasos con `requiredActor: 'platform'`) queda abierto como `web-escrow-transfer-steps`.
 - El legajo de evidencia todavía no incluye la declaración de cesión.
