@@ -317,6 +317,25 @@ export default async function DetalleOperacion(props: {
                                         <CheckedItem text="Los accesos están asegurados" />
                                     </ul>
 
+                                    {/*
+                                      * La cuenta que la plataforma verificó, al lado
+                                      * de la que el vendedor declaró en el panel de
+                                      * arriba. Sin este renglón las dos copias
+                                      * congeladas no se pueden comparar mirando la
+                                      * pantalla, que es para lo que se congelan.
+                                      */}
+                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
+                                        <span className="text-[var(--color-tenue)]">
+                                            Cuenta de custodia verificada
+                                        </span>
+                                        <span className="font-mono text-[13px]">
+                                            {op.custody.custodyAccountIdentifier ??
+                                                (op.custody.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
+                                        </span>
+                                    </div>
+
                                     {Object.entries(op.custody.metrics).length > 0 && (
                                         <div className="flex flex-col gap-1.5 border-t border-[var(--color-borde)] pt-3">
                                             {Object.entries(op.custody.metrics).map(([name, value]) => (
