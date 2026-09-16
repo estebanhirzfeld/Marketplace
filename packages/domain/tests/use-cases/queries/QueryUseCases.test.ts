@@ -292,6 +292,70 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
         expect(vista.handoverSteps!.every((p) => p.afterPlatformStarts)).toBe(true);
     });
 
+    /*
+     * La pantalla mostraba el identificador interno de la cuenta —un UUID— donde
+     * tenía que decir el correo que el vendedor efectivamente invitó.
+     *
+     * Las dos resoluciones van por separado a propósito. El sentido de congelar
+     * la cuenta en dos momentos distintos es poder comparar si difieren, así que
+     * una única resolución con cascada de respaldo, como la que arma los pasos
+     * del traspaso, no sirve acá: devolvería la misma para los dos lados y la
+     * divergencia dejaría de verse.
+     */
+    it('resuelve por separado el nombre de la cuenta declarada y el de la verificada', async () => {
+        const declarada = CustodyAccount.create({
+            label: 'Declarada',
+            identifier: 'declarada@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const verificada = CustodyAccount.create({
+            label: 'Verificada',
+            identifier: 'verificada@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+
+        const op = unaOperacionFirmada();
+        op.initiateTransfer({
+            declaredBy: SELLER_ID,
+            controlCeded: true,
+            custodyAccountId: declarada.id,
+        });
+        op.confirmAssetCustody({
+            verifiedBy: new UniqueEntityID(),
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+            custodyAccountId: verificada.id,
+        });
+
+        const custodyRepo = createMockCustodyRepo({
+            findById: vi.fn(async (id: string) =>
+                id === declarada.id.toString() ? declarada : verificada,
+            ),
+        });
+
+        const vista = await armarConCustodia(op, unListingDe(SELLER_ID), custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.custodyAccountNames?.declared).toBe('declarada@traspaso.com');
+        expect(vista.custodyAccountNames?.verified).toBe('verificada@traspaso.com');
+    });
+
+    it('sin cuenta congelada no inventa ningún nombre', async () => {
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(null) });
+
+        const vista = await armarConCustodia(op, unListingDe(SELLER_ID), custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.custodyAccountNames?.declared).toBeUndefined();
+        expect(vista.custodyAccountNames?.verified).toBeUndefined();
+    });
+
     it('cascada: usa la cuenta de transferInitiation antes que la del platformAccess vigente', async () => {
         const cuentaDeclarada = CustodyAccount.create({
             label: 'Declarada',

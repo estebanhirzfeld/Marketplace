@@ -35,19 +35,19 @@ export function TransferInitiationForm({
             {state.error && <Alert>{state.error}</Alert>}
 
             {/*
-              * La frase genérica solo aparece cuando no hay pasos que mostrar.
-              * Con pasos sobra: la pantalla que monta este formulario ya dijo
-              * que queda un último paso del vendedor, y repetirlo era decir lo
-              * mismo dos veces seguidas. Sin pasos —el listing web, cuya
-              * estrategia todavía no enumera ninguno— es lo único que le indica
-              * al vendedor qué se espera de él.
+              * Acá había una frase genérica —"queda un último paso tuyo: ceder
+              * el control"— que repetía casi textual lo que la pantalla que
+              * monta este formulario ya dice arriba. Se leía dos veces seguidas
+              * lo mismo, y se notaba más justo cuando no hay pasos que mostrar,
+              * porque entonces no queda nada más para leer.
+              *
+              * Sacarla no llena el hueco de fondo: un vendedor de sitio web
+              * sigue sin ninguna instrucción concreta de qué hacer, porque
+              * `WebStrategy` no enumera todavía ningún paso posterior a la
+              * firma. Ese es el cambio `web-escrow-transfer-steps`, y no se
+              * arregla escribiendo un texto acá: hay que investigar el traspaso
+              * real de un dominio antes de poder decirle a alguien qué hacer.
               */}
-            {steps.length === 0 && (
-                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                    Queda un último paso tuyo: ceder el control del activo a la plataforma.
-                </p>
-            )}
-
             {steps.length > 0 && (
                 <ol className="flex flex-col gap-3 rounded-lg border border-[var(--color-borde)] p-3.5">
                     {steps.map((paso, i) => (
