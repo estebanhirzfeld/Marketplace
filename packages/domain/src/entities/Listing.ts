@@ -263,6 +263,18 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.describe();
     }
 
+    /**
+     * Comprueba la cuenta donde el comprador quiere recibir este activo y la
+     * devuelve normalizada.
+     *
+     * Lo resuelve la estrategia, que es la única que sabe si el dato es una
+     * cuenta de Google o un usuario de registrador. La `Operation` no puede
+     * hacerlo por su cuenta: conoce el `listingId`, no el tipo de activo.
+     */
+    public normalizeRecipientIdentifier(identifier: string): string {
+        return this.props.assetStrategy.normalizeRecipientIdentifier(identifier);
+    }
+
     public handoverSteps(context?: TransferContext): HandoverStep[] {
         const pasos = this.props.assetStrategy.getTransferSteps(context);
 

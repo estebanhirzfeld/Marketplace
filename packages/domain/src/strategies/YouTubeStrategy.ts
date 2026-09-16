@@ -2,11 +2,14 @@ import {
   AssetFieldDescriptor,
   AssetTypeDescriptor,
   IAssetStrategy,
+  MAX_RECIPIENT_IDENTIFIER_LENGTH,
   MetricKey,
   TransferContext,
   TransferStep,
 } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
+import { Email } from '../value-objects/Email';
+import { ValidationError } from '../errors/DomainError';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 interface YouTubeStrategyProps {
@@ -362,6 +365,33 @@ export class YouTubeStrategy implements IAssetStrategy {
    */
   public getConfidentialFields(): string[] {
     return ['name', 'channelUrl'];
+  }
+
+  /**
+   * Un canal se cede invitando a una cuenta de Google, así que acá el formato
+   * de una dirección de correo sí es exigible: si está mal escrita, la
+   * invitación no llega a ningún lado y nadie se entera hasta que el traspaso
+   * se traba.
+   */
+  public normalizeRecipientIdentifier(identifier: string): string {
+    const limpio = (identifier ?? '').trim();
+
+    if (limpio.length > MAX_RECIPIENT_IDENTIFIER_LENGTH) {
+      throw new ValidationError(
+        `La cuenta de Google no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
+      );
+    }
+
+    try {
+      return Email.create(limpio).getValue();
+    } catch {
+      // El mensaje del value object habla de una "dirección de email"; acá el
+      // comprador está declarando dónde recibir un canal, y conviene nombrarlo
+      // por lo que es para él.
+      throw new ValidationError(
+        'Indicá la cuenta de Google donde querés recibir el canal, con el formato de una dirección de correo.',
+      );
+    }
   }
 
   public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {

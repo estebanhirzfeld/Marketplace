@@ -2,9 +2,17 @@ import { describe, it, expect, vi } from 'vitest';
 import { Operation } from '../../../src/entities/Operation';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
-import { ForbiddenError, InvalidStateError, NotFoundError } from '../../../src/errors/DomainError';
+import {
+    ForbiddenError,
+    InvalidStateError,
+    NotFoundError,
+    ValidationError,
+} from '../../../src/errors/DomainError';
 import { DeclareRecipientIdentityUseCase } from '../../../src/use-cases/operation/DeclareRecipientIdentityUseCase';
-import { IOperationRepository } from '../../../src/ports/Repositories';
+import { IListingRepository, IOperationRepository } from '../../../src/ports/Repositories';
+import { Listing } from '../../../src/entities/Listing';
+import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -195,11 +203,42 @@ describe('DeclareRecipientIdentityUseCase', () => {
         };
     }
 
+    function mockListingRepo(listing: Listing | null): IListingRepository {
+        return {
+            findById: vi.fn().mockResolvedValue(listing),
+            findPublished: vi.fn().mockResolvedValue([]),
+            findBySeller: vi.fn().mockResolvedValue([]),
+            findByStatus: vi.fn().mockResolvedValue([]),
+            findHeldBy: vi.fn().mockResolvedValue([]),
+            save: vi.fn().mockResolvedValue(undefined),
+        };
+    }
+
+    function listingDeYoutube(): Listing {
+        return Listing.create({
+            sellerId: SELLER,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                subscribers: 10000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+        });
+    }
+
+    function listingWeb(): Listing {
+        return Listing.create({
+            sellerId: SELLER,
+            assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com'),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+        });
+    }
+
     it('carga la operación, delega en la entidad y guarda', async () => {
         const op = operacionEn('contract_pending');
         const repo = mockOpRepo(op);
 
-        await new DeclareRecipientIdentityUseCase(repo).execute(
+        await new DeclareRecipientIdentityUseCase(repo, mockListingRepo(listingDeYoutube())).execute(
             op.id.toString(),
             { identifier: 'comprador@gmail.com' },
             { id: BUYER.toString(), role: UserRole.BUYER },
@@ -212,7 +251,7 @@ describe('DeclareRecipientIdentityUseCase', () => {
     it('operación inexistente → NotFoundError', async () => {
         const repo = mockOpRepo(null);
         await expect(
-            new DeclareRecipientIdentityUseCase(repo).execute(
+            new DeclareRecipientIdentityUseCase(repo, mockListingRepo(listingDeYoutube())).execute(
                 'nope',
                 { identifier: 'x@y.com' },
                 { id: BUYER.toString(), role: UserRole.BUYER },
@@ -224,11 +263,71 @@ describe('DeclareRecipientIdentityUseCase', () => {
         const op = operacionEn('contract_signed');
         const repo = mockOpRepo(op);
         await expect(
-            new DeclareRecipientIdentityUseCase(repo).execute(
+            new DeclareRecipientIdentityUseCase(repo, mockListingRepo(listingDeYoutube())).execute(
                 op.id.toString(),
                 { identifier: 'x@y.com' },
                 { id: SELLER.toString(), role: UserRole.SELLER },
             ),
         ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('activo inexistente → NotFoundError', async () => {
+        const op = operacionEn('contract_pending');
+        await expect(
+            new DeclareRecipientIdentityUseCase(mockOpRepo(op), mockListingRepo(null)).execute(
+                op.id.toString(),
+                { identifier: 'comprador@gmail.com' },
+                { id: BUYER.toString(), role: UserRole.BUYER },
+            ),
+        ).rejects.toThrow(NotFoundError);
+    });
+
+    /*
+     * La comprobación del formato la resuelve la estrategia del activo. Acá
+     * interesa que el caso de uso la aplique de verdad y que no guarde nada
+     * cuando falla: un identificador mal escrito queda copiado en la constancia
+     * de entrega cuando la operación se cierra, y ahí ya no se corrige.
+     */
+    it('un canal rechaza un identificador que no es una cuenta de Google', async () => {
+        const op = operacionEn('contract_pending');
+        const repo = mockOpRepo(op);
+
+        await expect(
+            new DeclareRecipientIdentityUseCase(repo, mockListingRepo(listingDeYoutube())).execute(
+                op.id.toString(),
+                { identifier: 'no-es-una-cuenta' },
+                { id: BUYER.toString(), role: UserRole.BUYER },
+            ),
+        ).rejects.toThrow(ValidationError);
+
+        expect(op.recipientIdentity).toBeUndefined();
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('un canal normaliza mayúsculas y espacios antes de guardar', async () => {
+        const op = operacionEn('contract_pending');
+
+        await new DeclareRecipientIdentityUseCase(
+            mockOpRepo(op),
+            mockListingRepo(listingDeYoutube()),
+        ).execute(
+            op.id.toString(),
+            { identifier: '  Comprador@Gmail.COM  ' },
+            { id: BUYER.toString(), role: UserRole.BUYER },
+        );
+
+        expect(op.recipientIdentity?.identifier).toBe('comprador@gmail.com');
+    });
+
+    it('un sitio web acepta un usuario de registrador, que no es una dirección de correo', async () => {
+        const op = operacionEn('contract_pending');
+
+        await new DeclareRecipientIdentityUseCase(mockOpRepo(op), mockListingRepo(listingWeb())).execute(
+            op.id.toString(),
+            { identifier: 'mi-usuario-namecheap' },
+            { id: BUYER.toString(), role: UserRole.BUYER },
+        );
+
+        expect(op.recipientIdentity?.identifier).toBe('mi-usuario-namecheap');
     });
 });
