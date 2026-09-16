@@ -34,9 +34,19 @@ export function TransferInitiationForm({
         <form action={submit} className="flex flex-col gap-4">
             {state.error && <Alert>{state.error}</Alert>}
 
-            <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                Queda un último paso tuyo: ceder el control del activo a la plataforma.
-            </p>
+            {/*
+              * La frase genérica solo aparece cuando no hay pasos que mostrar.
+              * Con pasos sobra: la pantalla que monta este formulario ya dijo
+              * que queda un último paso del vendedor, y repetirlo era decir lo
+              * mismo dos veces seguidas. Sin pasos —el listing web, cuya
+              * estrategia todavía no enumera ninguno— es lo único que le indica
+              * al vendedor qué se espera de él.
+              */}
+            {steps.length === 0 && (
+                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                    Queda un último paso tuyo: ceder el control del activo a la plataforma.
+                </p>
+            )}
 
             {steps.length > 0 && (
                 <ol className="flex flex-col gap-3 rounded-lg border border-[var(--color-borde)] p-3.5">

@@ -15,6 +15,7 @@ import {
 import { Contract } from '../../entities/Contract';
 import { Listing, HandoverStep } from '../../entities/Listing';
 import { TransferContext } from '../../strategies/IAssetStrategy';
+import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -83,6 +84,20 @@ export interface OperationDetailView {
      * use case sin él.
      */
     handoverSteps?: HandoverStep[];
+    /**
+     * Cómo se llaman las cuentas de custodia que las constancias congelaron.
+     *
+     * Las constancias guardan el identificador interno de la cuenta, que es lo
+     * correcto para que la evidencia siga apuntando a la misma fila aunque el
+     * correo cambie. Pero a una persona ese identificador no le dice nada: lo
+     * que reconoce es la cuenta que invitó. Se resuelven las dos por separado
+     * —la declarada por el vendedor y la verificada por la plataforma— porque
+     * el sentido de mostrarlas es poder ver si difieren.
+     *
+     * Un nombre ausente con identificador presente significa que la cuenta ya
+     * no está en el padrón, que no es lo mismo que no haberse registrado nunca.
+     */
+    custodyAccountNames?: { declared?: string; verified?: string };
 }
 
 /**
@@ -204,6 +219,15 @@ export class GetOperationDetailsUseCase {
             handoverSteps = listing.handoverSteps(contexto).filter((p) => p.afterPlatformStarts);
         }
 
+        let custodyAccountNames: { declared?: string; verified?: string } | undefined;
+        if (this.custodyRepo) {
+            const [declared, verified] = await Promise.all([
+                this.nombreDeCuenta(operation.transferInitiation?.custodyAccountId),
+                this.nombreDeCuenta(operation.custodyVerification?.custodyAccountId),
+            ]);
+            custodyAccountNames = { declared, verified };
+        }
+
         return {
             operation,
             asset,
@@ -214,7 +238,21 @@ export class GetOperationDetailsUseCase {
             recipientIdentity: operation.recipientIdentity,
             deliveryCheck: operation.deliveryCheck,
             handoverSteps,
+            custodyAccountNames,
         };
+    }
+
+    /**
+     * El nombre con el que una persona reconoce a una cuenta de custodia. Se
+     * devuelve `undefined` tanto si no hay identificador como si la cuenta ya
+     * no está: quien dibuja distingue los dos casos mirando si el identificador
+     * venía o no.
+     */
+    private async nombreDeCuenta(id?: UniqueEntityID): Promise<string | undefined> {
+        if (!id || !this.custodyRepo) return undefined;
+
+        const cuenta = await this.custodyRepo.findById(id.toString());
+        return cuenta?.identifier;
     }
 
     /**

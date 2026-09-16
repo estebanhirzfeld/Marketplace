@@ -241,12 +241,23 @@ export default async function DetalleOperacion(props: {
                                         </ul>
                                     )}
 
+                                    {/*
+                                      * Se nombra la cuenta como la reconoce una
+                                      * persona —el correo que invitó—, no por su
+                                      * identificador interno. Que la cuenta ya no
+                                      * esté en el padrón no es lo mismo que no
+                                      * haber registrado ninguna, y se dicen
+                                      * distinto.
+                                      */}
                                     <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
                                         <span className="text-[var(--color-tenue)]">
                                             Cuenta de custodia declarada
                                         </span>
                                         <span className="font-mono text-[13px]">
-                                            {op.transferInitiation.custodyAccountId ?? 'sin registrar'}
+                                            {op.transferInitiation.custodyAccountIdentifier ??
+                                                (op.transferInitiation.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
                                         </span>
                                     </div>
 
@@ -255,10 +266,21 @@ export default async function DetalleOperacion(props: {
                                         op.custody.custodyAccountId !==
                                             op.transferInitiation.custodyAccountId && (
                                             <p className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/50 bg-[var(--color-alerta)]/5 p-3 text-[13px] leading-relaxed">
-                                                La cuenta que verificamos al tomar la custodia no es la
-                                                misma que estaba registrada cuando el vendedor declaró la
-                                                cesión. El acceso se volvió a registrar en el medio. Queda
-                                                asentado acá; no impide que la operación siga.
+                                                La cuenta que verificamos al tomar la custodia
+                                                {op.custody.custodyAccountIdentifier ? (
+                                                    <>
+                                                        {' '}(
+                                                        <span className="font-mono">
+                                                            {op.custody.custodyAccountIdentifier}
+                                                        </span>
+                                                        ){' '}
+                                                    </>
+                                                ) : (
+                                                    ' '
+                                                )}
+                                                no es la misma que estaba registrada cuando el vendedor
+                                                declaró la cesión. El acceso se volvió a registrar en el
+                                                medio. Queda asentado acá; no impide que la operación siga.
                                             </p>
                                         )}
 

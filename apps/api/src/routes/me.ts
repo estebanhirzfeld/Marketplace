@@ -432,7 +432,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, custodyAccountNames } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -475,6 +475,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     verifiedBy: props.custodyVerification.verifiedBy.toString(),
                     verifiedAt: props.custodyVerification.verifiedAt.toISOString(),
                     custodyAccountId: props.custodyVerification.custodyAccountId?.toString(),
+                    custodyAccountIdentifier: custodyAccountNames?.verified,
                 },
                 recipientIdentity: operation.recipientIdentity && {
                     identifier: operation.recipientIdentity.identifier,
@@ -492,6 +493,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     declaredAt: operation.transferInitiation.declaredAt.toISOString(),
                     controlCeded: operation.transferInitiation.controlCeded,
                     custodyAccountId: operation.transferInitiation.custodyAccountId?.toString(),
+                    custodyAccountIdentifier: custodyAccountNames?.declared,
                     notes: operation.transferInitiation.notes,
                 },
                 handoverSteps,

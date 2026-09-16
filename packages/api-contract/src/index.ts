@@ -692,6 +692,12 @@ export interface TransferInitiationDto {
     controlCeded: boolean;
     /** Copia congelada al declarar. Ausente si el acceso no nombraba cuenta. */
     custodyAccountId?: string;
+    /**
+     * Con qué nombre reconoce esa cuenta una persona. Ausente si la cuenta ya
+     * no está en el padrón, que no es lo mismo que no haber registrado ninguna:
+     * para distinguirlo hay que mirar si vino `custodyAccountId`.
+     */
+    custodyAccountIdentifier?: string;
     notes?: string;
 }
 
@@ -719,6 +725,8 @@ export interface CustodyVerificationDto {
      * "sin registrar", nunca se inventa.
      */
     custodyAccountId?: string;
+    /** Con qué nombre reconoce esa cuenta una persona. */
+    custodyAccountIdentifier?: string;
     notes?: string;
 }
 
