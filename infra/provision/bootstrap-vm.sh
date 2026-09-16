@@ -20,7 +20,9 @@
 # Uso (en la VM, como root o con sudo):
 #   sudo BLOCK_VOLUME_DEVICE=/dev/sdb infra/provision/bootstrap-vm.sh
 #
-#   BLOCK_VOLUME_DEVICE  default /dev/oracleoci/oraclevdb (link estable de OCI)
+#   BLOCK_VOLUME_DEVICE  si no se pasa, se detecta: lo ya montado en
+#                        /mnt/pgdata, o el unico disco entero sin montar que no
+#                        es el de arranque (ver detect_data_device)
 #   SWAP_SIZE_GB         default 2
 #   SWAPPINESS           default 10  (rango de emergencia; el default del kernel es 60)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -31,10 +33,64 @@ if [[ "${EUID}" -ne 0 ]]; then
 	exit 1
 fi
 
-BLOCK_VOLUME_DEVICE="${BLOCK_VOLUME_DEVICE:-/dev/oracleoci/oraclevdb}"
+# ── detección del volumen de datos ──────────────────────────────────────────
+# El nombre del enlace estable de OCI NO es predecible. En esta cuenta el
+# volumen adjunto de 50 GB quedó como /dev/oracleoci/oraclevda -> /dev/sdb,
+# mientras que las particiones del disco de arranque quedaron como oraclevda1,
+# oraclevda14 y oraclevda15 -> /dev/sda*. O sea que el `oraclevdb` que se suele
+# dar por sentado directamente no existe.
+#
+# En vez de adivinar el nombre, se busca el disco que cumple las tres
+# condiciones del volumen de datos: es un disco entero (no una partición), no
+# tiene nada montado encima, y no es el disco de arranque. Si aparece más de uno
+# el script se planta y pide que se lo indiquen a mano, porque formatear el
+# disco equivocado es irreversible.
+PGDATA_MOUNT="/mnt/pgdata"
+
+detect_data_device() {
+	# Si ya está montado de una corrida anterior, ese es el volumen y no hay
+	# nada que buscar. Sin este caso el script deja de ser idempotente: el
+	# filtro de "disco sin montar" descarta justamente el que ya preparamos.
+	local ya_montado
+	ya_montado="$(findmnt -no SOURCE "$PGDATA_MOUNT" 2>/dev/null || true)"
+	if [[ -n "$ya_montado" ]]; then
+		printf '%s' "$ya_montado"
+		return 0
+	fi
+
+	local candidatos=()
+	local root_disk
+	root_disk="$(lsblk -no PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null || true)"
+	local name type
+	# El tercer campo (mountpoint) se lee para consumirlo, no se usa acá:
+	# el chequeo de montaje se hace abajo sobre el disco entero.
+	while read -r name type _; do
+		[[ "$type" == "disk" ]] || continue
+		[[ "$name" == "$root_disk" ]] && continue
+		# Descarta el disco si él o alguna de sus particiones está montado.
+		lsblk -no MOUNTPOINT "/dev/$name" | grep -q . && continue
+		candidatos+=("/dev/$name")
+	done < <(lsblk -rno NAME,TYPE,MOUNTPOINT)
+
+	case "${#candidatos[@]}" in
+	1) printf '%s' "${candidatos[0]}" ;;
+	0) return 1 ;;
+	*)
+		echo "hay ${#candidatos[@]} discos candidatos (${candidatos[*]}); indicá cuál con BLOCK_VOLUME_DEVICE=" >&2
+		return 2
+		;;
+	esac
+}
+
+if [[ -z "${BLOCK_VOLUME_DEVICE:-}" ]]; then
+	BLOCK_VOLUME_DEVICE="$(detect_data_device)" || {
+		echo "no se pudo determinar el volumen de datos; pasalo con BLOCK_VOLUME_DEVICE=" >&2
+		exit 1
+	}
+	echo "→ volumen de datos detectado: ${BLOCK_VOLUME_DEVICE}"
+fi
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
 SWAPPINESS="${SWAPPINESS:-10}"
-PGDATA_MOUNT="/mnt/pgdata"
 SYSCTL_FILE="/etc/sysctl.d/99-marketplace-swap.conf"
 
 step() { echo; echo "── $* ──────────────────────────────────────────────"; }
@@ -52,9 +108,31 @@ fi
 node -v
 
 step "corepack + pnpm"
+# Corepack, invocado FUERA de un proyecto, ignora lo que se haya preparado y
+# resuelve a la última versión de pnpm. En esta máquina eso bajó pnpm 11, que
+# exige Node >= 22.13 y muere en Node 20 buscando `node:sqlite`. Dentro del
+# checkout no pasa, porque el package.json raíz declara pnpm@9.0.0 — pero
+# depender de eso deja un `pnpm` roto para cualquiera que lo tipee en otro lado.
+export COREPACK_DEFAULT_TO_LATEST=0
+grep -q '^COREPACK_DEFAULT_TO_LATEST=' /etc/environment ||
+	echo 'COREPACK_DEFAULT_TO_LATEST=0' >>/etc/environment
+
 corepack enable
 corepack prepare pnpm@9.0.0 --activate
-pnpm -v
+
+# `pnpm -v` a secas no verifica nada útil: lo que importa es qué versión resuelve
+# dentro de un proyecto, que es donde corre el deploy. Se comprueba con un
+# package.json descartable que declara la misma versión que el repo.
+PNPM_ESPERADO="9.0.0"
+PROBE="$(mktemp -d)"
+printf '{"name":"probe","packageManager":"pnpm@%s"}' "$PNPM_ESPERADO" >"${PROBE}/package.json"
+PNPM_REAL="$(cd "$PROBE" && pnpm -v 2>/dev/null | tail -1 || true)"
+rm -rf "$PROBE"
+if [[ "$PNPM_REAL" != "$PNPM_ESPERADO" ]]; then
+	echo "  pnpm dentro de un proyecto resolvió '${PNPM_REAL:-nada}', se esperaba ${PNPM_ESPERADO}" >&2
+	exit 1
+fi
+echo "  pnpm ${PNPM_REAL} (dentro de un proyecto)"
 
 step "Docker CE + compose plugin"
 if ! command -v docker >/dev/null; then
@@ -121,7 +199,7 @@ if [[ -b "$BLOCK_VOLUME_DEVICE" ]]; then
 	fi
 	mountpoint -q "$PGDATA_MOUNT" || mount "$PGDATA_MOUNT"
 	# `data` es el PGDATA real. Tiene que ser un subdirectorio: Postgres no
-	inicializa sobre la raiz del volumen, que trae lost+found de fabrica.
+	# inicializa sobre la raiz del volumen, que trae lost+found de fabrica.
 	mkdir -p "${PGDATA_MOUNT}/data" "${PGDATA_MOUNT}/backups"
 	echo "  montado: $(df -h "$PGDATA_MOUNT" | tail -1)"
 else
