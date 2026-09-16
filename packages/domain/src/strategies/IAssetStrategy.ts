@@ -97,12 +97,38 @@ export interface AssetTypeDescriptor {
     revenueNotice: string;
 }
 
+/**
+ * Largo máximo de la cuenta receptora, en caracteres.
+ *
+ * Es el límite de una dirección de correo según la RFC 5321, y el mismo que ya
+ * declara el esquema de la ruta que recibe el dato. Vive acá para que el
+ * dominio lo imponga por su cuenta y no dependa de que alguien se acuerde de
+ * repetirlo en cada capa de transporte.
+ */
+export const MAX_RECIPIENT_IDENTIFIER_LENGTH = 320;
+
 export interface IAssetStrategy {
     /**
      * Lo que este tipo de activo sabe de sí mismo, para que nadie más tenga
      * que preguntarlo ni deducirlo.
      */
     describe(): AssetTypeDescriptor;
+
+    /**
+     * Comprueba la cuenta donde el comprador quiere recibir el activo y la
+     * devuelve normalizada. Lanza `ValidationError` si no sirve.
+     *
+     * El dato no es el mismo en todos los tipos de activo: para un canal es la
+     * cuenta de Google que va a recibir la invitación, y ahí exigir el formato
+     * de una dirección de correo es correcto; para un dominio es el usuario del
+     * registrador, que cambia de proveedor a proveedor y no tiene forma
+     * canónica que se pueda comprobar. Por eso lo decide cada estrategia.
+     *
+     * Importa que sea estricto donde se puede: el identificador se copia tal
+     * cual a la constancia de entrega cuando la operación se cierra, y ahí ya
+     * no se corrige.
+     */
+    normalizeRecipientIdentifier(identifier: string): string;
 
     /**
      * Calcula el precio estimado basado en las métricas del activo

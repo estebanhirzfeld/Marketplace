@@ -692,6 +692,12 @@ export interface TransferInitiationDto {
     controlCeded: boolean;
     /** Copia congelada al declarar. Ausente si el acceso no nombraba cuenta. */
     custodyAccountId?: string;
+    /**
+     * Con qué nombre reconoce esa cuenta una persona. Ausente si la cuenta ya
+     * no está en el padrón, que no es lo mismo que no haber registrado ninguna:
+     * para distinguirlo hay que mirar si vino `custodyAccountId`.
+     */
+    custodyAccountIdentifier?: string;
     notes?: string;
 }
 
@@ -719,6 +725,8 @@ export interface CustodyVerificationDto {
      * "sin registrar", nunca se inventa.
      */
     custodyAccountId?: string;
+    /** Con qué nombre reconoce esa cuenta una persona. */
+    custodyAccountIdentifier?: string;
     notes?: string;
 }
 
@@ -822,6 +830,18 @@ export interface EvidenceDossierDto {
     verifications: {
         ownership?: { verifiedAt: string; assetId: string; source: string; monthlyRevenueCents?: number };
         platformAccess?: { verifiedAt: string; accessSince: string };
+        /**
+         * Lo que el vendedor declaró al ceder el control. La única pieza del
+         * escrow que aporta él, y por eso la que importa ante un reclamo por un
+         * traspaso que nunca ocurrió. Sin `declaredBy`: el vendedor ya está
+         * identificado como parte en el propio legajo.
+         */
+        transferInitiation?: {
+            declaredAt: string;
+            controlCeded: boolean;
+            custodyAccountId?: string;
+            notes?: string;
+        };
         custody?: {
             verifiedAt: string;
             isPrimaryOwner: boolean;

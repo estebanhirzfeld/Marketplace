@@ -283,7 +283,7 @@ export function createContainer(
         ),
         confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
         completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos),
-        declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo),
+        declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo, listingRepo),
         crearCuentaCustodia: new CreateCustodyAccountUseCase(custodyRepo),
         editarCuentaCustodia: new UpdateCustodyAccountUseCase(custodyRepo, listingRepo),
         activarCuentaCustodia: new ActivateCustodyAccountUseCase(custodyRepo),

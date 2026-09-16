@@ -28,9 +28,18 @@
     "subfase": "desvío surgido durante el planning, necesario para la fase padre pero demasiado chico para justificar una fase propia; se numera N.x y se documenta aparte"
   },
   "tracks": [
-    { "id": "fases", "label": "Fases documentadas" },
-    { "id": "sdd", "label": "Cambios SDD (OpenSpec)" },
-    { "id": "sin-asignar", "label": "Trabajo sin fase asignada" }
+    {
+      "id": "fases",
+      "label": "Fases documentadas"
+    },
+    {
+      "id": "sdd",
+      "label": "Cambios SDD (OpenSpec)"
+    },
+    {
+      "id": "sin-asignar",
+      "label": "Trabajo sin fase asignada"
+    }
   ],
   "regimes": [
     {
@@ -39,11 +48,22 @@
       "start": "2026-04-23T20:04:47-03:00",
       "end": "2026-05-28T19:34:27-03:00",
       "tooling": "Antigravity",
-      "models": ["Opus", "Sonnet", "Gemini"],
+      "models": [
+        "Opus",
+        "Sonnet",
+        "Gemini"
+      ],
       "supervision": "planning",
       "organizingAxis": "fases",
       "commitStyle": "inglés, conventional commits, sufijo [fase N] sistemático",
-      "phases": ["fase-0", "fase-1", "fase-2", "fase-2.1", "fase-2.2", "fase-3"]
+      "phases": [
+        "fase-0",
+        "fase-1",
+        "fase-2",
+        "fase-2.1",
+        "fase-2.2",
+        "fase-3"
+      ]
     },
     {
       "id": "regimen-2",
@@ -51,11 +71,24 @@
       "start": "2026-08-30T01:24:39-03:00",
       "end": "2026-08-31T11:25:19-03:00",
       "tooling": "Claude Code + agentes",
-      "models": ["Claude"],
+      "models": [
+        "Claude"
+      ],
       "supervision": "auto",
       "organizingAxis": "fases",
       "commitStyle": "español, sin scope, tag [fase N] todavía presente",
-      "phases": ["fase-4", "fase-4.1", "fase-5", "fase-5.1", "fase-6", "fase-7", "fase-8", "fase-9", "fase-10", "fase-11"]
+      "phases": [
+        "fase-4",
+        "fase-4.1",
+        "fase-5",
+        "fase-5.1",
+        "fase-6",
+        "fase-7",
+        "fase-8",
+        "fase-9",
+        "fase-10",
+        "fase-11"
+      ]
     },
     {
       "id": "regimen-3",
@@ -63,12 +96,18 @@
       "start": "2026-08-31T11:25:19-03:00",
       "end": "2026-09-10T21:27:05-03:00",
       "tooling": "Claude Code + agentes",
-      "models": ["Claude"],
+      "models": [
+        "Claude"
+      ],
       "supervision": "auto",
       "organizingAxis": "sdd",
       "commitStyle": "español con scope (fix(web), feat(domain), docs(sdd)); desaparece el tag [fase N]",
       "boundaryCommit": "acb126c",
-      "phases": ["fase-12", "fase-13", "fase-14"]
+      "phases": [
+        "fase-12",
+        "fase-13",
+        "fase-14"
+      ]
     },
     {
       "id": "regimen-4",
@@ -76,7 +115,9 @@
       "start": "2026-09-14",
       "end": null,
       "tooling": "Claude Code + agentes",
-      "models": ["Claude"],
+      "models": [
+        "Claude"
+      ],
       "supervision": "planning",
       "organizingAxis": null,
       "commitStyle": null,
@@ -97,7 +138,9 @@
       "end": "2026-04-23T20:04:47-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["d526452"],
+      "commits": [
+        "d526452"
+      ],
       "commitCount": 1,
       "branch": "main",
       "docCommit": "eaa34d8",
@@ -122,14 +165,18 @@
       "end": "2026-04-29T16:19:34-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["854f22e"],
+      "commits": [
+        "854f22e"
+      ],
       "commitCount": 1,
       "branch": "main",
       "docCommit": "854f22e",
       "docCommittedAt": "2026-04-29T16:19:34-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Abril 2026",
-      "warnings": ["Código y doc en el mismo commit."]
+      "warnings": [
+        "Código y doc en el mismo commit."
+      ]
     },
     {
       "id": "fase-2",
@@ -144,7 +191,11 @@
       "end": "2026-05-21T21:52:21-03:00",
       "dating": "exact",
       "group": null,
-      "commits": ["62fe223", "776d749", "625b3b8"],
+      "commits": [
+        "62fe223",
+        "776d749",
+        "625b3b8"
+      ],
       "commitCount": 3,
       "branch": "main",
       "docCommit": "62fe223",
@@ -171,14 +222,18 @@
       "end": "2026-05-07T22:05:23-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["5326372"],
+      "commits": [
+        "5326372"
+      ],
       "commitCount": 1,
       "branch": "main",
       "docCommit": "eaa34d8",
       "docCommittedAt": "2026-05-28T19:34:27-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Abril 2026",
-      "warnings": ["El doc declara 'Abril 2026' pero su commit es del 2026-05-07. Se conserva la contradicción: es dato."]
+      "warnings": [
+        "El doc declara 'Abril 2026' pero su commit es del 2026-05-07. Se conserva la contradicción: es dato."
+      ]
     },
     {
       "id": "fase-2.2",
@@ -193,14 +248,18 @@
       "end": "2026-05-07T22:38:11-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["d717c06"],
+      "commits": [
+        "d717c06"
+      ],
       "commitCount": 1,
       "branch": "main",
       "docCommit": "eaa34d8",
       "docCommittedAt": "2026-05-28T19:34:27-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Abril 2026",
-      "warnings": ["El doc declara 'Abril 2026' pero su commit es del 2026-05-07. Se conserva la contradicción: es dato."]
+      "warnings": [
+        "El doc declara 'Abril 2026' pero su commit es del 2026-05-07. Se conserva la contradicción: es dato."
+      ]
     },
     {
       "id": "fase-3",
@@ -215,14 +274,18 @@
       "end": "2026-05-22T10:46:23-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["98a8dbb"],
+      "commits": [
+        "98a8dbb"
+      ],
       "commitCount": 1,
       "branch": "main",
       "docCommit": "eaa34d8",
       "docCommittedAt": "2026-05-28T19:34:27-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Mayo 2026",
-      "warnings": ["El doc se subió 6 días después del commit de código."]
+      "warnings": [
+        "El doc se subió 6 días después del commit de código."
+      ]
     },
     {
       "id": "fase-4",
@@ -237,14 +300,24 @@
       "end": "2026-08-30T01:26:13-03:00",
       "dating": "grouped",
       "group": "fases-4-6",
-      "commits": ["e689b5a", "1ae7e26", "3dba46c", "3295bcf", "b5562e7", "9ec09a5", "56c9d9c"],
+      "commits": [
+        "e689b5a",
+        "1ae7e26",
+        "3dba46c",
+        "3295bcf",
+        "b5562e7",
+        "9ec09a5",
+        "56c9d9c"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "9ec09a5",
       "docCommittedAt": "2026-08-30T01:25:15-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con 4.1, 5, 5.1 y 6: los cinco commits de código se emitieron en 28 segundos. No es posible datar la fase por separado."]
+      "warnings": [
+        "Ventana compartida con 4.1, 5, 5.1 y 6: los cinco commits de código se emitieron en 28 segundos. No es posible datar la fase por separado."
+      ]
     },
     {
       "id": "fase-4.1",
@@ -266,7 +339,9 @@
       "docCommittedAt": "2026-08-30T01:25:15-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-4-6."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-4-6."
+      ]
     },
     {
       "id": "fase-5",
@@ -281,7 +356,9 @@
       "end": "2026-08-30T01:26:13-03:00",
       "dating": "grouped",
       "group": "fases-4-6",
-      "commits": ["b5562e7"],
+      "commits": [
+        "b5562e7"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "9ec09a5",
@@ -313,7 +390,9 @@
       "docCommittedAt": "2026-08-30T01:25:15-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-4-6."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-4-6."
+      ]
     },
     {
       "id": "fase-6",
@@ -335,7 +414,9 @@
       "docCommittedAt": "2026-08-30T01:25:15-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-4-6."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-4-6."
+      ]
     },
     {
       "id": "fase-7",
@@ -350,7 +431,10 @@
       "end": "2026-08-30T12:43:10-03:00",
       "dating": "grouped",
       "group": "fases-7-10",
-      "commits": ["5d8bca9", "ce39bd8"],
+      "commits": [
+        "5d8bca9",
+        "ce39bd8"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "ce39bd8",
@@ -375,14 +459,19 @@
       "end": "2026-08-30T12:43:10-03:00",
       "dating": "grouped",
       "group": "fases-7-10",
-      "commits": ["5d8bca9", "ce39bd8"],
+      "commits": [
+        "5d8bca9",
+        "ce39bd8"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "ce39bd8",
       "docCommittedAt": "2026-08-30T12:43:10-03:00",
       "declaredStatus": "Completa — falta completar la consola de Google",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-7-10."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-7-10."
+      ]
     },
     {
       "id": "fase-9",
@@ -397,14 +486,19 @@
       "end": "2026-08-30T12:43:10-03:00",
       "dating": "grouped",
       "group": "fases-7-10",
-      "commits": ["5d8bca9", "ce39bd8"],
+      "commits": [
+        "5d8bca9",
+        "ce39bd8"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "ce39bd8",
       "docCommittedAt": "2026-08-30T12:43:10-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-7-10."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-7-10."
+      ]
     },
     {
       "id": "fase-10",
@@ -419,14 +513,19 @@
       "end": "2026-08-30T12:43:10-03:00",
       "dating": "grouped",
       "group": "fases-7-10",
-      "commits": ["5d8bca9", "ce39bd8"],
+      "commits": [
+        "5d8bca9",
+        "ce39bd8"
+      ],
       "commitCount": null,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "ce39bd8",
       "docCommittedAt": "2026-08-30T12:43:10-03:00",
       "declaredStatus": "Completa — falta completar el panel de MercadoPago",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Ventana compartida con el grupo fases-7-10."]
+      "warnings": [
+        "Ventana compartida con el grupo fases-7-10."
+      ]
     },
     {
       "id": "fase-11",
@@ -441,14 +540,22 @@
       "end": "2026-08-30T16:59:22-03:00",
       "dating": "exact",
       "group": null,
-      "commits": ["1153ccc", "99bd289", "acedbf8", "ff48068", "5d2ce7f"],
+      "commits": [
+        "1153ccc",
+        "99bd289",
+        "acedbf8",
+        "ff48068",
+        "5d2ce7f"
+      ],
       "commitCount": 5,
       "branch": "fase-5-frontend-y-avisos",
       "docCommit": "99bd289",
       "docCommittedAt": "2026-08-30T16:45:52-03:00",
       "declaredStatus": "Completa",
       "declaredDate": "Agosto 2026",
-      "warnings": ["Duración total: 13 minutos."]
+      "warnings": [
+        "Duración total: 13 minutos."
+      ]
     },
     {
       "id": "fase-12",
@@ -463,7 +570,36 @@
       "end": "2026-09-03T20:01:26-03:00",
       "dating": "exact",
       "group": null,
-      "commits": ["5b7aa86", "369fa49", "d4cd74a", "0df92c1", "bbe2dd3", "049cabb", "a0235b2", "101b232", "ce3d8e0", "4bb7698", "3e7617d", "47c37ff", "5efe324", "07d425f", "571dd3d", "40c3ce5", "29875d1", "87edbb1", "537acfb", "f003236", "47a7c04", "79f02a4", "9cb1e4f", "5c96bbf", "f0eb1a4", "9dddade", "5ecbbe8", "10c4c61"],
+      "commits": [
+        "5b7aa86",
+        "369fa49",
+        "d4cd74a",
+        "0df92c1",
+        "bbe2dd3",
+        "049cabb",
+        "a0235b2",
+        "101b232",
+        "ce3d8e0",
+        "4bb7698",
+        "3e7617d",
+        "47c37ff",
+        "5efe324",
+        "07d425f",
+        "571dd3d",
+        "40c3ce5",
+        "29875d1",
+        "87edbb1",
+        "537acfb",
+        "f003236",
+        "47a7c04",
+        "79f02a4",
+        "9cb1e4f",
+        "5c96bbf",
+        "f0eb1a4",
+        "9dddade",
+        "5ecbbe8",
+        "10c4c61"
+      ],
       "commitCount": 28,
       "branch": "deploy-vps-oracle/01 .. /05 (5 ramas, 5 PRs)",
       "docCommit": "5b7aa86",
@@ -489,7 +625,21 @@
       "end": "2026-09-10T20:43:39-03:00",
       "dating": "exact",
       "group": null,
-      "commits": ["3e92833", "8018102", "1a5fb52", "e6c2233", "9e79543", "80ac085", "db6c83b", "85ea8c6", "a2269f2", "e4951d0", "f4796ec", "f13afd0", "02e1d43"],
+      "commits": [
+        "3e92833",
+        "8018102",
+        "1a5fb52",
+        "e6c2233",
+        "9e79543",
+        "80ac085",
+        "db6c83b",
+        "85ea8c6",
+        "a2269f2",
+        "e4951d0",
+        "f4796ec",
+        "f13afd0",
+        "02e1d43"
+      ],
       "commitCount": 13,
       "branch": "simplify-transfer-flow",
       "docCommit": "02e1d43",
@@ -503,11 +653,11 @@
       ]
     },
     {
-      "id": "fase-14",
-      "number": 14,
-      "kind": "fase",
-      "parent": null,
-      "label": "Verificación de la suite (sin documento)",
+      "id": "fase-13-verificacion",
+      "number": 13.1,
+      "kind": "subfase",
+      "parent": "fase-13",
+      "label": "Verificación de la suite al cierre de la fase 13",
       "doc": null,
       "docLines": null,
       "track": "fases",
@@ -515,7 +665,9 @@
       "end": "2026-09-10T20:45:07-03:00",
       "dating": "point",
       "group": null,
-      "commits": ["3f64add"],
+      "commits": [
+        "3f64add"
+      ],
       "commitCount": 1,
       "branch": "simplify-transfer-flow",
       "docCommit": null,
@@ -523,8 +675,43 @@
       "declaredStatus": null,
       "declaredDate": null,
       "warnings": [
-        "Existe solo como nombre en el asunto del commit 3f64add. No hay docs/fase-14-*.md.",
-        "Es un commit de verificación, no una unidad de trabajo planificada."
+        "El asunto del commit 3f64add dice \"fase 14\", pero no era una fase: es el commit de verificación que cierra la 13, dentro de su misma ventana. El número 14 quedó para el recorrido del escrow.",
+        "No tiene documento propio ni le corresponde tenerlo."
+      ]
+    },
+    {
+      "id": "fase-14",
+      "number": 14,
+      "kind": "fase",
+      "parent": null,
+      "label": "Recorrido del escrow en la aplicación",
+      "doc": "docs/fase-14-recorrido-del-escrow.md",
+      "docLines": 191,
+      "track": "fases",
+      "start": "2026-09-15T22:38:46-03:00",
+      "end": "2026-09-16T14:15:33-03:00",
+      "dating": "exact",
+      "group": null,
+      "commits": [
+        "16c7678",
+        "776add2",
+        "b97e67d",
+        "5a6b068",
+        "9aacb95",
+        "628e91a",
+        "e0db22f",
+        "599ea47",
+        "f131863"
+      ],
+      "commitCount": 9,
+      "branch": "fase-14-dominio-ejercitado (y rescate-bootstrap-vm)",
+      "docCommit": null,
+      "docCommittedAt": null,
+      "declaredStatus": "Completa",
+      "declaredDate": "Septiembre 2026",
+      "warnings": [
+        "Primera fase cuyo trabajo se verificó ejercitando la aplicación corriendo y no solo con la suite: los cinco defectos que encontró no eran detectables leyendo código.",
+        "Incluye el rescate de los arreglos de aprovisionamiento varados en deploy-vps-oracle/05, que entraron por su propio PR."
       ]
     }
   ],
@@ -538,7 +725,14 @@
       "commitCount": 13,
       "status": "open",
       "producedPhaseDoc": null,
-      "artifacts": ["proposal.md", "design.md", "tasks.md", "specs/custody-account/spec.md", "specs/asset-delivery/spec.md", "specs/transfer-steps/spec.md"],
+      "artifacts": [
+        "proposal.md",
+        "design.md",
+        "tasks.md",
+        "specs/custody-account/spec.md",
+        "specs/asset-delivery/spec.md",
+        "specs/transfer-steps/spec.md"
+      ],
       "warnings": [
         "Artefacto de vida más larga del proyecto: 10 días, atravesando las fases 12 y 13 sin cerrarse.",
         "No generó doc de fase propio; su implementación quedó rotulada [fase 5]."
@@ -553,7 +747,11 @@
       "commitCount": 4,
       "status": "open",
       "producedPhaseDoc": null,
-      "artifacts": ["proposal.md", "design.md", "specs/platform-access-role/spec.md"],
+      "artifacts": [
+        "proposal.md",
+        "design.md",
+        "specs/platform-access-role/spec.md"
+      ],
       "warnings": [
         "Planificado e implementado en 27 minutos.",
         "Nunca tuvo tasks.md.",
@@ -569,8 +767,20 @@
       "commitCount": 14,
       "status": "open",
       "producedPhaseDoc": "docs/fase-13-transferencia-simplificada.md",
-      "artifacts": ["explore.md", "proposal.md", "design.md", "tasks.md", "specs/custody-account/spec.md", "specs/asset-delivery/spec.md", "specs/transfer-steps/spec.md", "specs/asset-handover/spec.md", "specs/platform-dashboard/spec.md"],
-      "warnings": ["Único cambio SDD que produjo un doc de fase."]
+      "artifacts": [
+        "explore.md",
+        "proposal.md",
+        "design.md",
+        "tasks.md",
+        "specs/custody-account/spec.md",
+        "specs/asset-delivery/spec.md",
+        "specs/transfer-steps/spec.md",
+        "specs/asset-handover/spec.md",
+        "specs/platform-dashboard/spec.md"
+      ],
+      "warnings": [
+        "Único cambio SDD que produjo un doc de fase."
+      ]
     }
   ],
   "unassignedWork": [
@@ -584,7 +794,10 @@
       "uniqueCommits": 34,
       "mergeCommits": 8,
       "workCommits": 26,
-      "branches": ["fase-5-frontend-y-avisos", "simulacion-verificaciones-google"],
+      "branches": [
+        "fase-5-frontend-y-avisos",
+        "simulacion-verificaciones-google"
+      ],
       "producedPhaseDoc": null,
       "warnings": [
         "Día más activo del proyecto: un tercio del historial. No produjo ningún doc de fase.",
@@ -600,9 +813,13 @@
       "end": "2026-09-01T03:01:07-03:00",
       "rawCommits": 5,
       "uniqueCommits": 5,
-      "branches": ["simulacion-verificaciones-google"],
+      "branches": [
+        "simulacion-verificaciones-google"
+      ],
       "producedPhaseDoc": null,
-      "warnings": ["Cinco commits con tag [fase 5] cuatro días después de cerrada y documentada la fase 11. La etiqueta de fase quedó desacoplada del contenido."]
+      "warnings": [
+        "Cinco commits con tag [fase 5] cuatro días después de cerrada y documentada la fase 11. La etiqueta de fase quedó desacoplada del contenido."
+      ]
     },
     {
       "id": "sdd-platform-access-impl",
@@ -612,9 +829,13 @@
       "end": "2026-09-02T14:21:59-03:00",
       "rawCommits": 4,
       "uniqueCommits": 4,
-      "branches": ["test"],
+      "branches": [
+        "test"
+      ],
       "producedPhaseDoc": null,
-      "warnings": ["Cambio SDD completo sin doc de fase asociado."]
+      "warnings": [
+        "Cambio SDD completo sin doc de fase asociado."
+      ]
     }
   ],
   "gaps": [

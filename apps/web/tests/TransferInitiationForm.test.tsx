@@ -23,12 +23,31 @@ async function accion(state: { error?: string }) {
 }
 
 describe('TransferInitiationForm', () => {
-    it('con una lista vacía, muestra la frase genérica y la casilla igual', () => {
+    it('con una lista vacía, la casilla y el botón siguen estando', () => {
         const html = renderToStaticMarkup(<TransferInitiationForm action={accion} steps={[]} />);
 
-        expect(html).toMatch(/ceder el control del activo/i);
         expect(html).toContain('name="controlCeded"');
         expect(html).toMatch(/<button[^>]*type="submit"/);
+    });
+
+    /*
+     * La pantalla que monta este formulario ya le dice al vendedor que queda un
+     * último paso suyo y que es cedernos el control. El formulario llegó a
+     * repetirlo casi textual, así que se leía dos veces seguidas lo mismo — y se
+     * notaba más con la lista vacía, porque ahí no queda nada más para leer.
+     *
+     * Esto no llena el hueco de fondo: un vendedor de sitio web sigue sin
+     * instrucciones concretas, y eso se arregla en `web-escrow-transfer-steps`,
+     * no escribiendo otro texto genérico acá.
+     */
+    it('no repite la frase que ya dice la pantalla', () => {
+        const vacio = renderToStaticMarkup(<TransferInitiationForm action={accion} steps={[]} />);
+        const conPasos = renderToStaticMarkup(
+            <TransferInitiationForm action={accion} steps={[PASO_YOUTUBE]} />,
+        );
+
+        expect(vacio).not.toMatch(/queda un último paso tuyo/i);
+        expect(conPasos).not.toMatch(/queda un último paso tuyo/i);
     });
 
     it('con una lista vacía, no filtra vocabulario de YouTube', () => {

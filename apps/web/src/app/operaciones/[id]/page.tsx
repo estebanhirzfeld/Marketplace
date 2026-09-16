@@ -214,6 +214,87 @@ export default async function DetalleOperacion(props: {
 
                 <div className="flex flex-col gap-6">
                     {/*
+                      * La declaración del vendedor se guardaba y no se mostraba en
+                      * ninguna parte, así que quien la hacía no veía aparecer nada y
+                      * el paso parecía no hacer nada. Se muestra a las dos partes por
+                      * el mismo motivo que la custodia: es lo que explica por qué la
+                      * operación avanzó.
+                      *
+                      * Cuando la cuenta que el vendedor declaró no es la que después
+                      * verificó la plataforma, la diferencia se nombra. No bloquea
+                      * nada —el acceso se pudo haber vuelto a registrar en el medio
+                      * por razones legítimas— pero tiene que ser visible: son dos
+                      * copias congeladas en momentos distintos y compararlas es el
+                      * único control que hay sobre ese tramo.
+                      */}
+                    {op.transferInitiation && (
+                        <Reveal>
+                            <Panel title="DECLARACIÓN DE CESIÓN DEL VENDEDOR">
+                                <div className="flex flex-col gap-3 text-[14px]">
+                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                        Declarada el {fechaLarga(op.transferInitiation.declaredAt)}.
+                                    </p>
+
+                                    {op.transferInitiation.controlCeded && (
+                                        <ul className="flex flex-col gap-1.5">
+                                            <CheckedItem text="El vendedor declaró haber cedido el control del activo" />
+                                        </ul>
+                                    )}
+
+                                    {/*
+                                      * Se nombra la cuenta como la reconoce una
+                                      * persona —el correo que invitó—, no por su
+                                      * identificador interno. Que la cuenta ya no
+                                      * esté en el padrón no es lo mismo que no
+                                      * haber registrado ninguna, y se dicen
+                                      * distinto.
+                                      */}
+                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
+                                        <span className="text-[var(--color-tenue)]">
+                                            Cuenta de custodia declarada
+                                        </span>
+                                        <span className="font-mono text-[13px]">
+                                            {op.transferInitiation.custodyAccountIdentifier ??
+                                                (op.transferInitiation.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
+                                        </span>
+                                    </div>
+
+                                    {op.custody?.custodyAccountId &&
+                                        op.transferInitiation.custodyAccountId &&
+                                        op.custody.custodyAccountId !==
+                                            op.transferInitiation.custodyAccountId && (
+                                            <p className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/50 bg-[var(--color-alerta)]/5 p-3 text-[13px] leading-relaxed">
+                                                La cuenta que verificamos al tomar la custodia
+                                                {op.custody.custodyAccountIdentifier ? (
+                                                    <>
+                                                        {' '}(
+                                                        <span className="font-mono">
+                                                            {op.custody.custodyAccountIdentifier}
+                                                        </span>
+                                                        ){' '}
+                                                    </>
+                                                ) : (
+                                                    ' '
+                                                )}
+                                                no es la misma que estaba registrada cuando el vendedor
+                                                declaró la cesión. El acceso se volvió a registrar en el
+                                                medio. Queda asentado acá; no impide que la operación siga.
+                                            </p>
+                                        )}
+
+                                    {op.transferInitiation.notes && (
+                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            {op.transferInitiation.notes}
+                                        </p>
+                                    )}
+                                </div>
+                            </Panel>
+                        </Reveal>
+                    )}
+
+                    {/*
                       * La constancia se muestra a las dos partes. Es lo que respalda
                       * pedirle el pago al comprador: ocultársela sería al revés.
                       */}
@@ -235,6 +316,25 @@ export default async function DetalleOperacion(props: {
                                         <CheckedItem text="La plataforma es propietaria principal del activo" />
                                         <CheckedItem text="Los accesos están asegurados" />
                                     </ul>
+
+                                    {/*
+                                      * La cuenta que la plataforma verificó, al lado
+                                      * de la que el vendedor declaró en el panel de
+                                      * arriba. Sin este renglón las dos copias
+                                      * congeladas no se pueden comparar mirando la
+                                      * pantalla, que es para lo que se congelan.
+                                      */}
+                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
+                                        <span className="text-[var(--color-tenue)]">
+                                            Cuenta de custodia verificada
+                                        </span>
+                                        <span className="font-mono text-[13px]">
+                                            {op.custody.custodyAccountIdentifier ??
+                                                (op.custody.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
+                                        </span>
+                                    </div>
 
                                     {Object.entries(op.custody.metrics).length > 0 && (
                                         <div className="flex flex-col gap-1.5 border-t border-[var(--color-borde)] pt-3">

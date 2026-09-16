@@ -4,10 +4,12 @@ import {
     AssetFieldDescriptor,
     AssetTypeDescriptor,
     IAssetStrategy,
+    MAX_RECIPIENT_IDENTIFIER_LENGTH,
     MetricKey,
     TransferContext,
     TransferStep,
 } from './IAssetStrategy';
+import { ValidationError } from '../errors/DomainError';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
@@ -140,6 +142,32 @@ export class WebStrategy implements IAssetStrategy {
 
     public getConfidentialFields(): string[] {
         return ['name', 'domain'];
+    }
+
+    /**
+     * Un dominio se recibe en una cuenta de registrador, y cada registrador
+     * nombra a sus usuarios como quiere: algunos usan la dirección de correo,
+     * otros un alias propio. No hay forma canónica que comprobar sin decidir
+     * por el comprador cuál es su proveedor, así que acá solo se exige que el
+     * dato exista y quepa. Las mayúsculas se respetan: en varios registradores
+     * el usuario las distingue.
+     */
+    public normalizeRecipientIdentifier(identifier: string): string {
+        const limpio = (identifier ?? '').trim();
+
+        if (limpio === '') {
+            throw new ValidationError(
+                'Indicá el usuario del registrador donde querés recibir el dominio.',
+            );
+        }
+
+        if (limpio.length > MAX_RECIPIENT_IDENTIFIER_LENGTH) {
+            throw new ValidationError(
+                `El usuario del registrador no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
+            );
+        }
+
+        return limpio;
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {

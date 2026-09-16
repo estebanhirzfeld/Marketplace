@@ -256,8 +256,7 @@ describe('CloseReportUseCase', () => {
 // ═════════════════════════════════════════════════════════
 
 describe('GetEvidenceDossierUseCase', () => {
-    function armar(report: Report | null) {
-        const operation = unaOperacionFirmada();
+    function armar(report: Report | null, operation: Operation = unaOperacionFirmada()) {
         const listing = unListing();
         const contrato = Contract.createTripartite(listing.id, operation.id);
         contrato.attachDocument('a'.repeat(64));
@@ -289,6 +288,39 @@ describe('GetEvidenceDossierUseCase', () => {
         expect(legajo.reporter.id).toBe(BUYER_ID.toString());
         expect(legajo.reported.id).toBe(SELLER_ID.toString());
         expect(legajo.reporter.fullName).toBe('Una Parte');
+    });
+
+    /**
+     * La declaración de cesión es la única pieza del escrow que aporta el
+     * vendedor y no la plataforma. Un reclamo típico es justamente "dijo que
+     * me lo había cedido y nunca pasó": sin esto, el legajo no tiene con qué
+     * responderlo.
+     */
+    it('incluye la declaración de cesión del vendedor cuando existe', async () => {
+        const cuentaDeCustodia = new UniqueEntityID();
+        const op = unaOperacionFirmada();
+        op.initiateTransfer({
+            declaredBy: SELLER_ID,
+            controlCeded: true,
+            custodyAccountId: cuentaDeCustodia,
+            notes: 'Promoví a la cuenta de custodia desde la Cuenta de Marca.',
+        });
+
+        const legajo = await armar(unaDenuncia(), op).execute('r1', BUYER);
+
+        expect(legajo.verifications.transferInitiation).toBeDefined();
+        expect(legajo.verifications.transferInitiation!.controlCeded).toBe(true);
+        expect(legajo.verifications.transferInitiation!.custodyAccountId).toBe(
+            cuentaDeCustodia.toString(),
+        );
+        expect(legajo.verifications.transferInitiation!.notes).toContain('Cuenta de Marca');
+        expect(legajo.verifications.transferInitiation!.declaredAt).toBeInstanceOf(Date);
+    });
+
+    it('no inventa una declaración cuando el vendedor todavía no cedió', async () => {
+        const legajo = await armar(unaDenuncia()).execute('r1', BUYER);
+
+        expect(legajo.verifications.transferInitiation).toBeUndefined();
     });
 
     /**
