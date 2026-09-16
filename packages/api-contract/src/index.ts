@@ -822,6 +822,18 @@ export interface EvidenceDossierDto {
     verifications: {
         ownership?: { verifiedAt: string; assetId: string; source: string; monthlyRevenueCents?: number };
         platformAccess?: { verifiedAt: string; accessSince: string };
+        /**
+         * Lo que el vendedor declaró al ceder el control. La única pieza del
+         * escrow que aporta él, y por eso la que importa ante un reclamo por un
+         * traspaso que nunca ocurrió. Sin `declaredBy`: el vendedor ya está
+         * identificado como parte en el propio legajo.
+         */
+        transferInitiation?: {
+            declaredAt: string;
+            controlCeded: boolean;
+            custodyAccountId?: string;
+            notes?: string;
+        };
         custody?: {
             verifiedAt: string;
             isPrimaryOwner: boolean;
