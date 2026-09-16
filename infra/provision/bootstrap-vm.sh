@@ -199,7 +199,7 @@ if [[ -b "$BLOCK_VOLUME_DEVICE" ]]; then
 	fi
 	mountpoint -q "$PGDATA_MOUNT" || mount "$PGDATA_MOUNT"
 	# `data` es el PGDATA real. Tiene que ser un subdirectorio: Postgres no
-	inicializa sobre la raiz del volumen, que trae lost+found de fabrica.
+	# inicializa sobre la raiz del volumen, que trae lost+found de fabrica.
 	mkdir -p "${PGDATA_MOUNT}/data" "${PGDATA_MOUNT}/backups"
 	echo "  montado: $(df -h "$PGDATA_MOUNT" | tail -1)"
 else
