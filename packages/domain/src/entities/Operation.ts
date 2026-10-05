@@ -199,8 +199,12 @@ export interface OperationProps {
     transferInitiation?: TransferInitiation;
     custodyVerification?: CustodyVerification;
     payment?: PaymentRecord;
-    /** Liquidación en pesos congelada; solo existe en operaciones no ARS. */
-    settlementQuote?: SettlementQuote;
+    /**
+     * Cotizaciones en pesos emitidas, de la más vieja a la más nueva; solo
+     * existen en operaciones no ARS. Es un historial que solo crece: un link de
+     * pago generado bajo una cotización anterior puede cobrarse después.
+     */
+    settlementQuotes?: SettlementQuote[];
     recipientIdentity?: RecipientIdentity;
     deliveryVerification?: DeliveryVerification;
     completedAt?: Date;
@@ -308,8 +312,14 @@ export class Operation extends Entity<OperationProps> {
         return this.props.platformEarns;
     }
 
+    /** La última cotización emitida, que es la vigente para generar links nuevos. */
     public get settlementQuote(): SettlementQuote | undefined {
-        return this.props.settlementQuote;
+        return this.props.settlementQuotes?.at(-1);
+    }
+
+    /** Todas las cotizaciones emitidas, de la más vieja a la más nueva. */
+    public get settlementQuotes(): ReadonlyArray<SettlementQuote> {
+        return [...(this.props.settlementQuotes ?? [])];
     }
 
     /** Historial completo de ofertas y contraofertas */
@@ -629,9 +639,11 @@ export class Operation extends Entity<OperationProps> {
     /**
      * Congela la liquidación en pesos de una operación en otra moneda.
      *
-     * Reemplaza la cotización anterior: cada vez que vence y se genera un link
-     * nuevo, lo que vale es la última. Solo con el activo en custodia, que es
-     * cuando corresponde cobrar.
+     * Agrega la cotización al historial sin pisar las anteriores: cada vez que
+     * vence y se genera un link nuevo la vigente es la última, pero el pago de
+     * un link viejo igual tiene que poder conciliarse. Una cotización idéntica
+     * a la última no se repite. Solo con el activo en custodia, que es cuando
+     * corresponde cobrar.
      */
     public quoteSettlement(quote: SettlementQuote): void {
         if (this.props.status !== 'asset_in_custody') {
@@ -644,7 +656,22 @@ export class Operation extends Entity<OperationProps> {
             throw new InvalidStateError('La operación ya está en pesos: no necesita cotización.');
         }
 
-        this.props.settlementQuote = quote;
+        const latest = this.settlementQuote;
+        if (latest && Operation.isSameQuote(latest, quote)) return;
+
+        this.props.settlementQuotes = [...(this.props.settlementQuotes ?? []), quote];
+    }
+
+    private static isSameQuote(a: SettlementQuote, b: SettlementQuote): boolean {
+        return (
+            a.rate === b.rate &&
+            a.rateDate === b.rateDate &&
+            a.currency === b.currency &&
+            a.buyerPaysCents === b.buyerPaysCents &&
+            a.sellerReceivesCents === b.sellerReceivesCents &&
+            a.platformFeeCents === b.platformFeeCents &&
+            a.expiresAt.getTime() === b.expiresAt.getTime()
+        );
     }
 
     /**
@@ -665,22 +692,38 @@ export class Operation extends Entity<OperationProps> {
         if (datos.provider !== 'transferencia' && !datos.externalId) {
             throw new ValidationError('Falta el identificador del pago en la pasarela.');
         }
-        // Con cotización congelada, lo que tiene que llegar es lo cotizado en
-        // pesos. Que la cotización haya vencido no importa: vence la preferencia
-        // de pago, no la plata que ya entró.
-        const quote = this.props.settlementQuote;
-        const expectedCurrency = quote ? quote.currency : this.props.buyerPays.getCurrency();
-        const expectedCents = quote ? quote.buyerPaysCents : this.props.buyerPays.getCents();
+        // Con cotizaciones emitidas, lo que tiene que llegar es lo cotizado en
+        // pesos en cualquiera de ellas: un link generado bajo una cotización
+        // anterior cobra por ese monto y la plata ya entró. Que la cotización
+        // haya vencido tampoco importa: vence la preferencia de pago, no el pago.
+        // Las cotizaciones valen solo para lo que cobra la pasarela: una
+        // transferencia llega en la moneda original de la operación, aunque el
+        // comprador haya visto antes una cotización.
+        const quotes = datos.provider === 'mercadopago' ? (this.props.settlementQuotes ?? []) : [];
 
-        if (datos.currency !== expectedCurrency) {
-            throw new ValidationError(
-                `El pago llegó en ${datos.currency} y la operación es en ${expectedCurrency}.`,
-            );
-        }
-        if (datos.amountCents !== expectedCents) {
-            throw new ValidationError(
-                'El monto pagado no coincide con el total de la operación.',
-            );
+        if (quotes.length > 0) {
+            if (!quotes.some((q) => q.currency === datos.currency)) {
+                throw new ValidationError(
+                    `El pago llegó en ${datos.currency} y la operación es en ${quotes[0].currency}.`,
+                );
+            }
+            if (!quotes.some((q) => q.currency === datos.currency && q.buyerPaysCents === datos.amountCents)) {
+                throw new ValidationError(
+                    'El monto pagado no coincide con el total de la operación.',
+                );
+            }
+        } else {
+            const expectedCurrency = this.props.buyerPays.getCurrency();
+            if (datos.currency !== expectedCurrency) {
+                throw new ValidationError(
+                    `El pago llegó en ${datos.currency} y la operación es en ${expectedCurrency}.`,
+                );
+            }
+            if (datos.amountCents !== this.props.buyerPays.getCents()) {
+                throw new ValidationError(
+                    'El monto pagado no coincide con el total de la operación.',
+                );
+            }
         }
 
         this.props.payment = { ...datos, confirmedAt: new Date() };

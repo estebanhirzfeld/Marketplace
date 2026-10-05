@@ -212,6 +212,10 @@ model Operation {
   recipientIdentity Json?
   // Constancia de entrega, espejo de `custodyCheck`. Se registra al cerrar.
   deliveryCheck    Json?
+  // Cotizaciones en pesos emitidas (historial, de la más vieja a la más nueva),
+  // solo para operaciones no ARS. Nullable y aditiva: una operación vieja o en
+  // pesos no la tiene.
+  settlementQuotes Json?
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 

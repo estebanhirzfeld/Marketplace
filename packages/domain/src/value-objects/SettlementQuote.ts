@@ -16,6 +16,11 @@ export interface SettlementQuoteProps {
     expiresAt: Date;
 }
 
+/** La cotización tal como se persiste: igual que las props, con `expiresAt` en ISO. */
+export type SettlementQuoteSnapshot = Omit<SettlementQuoteProps, 'expiresAt'> & {
+    expiresAt: string;
+};
+
 /**
  * Liquidación en pesos de una operación en otra moneda.
  *
@@ -72,6 +77,16 @@ export class SettlementQuote {
     /** Rehidrata desde persistencia: no recalcula nada. */
     public static reconstitute(props: SettlementQuoteProps): SettlementQuote {
         return new SettlementQuote(props);
+    }
+
+    /** Forma persistible: solo números y strings, con la fecha en ISO. */
+    public toSnapshot(): SettlementQuoteSnapshot {
+        return { ...this.props, expiresAt: this.props.expiresAt.toISOString() };
+    }
+
+    /** Rehidrata desde la forma persistida por `toSnapshot()`. */
+    public static fromSnapshot(snapshot: SettlementQuoteSnapshot): SettlementQuote {
+        return new SettlementQuote({ ...snapshot, expiresAt: new Date(snapshot.expiresAt) });
     }
 
     public get rate(): number {

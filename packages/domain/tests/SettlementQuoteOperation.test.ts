@@ -73,14 +73,48 @@ describe('Operation.quoteSettlement', () => {
         expect(unaOperacion().settlementQuote).toBeUndefined();
     });
 
-    it('reemplaza la cotización anterior', () => {
+    it('agrega la cotización a las emitidas', () => {
         const op = unaOperacion();
-        op.quoteSettlement(unaCotizacion(op, 1500));
+        const primera = unaCotizacion(op, 1500);
         const nueva = unaCotizacion(op, 1600);
+        op.quoteSettlement(primera);
 
         op.quoteSettlement(nueva);
 
         expect(op.settlementQuote).toBe(nueva);
+        expect(op.settlementQuotes).toEqual([primera, nueva]);
+    });
+
+    it('sin cotizaciones, el historial está vacío', () => {
+        expect(unaOperacion().settlementQuotes).toEqual([]);
+    });
+
+    it('el historial devuelto es una copia', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op));
+
+        (op.settlementQuotes as SettlementQuote[]).push(unaCotizacion(op, 1700));
+
+        expect(op.settlementQuotes).toHaveLength(1);
+    });
+
+    it('no agrega dos veces una cotización idéntica a la última', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op, 1500));
+
+        op.quoteSettlement(unaCotizacion(op, 1500));
+
+        expect(op.settlementQuotes).toHaveLength(1);
+    });
+
+    it('sí agrega una igual si no es la última', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op, 1500));
+        op.quoteSettlement(unaCotizacion(op, 1600));
+
+        op.quoteSettlement(unaCotizacion(op, 1500));
+
+        expect(op.settlementQuotes).toHaveLength(3);
     });
 
     it('exige el activo en custodia', () => {
@@ -105,6 +139,19 @@ describe('Operation.quoteSettlement', () => {
         const copia = Operation.reconstitute({ ...op.toSnapshot().props }, op.id, op.createdAt);
 
         expect(copia.settlementQuote).toBe(q);
+    });
+
+    it('rehidratar conserva varias cotizaciones en orden', () => {
+        const op = unaOperacion();
+        const a = unaCotizacion(op, 1500);
+        const b = unaCotizacion(op, 1600);
+        op.quoteSettlement(a);
+        op.quoteSettlement(b);
+
+        const copia = Operation.reconstitute({ ...op.toSnapshot().props }, op.id, op.createdAt);
+
+        expect(copia.settlementQuotes).toEqual([a, b]);
+        expect(copia.settlementQuote).toBe(b);
     });
 });
 
@@ -157,6 +204,38 @@ describe('Operation.confirmBuyerPayment con cotización', () => {
         expect(op.status).toBe('payment_received');
     });
 
+    it('acepta un pago hecho con un link generado bajo una cotización superada', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op, 1500));
+        op.quoteSettlement(unaCotizacion(op, 1600));
+
+        // El link viejo cobró 1.050.000 * 1500.
+        op.confirmBuyerPayment(unPagoEnPesos());
+
+        expect(op.status).toBe('payment_received');
+    });
+
+    it('acepta también el pago por la cotización más reciente', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op, 1500));
+        op.quoteSettlement(unaCotizacion(op, 1600));
+
+        op.confirmBuyerPayment(unPagoEnPesos({ amountCents: 1_680_000_000 }));
+
+        expect(op.status).toBe('payment_received');
+    });
+
+    it('rechaza un monto que no coincide con ninguna cotización emitida', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op, 1500));
+        op.quoteSettlement(unaCotizacion(op, 1600));
+
+        expect(() => op.confirmBuyerPayment(unPagoEnPesos({ amountCents: 1_600_000_000 }))).toThrow(
+            ValidationError,
+        );
+        expect(op.status).toBe('asset_in_custody');
+    });
+
     it('sigue exigiendo la custodia antes del pago', () => {
         const op = unaOperacion('transfer_in_progress');
 
@@ -169,5 +248,38 @@ describe('Operation.confirmBuyerPayment con cotización', () => {
         op.confirmBuyerPayment(unPagoEnPesos({ amountCents: 1_050_000, currency: 'USD' }));
 
         expect(op.status).toBe('payment_received');
+    });
+
+    /**
+     * Las cotizaciones valen solo para lo que cobra Mercado Pago. Si el comprador
+     * generó un link, vio la cotización y después decidió pagar por transferencia,
+     * la transferencia llega en la moneda original de la operación.
+     */
+    it('acepta una transferencia en la moneda original aunque ya haya cotizaciones', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op));
+
+        op.confirmBuyerPayment({
+            provider: 'transferencia',
+            method: 'transferencia_bancaria',
+            amountCents: 1_050_000,
+            currency: 'USD',
+        });
+
+        expect(op.status).toBe('payment_received');
+    });
+
+    it('una transferencia no se concilia contra el monto en pesos de una cotización', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op));
+
+        expect(() =>
+            op.confirmBuyerPayment({
+                provider: 'transferencia',
+                method: 'transferencia_bancaria',
+                amountCents: 1_575_000_000,
+                currency: 'ARS',
+            }),
+        ).toThrow(ValidationError);
     });
 });

@@ -15,6 +15,10 @@ import {
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
+import {
+    SettlementQuote,
+    SettlementQuoteSnapshot,
+} from "@marketplace/domain/src/value-objects/SettlementQuote";
 
 const NEGOTIATING_PARTIES: readonly NegotiatingParty[] = ["buyer", "seller"];
 
@@ -264,6 +268,58 @@ function serializePayment(p?: PaymentRecord) {
     };
 }
 
+/**
+ * Lee el historial de cotizaciones en pesos. `null` es "sin cotizaciones" y
+ * vuelve `undefined`, nunca `[]`: una operación vieja o en pesos no las tiene
+ * y rehidratarla no tiene que inventarle un historial.
+ */
+function parseSettlementQuotes(raw: unknown): SettlementQuote[] | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (!Array.isArray(raw)) {
+        throw new Error("Columna `settlementQuotes` corrupta: se esperaba un array.");
+    }
+
+    return raw.map((entry): SettlementQuote => {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+            throw new Error("Cotización corrupta: se esperaba un objeto.");
+        }
+
+        const q = entry as Record<string, unknown>;
+        if (
+            typeof q.rate !== "number" ||
+            typeof q.rateDate !== "string" ||
+            typeof q.source !== "string" ||
+            q.currency !== "ARS" ||
+            typeof q.buyerPaysCents !== "number" ||
+            typeof q.sellerReceivesCents !== "number" ||
+            typeof q.platformFeeCents !== "number" ||
+            typeof q.expiresAt !== "string"
+        ) {
+            throw new Error("Cotización corrupta: faltan datos obligatorios.");
+        }
+
+        return SettlementQuote.fromSnapshot({
+            rate: q.rate,
+            rateDate: q.rateDate,
+            source: q.source as SettlementQuoteSnapshot["source"],
+            currency: q.currency,
+            buyerPaysCents: q.buyerPaysCents,
+            sellerReceivesCents: q.sellerReceivesCents,
+            platformFeeCents: q.platformFeeCents,
+            expiresAt: q.expiresAt,
+        });
+    });
+}
+
+/**
+ * `undefined` y no `Prisma.DbNull`: el historial solo crece, así que "sin
+ * cotizaciones" deja la columna como está y en un update no la pisa.
+ */
+function serializeSettlementQuotes(quotes?: readonly SettlementQuote[]) {
+    if (!quotes) return undefined;
+    return quotes.map((q) => q.toSnapshot());
+}
+
 /** Forma JSON-safe: sin Date, que Prisma no acepta como InputJson. */
 function serializeNegotiations(negotiations: readonly Negotiation[]) {
     return negotiations.map((n) => ({
@@ -296,6 +352,7 @@ export class OperationMapper {
             payment: parsePayment(raw.payment),
             recipientIdentity: parseRecipientIdentity(raw.recipientIdentity),
             deliveryVerification: parseEntrega(raw.deliveryCheck),
+            settlementQuotes: parseSettlementQuotes(raw.settlementQuotes),
             completedAt: raw.completedAt ?? undefined,
         };
 
@@ -329,6 +386,7 @@ export class OperationMapper {
             payment: serializePayment(props.payment),
             recipientIdentity: serializeRecipientIdentity(props.recipientIdentity),
             deliveryCheck: serializeEntrega(props.deliveryVerification),
+            settlementQuotes: serializeSettlementQuotes(props.settlementQuotes),
             completedAt: props.completedAt ?? null,
             createdAt,
         };

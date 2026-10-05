@@ -11,6 +11,7 @@ import { PrismaListingRepository } from "../src/repositories/PrismaListingReposi
 import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { PrismaContractRepository } from "../src/repositories/PrismaContractRepository";
 import { Operation } from "@marketplace/domain/src/entities/Operation";
+import { SettlementQuote } from "@marketplace/domain/src/value-objects/SettlementQuote";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
 import { Report } from "@marketplace/domain/src/entities/Report";
 import { PrismaReportRepository } from "../src/repositories/PrismaReportRepository";
@@ -682,6 +683,87 @@ describe("PrismaOperationRepository", () => {
     it("debería devolver null si la Operation no existe", async () => {
         const result = await operationRepo.findById(new UniqueEntityID().toString());
         expect(result).toBeNull();
+    });
+
+    /**
+     * Las cotizaciones en pesos viajan a una columna Json como historial: se
+     * guardan con la fecha de vencimiento en ISO y hay que revivirlas en orden.
+     * Sin historial, la columna queda nula y se lee como "sin cotizaciones".
+     */
+    describe("settlementQuotes", () => {
+        async function unaOperacionEnCustodia(prefix: string): Promise<Operation> {
+            const buyer = await createPersistedUser({
+                email: `buyer-${prefix}@test.com`,
+                role: UserRole.BUYER,
+            });
+            const seller = await createPersistedUser({
+                email: `seller-${prefix}@test.com`,
+                role: UserRole.SELLER,
+            });
+            const admin = await createPersistedUser({
+                email: `admin-${prefix}@test.com`,
+                role: UserRole.ADMIN,
+            });
+            const listing = await createPersistedListing(seller.id);
+
+            const operation = Operation.create({
+                listingId: listing.id,
+                buyerId: buyer.id,
+                sellerId: seller.id,
+                offerPrice: Money.fromCents(1_000_000, "USD"),
+            });
+            operation.acceptCurrentOffer("seller");
+            operation.signContract();
+            operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+            operation.confirmAssetCustody({
+                verifiedBy: admin.id,
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            });
+            return operation;
+        }
+
+        function unaCotizacion(operation: Operation, rate: number, now: Date): SettlementQuote {
+            return SettlementQuote.create({
+                buyerPays: operation.buyerPays!,
+                sellerReceives: operation.sellerReceives!,
+                exchangeRate: { rate, date: "2026-10-02", source: "BCRA_A3500" },
+                now,
+            });
+        }
+
+        it("debería persistir dos cotizaciones y leerlas en el mismo orden", async () => {
+            const operation = await unaOperacionEnCustodia("cot-dos");
+            const primera = unaCotizacion(operation, 1500, new Date("2026-10-05T12:00:00Z"));
+            const segunda = unaCotizacion(operation, 1600, new Date("2026-10-07T12:00:00Z"));
+            operation.quoteSettlement(primera);
+            operation.quoteSettlement(segunda);
+
+            await operationRepo.save(operation);
+            const retrieved = await operationRepo.findById(operation.id.toString());
+
+            expect(retrieved!.status).toBe("asset_in_custody");
+            expect(retrieved!.settlementQuotes).toHaveLength(2);
+            expect(retrieved!.settlementQuotes[0].rate).toBe(1500);
+            expect(retrieved!.settlementQuotes[0].buyerPaysCents).toBe(primera.buyerPaysCents);
+            expect(retrieved!.settlementQuotes[0].platformFeeCents).toBe(primera.platformFeeCents);
+            expect(retrieved!.settlementQuotes[1].rate).toBe(1600);
+            expect(retrieved!.settlementQuotes[1].buyerPaysCents).toBe(segunda.buyerPaysCents);
+            expect(retrieved!.settlementQuotes[1].expiresAt).toBeInstanceOf(Date);
+            expect(retrieved!.settlementQuotes[1].expiresAt.getTime()).toBe(segunda.expiresAt.getTime());
+            expect(retrieved!.settlementQuote?.rate).toBe(1600);
+        });
+
+        it("debería leer una operación sin cotizaciones sin historial", async () => {
+            const operation = await unaOperacionEnCustodia("cot-ninguna");
+
+            await operationRepo.save(operation);
+            const retrieved = await operationRepo.findById(operation.id.toString());
+
+            expect(retrieved!.settlementQuotes).toHaveLength(0);
+            expect(retrieved!.settlementQuote).toBeUndefined();
+        });
     });
 
     /**

@@ -143,3 +143,35 @@ describe('SettlementQuote.reconstitute', () => {
         expect(copia.expiresAt).toBe(original.expiresAt);
     });
 });
+
+describe('SettlementQuote.toSnapshot / fromSnapshot', () => {
+    it('serializa a un objeto plano con la fecha en ISO', () => {
+        const q = unaCotizacion();
+
+        const snap = q.toSnapshot();
+
+        expect(snap).toEqual({
+            rate: 1500,
+            rateDate: '2026-10-02',
+            source: 'BCRA_A3500',
+            currency: 'ARS',
+            buyerPaysCents: 1_575_000_000,
+            sellerReceivesCents: 1_425_000_000,
+            platformFeeCents: 150_000_000,
+            expiresAt: new Date(AHORA.getTime() + QUOTE_TTL_MS).toISOString(),
+        });
+        expect(JSON.parse(JSON.stringify(snap))).toEqual(snap);
+    });
+
+    it('fromSnapshot devuelve una cotización equivalente', () => {
+        const q = unaCotizacion();
+
+        const copia = SettlementQuote.fromSnapshot(JSON.parse(JSON.stringify(q.toSnapshot())));
+
+        expect(copia.buyerPaysCents).toBe(q.buyerPaysCents);
+        expect(copia.sellerReceivesCents).toBe(q.sellerReceivesCents);
+        expect(copia.expiresAt).toBeInstanceOf(Date);
+        expect(copia.expiresAt.getTime()).toBe(q.expiresAt.getTime());
+        expect(copia.toSnapshot()).toEqual(q.toSnapshot());
+    });
+});
