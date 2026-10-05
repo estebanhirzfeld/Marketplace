@@ -269,6 +269,14 @@ function serializePayment(p?: PaymentRecord) {
 }
 
 /**
+ * Un número finito. JSON no tiene NaN ni Infinity, pero un valor fuera de
+ * rango se lee como Infinity, y una cotización así no se puede cobrar.
+ */
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
  * Lee el historial de cotizaciones en pesos. `null` es "sin cotizaciones" y
  * vuelve `undefined`, nunca `[]`: una operación vieja o en pesos no las tiene
  * y rehidratarla no tiene que inventarle un historial.
@@ -286,16 +294,17 @@ function parseSettlementQuotes(raw: unknown): SettlementQuote[] | undefined {
 
         const q = entry as Record<string, unknown>;
         if (
-            typeof q.rate !== "number" ||
+            !isFiniteNumber(q.rate) ||
             typeof q.rateDate !== "string" ||
             typeof q.source !== "string" ||
             q.currency !== "ARS" ||
-            typeof q.buyerPaysCents !== "number" ||
-            typeof q.sellerReceivesCents !== "number" ||
-            typeof q.platformFeeCents !== "number" ||
-            typeof q.expiresAt !== "string"
+            !isFiniteNumber(q.buyerPaysCents) ||
+            !isFiniteNumber(q.sellerReceivesCents) ||
+            !isFiniteNumber(q.platformFeeCents) ||
+            typeof q.expiresAt !== "string" ||
+            Number.isNaN(new Date(q.expiresAt).getTime())
         ) {
-            throw new Error("Cotización corrupta: faltan datos obligatorios.");
+            throw new Error("Cotización corrupta: faltan datos obligatorios o son inválidos.");
         }
 
         return SettlementQuote.fromSnapshot({

@@ -19,6 +19,7 @@ import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount"
 import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
+import { Prisma } from "../generated/prisma/client";
 
 const userRepo = new PrismaUserRepository();
 const listingRepo = new PrismaListingRepository();
@@ -763,6 +764,91 @@ describe("PrismaOperationRepository", () => {
 
             expect(retrieved!.settlementQuotes).toHaveLength(0);
             expect(retrieved!.settlementQuote).toBeUndefined();
+        });
+
+        /**
+         * Una columna escrita por fuera del repositorio (a mano, una migración
+         * rota) tiene que fallar fuerte al leerla, no rehidratar basura.
+         */
+        describe("columna corrupta", () => {
+            function unaEntradaValida() {
+                return {
+                    rate: 1500,
+                    rateDate: "2026-10-02",
+                    source: "BCRA_A3500",
+                    currency: "ARS",
+                    buyerPaysCents: 1_575_000_000,
+                    sellerReceivesCents: 1_425_000_000,
+                    platformFeeCents: 150_000_000,
+                    expiresAt: "2026-10-06T12:00:00.000Z",
+                };
+            }
+
+            async function leerConColumna(prefix: string, columna: Prisma.InputJsonValue) {
+                const operation = await unaOperacionEnCustodia(prefix);
+                await operationRepo.save(operation);
+                await prisma.operation.update({
+                    where: { id: operation.id.toString() },
+                    data: { settlementQuotes: columna },
+                });
+                return operationRepo.findById(operation.id.toString());
+            }
+
+            it("la entrada válida escrita a mano se lee bien", async () => {
+                const retrieved = await leerConColumna("cor-ok", [unaEntradaValida()]);
+
+                expect(retrieved!.settlementQuotes).toHaveLength(1);
+                expect(retrieved!.settlementQuotes[0].rate).toBe(1500);
+            });
+
+            it("rechaza una columna que no es un array", async () => {
+                await expect(leerConColumna("cor-obj", { rate: 1500 })).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada que no es un objeto", async () => {
+                await expect(leerConColumna("cor-str", ["1500"])).rejects.toThrow(/corrupta/);
+                await expect(leerConColumna("cor-nul", [null])).rejects.toThrow(/corrupta/);
+                await expect(leerConColumna("cor-arr", [[1500]])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada sin un campo obligatorio", async () => {
+                const { platformFeeCents: _omitido, ...incompleta } = unaEntradaValida();
+
+                await expect(leerConColumna("cor-falta", [incompleta])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada con un campo de tipo equivocado", async () => {
+                const entrada = { ...unaEntradaValida(), buyerPaysCents: "1575000000" };
+
+                await expect(leerConColumna("cor-tipo", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una moneda que no es ARS", async () => {
+                const entrada = { ...unaEntradaValida(), currency: "USD" };
+
+                await expect(leerConColumna("cor-mon", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una fecha de vencimiento inválida", async () => {
+                const entrada = { ...unaEntradaValida(), expiresAt: "no-es-una-fecha" };
+
+                await expect(leerConColumna("cor-fecha", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una tasa que no es un número finito", async () => {
+                // JSON no tiene NaN ni Infinity: lo más cercano que puede llegar
+                // a la columna es un número fuera de rango, que `JSON.parse`
+                // convierte en Infinity. Prisma no lo escribe (serializa a
+                // `null`), así que va por SQL crudo.
+                const texto = JSON.stringify([unaEntradaValida()]).replace("1500", "1e999");
+                expect(JSON.parse(texto)[0].rate).toBe(Number.POSITIVE_INFINITY);
+
+                const operation = await unaOperacionEnCustodia("cor-inf");
+                await operationRepo.save(operation);
+                await prisma.$executeRaw`UPDATE operations SET "settlementQuotes" = ${texto}::jsonb WHERE id = ${operation.id.toString()}`;
+
+                await expect(operationRepo.findById(operation.id.toString())).rejects.toThrow(/corrupta/);
+            });
         });
     });
 

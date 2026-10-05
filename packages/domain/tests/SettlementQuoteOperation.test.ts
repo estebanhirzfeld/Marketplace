@@ -236,6 +236,22 @@ describe('Operation.confirmBuyerPayment con cotización', () => {
         expect(op.status).toBe('asset_in_custody');
     });
 
+    it('rechaza un pago de Mercado Pago en la moneda original cuando hay cotizaciones', () => {
+        const op = unaOperacion();
+        op.quoteSettlement(unaCotizacion(op));
+
+        expect(() =>
+            op.confirmBuyerPayment({
+                provider: 'mercadopago',
+                externalId: '1234567890',
+                method: 'credit_card',
+                amountCents: 1_050_000,
+                currency: 'USD',
+            }),
+        ).toThrow(ValidationError);
+        expect(op.status).toBe('asset_in_custody');
+    });
+
     it('sigue exigiendo la custodia antes del pago', () => {
         const op = unaOperacion('transfer_in_progress');
 
