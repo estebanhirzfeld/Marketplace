@@ -65,6 +65,7 @@ import {
     CreateCheckoutUseCase,
 } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
+import { BcraExchangeRateProvider } from './adapters/BcraExchangeRateProvider';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
@@ -179,6 +180,18 @@ export function createContainer(
           })
         : undefined;
 
+    // La pesificación de operaciones en USD es opcional: apagada por defecto, el
+    // comportamiento es el de siempre. Solo el texto exacto `1` o `true` la
+    // enciende.
+    const exchangeRateFlag = process.env.EXCHANGE_RATE_ENABLED?.trim();
+    const overrideRaw = process.env.EXCHANGE_RATE_OVERRIDE_USD_ARS?.trim();
+    const exchangeRates =
+        exchangeRateFlag === '1' || exchangeRateFlag === 'true'
+            ? new BcraExchangeRateProvider({
+                  override: overrideRaw ? Number(overrideRaw) : undefined,
+              })
+            : undefined;
+
     const oauthConfig = {
         clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID?.trim() ?? '',
         clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET?.trim() ?? '',
@@ -265,7 +278,7 @@ export function createContainer(
         initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
         crearCheckout: mercadoPago
-            ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
+            ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago, exchangeRates)
             : undefined,
         confirmarPagoDePasarela: mercadoPago
             ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos, avisosDePlataforma)
