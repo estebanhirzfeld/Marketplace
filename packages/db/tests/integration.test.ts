@@ -17,6 +17,9 @@ import { Report } from "@marketplace/domain/src/entities/Report";
 import { PrismaReportRepository } from "../src/repositories/PrismaReportRepository";
 import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
 import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
+import { SellerPaymentAccount } from "@marketplace/domain/src/entities/SellerPaymentAccount";
+import { ISecretCipher } from "@marketplace/domain/src/ports/ISecretCipher";
+import { PrismaSellerPaymentAccountRepository } from "../src/repositories/PrismaSellerPaymentAccountRepository";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
 import { Prisma } from "../generated/prisma/client";
@@ -94,10 +97,12 @@ beforeEach(async () => {
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
     await prisma.custodyAccount.deleteMany();
+    await prisma.sellerPaymentAccount.deleteMany();
     await prisma.user.deleteMany();
 });
 
 afterAll(async () => {
+    await prisma.sellerPaymentAccount.deleteMany();
     await prisma.report.deleteMany();
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
@@ -1070,5 +1075,161 @@ describe("PrismaReportRepository", () => {
         expect(guardada!.status).toBe("closed");
         expect(guardada!.closedAt).toBeInstanceOf(Date);
         expect(guardada!.closedReason).toBe("Nos arreglamos entre las partes.");
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// Cuenta de Mercado Pago del vendedor
+// ═════════════════════════════════════════════════════════
+
+/**
+ * Cifrador de prueba, reversible y reconocible: no es seguro, solo permite
+ * comprobar que el repositorio cifra al guardar y descifra al leer sin traer
+ * la implementación real (vive en apps/api).
+ */
+class FakeCipher implements ISecretCipher {
+    encrypt(plain: string): string {
+        return `fake:${Buffer.from(plain, "utf8").reverse().toString("base64")}`;
+    }
+    decrypt(payload: string): string {
+        if (!payload.startsWith("fake:")) throw new Error("payload ajeno");
+        return Buffer.from(payload.slice(5), "base64").reverse().toString("utf8");
+    }
+}
+
+describe("PrismaSellerPaymentAccountRepository", () => {
+    const paymentRepo = new PrismaSellerPaymentAccountRepository(new FakeCipher());
+    const VENCE = new Date("2030-01-01T00:00:00.000Z");
+    const VINCULADA = new Date("2026-10-05T12:00:00.000Z");
+
+    function unaCuenta(userId: UniqueEntityID, overrides: { accessToken?: string; refreshToken?: string } = {}) {
+        return SellerPaymentAccount.create({
+            userId,
+            mpUserId: "mp-123",
+            accessToken: overrides.accessToken ?? "APP_USR-token-en-claro",
+            refreshToken: overrides.refreshToken ?? "TG-refresco-en-claro",
+            expiresAt: VENCE,
+            scope: "offline_access read write",
+            linkedAt: VINCULADA,
+        });
+    }
+
+    it("ida y vuelta: guarda y recupera la cuenta con los tokens en claro", async () => {
+        const seller = await createPersistedUser({ email: "mp-rt@test.com", role: UserRole.SELLER });
+        const cuenta = unaCuenta(seller.id);
+
+        await paymentRepo.save(cuenta);
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+
+        expect(leida).not.toBeNull();
+        expect(leida!.id.equals(cuenta.id)).toBe(true);
+        expect(leida!.userId.equals(seller.id)).toBe(true);
+        expect(leida!.mpUserId).toBe("mp-123");
+        expect(leida!.accessToken).toBe("APP_USR-token-en-claro");
+        expect(leida!.refreshToken).toBe("TG-refresco-en-claro");
+        expect(leida!.expiresAt).toEqual(VENCE);
+        expect(leida!.scope).toBe("offline_access read write");
+        expect(leida!.linkedAt).toEqual(VINCULADA);
+    });
+
+    it("las columnas guardadas no contienen el texto plano de los tokens", async () => {
+        const seller = await createPersistedUser({ email: "mp-raw@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        const filas = await prisma.$queryRaw<
+            Array<{ accessTokenCipher: string; refreshTokenCipher: string }>
+        >`SELECT "accessTokenCipher", "refreshTokenCipher" FROM seller_payment_accounts WHERE "userId" = ${seller.id.toString()}`;
+
+        expect(filas).toHaveLength(1);
+        expect(filas[0].accessTokenCipher).not.toContain("APP_USR-token-en-claro");
+        expect(filas[0].refreshTokenCipher).not.toContain("TG-refresco-en-claro");
+        expect(filas[0].accessTokenCipher.startsWith("fake:")).toBe(true);
+        expect(filas[0].refreshTokenCipher.startsWith("fake:")).toBe(true);
+    });
+
+    it("devuelve null si el usuario no vinculó nada", async () => {
+        const seller = await createPersistedUser({ email: "mp-none@test.com", role: UserRole.SELLER });
+
+        expect(await paymentRepo.findByUserId(seller.id.toString())).toBeNull();
+    });
+
+    it("vincular de nuevo reemplaza la cuenta anterior (upsert por usuario)", async () => {
+        const seller = await createPersistedUser({ email: "mp-relink@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await paymentRepo.save(
+            unaCuenta(seller.id, { accessToken: "token-nuevo", refreshToken: "refresco-nuevo" }),
+        );
+
+        expect(await prisma.sellerPaymentAccount.count({ where: { userId: seller.id.toString() } })).toBe(1);
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+        expect(leida!.accessToken).toBe("token-nuevo");
+        expect(leida!.refreshToken).toBe("refresco-nuevo");
+    });
+
+    it("guardar una cuenta renovada actualiza los tokens", async () => {
+        const seller = await createPersistedUser({ email: "mp-renew@test.com", role: UserRole.SELLER });
+        const cuenta = unaCuenta(seller.id);
+        await paymentRepo.save(cuenta);
+
+        cuenta.renew({
+            accessToken: "renovado",
+            refreshToken: "refresco-renovado",
+            expiresAt: new Date("2031-01-01T00:00:00.000Z"),
+            now: new Date("2026-10-06T00:00:00.000Z"),
+        });
+        await paymentRepo.save(cuenta);
+
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+        expect(leida!.accessToken).toBe("renovado");
+        expect(leida!.expiresAt).toEqual(new Date("2031-01-01T00:00:00.000Z"));
+    });
+
+    it("deleteByUserId borra la cuenta y no falla si no existe", async () => {
+        const seller = await createPersistedUser({ email: "mp-del@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await paymentRepo.deleteByUserId(seller.id.toString());
+        expect(await paymentRepo.findByUserId(seller.id.toString())).toBeNull();
+
+        await expect(paymentRepo.deleteByUserId(seller.id.toString())).resolves.toBeUndefined();
+    });
+
+    it("una cuenta por usuario: la base rechaza una segunda fila", async () => {
+        const seller = await createPersistedUser({ email: "mp-uniq@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await expect(
+            prisma.sellerPaymentAccount.create({
+                data: {
+                    userId: seller.id.toString(),
+                    mpUserId: "otro",
+                    accessTokenCipher: "x",
+                    refreshTokenCipher: "y",
+                    expiresAt: VENCE,
+                    scope: "s",
+                    linkedAt: VINCULADA,
+                },
+            }),
+        ).rejects.toThrow();
+    });
+
+    it("borrar al usuario borra su cuenta en cascada", async () => {
+        const seller = await createPersistedUser({ email: "mp-cascade@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await prisma.user.delete({ where: { id: seller.id.toString() } });
+
+        expect(await prisma.sellerPaymentAccount.count()).toBe(0);
+    });
+
+    it("no mezcla cuentas de usuarios distintos", async () => {
+        const a = await createPersistedUser({ email: "mp-a@test.com", role: UserRole.SELLER });
+        const b = await createPersistedUser({ email: "mp-b@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(a.id, { accessToken: "token-a" }));
+        await paymentRepo.save(unaCuenta(b.id, { accessToken: "token-b" }));
+
+        expect((await paymentRepo.findByUserId(a.id.toString()))!.accessToken).toBe("token-a");
+        expect((await paymentRepo.findByUserId(b.id.toString()))!.accessToken).toBe("token-b");
     });
 });

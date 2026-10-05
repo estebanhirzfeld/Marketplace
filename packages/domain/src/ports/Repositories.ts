@@ -4,6 +4,7 @@ import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
+import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
 import { ListingStatus } from '../entities/Listing';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
@@ -139,4 +140,15 @@ export interface IReportRepository {
     /** Las abiertas, para el tablero de la plataforma. */
     findOpen(): Promise<Report[]>;
     save(report: Report): Promise<void>;
+}
+
+/**
+ * La cuenta de Mercado Pago que cada vendedor vinculó para cobrar. Una por
+ * usuario. Los tokens se cifran en la implementación, nunca acá.
+ */
+export interface ISellerPaymentAccountRepository {
+    findByUserId(userId: string): Promise<SellerPaymentAccount | null>;
+    /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
+    save(account: SellerPaymentAccount): Promise<void>;
+    deleteByUserId(userId: string): Promise<void>;
 }

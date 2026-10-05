@@ -1,7 +1,11 @@
-import { IListingRepository, IUserRepository } from '../../ports/Repositories';
+import {
+    IListingRepository,
+    ISellerPaymentAccountRepository,
+    IUserRepository,
+} from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
-import { NotFoundError } from '../../errors/DomainError';
+import { InvalidStateError, NotFoundError } from '../../errors/DomainError';
 
 /**
  * Publicar es un acto con valor legal: expone el activo de una persona real al
@@ -15,6 +19,12 @@ export class SubmitListingForReviewUseCase {
         private readonly listingRepo: IListingRepository,
         private readonly userRepo: IUserRepository,
         private readonly avisosDePlataforma?: PlatformNotifier,
+        /**
+         * Si se provee, publicar exige haber vinculado Mercado Pago. Es
+         * opcional porque la exigencia se enciende por configuración: sin la
+         * pantalla de vinculación un vendedor no tendría cómo cumplirla.
+         */
+        private readonly paymentAccounts?: ISellerPaymentAccountRepository,
     ) {}
 
     async execute(listingId: string, actor: Actor): Promise<void> {
@@ -30,6 +40,17 @@ export class SubmitListingForReviewUseCase {
             throw new NotFoundError('Usuario no encontrado');
         }
         user.assertCanSign();
+
+        // Cualquier cuenta vinculada alcanza, aunque su token esté vencido:
+        // solo la ausencia bloquea. El refresco es asunto del cobro.
+        if (this.paymentAccounts) {
+            const cuenta = await this.paymentAccounts.findByUserId(actor.id);
+            if (!cuenta) {
+                throw new InvalidStateError(
+                    'Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas.',
+                );
+            }
+        }
 
         // La validación de estado vive en la entidad (Tell, Don't Ask)
         listing.submitForReview();

@@ -7,6 +7,7 @@ import {
     PrismaUnitOfWork,
     PrismaNotificationRepository,
     PrismaCustodyAccountRepository,
+    PrismaSellerPaymentAccountRepository,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -83,8 +84,12 @@ import { MarkNotificationReadUseCase } from '@marketplace/domain/src/use-cases/n
 import { NegotiationNotifier } from '@marketplace/domain/src/services/NegotiationNotifier';
 import { PlatformNotifier } from '@marketplace/domain/src/services/PlatformNotifier';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
-import { IListingRepository } from '@marketplace/domain/src/ports/Repositories';
+import {
+    IListingRepository,
+    ISellerPaymentAccountRepository,
+} from '@marketplace/domain/src/ports/Repositories';
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
+import { AesGcmSecretCipher } from './adapters/AesGcmSecretCipher';
 
 /**
  * Composition root.
@@ -96,6 +101,11 @@ import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
  */
 export interface Container {
     listingRepo: IListingRepository;
+    /**
+     * Ausente mientras no haya `MP_TOKEN_ENCRYPTION_KEY`: sin clave no hay
+     * dónde guardar los tokens de los vendedores.
+     */
+    sellerPaymentAccounts?: ISellerPaymentAccountRepository;
     registerUser: RegisterUserUseCase;
     login: LoginUseCase;
     perfil: GetMyProfileUseCase;
@@ -185,12 +195,43 @@ export function createContainer(
     // enciende.
     const exchangeRateFlag = process.env.EXCHANGE_RATE_ENABLED?.trim();
     const overrideRaw = process.env.EXCHANGE_RATE_OVERRIDE_USD_ARS?.trim();
+    // Una tasa manual mal escrita (por ejemplo `1.500,5`) se ignoraba en
+    // silencio y el operador creía estar usándola: se avisa al arrancar.
+    if (overrideRaw) {
+        const override = Number(overrideRaw);
+        if (!Number.isFinite(override) || override <= 0) {
+            console.warn(
+                `[config] EXCHANGE_RATE_OVERRIDE_USD_ARS="${overrideRaw}" no es un número positivo: ` +
+                    'se ignora la tasa manual. Usá un número con punto decimal, por ejemplo 1500.5.',
+            );
+        }
+    }
     const exchangeRates =
         exchangeRateFlag === '1' || exchangeRateFlag === 'true'
             ? new BcraExchangeRateProvider({
                   override: overrideRaw ? Number(overrideRaw) : undefined,
               })
             : undefined;
+
+    // Cuenta de Mercado Pago del vendedor. La clave cifra los tokens en
+    // reposo; sin ella no se arma el repositorio. Exigir la vinculación para
+    // publicar está apagado por defecto (solo `1` o `true` lo enciende): sin la
+    // pantalla de vinculación, encenderlo dejaría a los vendedores sin poder
+    // publicar.
+    const tokenKey = process.env.MP_TOKEN_ENCRYPTION_KEY?.trim();
+    const requireMpLinkFlag = process.env.REQUIRE_MP_LINK_TO_PUBLISH?.trim();
+    const requireMpLink = requireMpLinkFlag === '1' || requireMpLinkFlag === 'true';
+    if (requireMpLink && !tokenKey) {
+        throw new Error(
+            'REQUIRE_MP_LINK_TO_PUBLISH está encendida pero falta MP_TOKEN_ENCRYPTION_KEY: ' +
+                'sin la clave no se pueden guardar las cuentas de Mercado Pago. ' +
+                'Generala con: openssl rand -base64 32',
+        );
+    }
+    const secretCipher = tokenKey ? new AesGcmSecretCipher(tokenKey) : undefined;
+    const paymentAccountRepo = secretCipher
+        ? new PrismaSellerPaymentAccountRepository(secretCipher)
+        : undefined;
 
     const oauthConfig = {
         clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID?.trim() ?? '',
@@ -223,6 +264,7 @@ export function createContainer(
 
     return {
         listingRepo,
+        sellerPaymentAccounts: paymentAccountRepo,
 
         registerUser: new RegisterUserUseCase(userRepo, hasher),
         login: new LoginUseCase(userRepo, hasher),
@@ -233,7 +275,12 @@ export function createContainer(
 
         createListing: new CreateListingUseCase(listingRepo, userRepo),
         estimateListingPrice: new EstimateListingPriceUseCase(),
-        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo, avisosDePlataforma),
+        submitListing: new SubmitListingForReviewUseCase(
+            listingRepo,
+            userRepo,
+            avisosDePlataforma,
+            requireMpLink ? paymentAccountRepo : undefined,
+        ),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         verifyChannelMetrics: youtubeApiKey

@@ -4,9 +4,15 @@ import { SubmitListingForReviewUseCase } from '../../../src/use-cases/listing/Su
 import { ApproveListingUseCase } from '../../../src/use-cases/listing/ApproveListingUseCase';
 import { RejectListingUseCase } from '../../../src/use-cases/listing/RejectListingUseCase';
 import { GetListingDetailsUseCase } from '../../../src/use-cases/listing/GetListingDetailsUseCase';
-import { IListingRepository, IUserRepository, IContractRepository } from '../../../src/ports/Repositories';
+import {
+    IListingRepository,
+    IUserRepository,
+    IContractRepository,
+    ISellerPaymentAccountRepository,
+} from '../../../src/ports/Repositories';
 import { Actor } from '../../../src/ports/Actor';
-import { ForbiddenError } from '../../../src/errors/DomainError';
+import { ForbiddenError, InvalidStateError } from '../../../src/errors/DomainError';
+import { SellerPaymentAccount } from '../../../src/entities/SellerPaymentAccount';
 import { User } from '../../../src/entities/User';
 import { Listing } from '../../../src/entities/Listing';
 import { Contract } from '../../../src/entities/Contract';
@@ -203,6 +209,103 @@ describe('SubmitListingForReviewUseCase', () => {
 
         await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
             .rejects.toThrow(ForbiddenError);
+    });
+});
+
+describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado', () => {
+    function armar(cuenta: SellerPaymentAccount | null) {
+        const sellerId = new UniqueEntityID();
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: createTestStrategy(),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+        });
+        const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) });
+        const userRepo = createMockUserRepo({ findById: vi.fn().mockResolvedValue(createVerifiedUser()) });
+        const paymentAccounts: ISellerPaymentAccountRepository = {
+            findByUserId: vi.fn().mockResolvedValue(cuenta),
+            save: vi.fn().mockResolvedValue(undefined),
+            deleteByUserId: vi.fn().mockResolvedValue(undefined),
+        };
+        return { sellerId, listing, listingRepo, userRepo, paymentAccounts };
+    }
+
+    function cuentaVinculada(userId: UniqueEntityID, expiresAt: Date) {
+        return SellerPaymentAccount.create({
+            userId,
+            mpUserId: '123',
+            accessToken: 'acceso',
+            refreshToken: 'refresco',
+            expiresAt,
+            scope: 'offline_access',
+            linkedAt: new Date('2026-10-01T00:00:00Z'),
+        });
+    }
+
+    it('bloquea el envío si el vendedor no vinculó Mercado Pago', async () => {
+        const { sellerId, listing, listingRepo, userRepo, paymentAccounts } = armar(null);
+        const useCase = new SubmitListingForReviewUseCase(listingRepo, userRepo, undefined, paymentAccounts);
+
+        await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
+            .rejects.toThrow(InvalidStateError);
+        await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
+            .rejects.toThrow(/Mercado Pago/);
+
+        expect(listing.status).toBe('draft');
+        expect(listingRepo.save).not.toHaveBeenCalled();
+        expect(paymentAccounts.findByUserId).toHaveBeenCalledWith(sellerId.toString());
+    });
+
+    it('permite el envío si hay cuenta vinculada', async () => {
+        const base = armar(null);
+        const cuenta = cuentaVinculada(base.sellerId, new Date('2099-01-01T00:00:00Z'));
+        vi.mocked(base.paymentAccounts.findByUserId).mockResolvedValue(cuenta);
+        const useCase = new SubmitListingForReviewUseCase(base.listingRepo, base.userRepo, undefined, base.paymentAccounts);
+
+        await useCase.execute(base.listing.id.toString(), actorDe(base.sellerId));
+
+        expect(base.listing.status).toBe('under_review');
+        expect(base.listingRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('una cuenta con el token vencido cuenta como vinculada', async () => {
+        const base = armar(null);
+        const cuenta = cuentaVinculada(base.sellerId, new Date('2020-01-01T00:00:00Z'));
+        vi.mocked(base.paymentAccounts.findByUserId).mockResolvedValue(cuenta);
+        const useCase = new SubmitListingForReviewUseCase(base.listingRepo, base.userRepo, undefined, base.paymentAccounts);
+
+        await useCase.execute(base.listing.id.toString(), actorDe(base.sellerId));
+
+        expect(base.listing.status).toBe('under_review');
+    });
+
+    it('sin el repositorio de cuentas el comportamiento no cambia', async () => {
+        const { sellerId, listing, listingRepo, userRepo } = armar(null);
+        const useCase = new SubmitListingForReviewUseCase(listingRepo, userRepo);
+
+        await useCase.execute(listing.id.toString(), actorDe(sellerId));
+
+        expect(listing.status).toBe('under_review');
+    });
+
+    it('mantiene las guardas previas: sin KYC rechaza antes de mirar la cuenta', async () => {
+        const { sellerId, listing, listingRepo, paymentAccounts } = armar(null);
+        const sinKyc = User.create({
+            email: Email.create('sinkyc2@test.com'),
+            fullName: 'Sin KYC',
+            role: UserRole.SELLER,
+            passwordHash: 'hash-de-prueba',
+        });
+        const useCase = new SubmitListingForReviewUseCase(
+            listingRepo,
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(sinKyc) }),
+            undefined,
+            paymentAccounts,
+        );
+
+        await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
+            .rejects.toThrow(ForbiddenError);
+        expect(paymentAccounts.findByUserId).not.toHaveBeenCalled();
     });
 });
 
