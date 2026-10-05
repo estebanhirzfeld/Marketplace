@@ -64,6 +64,43 @@ describe('MercadoPagoGateway — armado del checkout', () => {
         expect(cuerpo.external_reference).toBe('op-1');
     });
 
+    /**
+     * Sin `auto_return` Checkout Pro deja al comprador en la pantalla de MP con
+     * un botón para volver: el pago se aprueba pero nadie lo devuelve al sitio.
+     */
+    it('vuelve al sitio automáticamente cuando el pago se aprueba', async () => {
+        const impl = vi.fn().mockResolvedValueOnce(PREFERENCIA());
+        const backUrl = 'https://traspaso.example/operaciones';
+        const gateway = new MercadoPagoGateway({ ...CONFIG, backUrl }, impl);
+
+        await gateway.createCheckout({
+            externalReference: 'op-1',
+            description: 'Compra',
+            amountCents: 1_050_000,
+            currency: 'ARS',
+            payerEmail: 'comprador@example.com',
+        });
+
+        const cuerpo = JSON.parse(impl.mock.calls[0][1].body);
+        expect(cuerpo.auto_return).toBe('approved');
+        expect(cuerpo.back_urls.success).toBe(backUrl);
+    });
+
+    it('no pide la vuelta automática con una dirección que no es https', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            externalReference: 'op-1',
+            description: 'Compra',
+            amountCents: 1_050_000,
+            currency: 'ARS',
+            payerEmail: 'comprador@example.com',
+        });
+
+        const cuerpo = JSON.parse(impl.mock.calls[0][1].body);
+        expect(cuerpo.auto_return).toBeUndefined();
+    });
+
     it('no filtra el token cuando MercadoPago rechaza el pedido', async () => {
         const { gateway } = armar(json({ message: CONFIG.accessToken }, 401));
 

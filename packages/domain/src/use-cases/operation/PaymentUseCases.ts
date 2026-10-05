@@ -4,7 +4,15 @@ import { Actor } from '../../ports/Actor';
 import { Checkout } from '../../ports/IPaymentGateway';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
-import { ForbiddenError, InvalidStateError, NotFoundError } from '../../errors/DomainError';
+import {
+    ForbiddenError,
+    InvalidStateError,
+    NotFoundError,
+    ValidationError,
+} from '../../errors/DomainError';
+
+/** Única moneda en la que la pasarela cobra sin convertir por su cuenta. */
+const CHECKOUT_CURRENCY = 'ARS';
 
 /**
  * Prepara el cobro al comprador.
@@ -39,6 +47,15 @@ export class CreateCheckoutUseCase {
         const buyerPays = operation.buyerPays;
         if (!buyerPays) {
             throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
+        }
+
+        // Mercado Pago cobra en pesos: ante una preferencia en otra moneda
+        // convierte a su propio cambio y el pago llega por un monto que la
+        // operación no puede reconocer. Mejor no generar el link.
+        if (buyerPays.getCurrency() !== CHECKOUT_CURRENCY) {
+            throw new ValidationError(
+                `Este pago no se puede hacer por Mercado Pago: la operación está en ${buyerPays.getCurrency()} y Mercado Pago cobra en pesos. Las operaciones en otra moneda se pagan por transferencia bancaria.`,
+            );
         }
 
         const buyer = await this.userRepo.findById(actor.id);
