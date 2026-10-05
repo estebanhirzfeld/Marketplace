@@ -40,7 +40,15 @@ function respuestaBcra(
     };
 }
 
-function armar(opciones: { override?: number; cacheTtlMs?: number; maxStaleMs?: number; timeoutMs?: number } = {}) {
+function armar(
+    opciones: {
+        override?: number;
+        cacheTtlMs?: number;
+        maxStaleMs?: number;
+        timeoutMs?: number;
+        failureBackoffMs?: number;
+    } = {},
+) {
     const fetchImpl = vi.fn<typeof fetch>();
     const reloj = { ahora: INICIO };
     const provider = new BcraExchangeRateProvider({
@@ -260,12 +268,13 @@ describe('BcraExchangeRateProvider — concurrencia', () => {
         expect(tasas.map((t) => t?.rate)).toEqual([1520, 1520, 1520]);
     });
 
-    it('después de una consulta fallida se puede volver a intentar', async () => {
-        const { provider, fetchImpl } = armar();
+    it('después de una consulta fallida se puede volver a intentar (pasada la espera)', async () => {
+        const { provider, fetchImpl, reloj } = armar();
         fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
         fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
 
         expect(await provider.getUsdArsRate()).toBeNull();
+        reloj.ahora = new Date(INICIO.getTime() + 30_000);
         expect((await provider.getUsdArsRate())?.rate).toBe(1520);
     });
 });
@@ -294,6 +303,116 @@ describe('BcraExchangeRateProvider — tasa manual', () => {
         const tasa = await provider.getUsdArsRate();
 
         expect(tasa?.source).toBe('BCRA_A3500');
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('BcraExchangeRateProvider — espera tras una falla', () => {
+    const TREINTA_SEGUNDOS = 30 * 1000;
+
+    it('tras una falla no consulta de nuevo dentro de la espera y devuelve null sin valor guardado', async () => {
+        const { provider, fetchImpl, reloj } = armar();
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        expect(await provider.getUsdArsRate()).toBeNull();
+
+        reloj.ahora = new Date(INICIO.getTime() + TREINTA_SEGUNDOS - 1);
+        const segunda = await provider.getUsdArsRate();
+
+        expect(segunda).toBeNull();
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('pasada la espera vuelve a intentar', async () => {
+        const { provider, fetchImpl, reloj } = armar();
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+
+        reloj.ahora = new Date(INICIO.getTime() + TREINTA_SEGUNDOS);
+        const segunda = await provider.getUsdArsRate();
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(segunda?.rate).toBe(1520);
+    });
+
+    it('dentro de la espera sirve el valor guardado si no superó el máximo de antigüedad', async () => {
+        const { provider, fetchImpl, reloj } = armar();
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+        reloj.ahora = new Date(INICIO.getTime() + 2 * HORA);
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        await provider.getUsdArsRate();
+
+        reloj.ahora = new Date(INICIO.getTime() + 2 * HORA + 1000);
+        const durante = await provider.getUsdArsRate();
+
+        expect(durante?.rate).toBe(1520);
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('dentro de la espera devuelve null si el valor guardado superó el máximo de antigüedad', async () => {
+        const { provider, fetchImpl, reloj } = armar({ maxStaleMs: 3 * HORA });
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+        reloj.ahora = new Date(INICIO.getTime() + 3 * HORA);
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        expect((await provider.getUsdArsRate())?.rate).toBe(1520);
+
+        reloj.ahora = new Date(INICIO.getTime() + 3 * HORA + 1000);
+        const durante = await provider.getUsdArsRate();
+
+        expect(durante).toBeNull();
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('un éxito limpia la espera: la siguiente falla cuenta desde su propio momento', async () => {
+        const { provider, fetchImpl, reloj } = armar();
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        await provider.getUsdArsRate();
+        reloj.ahora = new Date(INICIO.getTime() + TREINTA_SEGUNDOS);
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+
+        // Vence la caché y falla de nuevo: la espera arranca recién ahora.
+        const t1 = INICIO.getTime() + TREINTA_SEGUNDOS + 2 * HORA;
+        reloj.ahora = new Date(t1);
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        await provider.getUsdArsRate();
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+        reloj.ahora = new Date(t1 + TREINTA_SEGUNDOS - 1);
+        await provider.getUsdArsRate();
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+        reloj.ahora = new Date(t1 + TREINTA_SEGUNDOS);
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+        expect(fetchImpl).toHaveBeenCalledTimes(4);
+    });
+
+    it('respeta una espera configurada', async () => {
+        const { provider, fetchImpl, reloj } = armar({ failureBackoffMs: 1000 });
+        fetchImpl.mockRejectedValueOnce(new TypeError('fetch failed'));
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra()));
+        await provider.getUsdArsRate();
+
+        reloj.ahora = new Date(INICIO.getTime() + 999);
+        await provider.getUsdArsRate();
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+        reloj.ahora = new Date(INICIO.getTime() + 1000);
+        await provider.getUsdArsRate();
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('una respuesta inválida también cuenta como falla', async () => {
+        const { provider, fetchImpl, reloj } = armar();
+        fetchImpl.mockResolvedValueOnce(json(respuestaBcra(), 500));
+        await provider.getUsdArsRate();
+
+        reloj.ahora = new Date(INICIO.getTime() + 1000);
+        await provider.getUsdArsRate();
+
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 });

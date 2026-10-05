@@ -23,6 +23,12 @@ export interface BcraExchangeRateOptions {
     timeoutMs?: number;
     /** Tasa manual de emergencia: si es válida, no se consulta al BCRA. */
     override?: number;
+    /**
+     * Espera tras una consulta fallida durante la cual no se lanza otra. Acota
+     * la latencia en una caída del BCRA: sin ella cada llamada esperaría el
+     * tiempo de espera completo.
+     */
+    failureBackoffMs?: number;
 }
 
 interface TasaGuardada {
@@ -46,9 +52,12 @@ export class BcraExchangeRateProvider implements IExchangeRateProvider {
     private readonly maxStaleMs: number;
     private readonly timeoutMs: number;
     private readonly override?: number;
+    private readonly failureBackoffMs: number;
 
     private cached?: TasaGuardada;
     private inFlight?: Promise<ExchangeRate | null>;
+    /** Instante de la última consulta fallida; un éxito lo borra. */
+    private lastFailureAt?: number;
 
     constructor(options: BcraExchangeRateOptions = {}) {
         this.fetchImpl = options.fetchImpl ?? fetch;
@@ -57,6 +66,7 @@ export class BcraExchangeRateProvider implements IExchangeRateProvider {
         this.maxStaleMs = options.maxStaleMs ?? CUATRO_DIAS_MS;
         this.timeoutMs = options.timeoutMs ?? 5000;
         this.override = options.override;
+        this.failureBackoffMs = options.failureBackoffMs ?? 30_000;
     }
 
     async getUsdArsRate(): Promise<ExchangeRate | null> {
@@ -72,6 +82,11 @@ export class BcraExchangeRateProvider implements IExchangeRateProvider {
             return this.cached.value;
         }
 
+        // Tras una falla reciente no se insiste: se sirve lo guardado, si sirve.
+        if (this.enEspera()) {
+            return this.respaldo();
+        }
+
         // Las llamadas simultáneas comparten la misma consulta.
         this.inFlight ??= this.refrescar().finally(() => {
             this.inFlight = undefined;
@@ -83,17 +98,31 @@ export class BcraExchangeRateProvider implements IExchangeRateProvider {
         return this.now().getTime() - guardada.fetchedAt;
     }
 
-    private async refrescar(): Promise<ExchangeRate | null> {
-        const tasa = await this.consultar();
-        if (tasa) {
-            this.cached = { value: tasa, fetchedAt: this.now().getTime() };
-            return tasa;
-        }
+    private enEspera(): boolean {
+        return (
+            this.lastFailureAt !== undefined &&
+            this.now().getTime() - this.lastFailureAt < this.failureBackoffMs
+        );
+    }
 
+    /** La última tasa leída, si no es más vieja que el máximo tolerado. */
+    private respaldo(): ExchangeRate | null {
         if (this.cached && this.edad(this.cached) <= this.maxStaleMs) {
             return this.cached.value;
         }
         return null;
+    }
+
+    private async refrescar(): Promise<ExchangeRate | null> {
+        const tasa = await this.consultar();
+        if (tasa) {
+            this.cached = { value: tasa, fetchedAt: this.now().getTime() };
+            this.lastFailureAt = undefined;
+            return tasa;
+        }
+
+        this.lastFailureAt = this.now().getTime();
+        return this.respaldo();
     }
 
     /** `null` ante cualquier falla; el motivo no importa a quien llama. */
