@@ -5,6 +5,7 @@ import {
 } from '../../../src/use-cases/operation/PaymentUseCases';
 import { IOperationRepository, IUserRepository } from '../../../src/ports/Repositories';
 import { ExternalPayment, IPaymentGateway } from '../../../src/ports/IPaymentGateway';
+import { ExchangeRate, IExchangeRateProvider } from '../../../src/ports/IExchangeRateProvider';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation, OperationStatus } from '../../../src/entities/Operation';
 import { User } from '../../../src/entities/User';
@@ -145,6 +146,124 @@ describe('CreateCheckoutUseCase', () => {
 
         await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
         expect(gateway.createCheckout).not.toHaveBeenCalled();
+    });
+
+    describe('operación en dólares con cotización', () => {
+        const AHORA = new Date('2026-10-05T12:00:00Z');
+        const TASA: ExchangeRate = { rate: 1500, date: '2026-10-02', source: 'BCRA_A3500' };
+
+        function armarConTasa(
+            operation: Operation,
+            rates?: IExchangeRateProvider,
+            gateway = unaPasarela(),
+        ) {
+            const repo = createMockOperationRepo(operation);
+            const uso = new CreateCheckoutUseCase(
+                repo,
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => AHORA,
+            );
+            return { uso, repo, gateway };
+        }
+
+        function unProveedor(tasa: ExchangeRate | null): IExchangeRateProvider {
+            return { getUsdArsRate: vi.fn().mockResolvedValue(tasa) };
+        }
+
+        it('cobra en pesos con la cotización y la guarda en la operación', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const { uso, repo, gateway } = armarConTasa(operation, unProveedor(TASA));
+
+            await uso.execute('op-1', BUYER);
+
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({ amountCents: 1_575_000_000, currency: 'ARS' }),
+            );
+            expect(operation.settlementQuote?.buyerPaysCents).toBe(1_575_000_000);
+            expect(repo.save).toHaveBeenCalledWith(operation);
+        });
+
+        it('reutiliza la cotización vigente sin pedir otra tasa', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const rates = unProveedor(TASA);
+            const { uso, gateway } = armarConTasa(operation, rates);
+            await uso.execute('op-1', BUYER);
+            const primera = operation.settlementQuote;
+
+            // Otra tasa distinta: no tiene que usarse mientras la primera esté vigente.
+            (rates.getUsdArsRate as ReturnType<typeof vi.fn>).mockResolvedValue({
+                ...TASA,
+                rate: 1700,
+            });
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).toHaveBeenCalledTimes(1);
+            expect(operation.settlementQuote).toBe(primera);
+            expect(gateway.createCheckout).toHaveBeenLastCalledWith(
+                expect.objectContaining({ amountCents: 1_575_000_000 }),
+            );
+        });
+
+        it('arma una cotización nueva si la anterior venció', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const rates = unProveedor(TASA);
+            let ahora = AHORA;
+            const gateway = unaPasarela();
+            const uso = new CreateCheckoutUseCase(
+                createMockOperationRepo(operation),
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => ahora,
+            );
+            await uso.execute('op-1', BUYER);
+
+            ahora = new Date(AHORA.getTime() + 25 * 60 * 60 * 1000);
+            (rates.getUsdArsRate as ReturnType<typeof vi.fn>).mockResolvedValue({
+                ...TASA,
+                rate: 1600,
+            });
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).toHaveBeenCalledTimes(2);
+            expect(operation.settlementQuote?.rate).toBe(1600);
+            expect(gateway.createCheckout).toHaveBeenLastCalledWith(
+                expect.objectContaining({ amountCents: 1_680_000_000, currency: 'ARS' }),
+            );
+        });
+
+        it('sin proveedor de tasas no genera el link', async () => {
+            const { uso, gateway, repo } = armarConTasa(unaOperacion('asset_in_custody', 'USD'));
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
+
+        it('si el proveedor no tiene tasa no genera el link', async () => {
+            const { uso, gateway, repo } = armarConTasa(
+                unaOperacion('asset_in_custody', 'USD'),
+                unProveedor(null),
+            );
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
+
+        it('una operación en pesos no consulta tasas ni cotiza', async () => {
+            const operation = unaOperacion('asset_in_custody', 'ARS');
+            const rates = unProveedor(TASA);
+            const { uso, repo } = armarConTasa(operation, rates);
+
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).not.toHaveBeenCalled();
+            expect(operation.settlementQuote).toBeUndefined();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
     });
 
     /**

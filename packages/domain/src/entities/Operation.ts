@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
+import { SettlementQuote } from '../value-objects/SettlementQuote';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type OperationStatus =
@@ -198,6 +199,8 @@ export interface OperationProps {
     transferInitiation?: TransferInitiation;
     custodyVerification?: CustodyVerification;
     payment?: PaymentRecord;
+    /** Liquidación en pesos congelada; solo existe en operaciones no ARS. */
+    settlementQuote?: SettlementQuote;
     recipientIdentity?: RecipientIdentity;
     deliveryVerification?: DeliveryVerification;
     completedAt?: Date;
@@ -303,6 +306,10 @@ export class Operation extends Entity<OperationProps> {
 
     public get platformEarns(): Money | undefined {
         return this.props.platformEarns;
+    }
+
+    public get settlementQuote(): SettlementQuote | undefined {
+        return this.props.settlementQuote;
     }
 
     /** Historial completo de ofertas y contraofertas */
@@ -620,6 +627,27 @@ export class Operation extends Entity<OperationProps> {
     }
 
     /**
+     * Congela la liquidación en pesos de una operación en otra moneda.
+     *
+     * Reemplaza la cotización anterior: cada vez que vence y se genera un link
+     * nuevo, lo que vale es la última. Solo con el activo en custodia, que es
+     * cuando corresponde cobrar.
+     */
+    public quoteSettlement(quote: SettlementQuote): void {
+        if (this.props.status !== 'asset_in_custody') {
+            throw new InvalidStateError('Solo se cotiza el cobro con el activo en custodia de la plataforma.');
+        }
+        if (!this.props.buyerPays) {
+            throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
+        }
+        if (this.props.buyerPays.getCurrency() === quote.currency) {
+            throw new InvalidStateError('La operación ya está en pesos: no necesita cotización.');
+        }
+
+        this.props.settlementQuote = quote;
+    }
+
+    /**
      * Confirma el pago del comprador con la constancia de por dónde entró.
      *
      * El monto tiene que coincidir exactamente con lo que el comprador debía.
@@ -637,12 +665,19 @@ export class Operation extends Entity<OperationProps> {
         if (datos.provider !== 'transferencia' && !datos.externalId) {
             throw new ValidationError('Falta el identificador del pago en la pasarela.');
         }
-        if (datos.currency !== this.props.buyerPays.getCurrency()) {
+        // Con cotización congelada, lo que tiene que llegar es lo cotizado en
+        // pesos. Que la cotización haya vencido no importa: vence la preferencia
+        // de pago, no la plata que ya entró.
+        const quote = this.props.settlementQuote;
+        const expectedCurrency = quote ? quote.currency : this.props.buyerPays.getCurrency();
+        const expectedCents = quote ? quote.buyerPaysCents : this.props.buyerPays.getCents();
+
+        if (datos.currency !== expectedCurrency) {
             throw new ValidationError(
-                `El pago llegó en ${datos.currency} y la operación es en ${this.props.buyerPays.getCurrency()}.`,
+                `El pago llegó en ${datos.currency} y la operación es en ${expectedCurrency}.`,
             );
         }
-        if (datos.amountCents !== this.props.buyerPays.getCents()) {
+        if (datos.amountCents !== expectedCents) {
             throw new ValidationError(
                 'El monto pagado no coincide con el total de la operación.',
             );

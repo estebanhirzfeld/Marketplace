@@ -1,5 +1,8 @@
 import { IOperationRepository, IUserRepository } from '../../ports/Repositories';
 import { IPaymentGateway } from '../../ports/IPaymentGateway';
+import { IExchangeRateProvider } from '../../ports/IExchangeRateProvider';
+import { Operation } from '../../entities/Operation';
+import { SettlementQuote } from '../../value-objects/SettlementQuote';
 import { Actor } from '../../ports/Actor';
 import { Checkout } from '../../ports/IPaymentGateway';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
@@ -27,6 +30,8 @@ export class CreateCheckoutUseCase {
         private readonly operationRepo: IOperationRepository,
         private readonly userRepo: IUserRepository,
         private readonly gateway: IPaymentGateway,
+        private readonly rates?: IExchangeRateProvider,
+        private readonly now: () => Date = () => new Date(),
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<Checkout> {
@@ -49,18 +54,18 @@ export class CreateCheckoutUseCase {
             throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
         }
 
-        // Mercado Pago cobra en pesos: ante una preferencia en otra moneda
-        // convierte a su propio cambio y el pago llega por un monto que la
-        // operación no puede reconocer. Mejor no generar el link.
-        if (buyerPays.getCurrency() !== CHECKOUT_CURRENCY) {
-            throw new ValidationError(
-                `Este pago no se puede hacer por Mercado Pago: la operación está en ${buyerPays.getCurrency()} y Mercado Pago cobra en pesos. Las operaciones en otra moneda se pagan por transferencia bancaria.`,
-            );
-        }
-
         const buyer = await this.userRepo.findById(actor.id);
         if (!buyer) {
             throw new NotFoundError('Usuario no encontrado');
+        }
+
+        // Mercado Pago cobra en pesos: ante una preferencia en otra moneda
+        // convierte a su propio cambio y el pago llega por un monto que la
+        // operación no puede reconocer. Por eso se pesifica acá, con una
+        // cotización congelada, y se cobra por ese monto.
+        let amountCents = buyerPays.getCents();
+        if (buyerPays.getCurrency() !== CHECKOUT_CURRENCY) {
+            amountCents = (await this.currentQuote(operation, buyerPays.getCurrency())).buyerPaysCents;
         }
 
         return this.gateway.createCheckout({
@@ -68,10 +73,44 @@ export class CreateCheckoutUseCase {
             // pago cuando la pasarela avisa.
             externalReference: operation.id.toString(),
             description: `Compra del activo de la operación ${operation.id.toString()}`,
-            amountCents: buyerPays.getCents(),
-            currency: buyerPays.getCurrency(),
+            amountCents,
+            currency: CHECKOUT_CURRENCY,
             payerEmail: buyer.email.getValue(),
         });
+    }
+
+    /**
+     * La cotización con la que se cobra: la vigente si la hay, o una nueva.
+     * Reutilizarla mantiene estable el monto mientras el comprador sigue
+     * intentando pagar; una nueva se guarda antes de generar el link, para que
+     * el pago que llegue se compare contra lo que se pidió.
+     */
+    private async currentQuote(operation: Operation, currency: string): Promise<SettlementQuote> {
+        const now = this.now();
+        const existing = operation.settlementQuote;
+        if (existing && !existing.isExpired(now)) return existing;
+
+        const rate = await this.rates?.getUsdArsRate();
+        if (!rate) {
+            throw new ValidationError(
+                `Este pago no se puede hacer por Mercado Pago ahora: la operación está en ${currency} y no hay una cotización a pesos disponible. Se puede pagar por transferencia bancaria.`,
+            );
+        }
+
+        const { buyerPays, sellerReceives } = operation;
+        if (!buyerPays || !sellerReceives) {
+            throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
+        }
+
+        const quote = SettlementQuote.create({
+            buyerPays,
+            sellerReceives,
+            exchangeRate: rate,
+            now,
+        });
+        operation.quoteSettlement(quote);
+        await this.operationRepo.save(operation);
+        return quote;
     }
 }
 
