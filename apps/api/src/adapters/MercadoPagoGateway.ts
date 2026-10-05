@@ -66,6 +66,9 @@ export class MercadoPagoGateway implements IPaymentGateway {
                 payer: { email: request.payerEmail },
                 external_reference: request.externalReference,
                 back_urls: { success: this.config.backUrl, pending: this.config.backUrl, failure: this.config.backUrl },
+                // Sin esto el comprador queda en la pantalla de MP tras pagar.
+                // Solo con https: en local la vuelta automática no aplica.
+                ...(this.config.backUrl.startsWith('https://') ? { auto_return: 'approved' } : {}),
                 notification_url: this.config.notificationUrl,
             }),
         });

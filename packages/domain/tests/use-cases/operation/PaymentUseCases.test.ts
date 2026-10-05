@@ -11,7 +11,12 @@ import { User } from '../../../src/entities/User';
 import { Email } from '../../../src/value-objects/Email';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
-import { ForbiddenError, InvalidStateError, NotFoundError } from '../../../src/errors/DomainError';
+import {
+    ForbiddenError,
+    InvalidStateError,
+    NotFoundError,
+    ValidationError,
+} from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
 const BUYER_ID = new UniqueEntityID();
@@ -20,12 +25,12 @@ const SELLER_ID = new UniqueEntityID();
 const BUYER: Actor = { id: BUYER_ID.toString(), role: UserRole.BUYER };
 const SELLER: Actor = { id: SELLER_ID.toString(), role: UserRole.SELLER };
 
-function unaOperacion(hasta: OperationStatus = 'asset_in_custody'): Operation {
+function unaOperacion(hasta: OperationStatus = 'asset_in_custody', moneda = 'USD'): Operation {
     const op = Operation.create({
         listingId: new UniqueEntityID(),
         buyerId: BUYER_ID,
         sellerId: SELLER_ID,
-        offerPrice: Money.fromCents(1_000_000, 'USD'),
+        offerPrice: Money.fromCents(1_000_000, moneda),
     });
     op.acceptCurrentOffer('seller');
     if (hasta === 'contract_pending') return op;
@@ -107,7 +112,7 @@ describe('CreateCheckoutUseCase', () => {
     }
 
     it('devuelve el link de pago con el activo en custodia', async () => {
-        const { uso } = armar(unaOperacion());
+        const { uso } = armar(unaOperacion('asset_in_custody', 'ARS'));
 
         const checkout = await uso.execute('op-1', BUYER);
 
@@ -115,7 +120,7 @@ describe('CreateCheckoutUseCase', () => {
     });
 
     it('cobra exactamente lo que el comprador debe, con comisión incluida', async () => {
-        const operation = unaOperacion();
+        const operation = unaOperacion('asset_in_custody', 'ARS');
         const { uso, gateway } = armar(operation);
 
         await uso.execute('op-1', BUYER);
@@ -123,10 +128,23 @@ describe('CreateCheckoutUseCase', () => {
         expect(gateway.createCheckout).toHaveBeenCalledWith(
             expect.objectContaining({
                 amountCents: 1_050_000,
-                currency: 'USD',
+                currency: 'ARS',
                 externalReference: operation.id.toString(),
             }),
         );
+    });
+
+    /**
+     * Mercado Pago cobra en pesos aunque la preferencia esté en dólares y
+     * convierte a su propio cambio: el pago llega en ARS y por un monto que la
+     * operación no puede reconocer, así que `confirmBuyerPayment` lo rechaza y
+     * la operación queda aceptando pagos. Se frena antes de generar el link.
+     */
+    it('rechaza generar el link de pago si la operación no es en pesos', async () => {
+        const { uso, gateway } = armar(unaOperacion('asset_in_custody', 'USD'));
+
+        await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
+        expect(gateway.createCheckout).not.toHaveBeenCalled();
     });
 
     /**
