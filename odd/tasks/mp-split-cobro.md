@@ -26,7 +26,8 @@ TDD **activo** (fuente: convención del proyecto en `CLAUDE.md`; runner: `vitest
 Ruta por tarea: escritor delegado (`sonnet`) cuando toca 2 o más archivos no triviales; el padre verifica, hace el commit y registra.
 
 ## Tareas
-- [ ] **T1 Dominio: cotización congelada.** Value object de cotización (tasa, fecha, monto en ARS, comisión en ARS), puerto `IExchangeRateProvider`, `Operation` guarda la cotización y `confirmBuyerPayment` compara contra ella cuando existe. `CreateCheckoutUseCase` arma el pedido en ARS desde la cotización. Aceptación: operación en USD con cotización acepta el pago en ARS por el monto congelado y rechaza cualquier otro; operaciones en ARS sin cambios. Ruta: delegada.
+- [x] **T1 Dominio: cotización congelada** (commit `51bea09`). Value object de cotización (tasa, fecha, monto en ARS, comisión en ARS), puerto `IExchangeRateProvider`, `Operation` guarda la cotización y `confirmBuyerPayment` compara contra ella cuando existe. `CreateCheckoutUseCase` arma el pedido en ARS desde la cotización. Aceptación: operación en USD con cotización acepta el pago en ARS por el monto congelado y rechaza cualquier otro; operaciones en ARS sin cambios. Ruta: delegada.
+- [ ] **T1.1 Pagos contra una cotización reemplazada** (seguimiento del hallazgo `R3-stale-quote-overwrite`, advertencia no bloqueante de la revisión de T1). `quoteSettlement` reemplaza la cotización y `confirmBuyerPayment` solo valida contra la última: un pago hecho desde un link generado con una cotización anterior llega por el monto viejo y se rechaza con la plata ya cobrada. Corrección prevista: guardar las cotizaciones emitidas y aceptar un pago que coincida con cualquiera de ellas, y que T6 fije `expiration_date_to` de la preferencia en `expiresAt` de la cotización. Test que falta: pago contra una cotización reemplazada. Ruta: delegada, junto con T2 porque toca la persistencia.
 - [ ] **T2 Persistencia de la cotización.** Columnas Prisma y mapper de `Operation`, migración. Aceptación: ida y vuelta con la base real. Ruta: delegada.
 - [ ] **T3 Cliente del BCRA.** Adaptador del puerto con caché diaria, último valor guardado y override de admin. Aceptación: tests con `fetch` inyectado; sin respuesta ni valor guardado, MP no se ofrece. Ruta: delegada.
 - [ ] **T4 Cuenta de MP del vendedor.** Modelo, repositorio, cifrado AES-GCM detrás de un puerto, requisito de vincular para publicar. Ruta: delegada.
@@ -43,6 +44,9 @@ Se evalúa tras cada commit con `gentle-ai review assess --base-ref <último lí
 
 ## Progreso y evidencia
 - 2026-10-05: documento creado, rama y worktree listos. Aún sin código.
+- 2026-10-05: **T1 hecha.** Ruta: escritor delegado (sonnet), verificación del padre. Commit `51bea09`. Dominio 671 tests en verde (línea base 636), typecheck de `domain` y `api` limpio. RED observado: los tres archivos de test fallaban por imports inexistentes y tres casos nuevos de `CreateCheckoutUseCase` fallaban antes de implementar; los tests de `SettlementQuote` no se vieron fallar uno por uno. La rama es inerte en producción hasta cablear el proveedor de cotización (T3).
+- 2026-10-05: revisión nativa de T1: evaluación `medium`, 8 archivos y 718 líneas, `review_due` por presupuesto del tramo. Consentimiento `granted`, una lente (`review-reliability`), resultado **approved**, autoridad consumida. Un hallazgo no bloqueante (`R3-stale-quote-overwrite`, pasó a T1.1). El candidato acumulado de toda la rama (133 archivos) se omitió por decisión del usuario (`declined`); antes había fallado por presupuesto de contexto.
+- Límite revisado: `51bea09`. Las evaluaciones siguientes usan `--base-ref 51bea09`.
 
 ## Siguiente paso
-Delegar T1.
+Delegar T1.1 junto con T2 (persistencia de la cotización).
