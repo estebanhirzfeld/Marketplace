@@ -1790,16 +1790,48 @@ describe('GET /operations/:id/payment-options', () => {
         it('responde la forma completa al comprador, al vendedor y al admin', async () => {
             const id = await unaOperacionEnCustodia();
 
-            for (const email of ['buyer-opts@test.com', 'seller-opts@test.com', 'admin-opts@test.com']) {
-                const res = await pedir(id, email);
+            // El contenedor lee estas variables al armarse. Se vacían para que
+            // el resultado no dependa del entorno de quien corre el test: una
+            // máquina con las credenciales de Mercado Pago o el texto de
+            // transferencia cargados no tiene que cambiarlo.
+            for (const nombre of [
+                'MERCADOPAGO_ACCESS_TOKEN',
+                'MERCADOPAGO_SPLIT_ENABLED',
+                'EXCHANGE_RATE_ENABLED',
+                'TRANSFER_INSTRUCTIONS_ARS',
+                'TRANSFER_INSTRUCTIONS_USD',
+            ]) {
+                vi.stubEnv(nombre, '');
+            }
 
-                expect(res.statusCode).toBe(200);
-                expect(res.json()).toEqual({
-                    currency: 'ARS',
-                    amount: { cents: 1050000, currency: 'ARS' },
-                    mercadopago: { available: false, reason: 'not_configured', chargedIn: 'ARS', converted: false },
-                    transfer: { available: false, reference: id },
+            try {
+                const servidor = await buildApp({
+                    container: createContainer(fakeHasher),
+                    jwtSecret: 'secreto-de-test',
                 });
+
+                for (const email of ['buyer-opts@test.com', 'seller-opts@test.com', 'admin-opts@test.com']) {
+                    const res = await servidor.inject({
+                        method: 'GET',
+                        url: `/operations/${id}/payment-options`,
+                        headers: { authorization: `Bearer ${await tokenDe(email)}` },
+                    });
+
+                    expect(res.statusCode).toBe(200);
+                    expect(res.json()).toEqual({
+                        currency: 'ARS',
+                        amount: { cents: 1050000, currency: 'ARS' },
+                        mercadopago: {
+                            available: false,
+                            reason: 'not_configured',
+                            chargedIn: 'ARS',
+                            converted: false,
+                        },
+                        transfer: { available: false, reference: id },
+                    });
+                }
+            } finally {
+                vi.unstubAllEnvs();
             }
         });
     });
