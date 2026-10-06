@@ -1,11 +1,19 @@
 /**
  * Puerto de cobro.
  *
- * La plataforma cobra a su propia cuenta y retiene los fondos ahí: eso ES el
- * escrow. La pasarela es un medio de cobro, no el mecanismo de custodia, y esa
- * distinción no es un detalle — la reserva con captura diferida de MercadoPago
- * vence a los 7 días, y una operación sobre un canal de YouTube tarda como
- * mínimo el doble por las dos ventanas de propiedad que impone Google.
+ * Hay dos modos de cobro:
+ *
+ * - Sin split (el modo de siempre): la plataforma cobra a su propia cuenta y
+ *   retiene los fondos ahí, y le liquida al vendedor a mano.
+ * - Con split (`sellerAccessToken`): el cobro se crea a nombre del vendedor,
+ *   Mercado Pago le acredita a él y la plataforma retiene su comisión con
+ *   `marketplaceFeeCents`. No hay liquidación manual.
+ *
+ * En ninguno de los dos la pasarela es el mecanismo de custodia: la custodia es
+ * la del ACTIVO, que la plataforma toma antes de que se cobre. Esa distinción no
+ * es un detalle — la reserva con captura diferida de MercadoPago vence a los 7
+ * días, y una operación sobre un canal de YouTube tarda como mínimo el doble por
+ * las dos ventanas de propiedad que impone Google.
  */
 
 export interface CheckoutRequest {

@@ -20,10 +20,15 @@ export interface MercadoPagoConfig {
 /**
  * Cobro con MercadoPago.
  *
- * La plataforma cobra a su propia cuenta y retiene los fondos ahí: la pasarela
- * es el medio de cobro, no el mecanismo de custodia. La reserva con captura
- * diferida vence a los 7 días y una operación sobre un canal tarda como mínimo
- * el doble, así que no sirve para sostener el escrow.
+ * Sin split, la plataforma cobra a su propia cuenta con el token de la
+ * configuración. Con split (`request.sellerAccessToken`) la preferencia se crea
+ * con el token del vendedor y nunca con el de la plataforma, y la comisión de la
+ * plataforma viaja en `marketplace_fee`, siempre en pesos con decimales (se
+ * verificó en un sandbox: una comisión en una preferencia en dólares se cobró
+ * como pesos). En ambos modos la pasarela es el medio de cobro, no el mecanismo
+ * de custodia: la reserva con captura diferida vence a los 7 días y una
+ * operación sobre un canal tarda como mínimo el doble, así que no sirve para
+ * sostener el escrow.
  *
  * Se aceptan todos los medios de pago, incluida tarjeta. La exposición al
  * contracargo se compensa con lo que la plataforma ya acumula: identidad
@@ -31,10 +36,10 @@ export interface MercadoPagoConfig {
  * disputa— la constancia de que el activo estaba en custodia antes del cobro.
  */
 /*
- * TODO: liberación de fondos al vendedor. No está confirmado que MercadoPago
- * exponga una API de pagos salientes en Argentina; hasta verificarlo con la
- * cuenta de prueba, la transferencia se hace fuera de la plataforma y se
- * registra a mano.
+ * Liberación de fondos al vendedor: con split la hace Mercado Pago en el plazo
+ * que el vendedor configuró en su cuenta (en el sandbox, 18 días). Sin split, y
+ * en los pagos por transferencia, no hay API de pagos salientes verificada en
+ * Argentina: la liquidación se hace fuera de la plataforma y se registra a mano.
  *
  * TODO: si alguna vez se restringen los medios de pago, va `excluded_payment_types`
  * en la preferencia. Falta confirmar la lista exacta de tipos válidos para
