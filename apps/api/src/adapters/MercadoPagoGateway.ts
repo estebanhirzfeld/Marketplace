@@ -47,10 +47,15 @@ export class MercadoPagoGateway implements IPaymentGateway {
     ) {}
 
     async createCheckout(request: CheckoutRequest): Promise<Checkout> {
+        // Con split la preferencia se crea a nombre del vendedor: con SU token y
+        // nunca con el de la plataforma. La comisión y el vencimiento solo
+        // viajan en ese modo.
+        const split = request.sellerAccessToken !== undefined;
+
         const respuesta = await this.fetchImpl(PREFERENCES, {
             method: 'POST',
             headers: {
-                authorization: `Bearer ${this.config.accessToken}`,
+                authorization: `Bearer ${request.sellerAccessToken ?? this.config.accessToken}`,
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
@@ -70,6 +75,16 @@ export class MercadoPagoGateway implements IPaymentGateway {
                 // Solo con https: en local la vuelta automática no aplica.
                 ...(this.config.backUrl.startsWith('https://') ? { auto_return: 'approved' } : {}),
                 notification_url: this.config.notificationUrl,
+                // La comisión es un número en pesos con decimales (nunca
+                // centavos): Mercado Pago la cobra siempre en moneda local.
+                ...(split && request.marketplaceFeeCents !== undefined
+                    ? { marketplace_fee: request.marketplaceFeeCents / 100 }
+                    : {}),
+                // La cotización congelada vence: el link no puede seguir
+                // cobrando después.
+                ...(split && request.expiresAt
+                    ? { expires: true, expiration_date_to: request.expiresAt.toISOString() }
+                    : {}),
             }),
         });
 
@@ -85,10 +100,14 @@ export class MercadoPagoGateway implements IPaymentGateway {
         return { url: cuerpo.init_point, externalId: cuerpo.id };
     }
 
-    async fetchPayment(externalId: string): Promise<ExternalPayment | null> {
+    async fetchPayment(
+        externalId: string,
+        options?: { accessToken?: string },
+    ): Promise<ExternalPayment | null> {
         const respuesta = await this.fetchImpl(`${PAYMENTS}/${encodeURIComponent(externalId)}`, {
             headers: {
-                authorization: `Bearer ${this.config.accessToken}`,
+                // Un pago con split vive en la cuenta del vendedor: se consulta con su token.
+                authorization: `Bearer ${options?.accessToken ?? this.config.accessToken}`,
                 accept: 'application/json',
             },
         });

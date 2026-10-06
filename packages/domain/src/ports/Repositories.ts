@@ -154,6 +154,12 @@ export interface ISellerPaymentAccountRepository {
      * fila corrupta, `findByUserId` lanzaría y taparía la respuesta real.
      */
     existsByUserId(userId: string): Promise<boolean>;
+    /**
+     * La cuenta que corresponde a un usuario de Mercado Pago. Una cuenta de
+     * Mercado Pago pertenece a un solo usuario de la plataforma. Sirve para
+     * saber a qué vendedor se le cobró cuando llega un aviso de pago.
+     */
+    findByMpUserId(mpUserId: string): Promise<SellerPaymentAccount | null>;
     /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
     save(account: SellerPaymentAccount): Promise<void>;
     deleteByUserId(userId: string): Promise<void>;

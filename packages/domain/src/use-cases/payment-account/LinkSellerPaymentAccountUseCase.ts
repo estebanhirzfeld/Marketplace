@@ -45,6 +45,14 @@ export class LinkSellerPaymentAccountUseCase {
             );
         }
 
+        // Una cuenta de Mercado Pago pertenece a un solo usuario: si dos
+        // pudieran vincular la misma, un aviso de pago no permitiría saber a
+        // quién se le cobró. Vincular de nuevo la propia cuenta sí se permite.
+        const existing = await this.accounts.findByMpUserId(tokens.mpUserId);
+        if (existing && existing.userId.toString() !== actor.id) {
+            throw new ValidationError('Esa cuenta de Mercado Pago ya está vinculada a otro usuario.');
+        }
+
         const now = this.now();
         const account = SellerPaymentAccount.create({
             userId: new UniqueEntityID(actor.id),

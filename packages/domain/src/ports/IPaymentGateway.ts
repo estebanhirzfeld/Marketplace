@@ -15,6 +15,19 @@ export interface CheckoutRequest {
     amountCents: number;
     currency: string;
     payerEmail: string;
+    /**
+     * Cobro con split: el token del VENDEDOR. La preferencia se crea a nombre
+     * del vendedor y el pago vive en su cuenta. Sin él se cobra con las
+     * credenciales de la plataforma.
+     */
+    sellerAccessToken?: string;
+    /**
+     * Comisión que retiene la plataforma, en centavos de la moneda del cobro.
+     * Solo tiene sentido junto con `sellerAccessToken`.
+     */
+    marketplaceFeeCents?: number;
+    /** Hasta cuándo se puede pagar con este link (la cotización congelada vence). */
+    expiresAt?: Date;
 }
 
 export interface Checkout {
@@ -46,6 +59,9 @@ export interface IPaymentGateway {
      * el identificador y nada más, y el estado real se pregunta con nuestras
      * propias credenciales. Un aviso falsificado no puede, entonces, hacer más
      * que provocar una consulta.
+     *
+     * Un pago con split vive en la cuenta del vendedor: solo se puede consultar
+     * con SU token, que se pasa en `options.accessToken`.
      */
-    fetchPayment(externalId: string): Promise<ExternalPayment | null>;
+    fetchPayment(externalId: string, options?: { accessToken?: string }): Promise<ExternalPayment | null>;
 }

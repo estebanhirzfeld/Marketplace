@@ -1,5 +1,10 @@
-import { IOperationRepository, IUserRepository } from '../../ports/Repositories';
-import { IPaymentGateway } from '../../ports/IPaymentGateway';
+import {
+    IOperationRepository,
+    ISellerPaymentAccountRepository,
+    IUserRepository,
+} from '../../ports/Repositories';
+import { CheckoutRequest, IPaymentGateway } from '../../ports/IPaymentGateway';
+import { ISellerAccessTokenSource } from '../../ports/ISellerAccessTokenSource';
 import { IExchangeRateProvider } from '../../ports/IExchangeRateProvider';
 import { Operation } from '../../entities/Operation';
 import { SettlementQuote } from '../../value-objects/SettlementQuote';
@@ -32,6 +37,12 @@ export class CreateCheckoutUseCase {
         private readonly gateway: IPaymentGateway,
         private readonly rates?: IExchangeRateProvider,
         private readonly now: () => Date = () => new Date(),
+        /**
+         * Presente solo con el split de Mercado Pago encendido: el vendedor
+         * cobra directo y la plataforma retiene su comisión. Ausente, se cobra
+         * a la cuenta de la plataforma, como siempre.
+         */
+        private readonly sellerTokens?: ISellerAccessTokenSource,
     ) {}
 
     async execute(operationId: string, actor: Actor): Promise<Checkout> {
@@ -63,12 +74,23 @@ export class CreateCheckoutUseCase {
         // convierte a su propio cambio y el pago llega por un monto que la
         // operación no puede reconocer. Por eso se pesifica acá, con una
         // cotización congelada, y se cobra por ese monto.
+        //
+        // Con split, el token del vendedor se resuelve ANTES de cotizar: si
+        // Mercado Pago no está disponible para este vendedor no tiene sentido
+        // guardar una cotización que no se va a usar.
+        const sellerAccessToken = await this.resolveSellerToken(operation);
+
         let amountCents = buyerPays.getCents();
+        let marketplaceFeeCents = operation.platformEarns?.getCents();
+        let expiresAt: Date | undefined;
         if (buyerPays.getCurrency() !== CHECKOUT_CURRENCY) {
-            amountCents = (await this.currentQuote(operation, buyerPays.getCurrency())).buyerPaysCents;
+            const quote = await this.currentQuote(operation, buyerPays.getCurrency());
+            amountCents = quote.buyerPaysCents;
+            marketplaceFeeCents = quote.platformFeeCents;
+            expiresAt = quote.expiresAt;
         }
 
-        return this.gateway.createCheckout({
+        const request: CheckoutRequest = {
             // La operación es la referencia: es lo que permite reconocer el
             // pago cuando la pasarela avisa.
             externalReference: operation.id.toString(),
@@ -76,7 +98,56 @@ export class CreateCheckoutUseCase {
             amountCents,
             currency: CHECKOUT_CURRENCY,
             payerEmail: buyer.email.getValue(),
+        };
+
+        if (sellerAccessToken === undefined) {
+            return this.gateway.createCheckout(request);
+        }
+
+        // La comisión viaja siempre en pesos, como el monto: Mercado Pago la
+        // cobra en moneda local y la tiene que poder reconocer.
+        if (
+            marketplaceFeeCents === undefined ||
+            marketplaceFeeCents <= 0 ||
+            marketplaceFeeCents >= amountCents
+        ) {
+            throw new ValidationError(
+                'La comisión de la plataforma tiene que ser positiva y menor al monto a cobrar.',
+            );
+        }
+
+        return this.gateway.createCheckout({
+            ...request,
+            sellerAccessToken,
+            marketplaceFeeCents,
+            ...(expiresAt ? { expiresAt } : {}),
         });
+    }
+
+    /**
+     * El token del vendedor para cobrar a su nombre, o `undefined` si el split
+     * no está encendido. Los dos motivos por los que Mercado Pago no se puede
+     * usar con este vendedor se traducen a un aviso claro que ofrece la
+     * transferencia, sin llamar a la pasarela.
+     */
+    private async resolveSellerToken(operation: Operation): Promise<string | undefined> {
+        if (!this.sellerTokens) return undefined;
+
+        try {
+            return await this.sellerTokens.execute(operation.sellerId.toString());
+        } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw new ValidationError(
+                    'El vendedor todavía no habilitó Mercado Pago para cobrar. Podés pagar por transferencia bancaria.',
+                );
+            }
+            if (error instanceof InvalidStateError) {
+                throw new ValidationError(
+                    'Mercado Pago no está disponible para esta operación por ahora. Podés pagar por transferencia bancaria.',
+                );
+            }
+            throw error;
+        }
     }
 
     /**
@@ -131,10 +202,23 @@ export class ConfirmPaymentFromGatewayUseCase {
         private readonly gateway: IPaymentGateway,
         private readonly avisos?: NegotiationNotifier,
         private readonly avisosDePlataforma?: PlatformNotifier,
+        /** Las dos juntas habilitan el split: sin alguna, se consulta con el token de la plataforma. */
+        private readonly sellerTokens?: ISellerAccessTokenSource,
+        private readonly paymentAccounts?: ISellerPaymentAccountRepository,
     ) {}
 
-    async execute(externalPaymentId: string): Promise<void> {
-        const pago = await this.gateway.fetchPayment(externalPaymentId);
+    /**
+     * `hint.collectorMpUserId` es el usuario de Mercado Pago que figura como
+     * cobrador en el aviso. Es una PISTA, no una prueba: solo decide con qué
+     * token se consulta el pago. Lo que lo da por válido es la consulta a la
+     * pasarela y la conciliación contra la operación.
+     */
+    async execute(externalPaymentId: string, hint?: { collectorMpUserId?: string }): Promise<void> {
+        const sellerToken = await this.resolveSplitToken(hint?.collectorMpUserId);
+
+        const pago = sellerToken
+            ? await this.gateway.fetchPayment(externalPaymentId, { accessToken: sellerToken })
+            : await this.gateway.fetchPayment(externalPaymentId);
         if (!pago) return;
 
         // Pendiente o rechazado no es un error: es un pago que todavía no
@@ -160,6 +244,24 @@ export class ConfirmPaymentFromGatewayUseCase {
 
         await this.operationRepo.save(operation);
         await this.avisos?.paymentConfirmed(operation);
-        await this.avisosDePlataforma?.payoutNeeded(operation);
+        // Con split Mercado Pago ya le pagó al vendedor: no hay liquidación
+        // que hacer a mano.
+        if (!sellerToken) {
+            await this.avisosDePlataforma?.payoutNeeded(operation);
+        }
+    }
+
+    /**
+     * El token del vendedor al que apunta la pista, o `undefined` para seguir
+     * con el token de la plataforma: sin pista, sin las dependencias del split
+     * o con un cobrador que no corresponde a ninguna cuenta vinculada.
+     */
+    private async resolveSplitToken(collectorMpUserId?: string): Promise<string | undefined> {
+        if (!collectorMpUserId || !this.sellerTokens || !this.paymentAccounts) return undefined;
+
+        const account = await this.paymentAccounts.findByMpUserId(collectorMpUserId);
+        if (!account) return undefined;
+
+        return this.sellerTokens.execute(account.userId.toString());
     }
 }

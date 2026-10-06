@@ -33,6 +33,12 @@ function createFakeRepo(inicial: SellerPaymentAccount[] = []) {
     const filas = new Map<string, SellerPaymentAccount>(inicial.map((a) => [a.userId.toString(), a]));
     const repo: ISellerPaymentAccountRepository = {
         findByUserId: vi.fn(async (userId: string) => filas.get(userId) ?? null),
+        findByMpUserId: vi.fn(async (mpUserId: string) => {
+            for (const cuenta of filas.values()) {
+                if (cuenta.mpUserId === mpUserId) return cuenta;
+            }
+            return null;
+        }),
         existsByUserId: vi.fn(async (userId: string) => filas.has(userId)),
         save: vi.fn(async (account: SellerPaymentAccount) => {
             filas.set(account.userId.toString(), account);
@@ -110,6 +116,27 @@ describe('LinkSellerPaymentAccountUseCase', () => {
 
         expect(filas.size).toBe(1);
         expect(filas.get(SELLER.id)!.accessToken).toBe('APP_USR-acceso');
+    });
+
+    it('rechaza una cuenta de Mercado Pago que ya está vinculada a otro usuario', async () => {
+        const otro = new UniqueEntityID().toString();
+        const { repo, filas } = createFakeRepo([cuenta(new Date('2030-01-01T00:00:00Z'), { userId: otro })]);
+        const useCase = new LinkSellerPaymentAccountUseCase(repo, createFakeClient(), clock);
+
+        const error = await useCase.execute({ code: 'c', codeVerifier: 'v' }, SELLER).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ValidationError);
+        expect((error as Error).message).toBe('Esa cuenta de Mercado Pago ya está vinculada a otro usuario.');
+        expect(repo.save).not.toHaveBeenCalled();
+        expect(filas.has(SELLER.id)).toBe(false);
+    });
+
+    it('vincular de nuevo la misma cuenta de Mercado Pago al mismo usuario sigue permitido', async () => {
+        const { repo } = createFakeRepo([cuenta(new Date('2030-01-01T00:00:00Z'))]);
+        const useCase = new LinkSellerPaymentAccountUseCase(repo, createFakeClient(), clock);
+
+        await expect(useCase.execute({ code: 'c', codeVerifier: 'v' }, SELLER)).resolves.toBeUndefined();
+        expect(repo.save).toHaveBeenCalledOnce();
     });
 
     it('un admin no puede vincular: es operador puro', async () => {
@@ -357,5 +384,166 @@ describe('GetSellerAccessTokenUseCase', () => {
 
         await expect(useCase.execute(SELLER.id)).rejects.toThrow(InvalidStateError);
         expect(await useCase.execute(SELLER.id)).toBe('APP_USR-nuevo');
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// GetSellerAccessTokenUseCase — guardado fallido tras renovar (T5.1)
+// ═════════════════════════════════════════════════════════
+
+describe('GetSellerAccessTokenUseCase — guardado fallido tras renovar', () => {
+    /** Copia de la cuenta: simula una fila de la base, que no comparte objeto con quien la leyó. */
+    function copiar(a: SellerPaymentAccount): SellerPaymentAccount {
+        return SellerPaymentAccount.reconstitute(
+            {
+                userId: a.userId,
+                mpUserId: a.mpUserId,
+                accessToken: a.accessToken,
+                refreshToken: a.refreshToken,
+                expiresAt: a.expiresAt,
+                scope: a.scope,
+                linkedAt: a.linkedAt,
+            },
+            a.id,
+            a.createdAt,
+        );
+    }
+
+    /** Repositorio que guarda copias y deja fallar los próximos `save`. */
+    function createFlakyRepo(inicial: SellerPaymentAccount) {
+        const filas = new Map<string, SellerPaymentAccount>([[inicial.userId.toString(), copiar(inicial)]]);
+        const estado = { fallosPendientes: 0 };
+        const repo: ISellerPaymentAccountRepository = {
+            findByUserId: vi.fn(async (userId: string) => {
+                const fila = filas.get(userId);
+                return fila ? copiar(fila) : null;
+            }),
+            findByMpUserId: vi.fn(async () => null),
+            existsByUserId: vi.fn(async (userId: string) => filas.has(userId)),
+            save: vi.fn(async (account: SellerPaymentAccount) => {
+                if (estado.fallosPendientes > 0) {
+                    estado.fallosPendientes--;
+                    throw new Error('conexión perdida con la base');
+                }
+                filas.set(account.userId.toString(), copiar(account));
+            }),
+            deleteByUserId: vi.fn(async (userId: string) => {
+                filas.delete(userId);
+            }),
+        };
+        return { repo, filas, estado };
+    }
+
+    const POR_VENCER = () => cuenta(new Date(AHORA.getTime() + MINUTO));
+
+    it('si el guardado falla una vez lo reintenta y queda persistido', async () => {
+        const { repo, filas, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 1;
+        const useCase = new GetSellerAccessTokenUseCase(repo, createFakeClient(), clock);
+
+        expect(await useCase.execute(SELLER.id)).toBe('APP_USR-nuevo');
+
+        expect(repo.save).toHaveBeenCalledTimes(2);
+        expect(filas.get(SELLER.id)!.accessToken).toBe('APP_USR-nuevo');
+        expect(filas.get(SELLER.id)!.refreshToken).toBe('TG-nuevo');
+    });
+
+    it('si el guardado falla dos veces igual devuelve el token renovado', async () => {
+        const { repo, filas, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 2;
+        const useCase = new GetSellerAccessTokenUseCase(repo, createFakeClient(), clock);
+
+        expect(await useCase.execute(SELLER.id)).toBe('APP_USR-nuevo');
+
+        expect(repo.save).toHaveBeenCalledTimes(2);
+        // La base quedó con el token viejo, ya invalidado por la rotación.
+        expect(filas.get(SELLER.id)!.refreshToken).toBe('TG-viejo');
+    });
+
+    it('en la llamada siguiente persiste la cuenta pendiente sin volver a refrescar', async () => {
+        const { repo, filas, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 2;
+        const client = createFakeClient({
+            refresh: vi.fn().mockResolvedValue(
+                tokens({ accessToken: 'APP_USR-nuevo', refreshToken: 'TG-nuevo', expiresInSeconds: 3600 }),
+            ),
+        });
+        const useCase = new GetSellerAccessTokenUseCase(repo, client, clock);
+        await useCase.execute(SELLER.id);
+
+        expect(await useCase.execute(SELLER.id)).toBe('APP_USR-nuevo');
+
+        expect(client.refresh).toHaveBeenCalledTimes(1);
+        // Rotación: lo guardado termina siendo el token de renovación NUEVO.
+        expect(filas.get(SELLER.id)!.accessToken).toBe('APP_USR-nuevo');
+        expect(filas.get(SELLER.id)!.refreshToken).toBe('TG-nuevo');
+
+        // Ya persistida: una tercera llamada no vuelve a guardar.
+        const guardados = (repo.save as ReturnType<typeof vi.fn>).mock.calls.length;
+        await useCase.execute(SELLER.id);
+        expect((repo.save as ReturnType<typeof vi.fn>).mock.calls.length).toBe(guardados);
+    });
+
+    it('si el guardado pendiente vuelve a fallar, sigue usando la cuenta renovada', async () => {
+        const { repo, filas, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 3;
+        const client = createFakeClient();
+        const useCase = new GetSellerAccessTokenUseCase(repo, client, clock);
+        await useCase.execute(SELLER.id);
+
+        expect(await useCase.execute(SELLER.id)).toBe('APP_USR-nuevo');
+        expect(client.refresh).toHaveBeenCalledTimes(1);
+        expect(filas.get(SELLER.id)!.refreshToken).toBe('TG-viejo');
+
+        // La base se recupera: la llamada siguiente la deja al día.
+        await useCase.execute(SELLER.id);
+        expect(filas.get(SELLER.id)!.refreshToken).toBe('TG-nuevo');
+    });
+
+    it('un nuevo refresco parte del token de renovación NUEVO, no del que quedó en la base', async () => {
+        const { repo, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 2;
+        let ahora = AHORA;
+        const refresh = vi
+            .fn()
+            .mockResolvedValueOnce(tokens({ accessToken: 'A1', refreshToken: 'R1', expiresInSeconds: 600 }))
+            .mockResolvedValueOnce(tokens({ accessToken: 'A2', refreshToken: 'R2', expiresInSeconds: 3600 }));
+        const useCase = new GetSellerAccessTokenUseCase(repo, createFakeClient({ refresh }), () => ahora);
+        await useCase.execute(SELLER.id);
+
+        // Pasan 6 minutos: el token de 10 minutos queda a menos de 5 de vencer.
+        ahora = new Date(AHORA.getTime() + 6 * MINUTO);
+        expect(await useCase.execute(SELLER.id)).toBe('A2');
+
+        expect(refresh).toHaveBeenNthCalledWith(1, 'TG-viejo');
+        expect(refresh).toHaveBeenNthCalledWith(2, 'R1');
+    });
+
+    it('si el usuario desvinculó mientras tanto, descarta la cuenta pendiente', async () => {
+        const { repo, filas, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 2;
+        const useCase = new GetSellerAccessTokenUseCase(repo, createFakeClient(), clock);
+        await useCase.execute(SELLER.id);
+
+        filas.delete(SELLER.id);
+
+        await expect(useCase.execute(SELLER.id)).rejects.toThrow(NotFoundError);
+        expect(filas.has(SELLER.id)).toBe(false);
+    });
+
+    it('no filtra los tokens en ningún error ni en la consola', async () => {
+        const { repo, estado } = createFlakyRepo(POR_VENCER());
+        estado.fallosPendientes = 2;
+        const registro = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const advertencia = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const useCase = new GetSellerAccessTokenUseCase(repo, createFakeClient(), clock);
+
+        await useCase.execute(SELLER.id);
+
+        const salida = JSON.stringify([...registro.mock.calls, ...advertencia.mock.calls]);
+        expect(salida).not.toContain('APP_USR');
+        expect(salida).not.toContain('TG-');
+        registro.mockRestore();
+        advertencia.mockRestore();
     });
 });

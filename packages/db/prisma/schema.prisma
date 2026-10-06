@@ -273,7 +273,7 @@ model Notification {
 model SellerPaymentAccount {
   id                 String   @id @default(uuid())
   userId             String   @unique
-  mpUserId           String
+  mpUserId           String   @unique
   accessTokenCipher  String
   refreshTokenCipher String
   expiresAt          DateTime

@@ -20,6 +20,11 @@ export class PrismaSellerPaymentAccountRepository implements ISellerPaymentAccou
         return row ? SellerPaymentAccountMapper.toDomain(row, this.cipher) : null;
     }
 
+    async findByMpUserId(mpUserId: string): Promise<SellerPaymentAccount | null> {
+        const row = await this.db.sellerPaymentAccount.findUnique({ where: { mpUserId } });
+        return row ? SellerPaymentAccountMapper.toDomain(row, this.cipher) : null;
+    }
+
     /**
      * Solo cuenta filas: no lee ni descifra las columnas de tokens, así que
      * responde aunque la clave haya cambiado o la fila esté corrupta.

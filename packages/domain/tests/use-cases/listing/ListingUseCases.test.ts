@@ -225,6 +225,7 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
         // tokens y acá lanza para probar que no se llama.
         const paymentAccounts: ISellerPaymentAccountRepository = {
             findByUserId: vi.fn().mockRejectedValue(new Error('la puerta no debe descifrar tokens')),
+            findByMpUserId: vi.fn().mockRejectedValue(new Error('la puerta no debe descifrar tokens')),
             existsByUserId: vi.fn().mockResolvedValue(vinculada),
             save: vi.fn().mockResolvedValue(undefined),
             deleteByUserId: vi.fn().mockResolvedValue(undefined),

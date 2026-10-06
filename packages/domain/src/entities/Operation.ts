@@ -312,6 +312,11 @@ export class Operation extends Entity<OperationProps> {
         return this.props.platformEarns;
     }
 
+    /** El vendedor de la operación: a quien se le cobra por cuenta propia en el split. */
+    public get sellerId(): UniqueEntityID {
+        return this.props.sellerId;
+    }
+
     /** La última cotización emitida, que es la vigente para generar links nuevos. */
     public get settlementQuote(): SettlementQuote | undefined {
         return this.props.settlementQuotes?.at(-1);

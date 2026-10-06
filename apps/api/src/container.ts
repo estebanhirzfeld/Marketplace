@@ -122,7 +122,7 @@ export interface Container {
     linkSellerPaymentAccount?: LinkSellerPaymentAccountUseCase;
     getSellerPaymentAccountStatus?: GetSellerPaymentAccountStatusUseCase;
     unlinkSellerPaymentAccount?: UnlinkSellerPaymentAccountUseCase;
-    /** Lo usará el cobro con split (T6) para operar con el token del vendedor. */
+    /** Lo usa el cobro con split (`MERCADOPAGO_SPLIT_ENABLED`) para operar con el token del vendedor. */
     getSellerAccessToken?: GetSellerAccessTokenUseCase;
     registerUser: RegisterUserUseCase;
     login: LoginUseCase;
@@ -267,6 +267,35 @@ export function createContainer(
             ? { oauth: mercadoPagoOAuth, accounts: paymentAccountRepo }
             : undefined;
 
+    // Cobro con split: el vendedor cobra directo con su propia cuenta y la
+    // plataforma retiene su comisión. Apagado por defecto (solo `1` o `true` lo
+    // enciende): cambia a nombre de quién se cobra. Necesita el OAuth del
+    // vendedor y la clave de cifrado; sin ellos no hay token con el que cobrar,
+    // así que se frena el arranque en vez de cobrar a medias.
+    const splitFlag = process.env.MERCADOPAGO_SPLIT_ENABLED?.trim();
+    const splitEnabled = splitFlag === '1' || splitFlag === 'true';
+    if (splitEnabled && !paymentAccountWiring) {
+        const faltan = [
+            ...(tokenKey ? [] : ['MP_TOKEN_ENCRYPTION_KEY']),
+            ...(mpOAuthConfig.clientId ? [] : ['MP_OAUTH_CLIENT_ID']),
+            ...(mpOAuthConfig.clientSecret ? [] : ['MP_OAUTH_CLIENT_SECRET']),
+            ...(mpOAuthConfig.redirectUri ? [] : ['MP_OAUTH_REDIRECT_URI']),
+        ];
+        throw new Error(
+            'MERCADOPAGO_SPLIT_ENABLED está encendida pero falta configurar: ' +
+                `${faltan.join(', ')}. ` +
+                'El cobro con split necesita la vinculación de Mercado Pago de los vendedores ' +
+                'y la clave que cifra sus tokens.',
+        );
+    }
+    // Una sola instancia: el candado del refresco vive en ella y la comparten
+    // el cobro, el aviso de pago y quien la expone por el contenedor.
+    const getSellerAccessToken = paymentAccountWiring
+        ? new GetSellerAccessTokenUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
+        : undefined;
+    const splitSellerTokens = splitEnabled ? getSellerAccessToken : undefined;
+    const splitAccounts = splitEnabled ? paymentAccountWiring?.accounts : undefined;
+
     const oauthConfig = {
         clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID?.trim() ?? '',
         clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET?.trim() ?? '',
@@ -309,10 +338,7 @@ export function createContainer(
         unlinkSellerPaymentAccount: paymentAccountWiring
             ? new UnlinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts)
             : undefined,
-        // Una sola instancia: el candado del refresco vive en ella.
-        getSellerAccessToken: paymentAccountWiring
-            ? new GetSellerAccessTokenUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
-            : undefined,
+        getSellerAccessToken,
 
         registerUser: new RegisterUserUseCase(userRepo, hasher),
         login: new LoginUseCase(userRepo, hasher),
@@ -373,10 +399,24 @@ export function createContainer(
         initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
         crearCheckout: mercadoPago
-            ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago, exchangeRates)
+            ? new CreateCheckoutUseCase(
+                  operationRepo,
+                  userRepo,
+                  mercadoPago,
+                  exchangeRates,
+                  undefined,
+                  splitSellerTokens,
+              )
             : undefined,
         confirmarPagoDePasarela: mercadoPago
-            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos, avisosDePlataforma)
+            ? new ConfirmPaymentFromGatewayUseCase(
+                  operationRepo,
+                  mercadoPago,
+                  avisos,
+                  avisosDePlataforma,
+                  splitSellerTokens,
+                  splitAccounts,
+              )
             : undefined,
         mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
         denunciar: new FileReportUseCase(reportRepo, operationRepo, notificationRepo),

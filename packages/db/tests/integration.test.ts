@@ -1102,10 +1102,13 @@ describe("PrismaSellerPaymentAccountRepository", () => {
     const VENCE = new Date("2030-01-01T00:00:00.000Z");
     const VINCULADA = new Date("2026-10-05T12:00:00.000Z");
 
-    function unaCuenta(userId: UniqueEntityID, overrides: { accessToken?: string; refreshToken?: string } = {}) {
+    function unaCuenta(
+        userId: UniqueEntityID,
+        overrides: { accessToken?: string; refreshToken?: string; mpUserId?: string } = {},
+    ) {
         return SellerPaymentAccount.create({
             userId,
-            mpUserId: "mp-123",
+            mpUserId: overrides.mpUserId ?? "mp-123",
             accessToken: overrides.accessToken ?? "APP_USR-token-en-claro",
             refreshToken: overrides.refreshToken ?? "TG-refresco-en-claro",
             expiresAt: VENCE,
@@ -1249,10 +1252,47 @@ describe("PrismaSellerPaymentAccountRepository", () => {
     it("no mezcla cuentas de usuarios distintos", async () => {
         const a = await createPersistedUser({ email: "mp-a@test.com", role: UserRole.SELLER });
         const b = await createPersistedUser({ email: "mp-b@test.com", role: UserRole.SELLER });
-        await paymentRepo.save(unaCuenta(a.id, { accessToken: "token-a" }));
-        await paymentRepo.save(unaCuenta(b.id, { accessToken: "token-b" }));
+        await paymentRepo.save(unaCuenta(a.id, { accessToken: "token-a", mpUserId: "mp-a" }));
+        await paymentRepo.save(unaCuenta(b.id, { accessToken: "token-b", mpUserId: "mp-b" }));
 
         expect((await paymentRepo.findByUserId(a.id.toString()))!.accessToken).toBe("token-a");
         expect((await paymentRepo.findByUserId(b.id.toString()))!.accessToken).toBe("token-b");
+    });
+
+    it("findByMpUserId devuelve la cuenta con los tokens en claro", async () => {
+        const seller = await createPersistedUser({ email: "mp-byid@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-buscado" }));
+
+        const leida = await paymentRepo.findByMpUserId("mp-buscado");
+
+        expect(leida).not.toBeNull();
+        expect(leida!.userId.equals(seller.id)).toBe(true);
+        expect(leida!.accessToken).toBe("APP_USR-token-en-claro");
+        expect(leida!.refreshToken).toBe("TG-refresco-en-claro");
+    });
+
+    it("findByMpUserId devuelve null si ninguna cuenta tiene ese usuario de Mercado Pago", async () => {
+        expect(await paymentRepo.findByMpUserId("nadie")).toBeNull();
+    });
+
+    it("una cuenta de Mercado Pago por usuario de la plataforma: la base rechaza repetirla en otro", async () => {
+        const a = await createPersistedUser({ email: "mp-dup-a@test.com", role: UserRole.SELLER });
+        const b = await createPersistedUser({ email: "mp-dup-b@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(a.id, { mpUserId: "mp-compartido" }));
+
+        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toThrow();
+
+        expect(await paymentRepo.findByUserId(b.id.toString())).toBeNull();
+    });
+
+    it("el mismo usuario puede volver a vincular la misma cuenta de Mercado Pago", async () => {
+        const seller = await createPersistedUser({ email: "mp-same@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-propio" }));
+
+        await expect(
+            paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-propio", accessToken: "otro-token" })),
+        ).resolves.toBeUndefined();
+
+        expect((await paymentRepo.findByMpUserId("mp-propio"))!.accessToken).toBe("otro-token");
     });
 });

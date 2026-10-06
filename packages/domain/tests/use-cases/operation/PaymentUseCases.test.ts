@@ -3,7 +3,15 @@ import {
     ConfirmPaymentFromGatewayUseCase,
     CreateCheckoutUseCase,
 } from '../../../src/use-cases/operation/PaymentUseCases';
-import { IOperationRepository, IUserRepository } from '../../../src/ports/Repositories';
+import {
+    IOperationRepository,
+    ISellerPaymentAccountRepository,
+    IUserRepository,
+} from '../../../src/ports/Repositories';
+import { ISellerAccessTokenSource } from '../../../src/ports/ISellerAccessTokenSource';
+import { INotifier } from '../../../src/ports/INotifier';
+import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
+import { SellerPaymentAccount } from '../../../src/entities/SellerPaymentAccount';
 import { ExternalPayment, IPaymentGateway } from '../../../src/ports/IPaymentGateway';
 import { ExchangeRate, IExchangeRateProvider } from '../../../src/ports/IExchangeRateProvider';
 import { Actor } from '../../../src/ports/Actor';
@@ -266,6 +274,131 @@ describe('CreateCheckoutUseCase', () => {
         });
     });
 
+    describe('con split de Mercado Pago (token del vendedor)', () => {
+        const AHORA = new Date('2026-10-05T12:00:00Z');
+        const TASA: ExchangeRate = { rate: 1500, date: '2026-10-02', source: 'BCRA_A3500' };
+
+        function unOrigenDeTokens(
+            resultado: () => Promise<string> = async () => 'APP_USR-del-vendedor',
+        ): ISellerAccessTokenSource {
+            return { execute: vi.fn(resultado) };
+        }
+
+        function armarSplit(
+            operation: Operation,
+            sellerTokens: ISellerAccessTokenSource,
+            gateway = unaPasarela(),
+        ) {
+            const rates: IExchangeRateProvider = { getUsdArsRate: vi.fn().mockResolvedValue(TASA) };
+            const uso = new CreateCheckoutUseCase(
+                createMockOperationRepo(operation),
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => AHORA,
+                sellerTokens,
+            );
+            return { uso, gateway };
+        }
+
+        it('en pesos cobra con el token del vendedor y retiene la comisión de la plataforma', async () => {
+            const sellerTokens = unOrigenDeTokens();
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            await uso.execute('op-1', BUYER);
+
+            expect(sellerTokens.execute).toHaveBeenCalledWith(SELLER_ID.toString());
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    amountCents: 1_050_000,
+                    currency: 'ARS',
+                    sellerAccessToken: 'APP_USR-del-vendedor',
+                    marketplaceFeeCents: 100_000,
+                }),
+            );
+        });
+
+        it('en pesos no fija vencimiento: solo las cotizaciones lo tienen', async () => {
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), unOrigenDeTokens());
+
+            await uso.execute('op-1', BUYER);
+
+            const pedido = (gateway.createCheckout as ReturnType<typeof vi.fn>).mock.calls[0][0];
+            expect(pedido.expiresAt).toBeUndefined();
+        });
+
+        it('en dólares cobra el monto y la comisión congelados y vence con la cotización', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const { uso, gateway } = armarSplit(operation, unOrigenDeTokens());
+
+            await uso.execute('op-1', BUYER);
+
+            const quote = operation.settlementQuote!;
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    amountCents: quote.buyerPaysCents,
+                    currency: 'ARS',
+                    sellerAccessToken: 'APP_USR-del-vendedor',
+                    marketplaceFeeCents: quote.platformFeeCents,
+                    expiresAt: quote.expiresAt,
+                }),
+            );
+            expect(quote.platformFeeCents).toBeGreaterThan(0);
+            expect(quote.platformFeeCents).toBeLessThan(quote.buyerPaysCents);
+        });
+
+        it('si el vendedor no vinculó Mercado Pago lo dice y no llama a la pasarela', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new NotFoundError('El vendedor no vinculó su cuenta de Mercado Pago.');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            const error = await uso.execute('op-1', BUYER).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect((error as Error).message).toBe(
+                'El vendedor todavía no habilitó Mercado Pago para cobrar. Podés pagar por transferencia bancaria.',
+            );
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('si no se pudo obtener o renovar el token lo dice y no llama a la pasarela', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new InvalidStateError('No pudimos renovar el permiso de Mercado Pago del vendedor.');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            const error = await uso.execute('op-1', BUYER).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect((error as Error).message).toBe(
+                'Mercado Pago no está disponible para esta operación por ahora. Podés pagar por transferencia bancaria.',
+            );
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('un error inesperado al obtener el token no se disfraza', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new Error('la base no responde');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow('la base no responde');
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('sin el origen de tokens el pedido no lleva token del vendedor ni comisión', async () => {
+            const { uso, gateway } = armar(unaOperacion('asset_in_custody', 'ARS'));
+
+            await uso.execute('op-1', BUYER);
+
+            const pedido = (gateway.createCheckout as ReturnType<typeof vi.fn>).mock.calls[0][0];
+            expect(Object.keys(pedido)).not.toContain('sellerAccessToken');
+            expect(Object.keys(pedido)).not.toContain('marketplaceFeeCents');
+            expect(Object.keys(pedido)).not.toContain('expiresAt');
+        });
+    });
+
     /**
      * La regla central del escrow: el activo entra antes de que se cobre. Se
      * hace cumplir acá y no solo en la entidad para no mandar a nadie a pagar
@@ -378,5 +511,110 @@ describe('ConfirmPaymentFromGatewayUseCase', () => {
         const { uso } = armar(null, unPagoExterno());
 
         await expect(uso.execute('1234567890')).rejects.toThrow(NotFoundError);
+    });
+
+    describe('con split de Mercado Pago (el pago vive en la cuenta del vendedor)', () => {
+        const MP_USER_ID = '987654';
+
+        function unaCuenta(): SellerPaymentAccount {
+            return SellerPaymentAccount.create({
+                userId: SELLER_ID,
+                mpUserId: MP_USER_ID,
+                accessToken: 'APP_USR-viejo',
+                refreshToken: 'TG-refresco',
+                expiresAt: new Date('2030-01-01T00:00:00Z'),
+                scope: 'offline_access read write',
+                linkedAt: new Date('2026-09-01T00:00:00Z'),
+            });
+        }
+
+        function armarSplit(over: { cuenta?: SellerPaymentAccount | null; conDeps?: boolean } = {}) {
+            const { cuenta = unaCuenta(), conDeps = true } = over;
+            const operation = unaOperacion();
+            const repo = createMockOperationRepo(operation);
+            const gateway = unaPasarela({ fetchPayment: vi.fn().mockResolvedValue(unPagoExterno()) });
+            const accounts: ISellerPaymentAccountRepository = {
+                findByUserId: vi.fn().mockResolvedValue(cuenta),
+                findByMpUserId: vi.fn().mockResolvedValue(cuenta),
+                existsByUserId: vi.fn().mockResolvedValue(cuenta !== null),
+                save: vi.fn().mockResolvedValue(undefined),
+                deleteByUserId: vi.fn().mockResolvedValue(undefined),
+            };
+            const sellerTokens: ISellerAccessTokenSource = {
+                execute: vi.fn().mockResolvedValue('APP_USR-del-vendedor'),
+            };
+            const notifier: INotifier = { notify: vi.fn().mockResolvedValue(undefined) };
+            const plataforma = new PlatformNotifier(notifier, createMockUserRepo());
+            const payoutNeeded = vi.spyOn(plataforma, 'payoutNeeded');
+            const uso = new ConfirmPaymentFromGatewayUseCase(
+                repo,
+                gateway,
+                undefined,
+                plataforma,
+                conDeps ? sellerTokens : undefined,
+                conDeps ? accounts : undefined,
+            );
+            return { uso, operation, gateway, accounts, sellerTokens, payoutNeeded };
+        }
+
+        it('con la pista del cobrador consulta el pago con el token de ese vendedor', async () => {
+            const { uso, gateway, accounts, sellerTokens, operation } = armarSplit();
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(accounts.findByMpUserId).toHaveBeenCalledWith(MP_USER_ID);
+            expect(sellerTokens.execute).toHaveBeenCalledWith(SELLER_ID.toString());
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890', {
+                accessToken: 'APP_USR-del-vendedor',
+            });
+            expect(operation.status).toBe('payment_received');
+        });
+
+        it('un pago con split no avisa la liquidación: Mercado Pago ya le pagó al vendedor', async () => {
+            const { uso, payoutNeeded } = armarSplit();
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(payoutNeeded).not.toHaveBeenCalled();
+        });
+
+        it('sin la pista consulta con el token de la plataforma y avisa la liquidación', async () => {
+            const { uso, gateway, accounts, payoutNeeded } = armarSplit();
+
+            await uso.execute('1234567890');
+
+            expect(accounts.findByMpUserId).not.toHaveBeenCalled();
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        it('con una pista que no corresponde a ninguna cuenta vuelve al camino de siempre', async () => {
+            const { uso, gateway, sellerTokens, payoutNeeded } = armarSplit({ cuenta: null });
+
+            await uso.execute('1234567890', { collectorMpUserId: 'desconocido' });
+
+            expect(sellerTokens.execute).not.toHaveBeenCalled();
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        it('sin las dependencias del split ignora la pista', async () => {
+            const { uso, gateway, payoutNeeded } = armarSplit({ conDeps: false });
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        it('la conciliación sigue igual: rechaza un monto que no cierra', async () => {
+            const { uso, gateway, operation } = armarSplit();
+            (gateway.fetchPayment as ReturnType<typeof vi.fn>).mockResolvedValue(
+                unPagoExterno({ amountCents: 500_000 }),
+            );
+
+            await expect(uso.execute('1234567890', { collectorMpUserId: MP_USER_ID })).rejects.toThrow();
+            expect(operation.status).toBe('asset_in_custody');
+        });
     });
 });

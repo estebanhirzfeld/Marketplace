@@ -8,6 +8,7 @@ import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoP
 import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
 import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
 import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -1527,6 +1528,103 @@ describe('POST /webhooks/mercadopago', () => {
     });
 });
 
+/**
+ * El cobrador que figura en el aviso (`user_id`) es una pista para elegir con
+ * qué token consultar el pago, nunca una prueba: se pasa tal cual al caso de
+ * uso y lo que no parece un identificador de Mercado Pago se ignora.
+ */
+describe('POST /webhooks/mercadopago — pista del cobrador', () => {
+    async function armarWebhook() {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        const ejecutar = vi.spyOn(confirmar, 'execute').mockResolvedValue(undefined);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return { servidor, ejecutar };
+    }
+
+    function aviso(extra: Record<string, unknown>) {
+        return {
+            action: 'payment.created',
+            api_version: 'v1',
+            data: { id: '555' },
+            date_created: '2026-10-05T12:00:00Z',
+            id: 1,
+            live_mode: false,
+            type: 'payment',
+            ...extra,
+        };
+    }
+
+    it('pasa el user_id numérico como pista, en texto', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: 2_863_117_439 }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '2863117439' });
+    });
+
+    it('pasa el user_id en texto como pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: '987654' }),
+        });
+
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '987654' });
+    });
+
+    it('un aviso sin user_id sigue funcionando, sin pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({}),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+
+    it.each([
+        ['un objeto', {}],
+        ['un booleano', true],
+        ['un arreglo', ['1']],
+        ['un texto vacío', ''],
+        ['un texto que no es numérico', 'abc'],
+        ['un número negativo', -5],
+        ['un número con decimales', 1.5],
+        ['null', null],
+    ])('ignora un user_id mal formado (%s)', async (_nombre, valor) => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: valor }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+});
+
 describe('POST /operations/:id/checkout', () => {
     it('503 mientras MercadoPago no esté configurado', async () => {
         const seller = await crearUsuario('seller-mp@test.com', UserRole.SELLER);
@@ -1564,6 +1662,8 @@ describe('Cuenta de Mercado Pago del vendedor — /me/mercadopago', () => {
         const filas = new Map<string, SellerPaymentAccount>();
         const repo: ISellerPaymentAccountRepository = {
             findByUserId: async (userId) => filas.get(userId) ?? null,
+            findByMpUserId: async (mpUserId) =>
+                [...filas.values()].find((cuenta) => cuenta.mpUserId === mpUserId) ?? null,
             existsByUserId: async (userId) => filas.has(userId),
             save: async (account) => {
                 filas.set(account.userId.toString(), account);

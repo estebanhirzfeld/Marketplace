@@ -6,6 +6,24 @@ interface AvisoDeMercadoPago {
     type?: string;
     action?: string;
     data?: { id?: string };
+    /** El usuario de Mercado Pago que cobra (el vendedor, en un pago con split). */
+    user_id?: unknown;
+}
+
+/**
+ * El `user_id` del aviso como identificador de Mercado Pago, o `undefined` si
+ * no parece uno. Mercado Pago lo manda como número, pero se acepta también en
+ * texto; cualquier otra cosa (objetos, booleanos, vacíos, negativos, decimales)
+ * se ignora en vez de rechazar el aviso.
+ */
+function collectorFrom(userId: unknown): string | undefined {
+    if (typeof userId === 'number') {
+        return Number.isSafeInteger(userId) && userId > 0 ? String(userId) : undefined;
+    }
+    if (typeof userId === 'string' && /^\d{1,20}$/.test(userId)) {
+        return userId;
+    }
+    return undefined;
 }
 
 /**
@@ -54,7 +72,13 @@ export function registerWebhookRoutes(app: FastifyInstance, c: Container): void 
             }
 
             try {
-                await c.confirmarPagoDePasarela.execute(paymentId);
+                // El cobrador del aviso es una pista para elegir el token con
+                // que se consulta el pago; el pago se reconcilia igual.
+                const collectorMpUserId = collectorFrom(request.body?.user_id);
+                await c.confirmarPagoDePasarela.execute(
+                    paymentId,
+                    collectorMpUserId ? { collectorMpUserId } : undefined,
+                );
             } catch (error) {
                 request.log.error({ err: error, paymentId }, 'No se pudo procesar el aviso de pago');
             }
