@@ -3,8 +3,17 @@ import {
     ConfirmPaymentFromGatewayUseCase,
     CreateCheckoutUseCase,
 } from '../../../src/use-cases/operation/PaymentUseCases';
-import { IOperationRepository, IUserRepository } from '../../../src/ports/Repositories';
+import {
+    IOperationRepository,
+    ISellerPaymentAccountRepository,
+    IUserRepository,
+} from '../../../src/ports/Repositories';
+import { ISellerAccessTokenSource } from '../../../src/ports/ISellerAccessTokenSource';
+import { INotifier } from '../../../src/ports/INotifier';
+import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
+import { SellerPaymentAccount } from '../../../src/entities/SellerPaymentAccount';
 import { ExternalPayment, IPaymentGateway } from '../../../src/ports/IPaymentGateway';
+import { ExchangeRate, IExchangeRateProvider } from '../../../src/ports/IExchangeRateProvider';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation, OperationStatus } from '../../../src/entities/Operation';
 import { User } from '../../../src/entities/User';
@@ -15,6 +24,7 @@ import {
     ForbiddenError,
     InvalidStateError,
     NotFoundError,
+    SellerTokenUnavailableError,
     ValidationError,
 } from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -147,6 +157,249 @@ describe('CreateCheckoutUseCase', () => {
         expect(gateway.createCheckout).not.toHaveBeenCalled();
     });
 
+    describe('operación en dólares con cotización', () => {
+        const AHORA = new Date('2026-10-05T12:00:00Z');
+        const TASA: ExchangeRate = { rate: 1500, date: '2026-10-02', source: 'BCRA_A3500' };
+
+        function armarConTasa(
+            operation: Operation,
+            rates?: IExchangeRateProvider,
+            gateway = unaPasarela(),
+        ) {
+            const repo = createMockOperationRepo(operation);
+            const uso = new CreateCheckoutUseCase(
+                repo,
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => AHORA,
+            );
+            return { uso, repo, gateway };
+        }
+
+        function unProveedor(tasa: ExchangeRate | null): IExchangeRateProvider {
+            return { getUsdArsRate: vi.fn().mockResolvedValue(tasa) };
+        }
+
+        it('cobra en pesos con la cotización y la guarda en la operación', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const { uso, repo, gateway } = armarConTasa(operation, unProveedor(TASA));
+
+            await uso.execute('op-1', BUYER);
+
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({ amountCents: 1_575_000_000, currency: 'ARS' }),
+            );
+            expect(operation.settlementQuote?.buyerPaysCents).toBe(1_575_000_000);
+            expect(repo.save).toHaveBeenCalledWith(operation);
+        });
+
+        it('reutiliza la cotización vigente sin pedir otra tasa', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const rates = unProveedor(TASA);
+            const { uso, gateway } = armarConTasa(operation, rates);
+            await uso.execute('op-1', BUYER);
+            const primera = operation.settlementQuote;
+
+            // Otra tasa distinta: no tiene que usarse mientras la primera esté vigente.
+            (rates.getUsdArsRate as ReturnType<typeof vi.fn>).mockResolvedValue({
+                ...TASA,
+                rate: 1700,
+            });
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).toHaveBeenCalledTimes(1);
+            expect(operation.settlementQuote).toBe(primera);
+            expect(gateway.createCheckout).toHaveBeenLastCalledWith(
+                expect.objectContaining({ amountCents: 1_575_000_000 }),
+            );
+        });
+
+        it('arma una cotización nueva si la anterior venció', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const rates = unProveedor(TASA);
+            let ahora = AHORA;
+            const gateway = unaPasarela();
+            const uso = new CreateCheckoutUseCase(
+                createMockOperationRepo(operation),
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => ahora,
+            );
+            await uso.execute('op-1', BUYER);
+
+            ahora = new Date(AHORA.getTime() + 25 * 60 * 60 * 1000);
+            (rates.getUsdArsRate as ReturnType<typeof vi.fn>).mockResolvedValue({
+                ...TASA,
+                rate: 1600,
+            });
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).toHaveBeenCalledTimes(2);
+            expect(operation.settlementQuote?.rate).toBe(1600);
+            expect(gateway.createCheckout).toHaveBeenLastCalledWith(
+                expect.objectContaining({ amountCents: 1_680_000_000, currency: 'ARS' }),
+            );
+        });
+
+        it('sin proveedor de tasas no genera el link', async () => {
+            const { uso, gateway, repo } = armarConTasa(unaOperacion('asset_in_custody', 'USD'));
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
+
+        it('si el proveedor no tiene tasa no genera el link', async () => {
+            const { uso, gateway, repo } = armarConTasa(
+                unaOperacion('asset_in_custody', 'USD'),
+                unProveedor(null),
+            );
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow(ValidationError);
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
+
+        it('una operación en pesos no consulta tasas ni cotiza', async () => {
+            const operation = unaOperacion('asset_in_custody', 'ARS');
+            const rates = unProveedor(TASA);
+            const { uso, repo } = armarConTasa(operation, rates);
+
+            await uso.execute('op-1', BUYER);
+
+            expect(rates.getUsdArsRate).not.toHaveBeenCalled();
+            expect(operation.settlementQuote).toBeUndefined();
+            expect(repo.save).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('con split de Mercado Pago (token del vendedor)', () => {
+        const AHORA = new Date('2026-10-05T12:00:00Z');
+        const TASA: ExchangeRate = { rate: 1500, date: '2026-10-02', source: 'BCRA_A3500' };
+
+        function unOrigenDeTokens(
+            resultado: () => Promise<string> = async () => 'APP_USR-del-vendedor',
+        ): ISellerAccessTokenSource {
+            return { execute: vi.fn(resultado) };
+        }
+
+        function armarSplit(
+            operation: Operation,
+            sellerTokens: ISellerAccessTokenSource,
+            gateway = unaPasarela(),
+        ) {
+            const rates: IExchangeRateProvider = { getUsdArsRate: vi.fn().mockResolvedValue(TASA) };
+            const uso = new CreateCheckoutUseCase(
+                createMockOperationRepo(operation),
+                createMockUserRepo(),
+                gateway,
+                rates,
+                () => AHORA,
+                sellerTokens,
+            );
+            return { uso, gateway };
+        }
+
+        it('en pesos cobra con el token del vendedor y retiene la comisión de la plataforma', async () => {
+            const sellerTokens = unOrigenDeTokens();
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            await uso.execute('op-1', BUYER);
+
+            expect(sellerTokens.execute).toHaveBeenCalledWith(SELLER_ID.toString());
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    amountCents: 1_050_000,
+                    currency: 'ARS',
+                    sellerAccessToken: 'APP_USR-del-vendedor',
+                    marketplaceFeeCents: 100_000,
+                }),
+            );
+        });
+
+        it('en pesos no fija vencimiento: solo las cotizaciones lo tienen', async () => {
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), unOrigenDeTokens());
+
+            await uso.execute('op-1', BUYER);
+
+            const pedido = (gateway.createCheckout as ReturnType<typeof vi.fn>).mock.calls[0][0];
+            expect(pedido.expiresAt).toBeUndefined();
+        });
+
+        it('en dólares cobra el monto y la comisión congelados y vence con la cotización', async () => {
+            const operation = unaOperacion('asset_in_custody', 'USD');
+            const { uso, gateway } = armarSplit(operation, unOrigenDeTokens());
+
+            await uso.execute('op-1', BUYER);
+
+            const quote = operation.settlementQuote!;
+            expect(gateway.createCheckout).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    amountCents: quote.buyerPaysCents,
+                    currency: 'ARS',
+                    sellerAccessToken: 'APP_USR-del-vendedor',
+                    marketplaceFeeCents: quote.platformFeeCents,
+                    expiresAt: quote.expiresAt,
+                }),
+            );
+            expect(quote.platformFeeCents).toBeGreaterThan(0);
+            expect(quote.platformFeeCents).toBeLessThan(quote.buyerPaysCents);
+        });
+
+        it('si el vendedor no vinculó Mercado Pago lo dice y no llama a la pasarela', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new NotFoundError('El vendedor no vinculó su cuenta de Mercado Pago.');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            const error = await uso.execute('op-1', BUYER).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect((error as Error).message).toBe(
+                'El vendedor todavía no habilitó Mercado Pago para cobrar. Podés pagar por transferencia bancaria.',
+            );
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('si no se pudo obtener o renovar el token lo dice y no llama a la pasarela', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new InvalidStateError('No pudimos renovar el permiso de Mercado Pago del vendedor.');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            const error = await uso.execute('op-1', BUYER).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect((error as Error).message).toBe(
+                'Mercado Pago no está disponible para esta operación por ahora. Podés pagar por transferencia bancaria.',
+            );
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('un error inesperado al obtener el token no se disfraza', async () => {
+            const sellerTokens = unOrigenDeTokens(async () => {
+                throw new Error('la base no responde');
+            });
+            const { uso, gateway } = armarSplit(unaOperacion('asset_in_custody', 'ARS'), sellerTokens);
+
+            await expect(uso.execute('op-1', BUYER)).rejects.toThrow('la base no responde');
+            expect(gateway.createCheckout).not.toHaveBeenCalled();
+        });
+
+        it('sin el origen de tokens el pedido no lleva token del vendedor ni comisión', async () => {
+            const { uso, gateway } = armar(unaOperacion('asset_in_custody', 'ARS'));
+
+            await uso.execute('op-1', BUYER);
+
+            const pedido = (gateway.createCheckout as ReturnType<typeof vi.fn>).mock.calls[0][0];
+            expect(Object.keys(pedido)).not.toContain('sellerAccessToken');
+            expect(Object.keys(pedido)).not.toContain('marketplaceFeeCents');
+            expect(Object.keys(pedido)).not.toContain('expiresAt');
+        });
+    });
+
     /**
      * La regla central del escrow: el activo entra antes de que se cobre. Se
      * hace cumplir acá y no solo en la entidad para no mandar a nadie a pagar
@@ -259,5 +512,142 @@ describe('ConfirmPaymentFromGatewayUseCase', () => {
         const { uso } = armar(null, unPagoExterno());
 
         await expect(uso.execute('1234567890')).rejects.toThrow(NotFoundError);
+    });
+
+    describe('con split de Mercado Pago (el pago vive en la cuenta del vendedor)', () => {
+        const MP_USER_ID = '987654';
+
+        function unaCuenta(): SellerPaymentAccount {
+            return SellerPaymentAccount.create({
+                userId: SELLER_ID,
+                mpUserId: MP_USER_ID,
+                accessToken: 'APP_USR-viejo',
+                refreshToken: 'TG-refresco',
+                expiresAt: new Date('2030-01-01T00:00:00Z'),
+                scope: 'offline_access read write',
+                linkedAt: new Date('2026-09-01T00:00:00Z'),
+            });
+        }
+
+        function armarSplit(over: { cuenta?: SellerPaymentAccount | null; conDeps?: boolean } = {}) {
+            const { cuenta = unaCuenta(), conDeps = true } = over;
+            const operation = unaOperacion();
+            const repo = createMockOperationRepo(operation);
+            const gateway = unaPasarela({ fetchPayment: vi.fn().mockResolvedValue(unPagoExterno()) });
+            const accounts: ISellerPaymentAccountRepository = {
+                findByUserId: vi.fn().mockResolvedValue(cuenta),
+                findByMpUserId: vi.fn().mockResolvedValue(cuenta),
+                existsByUserId: vi.fn().mockResolvedValue(cuenta !== null),
+                save: vi.fn().mockResolvedValue(undefined),
+                deleteByUserId: vi.fn().mockResolvedValue(undefined),
+            };
+            const sellerTokens: ISellerAccessTokenSource = {
+                execute: vi.fn().mockResolvedValue('APP_USR-del-vendedor'),
+            };
+            const notifier: INotifier = { notify: vi.fn().mockResolvedValue(undefined) };
+            const plataforma = new PlatformNotifier(notifier, createMockUserRepo());
+            const payoutNeeded = vi.spyOn(plataforma, 'payoutNeeded');
+            const uso = new ConfirmPaymentFromGatewayUseCase(
+                repo,
+                gateway,
+                undefined,
+                plataforma,
+                conDeps ? sellerTokens : undefined,
+                conDeps ? accounts : undefined,
+            );
+            return { uso, operation, gateway, accounts, sellerTokens, payoutNeeded };
+        }
+
+        it('con la pista del cobrador consulta el pago con el token de ese vendedor', async () => {
+            const { uso, gateway, accounts, sellerTokens, operation } = armarSplit();
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(accounts.findByMpUserId).toHaveBeenCalledWith(MP_USER_ID);
+            expect(sellerTokens.execute).toHaveBeenCalledWith(SELLER_ID.toString());
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890', {
+                accessToken: 'APP_USR-del-vendedor',
+            });
+            expect(operation.status).toBe('payment_received');
+        });
+
+        it('un pago con split no avisa la liquidación: Mercado Pago ya le pagó al vendedor', async () => {
+            const { uso, payoutNeeded } = armarSplit();
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(payoutNeeded).not.toHaveBeenCalled();
+        });
+
+        it('sin la pista consulta con el token de la plataforma y avisa la liquidación', async () => {
+            const { uso, gateway, accounts, payoutNeeded } = armarSplit();
+
+            await uso.execute('1234567890');
+
+            expect(accounts.findByMpUserId).not.toHaveBeenCalled();
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        it('con una pista que no corresponde a ninguna cuenta vuelve al camino de siempre', async () => {
+            const { uso, gateway, sellerTokens, payoutNeeded } = armarSplit({ cuenta: null });
+
+            await uso.execute('1234567890', { collectorMpUserId: 'desconocido' });
+
+            expect(sellerTokens.execute).not.toHaveBeenCalled();
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        it('sin las dependencias del split ignora la pista', async () => {
+            const { uso, gateway, payoutNeeded } = armarSplit({ conDeps: false });
+
+            await uso.execute('1234567890', { collectorMpUserId: MP_USER_ID });
+
+            expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
+            expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        describe('cuando no se puede obtener el token del vendedor', () => {
+            it.each([
+                ['la cuenta no existe (NotFoundError)', new NotFoundError('sin cuenta')],
+                ['la renovación falló (InvalidStateError)', new InvalidStateError('renovación fallida')],
+            ])('%s: falla con SellerTokenUnavailableError y no confirma nada', async (_caso, causa) => {
+                const { uso, operation, gateway, sellerTokens, payoutNeeded } = armarSplit();
+                (sellerTokens.execute as ReturnType<typeof vi.fn>).mockRejectedValue(causa);
+
+                const error = await uso
+                    .execute('1234567890', { collectorMpUserId: MP_USER_ID })
+                    .catch((e: unknown) => e);
+
+                expect(error).toBeInstanceOf(SellerTokenUnavailableError);
+                expect((error as SellerTokenUnavailableError).code).toBe('SELLER_TOKEN_UNAVAILABLE');
+                // La causa original no se filtra en el mensaje.
+                expect((error as Error).message).not.toContain(causa.message);
+                expect(gateway.fetchPayment).not.toHaveBeenCalled();
+                expect(operation.status).toBe('asset_in_custody');
+                expect(payoutNeeded).not.toHaveBeenCalled();
+            });
+
+            it('un error inesperado se propaga sin cambios', async () => {
+                const { uso, sellerTokens } = armarSplit();
+                const inesperado = new Error('la base se cayó');
+                (sellerTokens.execute as ReturnType<typeof vi.fn>).mockRejectedValue(inesperado);
+
+                await expect(
+                    uso.execute('1234567890', { collectorMpUserId: MP_USER_ID }),
+                ).rejects.toBe(inesperado);
+            });
+        });
+
+        it('la conciliación sigue igual: rechaza un monto que no cierra', async () => {
+            const { uso, gateway, operation } = armarSplit();
+            (gateway.fetchPayment as ReturnType<typeof vi.fn>).mockResolvedValue(
+                unPagoExterno({ amountCents: 500_000 }),
+            );
+
+            await expect(uso.execute('1234567890', { collectorMpUserId: MP_USER_ID })).rejects.toThrow();
+            expect(operation.status).toBe('asset_in_custody');
+        });
     });
 });

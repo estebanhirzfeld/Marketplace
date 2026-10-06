@@ -116,6 +116,172 @@ describe('MercadoPagoGateway — armado del checkout', () => {
     });
 });
 
+describe('MercadoPagoGateway — cobro con split', () => {
+    const TOKEN_VENDEDOR = 'APP_USR-token-del-vendedor';
+    const PREFERENCIA = () => json({ id: 'pref-1', init_point: 'https://mp/checkout/pref-1' });
+    const BASE = {
+        externalReference: 'op-1',
+        description: 'Compra',
+        amountCents: 157_500_000,
+        currency: 'ARS',
+        payerEmail: 'comprador@example.com',
+    };
+
+    it('crea la preferencia con el token del vendedor y nunca envía el de la plataforma', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            ...BASE,
+            sellerAccessToken: TOKEN_VENDEDOR,
+            marketplaceFeeCents: 15_200,
+        });
+
+        const [url, init] = impl.mock.calls[0];
+        expect(url).toBe('https://api.mercadopago.com/checkout/preferences');
+        expect(init.headers.authorization).toBe(`Bearer ${TOKEN_VENDEDOR}`);
+        // El token de la plataforma no viaja en ningún lado del pedido.
+        expect(JSON.stringify(init)).not.toContain(CONFIG.accessToken);
+    });
+
+    it('convierte la comisión de centavos a pesos con decimales', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            ...BASE,
+            sellerAccessToken: TOKEN_VENDEDOR,
+            marketplaceFeeCents: 15_200,
+        });
+
+        const cuerpo = JSON.parse(impl.mock.calls[0][1].body);
+        expect(cuerpo.marketplace_fee).toBe(152);
+        expect(typeof cuerpo.marketplace_fee).toBe('number');
+        expect(cuerpo.items[0].unit_price).toBe(1_575_000);
+    });
+
+    it('conserva los centavos de la comisión', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            ...BASE,
+            sellerAccessToken: TOKEN_VENDEDOR,
+            marketplaceFeeCents: 15_205,
+        });
+
+        expect(JSON.parse(impl.mock.calls[0][1].body).marketplace_fee).toBe(152.05);
+    });
+
+    it('con vencimiento agrega expires y expiration_date_to', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+        const expiresAt = new Date('2026-10-06T12:00:00.000Z');
+
+        await gateway.createCheckout({
+            ...BASE,
+            sellerAccessToken: TOKEN_VENDEDOR,
+            marketplaceFeeCents: 15_200,
+            expiresAt,
+        });
+
+        const cuerpo = JSON.parse(impl.mock.calls[0][1].body);
+        expect(cuerpo.expires).toBe(true);
+        expect(cuerpo.expiration_date_to).toBe('2026-10-06T12:00:00.000Z');
+    });
+
+    it('sin vencimiento no manda campos de expiración', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            ...BASE,
+            sellerAccessToken: TOKEN_VENDEDOR,
+            marketplaceFeeCents: 15_200,
+        });
+
+        const cuerpo = JSON.parse(impl.mock.calls[0][1].body);
+        expect(cuerpo).not.toHaveProperty('expires');
+        expect(cuerpo).not.toHaveProperty('expiration_date_to');
+    });
+
+    it('sin token del vendedor ignora la comisión y el vencimiento', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout({
+            ...BASE,
+            marketplaceFeeCents: 15_200,
+            expiresAt: new Date('2026-10-06T12:00:00.000Z'),
+        });
+
+        const [, init] = impl.mock.calls[0];
+        const cuerpo = JSON.parse(init.body);
+        expect(init.headers.authorization).toBe(`Bearer ${CONFIG.accessToken}`);
+        expect(cuerpo).not.toHaveProperty('marketplace_fee');
+        expect(cuerpo).not.toHaveProperty('expires');
+    });
+
+    it('el pedido sin split queda exactamente como antes', async () => {
+        const { gateway, impl } = armar(PREFERENCIA());
+
+        await gateway.createCheckout(BASE);
+
+        const [url, init] = impl.mock.calls[0];
+        expect(url).toBe('https://api.mercadopago.com/checkout/preferences');
+        expect(init).toEqual({
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${CONFIG.accessToken}`,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                items: [{ title: 'Compra', quantity: 1, currency_id: 'ARS', unit_price: 1_575_000 }],
+                payer: { email: 'comprador@example.com' },
+                external_reference: 'op-1',
+                back_urls: {
+                    success: CONFIG.backUrl,
+                    pending: CONFIG.backUrl,
+                    failure: CONFIG.backUrl,
+                },
+                notification_url: CONFIG.notificationUrl,
+            }),
+        });
+    });
+
+    it('consulta el pago con el token del vendedor cuando se lo pasan', async () => {
+        const { gateway, impl } = armar(
+            json({
+                id: 1,
+                status: 'approved',
+                payment_type_id: 'credit_card',
+                transaction_amount: 1_575_000,
+                currency_id: 'ARS',
+                external_reference: 'op-1',
+            }),
+        );
+
+        const pago = await gateway.fetchPayment('1', { accessToken: TOKEN_VENDEDOR });
+
+        const [, init] = impl.mock.calls[0];
+        expect(init.headers.authorization).toBe(`Bearer ${TOKEN_VENDEDOR}`);
+        expect(JSON.stringify(init)).not.toContain(CONFIG.accessToken);
+        expect(pago?.amountCents).toBe(157_500_000);
+    });
+
+    it('consulta el pago con el token de la plataforma si no hay otro', async () => {
+        const { gateway, impl } = armar(json({}, 404));
+
+        await gateway.fetchPayment('1');
+
+        expect(impl.mock.calls[0][1].headers.authorization).toBe(`Bearer ${CONFIG.accessToken}`);
+    });
+
+    it('no filtra el token del vendedor cuando Mercado Pago rechaza el pedido', async () => {
+        const { gateway } = armar(json({ message: TOKEN_VENDEDOR }, 401));
+
+        const error = await gateway
+            .createCheckout({ ...BASE, sellerAccessToken: TOKEN_VENDEDOR, marketplaceFeeCents: 15_200 })
+            .catch((e: unknown) => e);
+
+        expect((error as Error).message).not.toContain(TOKEN_VENDEDOR);
+    });
+});
+
 describe('MercadoPagoGateway — consulta de un pago', () => {
     const PAGO = {
         id: 1234567890,

@@ -11,13 +11,22 @@ import { PrismaListingRepository } from "../src/repositories/PrismaListingReposi
 import { Contract } from "@marketplace/domain/src/entities/Contract";
 import { PrismaContractRepository } from "../src/repositories/PrismaContractRepository";
 import { Operation } from "@marketplace/domain/src/entities/Operation";
+import { SettlementQuote } from "@marketplace/domain/src/value-objects/SettlementQuote";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
 import { Report } from "@marketplace/domain/src/entities/Report";
 import { PrismaReportRepository } from "../src/repositories/PrismaReportRepository";
 import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
 import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
+import { SellerPaymentAccount } from "@marketplace/domain/src/entities/SellerPaymentAccount";
+import { ISecretCipher } from "@marketplace/domain/src/ports/ISecretCipher";
+import {
+    PrismaSellerPaymentAccountRepository,
+    isMpUserIdConflict,
+} from "../src/repositories/PrismaSellerPaymentAccountRepository";
+import { ValidationError } from "@marketplace/domain/src/errors/DomainError";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
+import { Prisma } from "../generated/prisma/client";
 
 const userRepo = new PrismaUserRepository();
 const listingRepo = new PrismaListingRepository();
@@ -92,10 +101,12 @@ beforeEach(async () => {
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
     await prisma.custodyAccount.deleteMany();
+    await prisma.sellerPaymentAccount.deleteMany();
     await prisma.user.deleteMany();
 });
 
 afterAll(async () => {
+    await prisma.sellerPaymentAccount.deleteMany();
     await prisma.report.deleteMany();
     await prisma.contract.deleteMany();
     await prisma.operation.deleteMany();
@@ -685,6 +696,172 @@ describe("PrismaOperationRepository", () => {
     });
 
     /**
+     * Las cotizaciones en pesos viajan a una columna Json como historial: se
+     * guardan con la fecha de vencimiento en ISO y hay que revivirlas en orden.
+     * Sin historial, la columna queda nula y se lee como "sin cotizaciones".
+     */
+    describe("settlementQuotes", () => {
+        async function unaOperacionEnCustodia(prefix: string): Promise<Operation> {
+            const buyer = await createPersistedUser({
+                email: `buyer-${prefix}@test.com`,
+                role: UserRole.BUYER,
+            });
+            const seller = await createPersistedUser({
+                email: `seller-${prefix}@test.com`,
+                role: UserRole.SELLER,
+            });
+            const admin = await createPersistedUser({
+                email: `admin-${prefix}@test.com`,
+                role: UserRole.ADMIN,
+            });
+            const listing = await createPersistedListing(seller.id);
+
+            const operation = Operation.create({
+                listingId: listing.id,
+                buyerId: buyer.id,
+                sellerId: seller.id,
+                offerPrice: Money.fromCents(1_000_000, "USD"),
+            });
+            operation.acceptCurrentOffer("seller");
+            operation.signContract();
+            operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+            operation.confirmAssetCustody({
+                verifiedBy: admin.id,
+                isPrimaryOwner: true,
+                accessSecured: true,
+                metrics: {},
+            });
+            return operation;
+        }
+
+        function unaCotizacion(operation: Operation, rate: number, now: Date): SettlementQuote {
+            return SettlementQuote.create({
+                buyerPays: operation.buyerPays!,
+                sellerReceives: operation.sellerReceives!,
+                exchangeRate: { rate, date: "2026-10-02", source: "BCRA_A3500" },
+                now,
+            });
+        }
+
+        it("debería persistir dos cotizaciones y leerlas en el mismo orden", async () => {
+            const operation = await unaOperacionEnCustodia("cot-dos");
+            const primera = unaCotizacion(operation, 1500, new Date("2026-10-05T12:00:00Z"));
+            const segunda = unaCotizacion(operation, 1600, new Date("2026-10-07T12:00:00Z"));
+            operation.quoteSettlement(primera);
+            operation.quoteSettlement(segunda);
+
+            await operationRepo.save(operation);
+            const retrieved = await operationRepo.findById(operation.id.toString());
+
+            expect(retrieved!.status).toBe("asset_in_custody");
+            expect(retrieved!.settlementQuotes).toHaveLength(2);
+            expect(retrieved!.settlementQuotes[0].rate).toBe(1500);
+            expect(retrieved!.settlementQuotes[0].buyerPaysCents).toBe(primera.buyerPaysCents);
+            expect(retrieved!.settlementQuotes[0].platformFeeCents).toBe(primera.platformFeeCents);
+            expect(retrieved!.settlementQuotes[1].rate).toBe(1600);
+            expect(retrieved!.settlementQuotes[1].buyerPaysCents).toBe(segunda.buyerPaysCents);
+            expect(retrieved!.settlementQuotes[1].expiresAt).toBeInstanceOf(Date);
+            expect(retrieved!.settlementQuotes[1].expiresAt.getTime()).toBe(segunda.expiresAt.getTime());
+            expect(retrieved!.settlementQuote?.rate).toBe(1600);
+        });
+
+        it("debería leer una operación sin cotizaciones sin historial", async () => {
+            const operation = await unaOperacionEnCustodia("cot-ninguna");
+
+            await operationRepo.save(operation);
+            const retrieved = await operationRepo.findById(operation.id.toString());
+
+            expect(retrieved!.settlementQuotes).toHaveLength(0);
+            expect(retrieved!.settlementQuote).toBeUndefined();
+        });
+
+        /**
+         * Una columna escrita por fuera del repositorio (a mano, una migración
+         * rota) tiene que fallar fuerte al leerla, no rehidratar basura.
+         */
+        describe("columna corrupta", () => {
+            function unaEntradaValida() {
+                return {
+                    rate: 1500,
+                    rateDate: "2026-10-02",
+                    source: "BCRA_A3500",
+                    currency: "ARS",
+                    buyerPaysCents: 1_575_000_000,
+                    sellerReceivesCents: 1_425_000_000,
+                    platformFeeCents: 150_000_000,
+                    expiresAt: "2026-10-06T12:00:00.000Z",
+                };
+            }
+
+            async function leerConColumna(prefix: string, columna: Prisma.InputJsonValue) {
+                const operation = await unaOperacionEnCustodia(prefix);
+                await operationRepo.save(operation);
+                await prisma.operation.update({
+                    where: { id: operation.id.toString() },
+                    data: { settlementQuotes: columna },
+                });
+                return operationRepo.findById(operation.id.toString());
+            }
+
+            it("la entrada válida escrita a mano se lee bien", async () => {
+                const retrieved = await leerConColumna("cor-ok", [unaEntradaValida()]);
+
+                expect(retrieved!.settlementQuotes).toHaveLength(1);
+                expect(retrieved!.settlementQuotes[0].rate).toBe(1500);
+            });
+
+            it("rechaza una columna que no es un array", async () => {
+                await expect(leerConColumna("cor-obj", { rate: 1500 })).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada que no es un objeto", async () => {
+                await expect(leerConColumna("cor-str", ["1500"])).rejects.toThrow(/corrupta/);
+                await expect(leerConColumna("cor-nul", [null])).rejects.toThrow(/corrupta/);
+                await expect(leerConColumna("cor-arr", [[1500]])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada sin un campo obligatorio", async () => {
+                const { platformFeeCents: _omitido, ...incompleta } = unaEntradaValida();
+
+                await expect(leerConColumna("cor-falta", [incompleta])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una entrada con un campo de tipo equivocado", async () => {
+                const entrada = { ...unaEntradaValida(), buyerPaysCents: "1575000000" };
+
+                await expect(leerConColumna("cor-tipo", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una moneda que no es ARS", async () => {
+                const entrada = { ...unaEntradaValida(), currency: "USD" };
+
+                await expect(leerConColumna("cor-mon", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una fecha de vencimiento inválida", async () => {
+                const entrada = { ...unaEntradaValida(), expiresAt: "no-es-una-fecha" };
+
+                await expect(leerConColumna("cor-fecha", [entrada])).rejects.toThrow(/corrupta/);
+            });
+
+            it("rechaza una tasa que no es un número finito", async () => {
+                // JSON no tiene NaN ni Infinity: lo más cercano que puede llegar
+                // a la columna es un número fuera de rango, que `JSON.parse`
+                // convierte en Infinity. Prisma no lo escribe (serializa a
+                // `null`), así que va por SQL crudo.
+                const texto = JSON.stringify([unaEntradaValida()]).replace("1500", "1e999");
+                expect(JSON.parse(texto)[0].rate).toBe(Number.POSITIVE_INFINITY);
+
+                const operation = await unaOperacionEnCustodia("cor-inf");
+                await operationRepo.save(operation);
+                await prisma.$executeRaw`UPDATE operations SET "settlementQuotes" = ${texto}::jsonb WHERE id = ${operation.id.toString()}`;
+
+                await expect(operationRepo.findById(operation.id.toString())).rejects.toThrow(/corrupta/);
+            });
+        });
+    });
+
+    /**
      * La declaración de cesión del vendedor vive en una columna Json, espejo
      * de `custodyCheck`: el Date viaja como string ISO y hay que revivirlo.
      */
@@ -902,5 +1079,282 @@ describe("PrismaReportRepository", () => {
         expect(guardada!.status).toBe("closed");
         expect(guardada!.closedAt).toBeInstanceOf(Date);
         expect(guardada!.closedReason).toBe("Nos arreglamos entre las partes.");
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+// Cuenta de Mercado Pago del vendedor
+// ═════════════════════════════════════════════════════════
+
+/**
+ * Cifrador de prueba, reversible y reconocible: no es seguro, solo permite
+ * comprobar que el repositorio cifra al guardar y descifra al leer sin traer
+ * la implementación real (vive en apps/api).
+ */
+class FakeCipher implements ISecretCipher {
+    encrypt(plain: string): string {
+        return `fake:${Buffer.from(plain, "utf8").reverse().toString("base64")}`;
+    }
+    decrypt(payload: string): string {
+        if (!payload.startsWith("fake:")) throw new Error("payload ajeno");
+        return Buffer.from(payload.slice(5), "base64").reverse().toString("utf8");
+    }
+}
+
+describe("PrismaSellerPaymentAccountRepository", () => {
+    const paymentRepo = new PrismaSellerPaymentAccountRepository(new FakeCipher());
+    const VENCE = new Date("2030-01-01T00:00:00.000Z");
+    const VINCULADA = new Date("2026-10-05T12:00:00.000Z");
+
+    function unaCuenta(
+        userId: UniqueEntityID,
+        overrides: { accessToken?: string; refreshToken?: string; mpUserId?: string } = {},
+    ) {
+        return SellerPaymentAccount.create({
+            userId,
+            mpUserId: overrides.mpUserId ?? "mp-123",
+            accessToken: overrides.accessToken ?? "APP_USR-token-en-claro",
+            refreshToken: overrides.refreshToken ?? "TG-refresco-en-claro",
+            expiresAt: VENCE,
+            scope: "offline_access read write",
+            linkedAt: VINCULADA,
+        });
+    }
+
+    it("ida y vuelta: guarda y recupera la cuenta con los tokens en claro", async () => {
+        const seller = await createPersistedUser({ email: "mp-rt@test.com", role: UserRole.SELLER });
+        const cuenta = unaCuenta(seller.id);
+
+        await paymentRepo.save(cuenta);
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+
+        expect(leida).not.toBeNull();
+        expect(leida!.id.equals(cuenta.id)).toBe(true);
+        expect(leida!.userId.equals(seller.id)).toBe(true);
+        expect(leida!.mpUserId).toBe("mp-123");
+        expect(leida!.accessToken).toBe("APP_USR-token-en-claro");
+        expect(leida!.refreshToken).toBe("TG-refresco-en-claro");
+        expect(leida!.expiresAt).toEqual(VENCE);
+        expect(leida!.scope).toBe("offline_access read write");
+        expect(leida!.linkedAt).toEqual(VINCULADA);
+    });
+
+    it("las columnas guardadas no contienen el texto plano de los tokens", async () => {
+        const seller = await createPersistedUser({ email: "mp-raw@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        const filas = await prisma.$queryRaw<
+            Array<{ accessTokenCipher: string; refreshTokenCipher: string }>
+        >`SELECT "accessTokenCipher", "refreshTokenCipher" FROM seller_payment_accounts WHERE "userId" = ${seller.id.toString()}`;
+
+        expect(filas).toHaveLength(1);
+        expect(filas[0].accessTokenCipher).not.toContain("APP_USR-token-en-claro");
+        expect(filas[0].refreshTokenCipher).not.toContain("TG-refresco-en-claro");
+        expect(filas[0].accessTokenCipher.startsWith("fake:")).toBe(true);
+        expect(filas[0].refreshTokenCipher.startsWith("fake:")).toBe(true);
+    });
+
+    it("devuelve null si el usuario no vinculó nada", async () => {
+        const seller = await createPersistedUser({ email: "mp-none@test.com", role: UserRole.SELLER });
+
+        expect(await paymentRepo.findByUserId(seller.id.toString())).toBeNull();
+    });
+
+    it("existsByUserId distingue si hay cuenta vinculada", async () => {
+        const vinculado = await createPersistedUser({ email: "mp-ex-si@test.com", role: UserRole.SELLER });
+        const sinVincular = await createPersistedUser({ email: "mp-ex-no@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(vinculado.id));
+
+        expect(await paymentRepo.existsByUserId(vinculado.id.toString())).toBe(true);
+        expect(await paymentRepo.existsByUserId(sinVincular.id.toString())).toBe(false);
+    });
+
+    it("existsByUserId no descifra: responde aunque la fila no se pueda descifrar", async () => {
+        const seller = await createPersistedUser({ email: "mp-ex-corrupta@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+        // Simula la clave rotada o una fila corrupta: el texto cifrado ya no es
+        // válido para el cifrador.
+        await prisma.sellerPaymentAccount.update({
+            where: { userId: seller.id.toString() },
+            data: { accessTokenCipher: "basura-ilegible" },
+        });
+
+        await expect(paymentRepo.findByUserId(seller.id.toString())).rejects.toThrow();
+        expect(await paymentRepo.existsByUserId(seller.id.toString())).toBe(true);
+    });
+
+    it("vincular de nuevo reemplaza la cuenta anterior (upsert por usuario)", async () => {
+        const seller = await createPersistedUser({ email: "mp-relink@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await paymentRepo.save(
+            unaCuenta(seller.id, { accessToken: "token-nuevo", refreshToken: "refresco-nuevo" }),
+        );
+
+        expect(await prisma.sellerPaymentAccount.count({ where: { userId: seller.id.toString() } })).toBe(1);
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+        expect(leida!.accessToken).toBe("token-nuevo");
+        expect(leida!.refreshToken).toBe("refresco-nuevo");
+    });
+
+    it("guardar una cuenta renovada actualiza los tokens", async () => {
+        const seller = await createPersistedUser({ email: "mp-renew@test.com", role: UserRole.SELLER });
+        const cuenta = unaCuenta(seller.id);
+        await paymentRepo.save(cuenta);
+
+        cuenta.renew({
+            accessToken: "renovado",
+            refreshToken: "refresco-renovado",
+            expiresAt: new Date("2031-01-01T00:00:00.000Z"),
+            now: new Date("2026-10-06T00:00:00.000Z"),
+        });
+        await paymentRepo.save(cuenta);
+
+        const leida = await paymentRepo.findByUserId(seller.id.toString());
+        expect(leida!.accessToken).toBe("renovado");
+        expect(leida!.expiresAt).toEqual(new Date("2031-01-01T00:00:00.000Z"));
+    });
+
+    it("deleteByUserId borra la cuenta y no falla si no existe", async () => {
+        const seller = await createPersistedUser({ email: "mp-del@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await paymentRepo.deleteByUserId(seller.id.toString());
+        expect(await paymentRepo.findByUserId(seller.id.toString())).toBeNull();
+
+        await expect(paymentRepo.deleteByUserId(seller.id.toString())).resolves.toBeUndefined();
+    });
+
+    it("una cuenta por usuario: la base rechaza una segunda fila", async () => {
+        const seller = await createPersistedUser({ email: "mp-uniq@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await expect(
+            prisma.sellerPaymentAccount.create({
+                data: {
+                    userId: seller.id.toString(),
+                    mpUserId: "otro",
+                    accessTokenCipher: "x",
+                    refreshTokenCipher: "y",
+                    expiresAt: VENCE,
+                    scope: "s",
+                    linkedAt: VINCULADA,
+                },
+            }),
+        ).rejects.toThrow();
+    });
+
+    it("borrar al usuario borra su cuenta en cascada", async () => {
+        const seller = await createPersistedUser({ email: "mp-cascade@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+
+        await prisma.user.delete({ where: { id: seller.id.toString() } });
+
+        expect(await prisma.sellerPaymentAccount.count()).toBe(0);
+    });
+
+    it("no mezcla cuentas de usuarios distintos", async () => {
+        const a = await createPersistedUser({ email: "mp-a@test.com", role: UserRole.SELLER });
+        const b = await createPersistedUser({ email: "mp-b@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(a.id, { accessToken: "token-a", mpUserId: "mp-a" }));
+        await paymentRepo.save(unaCuenta(b.id, { accessToken: "token-b", mpUserId: "mp-b" }));
+
+        expect((await paymentRepo.findByUserId(a.id.toString()))!.accessToken).toBe("token-a");
+        expect((await paymentRepo.findByUserId(b.id.toString()))!.accessToken).toBe("token-b");
+    });
+
+    it("findByMpUserId devuelve la cuenta con los tokens en claro", async () => {
+        const seller = await createPersistedUser({ email: "mp-byid@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-buscado" }));
+
+        const leida = await paymentRepo.findByMpUserId("mp-buscado");
+
+        expect(leida).not.toBeNull();
+        expect(leida!.userId.equals(seller.id)).toBe(true);
+        expect(leida!.accessToken).toBe("APP_USR-token-en-claro");
+        expect(leida!.refreshToken).toBe("TG-refresco-en-claro");
+    });
+
+    it("findByMpUserId devuelve null si ninguna cuenta tiene ese usuario de Mercado Pago", async () => {
+        expect(await paymentRepo.findByMpUserId("nadie")).toBeNull();
+    });
+
+    it("una cuenta de Mercado Pago por usuario de la plataforma: la base rechaza repetirla en otro", async () => {
+        const a = await createPersistedUser({ email: "mp-dup-a@test.com", role: UserRole.SELLER });
+        const b = await createPersistedUser({ email: "mp-dup-b@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(a.id, { mpUserId: "mp-compartido" }));
+
+        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toThrow(
+            new ValidationError("Esa cuenta de Mercado Pago ya está vinculada a otro usuario."),
+        );
+        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toBeInstanceOf(
+            ValidationError,
+        );
+
+        expect(await paymentRepo.findByUserId(b.id.toString())).toBeNull();
+    });
+
+    it("un fallo ajeno al índice de mpUserId no se traduce: se propaga tal cual", async () => {
+        // Un usuario que nunca se persistió viola la clave foránea, no el índice único.
+        const fantasma = new UniqueEntityID();
+
+        const error = await paymentRepo.save(unaCuenta(fantasma, { mpUserId: "mp-fantasma" })).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error).not.toBeInstanceOf(ValidationError);
+    });
+
+    describe("isMpUserIdConflict", () => {
+        function p2002(meta: Record<string, unknown>) {
+            return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+                code: "P2002",
+                clientVersion: "test",
+                meta,
+            });
+        }
+
+        it("reconoce el campo como arreglo de nombres", () => {
+            expect(isMpUserIdConflict(p2002({ target: ["mpUserId"] }))).toBe(true);
+        });
+
+        it("reconoce el nombre del índice como texto", () => {
+            expect(isMpUserIdConflict(p2002({ target: "seller_payment_accounts_mpUserId_key" }))).toBe(true);
+        });
+
+        it("reconoce la forma del adaptador de driver de Prisma 7", () => {
+            const error = p2002({
+                driverAdapterError: {
+                    cause: { kind: "UniqueConstraintViolation", constraint: { fields: ['"mpUserId"'] } },
+                },
+            });
+            expect(isMpUserIdConflict(error)).toBe(true);
+        });
+
+        it("no reconoce un conflicto sobre otro campo", () => {
+            expect(isMpUserIdConflict(p2002({ target: ["userId"] }))).toBe(false);
+            expect(isMpUserIdConflict(p2002({ target: "seller_payment_accounts_userId_key" }))).toBe(false);
+        });
+
+        it("no reconoce otros códigos ni errores comunes", () => {
+            const otro = new Prisma.PrismaClientKnownRequestError("fk", {
+                code: "P2003",
+                clientVersion: "test",
+                meta: { target: ["mpUserId"] },
+            });
+            expect(isMpUserIdConflict(otro)).toBe(false);
+            expect(isMpUserIdConflict(new Error("mpUserId"))).toBe(false);
+            expect(isMpUserIdConflict("mpUserId")).toBe(false);
+        });
+    });
+
+    it("el mismo usuario puede volver a vincular la misma cuenta de Mercado Pago", async () => {
+        const seller = await createPersistedUser({ email: "mp-same@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-propio" }));
+
+        await expect(
+            paymentRepo.save(unaCuenta(seller.id, { mpUserId: "mp-propio", accessToken: "otro-token" })),
+        ).resolves.toBeUndefined();
+
+        expect((await paymentRepo.findByMpUserId("mp-propio"))!.accessToken).toBe("otro-token");
     });
 });

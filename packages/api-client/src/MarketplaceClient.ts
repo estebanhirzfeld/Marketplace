@@ -8,6 +8,7 @@ import {
     VerificationSourceDto,
     CloseReportRequest,
     CheckoutDto,
+    PaymentOptionsDto,
     ConfirmCustodyRequest,
     ConfirmPaymentRequest,
     InitiateTransferRequest,
@@ -42,6 +43,9 @@ import {
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
+    SellerPaymentAccountStatusDto,
+    MercadoPagoAuthorizationRequest,
+    LinkMercadoPagoRequest,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -110,6 +114,28 @@ export class MarketplaceClient {
 
     marcarAvisoLeido(id: string): Promise<void> {
         return this.request('POST', `/me/notifications/${encodeURIComponent(id)}/read`);
+    }
+
+    // ── Cuenta de Mercado Pago del vendedor ──────────────
+
+    /** Si el usuario vinculó su cuenta de Mercado Pago. Nunca trae tokens. */
+    paymentAccountStatus(): Promise<SellerPaymentAccountStatusDto> {
+        return this.request('GET', '/me/mercadopago');
+    }
+
+    /** Dónde tiene que autorizar el vendedor para vincular su cuenta. */
+    mercadoPagoAuthorizationUrl(body: MercadoPagoAuthorizationRequest): Promise<AuthorizationUrlDto> {
+        return this.request('POST', '/me/mercadopago/authorization', { body });
+    }
+
+    /** Completa la vinculación con el código y el verificador PKCE. */
+    linkMercadoPago(body: LinkMercadoPagoRequest): Promise<void> {
+        return this.request('POST', '/me/mercadopago/link', { body });
+    }
+
+    /** Desvincula la cuenta. Idempotente. */
+    unlinkMercadoPago(): Promise<void> {
+        return this.request('DELETE', '/me/mercadopago');
     }
 
     // ── Listings ─────────────────────────────────────────
@@ -286,6 +312,11 @@ export class MarketplaceClient {
     /** Pide el link de pago. Solo con el activo en custodia. */
     checkout(operationId: string): Promise<CheckoutDto> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/checkout`);
+    }
+
+    /** Cómo puede pagar el comprador: Mercado Pago y transferencia, con su disponibilidad. */
+    paymentOptions(operationId: string): Promise<PaymentOptionsDto> {
+        return this.request('GET', `/operations/${encodeURIComponent(operationId)}/payment-options`);
     }
 
     /** Registra una transferencia bancaria. Los pagos de MercadoPago los confirma el webhook. */

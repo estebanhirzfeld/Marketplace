@@ -7,6 +7,7 @@ import {
     PrismaUnitOfWork,
     PrismaNotificationRepository,
     PrismaCustodyAccountRepository,
+    PrismaSellerPaymentAccountRepository,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -44,6 +45,7 @@ import { GetMyListingsUseCase } from '@marketplace/domain/src/use-cases/listing/
 import { GetListingsForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/GetListingsForReviewUseCase';
 import { GetMyOperationsUseCase } from '@marketplace/domain/src/use-cases/operation/GetMyOperationsUseCase';
 import { GetOperationDetailsUseCase } from '@marketplace/domain/src/use-cases/operation/GetOperationDetailsUseCase';
+import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
 import { CreateOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/CreateOfferUseCase';
 import { CounterOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/CounterOfferUseCase';
 import { AcceptOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/AcceptOfferUseCase';
@@ -65,6 +67,7 @@ import {
     CreateCheckoutUseCase,
 } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
+import { BcraExchangeRateProvider } from './adapters/BcraExchangeRateProvider';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
@@ -82,8 +85,18 @@ import { MarkNotificationReadUseCase } from '@marketplace/domain/src/use-cases/n
 import { NegotiationNotifier } from '@marketplace/domain/src/services/NegotiationNotifier';
 import { PlatformNotifier } from '@marketplace/domain/src/services/PlatformNotifier';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
-import { IListingRepository } from '@marketplace/domain/src/ports/Repositories';
+import {
+    IListingRepository,
+    ISellerPaymentAccountRepository,
+} from '@marketplace/domain/src/ports/Repositories';
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
+import { AesGcmSecretCipher } from './adapters/AesGcmSecretCipher';
+import { MercadoPagoOAuthClient } from './adapters/MercadoPagoOAuthClient';
+import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
+import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
+import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
+import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import { GetSellerAccessTokenUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerAccessTokenUseCase';
 
 /**
  * Composition root.
@@ -95,6 +108,23 @@ import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
  */
 export interface Container {
     listingRepo: IListingRepository;
+    /**
+     * Ausente mientras no haya `MP_TOKEN_ENCRYPTION_KEY`: sin clave no hay
+     * dónde guardar los tokens de los vendedores.
+     */
+    sellerPaymentAccounts?: ISellerPaymentAccountRepository;
+    /**
+     * La vinculación de la cuenta de Mercado Pago del vendedor. Ausentes
+     * mientras falte el cliente de OAuth (`MP_OAUTH_*`) o la clave de cifrado:
+     * las rutas de `/me/mercadopago` responden 503 en vez de que la API no
+     * arranque.
+     */
+    mercadoPagoOAuth?: IMercadoPagoOAuthClient;
+    linkSellerPaymentAccount?: LinkSellerPaymentAccountUseCase;
+    getSellerPaymentAccountStatus?: GetSellerPaymentAccountStatusUseCase;
+    unlinkSellerPaymentAccount?: UnlinkSellerPaymentAccountUseCase;
+    /** Lo usa el cobro con split (`MERCADOPAGO_SPLIT_ENABLED`) para operar con el token del vendedor. */
+    getSellerAccessToken?: GetSellerAccessTokenUseCase;
     registerUser: RegisterUserUseCase;
     login: LoginUseCase;
     perfil: GetMyProfileUseCase;
@@ -131,6 +161,8 @@ export interface Container {
     tableroDePlataforma: GetPlatformDashboardUseCase;
     misOperaciones: GetMyOperationsUseCase;
     detalleOperacion: GetOperationDetailsUseCase;
+    /** Siempre disponible: informa qué opciones de pago hay, incluso si ninguna. */
+    paymentOptions: GetPaymentOptionsUseCase;
     createOffer: CreateOfferUseCase;
     counterOffer: CounterOfferUseCase;
     acceptOffer: AcceptOfferUseCase;
@@ -179,6 +211,94 @@ export function createContainer(
           })
         : undefined;
 
+    // La pesificación de operaciones en USD es opcional: apagada por defecto, el
+    // comportamiento es el de siempre. Solo el texto exacto `1` o `true` la
+    // enciende.
+    const exchangeRateFlag = process.env.EXCHANGE_RATE_ENABLED?.trim();
+    const overrideRaw = process.env.EXCHANGE_RATE_OVERRIDE_USD_ARS?.trim();
+    // Una tasa manual mal escrita (por ejemplo `1.500,5`) se ignoraba en
+    // silencio y el operador creía estar usándola: se avisa al arrancar.
+    if (overrideRaw) {
+        const override = Number(overrideRaw);
+        if (!Number.isFinite(override) || override <= 0) {
+            console.warn(
+                `[config] EXCHANGE_RATE_OVERRIDE_USD_ARS="${overrideRaw}" no es un número positivo: ` +
+                    'se ignora la tasa manual. Usá un número con punto decimal, por ejemplo 1500.5.',
+            );
+        }
+    }
+    const exchangeRates =
+        exchangeRateFlag === '1' || exchangeRateFlag === 'true'
+            ? new BcraExchangeRateProvider({
+                  override: overrideRaw ? Number(overrideRaw) : undefined,
+              })
+            : undefined;
+
+    // Cuenta de Mercado Pago del vendedor. La clave cifra los tokens en
+    // reposo; sin ella no se arma el repositorio. Exigir la vinculación para
+    // publicar está apagado por defecto (solo `1` o `true` lo enciende): sin la
+    // pantalla de vinculación, encenderlo dejaría a los vendedores sin poder
+    // publicar.
+    const tokenKey = process.env.MP_TOKEN_ENCRYPTION_KEY?.trim();
+    const requireMpLinkFlag = process.env.REQUIRE_MP_LINK_TO_PUBLISH?.trim();
+    const requireMpLink = requireMpLinkFlag === '1' || requireMpLinkFlag === 'true';
+    if (requireMpLink && !tokenKey) {
+        throw new Error(
+            'REQUIRE_MP_LINK_TO_PUBLISH está encendida pero falta MP_TOKEN_ENCRYPTION_KEY: ' +
+                'sin la clave no se pueden guardar las cuentas de Mercado Pago. ' +
+                'Generala con: openssl rand -base64 32',
+        );
+    }
+    const secretCipher = tokenKey ? new AesGcmSecretCipher(tokenKey) : undefined;
+    const paymentAccountRepo = secretCipher
+        ? new PrismaSellerPaymentAccountRepository(secretCipher)
+        : undefined;
+
+    // OAuth de Mercado Pago: hace falta el cliente completo Y dónde guardar los
+    // tokens. Si falta algo, las rutas de vinculación responden 503.
+    const mpOAuthConfig = {
+        clientId: process.env.MP_OAUTH_CLIENT_ID?.trim() ?? '',
+        clientSecret: process.env.MP_OAUTH_CLIENT_SECRET?.trim() ?? '',
+        redirectUri: process.env.MP_OAUTH_REDIRECT_URI?.trim() ?? '',
+    };
+    const mercadoPagoOAuth =
+        mpOAuthConfig.clientId && mpOAuthConfig.clientSecret && mpOAuthConfig.redirectUri
+            ? new MercadoPagoOAuthClient(mpOAuthConfig)
+            : undefined;
+    const paymentAccountWiring =
+        mercadoPagoOAuth && paymentAccountRepo
+            ? { oauth: mercadoPagoOAuth, accounts: paymentAccountRepo }
+            : undefined;
+
+    // Cobro con split: el vendedor cobra directo con su propia cuenta y la
+    // plataforma retiene su comisión. Apagado por defecto (solo `1` o `true` lo
+    // enciende): cambia a nombre de quién se cobra. Necesita el OAuth del
+    // vendedor y la clave de cifrado; sin ellos no hay token con el que cobrar,
+    // así que se frena el arranque en vez de cobrar a medias.
+    const splitFlag = process.env.MERCADOPAGO_SPLIT_ENABLED?.trim();
+    const splitEnabled = splitFlag === '1' || splitFlag === 'true';
+    if (splitEnabled && !paymentAccountWiring) {
+        const faltan = [
+            ...(tokenKey ? [] : ['MP_TOKEN_ENCRYPTION_KEY']),
+            ...(mpOAuthConfig.clientId ? [] : ['MP_OAUTH_CLIENT_ID']),
+            ...(mpOAuthConfig.clientSecret ? [] : ['MP_OAUTH_CLIENT_SECRET']),
+            ...(mpOAuthConfig.redirectUri ? [] : ['MP_OAUTH_REDIRECT_URI']),
+        ];
+        throw new Error(
+            'MERCADOPAGO_SPLIT_ENABLED está encendida pero falta configurar: ' +
+                `${faltan.join(', ')}. ` +
+                'El cobro con split necesita la vinculación de Mercado Pago de los vendedores ' +
+                'y la clave que cifra sus tokens.',
+        );
+    }
+    // Una sola instancia: el candado del refresco vive en ella y la comparten
+    // el cobro, el aviso de pago y quien la expone por el contenedor.
+    const getSellerAccessToken = paymentAccountWiring
+        ? new GetSellerAccessTokenUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
+        : undefined;
+    const splitSellerTokens = splitEnabled ? getSellerAccessToken : undefined;
+    const splitAccounts = splitEnabled ? paymentAccountWiring?.accounts : undefined;
+
     const oauthConfig = {
         clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID?.trim() ?? '',
         clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET?.trim() ?? '',
@@ -210,6 +330,18 @@ export function createContainer(
 
     return {
         listingRepo,
+        sellerPaymentAccounts: paymentAccountRepo,
+        mercadoPagoOAuth: paymentAccountWiring?.oauth,
+        linkSellerPaymentAccount: paymentAccountWiring
+            ? new LinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
+            : undefined,
+        getSellerPaymentAccountStatus: paymentAccountWiring
+            ? new GetSellerPaymentAccountStatusUseCase(paymentAccountWiring.accounts)
+            : undefined,
+        unlinkSellerPaymentAccount: paymentAccountWiring
+            ? new UnlinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts)
+            : undefined,
+        getSellerAccessToken,
 
         registerUser: new RegisterUserUseCase(userRepo, hasher),
         login: new LoginUseCase(userRepo, hasher),
@@ -220,7 +352,12 @@ export function createContainer(
 
         createListing: new CreateListingUseCase(listingRepo, userRepo),
         estimateListingPrice: new EstimateListingPriceUseCase(),
-        submitListing: new SubmitListingForReviewUseCase(listingRepo, userRepo, avisosDePlataforma),
+        submitListing: new SubmitListingForReviewUseCase(
+            listingRepo,
+            userRepo,
+            avisosDePlataforma,
+            requireMpLink ? paymentAccountRepo : undefined,
+        ),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         verifyChannelMetrics: youtubeApiKey
@@ -250,8 +387,18 @@ export function createContainer(
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
         detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo, custodyRepo),
+        paymentOptions: new GetPaymentOptionsUseCase(operationRepo, {
+            mercadoPagoEnabled: Boolean(mercadoPago),
+            splitEnabled,
+            paymentAccounts: paymentAccountRepo,
+            rates: exchangeRates,
+            transferInstructions: {
+                ARS: process.env.TRANSFER_INSTRUCTIONS_ARS?.trim() || undefined,
+                USD: process.env.TRANSFER_INSTRUCTIONS_USD?.trim() || undefined,
+            },
+        }),
 
-        createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
+        createOffer:new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
         // Único use case que necesita atomicidad: la cascada multi-oferta.
         acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos, avisosDePlataforma),
@@ -265,10 +412,24 @@ export function createContainer(
         initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
         crearCheckout: mercadoPago
-            ? new CreateCheckoutUseCase(operationRepo, userRepo, mercadoPago)
+            ? new CreateCheckoutUseCase(
+                  operationRepo,
+                  userRepo,
+                  mercadoPago,
+                  exchangeRates,
+                  undefined,
+                  splitSellerTokens,
+              )
             : undefined,
         confirmarPagoDePasarela: mercadoPago
-            ? new ConfirmPaymentFromGatewayUseCase(operationRepo, mercadoPago, avisos, avisosDePlataforma)
+            ? new ConfirmPaymentFromGatewayUseCase(
+                  operationRepo,
+                  mercadoPago,
+                  avisos,
+                  avisosDePlataforma,
+                  splitSellerTokens,
+                  splitAccounts,
+              )
             : undefined,
         mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim(),
         denunciar: new FileReportUseCase(reportRepo, operationRepo, notificationRepo),

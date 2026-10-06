@@ -14,3 +14,6 @@ type State = { error?: string; ok?: boolean; message?: string };
 export async function noop(): Promise<State> {
     return { ok: true };
 }
+
+/** Para los formularios cuya acción no devuelve un estado (los que redirigen). */
+export async function noopVoid(): Promise<void> {}

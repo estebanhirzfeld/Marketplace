@@ -94,7 +94,8 @@ model User {
   operationsAsSeller Operation[] @relation("SellerOperations")
   contractsAsSigner  Contract[]
   notifications      Notification[]
-  reportsFiled       Report[]      @relation("ReportsFiled")
+  paymentAccount     SellerPaymentAccount?
+  reportsFiled      Report[]      @relation("ReportsFiled")
   reportsReceived    Report[]      @relation("ReportsReceived")
 
   @@map("users")
@@ -212,6 +213,10 @@ model Operation {
   recipientIdentity Json?
   // Constancia de entrega, espejo de `custodyCheck`. Se registra al cerrar.
   deliveryCheck    Json?
+  // Cotizaciones en pesos emitidas (historial, de la más vieja a la más nueva),
+  // solo para operaciones no ARS. Nullable y aditiva: una operación vieja o en
+  // pesos no la tiene.
+  settlementQuotes Json?
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 
@@ -260,4 +265,23 @@ model Notification {
   // La bandeja se consulta siempre por usuario y ordenada por fecha.
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+/// La cuenta de Mercado Pago que el vendedor vinculó para cobrar. Una por
+/// usuario. Los tokens se guardan cifrados (AES-256-GCM): las columnas `*Cipher`
+/// nunca contienen el texto plano.
+model SellerPaymentAccount {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  mpUserId           String   @unique
+  accessTokenCipher  String
+  refreshTokenCipher String
+  expiresAt          DateTime
+  scope              String
+  linkedAt           DateTime
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seller_payment_accounts")
 }

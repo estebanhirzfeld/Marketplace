@@ -318,6 +318,39 @@ export interface AuthorizationUrlDto {
     url: string;
 }
 
+// ── Cuenta de Mercado Pago del vendedor ──────────────────
+
+/**
+ * El estado de la vinculación. Nunca incluye los tokens: solo lo que el
+ * vendedor necesita ver.
+ */
+export type SellerPaymentAccountStatusDto =
+    | { linked: false }
+    | {
+          linked: true;
+          mpUserId: string;
+          linkedAt: string;
+          expiresAt: string;
+          /** El token de acceso venció; la cuenta sigue vinculada y se renueva al cobrar. */
+          expired: boolean;
+      };
+
+/**
+ * Pedido de la dirección de autorización. `state` y `codeChallenge` los genera
+ * el cliente (el desafío PKCE es el SHA-256 del verificador, en base64url).
+ */
+export interface MercadoPagoAuthorizationRequest {
+    state: string;
+    codeChallenge: string;
+}
+
+/** Completa la vinculación con lo que trajo el navegador al volver. */
+export interface LinkMercadoPagoRequest {
+    code: string;
+    /** El verificador PKCE original, de 43 a 128 caracteres. */
+    codeVerifier: string;
+}
+
 export interface ChannelMetricsReportDto {
     channelId: string;
     title: string;
@@ -672,6 +705,37 @@ export interface PaymentRecordDto {
 /** El link al que hay que mandar al comprador para que pague. */
 export interface CheckoutDto {
     url: string;
+}
+
+/** Por qué Mercado Pago no se puede usar en una operación. */
+export type MercadoPagoUnavailableReasonDto =
+    | 'not_configured'
+    | 'seller_not_linked'
+    | 'rate_unavailable';
+
+/**
+ * Cómo puede pagar el comprador una operación con el activo en custodia. Lo
+ * pueden pedir las partes y los admins; las instrucciones de transferencia
+ * viajan solo a ellos.
+ */
+export interface PaymentOptionsDto {
+    /** Moneda de la operación. */
+    currency: string;
+    /** Lo que paga el comprador, comisión incluida, en la moneda de la operación. */
+    amount: MoneyDto;
+    mercadopago: {
+        available: boolean;
+        reason?: MercadoPagoUnavailableReasonDto;
+        chargedIn: 'ARS';
+        /** `true` cuando la operación no es en pesos y se cobra convertida. */
+        converted: boolean;
+    };
+    transfer: {
+        available: boolean;
+        instructions?: string;
+        /** Lo que el comprador indica al transferir: el id de la operación. */
+        reference: string;
+    };
 }
 
 /** Registro de una transferencia bancaria que solo una persona pudo ver llegar. */

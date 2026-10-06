@@ -1,7 +1,16 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
-import { createContainer } from '../src/container';
+import { Container, createContainer } from '../src/container';
+import { SellerPaymentAccount } from '@marketplace/domain/src/entities/SellerPaymentAccount';
+import { ISellerPaymentAccountRepository } from '@marketplace/domain/src/ports/Repositories';
+import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
+import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
+import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
+import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import { SellerTokenUnavailableError } from '@marketplace/domain/src/errors/DomainError';
+import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
+import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -1521,6 +1530,169 @@ describe('POST /webhooks/mercadopago', () => {
     });
 });
 
+/**
+ * El cobrador que figura en el aviso (`user_id`) es una pista para elegir con
+ * qué token consultar el pago, nunca una prueba: se pasa tal cual al caso de
+ * uso y lo que no parece un identificador de Mercado Pago se ignora.
+ */
+describe('POST /webhooks/mercadopago — pista del cobrador', () => {
+    async function armarWebhook() {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        const ejecutar = vi.spyOn(confirmar, 'execute').mockResolvedValue(undefined);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return { servidor, ejecutar };
+    }
+
+    function aviso(extra: Record<string, unknown>) {
+        return {
+            action: 'payment.created',
+            api_version: 'v1',
+            data: { id: '555' },
+            date_created: '2026-10-05T12:00:00Z',
+            id: 1,
+            live_mode: false,
+            type: 'payment',
+            ...extra,
+        };
+    }
+
+    it('pasa el user_id numérico como pista, en texto', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: 2_863_117_439 }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '2863117439' });
+    });
+
+    it('pasa el user_id en texto como pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: '987654' }),
+        });
+
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '987654' });
+    });
+
+    it('un aviso sin user_id sigue funcionando, sin pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({}),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+
+    it.each([
+        ['un objeto', {}],
+        ['un booleano', true],
+        ['un arreglo', ['1']],
+        ['un texto vacío', ''],
+        ['un texto que no es numérico', 'abc'],
+        ['un número negativo', -5],
+        ['un número con decimales', 1.5],
+        ['null', null],
+    ])('ignora un user_id mal formado (%s)', async (_nombre, valor) => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: valor }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+});
+
+/**
+ * Si el pago de un vendedor con split no se puede consultar porque su token no
+ * está disponible, se responde 503 para que Mercado Pago reintente el aviso;
+ * cualquier otro fallo sigue respondiendo 200.
+ */
+describe('POST /webhooks/mercadopago — token del vendedor no disponible', () => {
+    async function armarWebhook(resultado: () => Promise<void>) {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        vi.spyOn(confirmar, 'execute').mockImplementation(resultado);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return servidor;
+    }
+
+    const aviso = { type: 'payment', data: { id: '555' }, user_id: 987654 };
+
+    it('responde 503 para que Mercado Pago reintente', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new SellerTokenUnavailableError();
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('responde 200 ante cualquier otro fallo', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new Error('falla inesperada');
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('responde 200 cuando se procesa bien', async () => {
+        const servidor = await armarWebhook(async () => undefined);
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+});
+
 describe('POST /operations/:id/checkout', () => {
     it('503 mientras MercadoPago no esté configurado', async () => {
         const seller = await crearUsuario('seller-mp@test.com', UserRole.SELLER);
@@ -1542,6 +1714,459 @@ describe('POST /operations/:id/checkout', () => {
         });
 
         expect(res.statusCode).toBe(503);
+    });
+});
+
+describe('GET /operations/:id/payment-options', () => {
+    async function unaOperacionEnCustodia() {
+        const buyer = await crearUsuario('buyer-opts@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts@test.com', UserRole.SELLER);
+        await crearUsuario('admin-opts@test.com', UserRole.ADMIN);
+        await crearUsuario('extrano-opts@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({
+            verifiedBy: new UniqueEntityID(),
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+        });
+        await new PrismaOperationRepository().save(operation);
+        return operation.id.toString();
+    }
+
+    async function pedir(id: string, email?: string) {
+        return app.inject({
+            method: 'GET',
+            url: `/operations/${id}/payment-options`,
+            headers: email ? { authorization: `Bearer ${await tokenDe(email)}` } : {},
+        });
+    }
+
+    it('401 sin sesión', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id)).statusCode).toBe(401);
+    });
+
+    it('403 para quien no es parte ni admin', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id, 'extrano-opts@test.com')).statusCode).toBe(403);
+    });
+
+    it('404 si la operación no existe', async () => {
+        await crearUsuario('buyer-opts-404@test.com', UserRole.BUYER);
+        const res = await pedir(new UniqueEntityID().toString(), 'buyer-opts-404@test.com');
+        expect(res.statusCode).toBe(404);
+    });
+
+    it('409 si el activo todavía no está en custodia', async () => {
+        const buyer = await crearUsuario('buyer-opts2@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts2@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        await new PrismaOperationRepository().save(operation);
+
+        const res = await pedir(operation.id.toString(), 'buyer-opts2@test.com');
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    describe('con el contenedor sin pasarela ni textos de transferencia', () => {
+        it('responde la forma completa al comprador, al vendedor y al admin', async () => {
+            const id = await unaOperacionEnCustodia();
+
+            // El contenedor lee estas variables al armarse. Se vacían para que
+            // el resultado no dependa del entorno de quien corre el test: una
+            // máquina con las credenciales de Mercado Pago o el texto de
+            // transferencia cargados no tiene que cambiarlo.
+            for (const nombre of [
+                'MERCADOPAGO_ACCESS_TOKEN',
+                'MERCADOPAGO_SPLIT_ENABLED',
+                'EXCHANGE_RATE_ENABLED',
+                'TRANSFER_INSTRUCTIONS_ARS',
+                'TRANSFER_INSTRUCTIONS_USD',
+            ]) {
+                vi.stubEnv(nombre, '');
+            }
+
+            try {
+                const servidor = await buildApp({
+                    container: createContainer(fakeHasher),
+                    jwtSecret: 'secreto-de-test',
+                });
+
+                for (const email of ['buyer-opts@test.com', 'seller-opts@test.com', 'admin-opts@test.com']) {
+                    const res = await servidor.inject({
+                        method: 'GET',
+                        url: `/operations/${id}/payment-options`,
+                        headers: { authorization: `Bearer ${await tokenDe(email)}` },
+                    });
+
+                    expect(res.statusCode).toBe(200);
+                    expect(res.json()).toEqual({
+                        currency: 'ARS',
+                        amount: { cents: 1050000, currency: 'ARS' },
+                        mercadopago: {
+                            available: false,
+                            reason: 'not_configured',
+                            chargedIn: 'ARS',
+                            converted: false,
+                        },
+                        transfer: { available: false, reference: id },
+                    });
+                }
+            } finally {
+                vi.unstubAllEnvs();
+            }
+        });
+    });
+
+    describe('con el contenedor con textos de transferencia', () => {
+        async function pedirComo(email: string) {
+            const id = await unaOperacionEnCustodia();
+            const container: Container = {
+                ...createContainer(fakeHasher),
+                paymentOptions: new GetPaymentOptionsUseCase(new PrismaOperationRepository(), {
+                    mercadoPagoEnabled: true,
+                    splitEnabled: false,
+                    transferInstructions: { ARS: 'Banco Ejemplo\nCBU 000' },
+                }),
+            };
+            const servidor = await buildApp({ container, jwtSecret: 'secreto-de-test' });
+
+            const res = await servidor.inject({
+                method: 'GET',
+                url: `/operations/${id}/payment-options`,
+                headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            });
+            return { res, id };
+        }
+
+        it('incluye las instrucciones para el comprador', async () => {
+            const { res, id } = await pedirComo('buyer-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().mercadopago).toEqual({ available: true, chargedIn: 'ARS', converted: false });
+            expect(res.json().transfer).toEqual({
+                available: true,
+                instructions: 'Banco Ejemplo\nCBU 000',
+                reference: id,
+            });
+        });
+
+        // El vendedor no paga ni confirma: no recibe los datos bancarios de la plataforma.
+        it('al vendedor le dice que hay transferencia pero no le manda las instrucciones', async () => {
+            const { res, id } = await pedirComo('seller-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().transfer).toEqual({ available: true, reference: id });
+        });
+    });
+});
+
+/**
+ * La cuenta de Mercado Pago del vendedor. Los usuarios y la sesión son reales;
+ * el repositorio de cuentas y el cliente de OAuth se inyectan en memoria para
+ * no necesitar la clave de cifrado ni salir a la red. Con `configurada: false`
+ * el contenedor queda como cuando faltan las variables de entorno.
+ */
+describe('Cuenta de Mercado Pago del vendedor — /me/mercadopago', () => {
+    const TOKENS_SECRETOS = ['APP_USR-acceso-secreto', 'TG-refresco-secreto'];
+
+    function armarApp(configurada: boolean) {
+        const filas = new Map<string, SellerPaymentAccount>();
+        const repo: ISellerPaymentAccountRepository = {
+            findByUserId: async (userId) => filas.get(userId) ?? null,
+            findByMpUserId: async (mpUserId) =>
+                [...filas.values()].find((cuenta) => cuenta.mpUserId === mpUserId) ?? null,
+            existsByUserId: async (userId) => filas.has(userId),
+            save: async (account) => {
+                filas.set(account.userId.toString(), account);
+            },
+            deleteByUserId: async (userId) => {
+                filas.delete(userId);
+            },
+        };
+        const oauth: IMercadoPagoOAuthClient = {
+            authorizationUrl: vi.fn(
+                ({ state, codeChallenge }) =>
+                    `https://auth.mercadopago.com.ar/authorization?state=${state}&code_challenge=${codeChallenge}`,
+            ),
+            exchangeCode: vi.fn().mockResolvedValue({
+                accessToken: TOKENS_SECRETOS[0],
+                refreshToken: TOKENS_SECRETOS[1],
+                expiresInSeconds: 15_552_000,
+                mpUserId: '987654',
+                scope: 'offline_access read write',
+            }),
+            refresh: vi.fn(),
+        };
+
+        const base = createContainer(fakeHasher);
+        const container: Container = configurada
+            ? {
+                  ...base,
+                  mercadoPagoOAuth: oauth,
+                  linkSellerPaymentAccount: new LinkSellerPaymentAccountUseCase(repo, oauth),
+                  getSellerPaymentAccountStatus: new GetSellerPaymentAccountStatusUseCase(repo),
+                  unlinkSellerPaymentAccount: new UnlinkSellerPaymentAccountUseCase(repo),
+              }
+            : {
+                  ...base,
+                  mercadoPagoOAuth: undefined,
+                  linkSellerPaymentAccount: undefined,
+                  getSellerPaymentAccountStatus: undefined,
+                  unlinkSellerPaymentAccount: undefined,
+              };
+
+        return { oauth, filas, appMp: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    const VERIFICADOR = 'v'.repeat(43);
+    const DESAFIO = 'abcDEF123-_abcDEF123-_abcDEF123-_abcDEF123-_';
+
+    async function conSesion(email: string, role: UserRole = UserRole.SELLER) {
+        await crearUsuario(email, role);
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('sin configurar', () => {
+        it('503 en las cuatro rutas', async () => {
+            const { appMp } = armarApp(false);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-503@test.com');
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago', headers }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    headers,
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    headers,
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([503, 503, 503, 503]);
+        });
+    });
+
+    describe('configurada', () => {
+        it('401 sin sesión en las cuatro rutas', async () => {
+            const servidor = await armarApp(true).appMp;
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago' }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago' }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([401, 401, 401, 401]);
+        });
+
+        it('GET informa linked: false si no vinculó nada', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-st0@test.com');
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('vincular y consultar: el estado no trae tokens', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-link@test.com');
+
+            const vinculo = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(vinculo.statusCode).toBe(204);
+            expect(vinculo.body).toBe('');
+            expect(estado.statusCode).toBe(200);
+            expect(estado.json()).toMatchObject({ linked: true, mpUserId: '987654', expired: false });
+            expect(typeof estado.json().linkedAt).toBe('string');
+            expect(typeof estado.json().expiresAt).toBe('string');
+            for (const secreto of TOKENS_SECRETOS) {
+                expect(estado.body).not.toContain(secreto);
+                expect(vinculo.body).not.toContain(secreto);
+            }
+        });
+
+        it('vincular pasa el código y el verificador al cliente', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-args@test.com');
+
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(oauth.exchangeCode).toHaveBeenCalledWith({ code: 'codigo', codeVerifier: VERIFICADOR });
+        });
+
+        it('un canje rechazado por Mercado Pago responde 400 sin filtrar secretos', async () => {
+            const { appMp, oauth } = armarApp(true);
+            vi.mocked(oauth.exchangeCode).mockRejectedValue(new Error('invalid_grant client_secret=SECRETO'));
+            const servidor = await appMp;
+            const headers = await conSesion('mp-rechazo@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+            expect(res.body).not.toContain('SECRETO');
+        });
+
+        it('un admin no puede vincular: 403', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-admin@test.com', UserRole.ADMIN);
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('desvincular borra la cuenta y es idempotente', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-unlink@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const primera = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const segunda = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(primera.statusCode).toBe(204);
+            expect(segunda.statusCode).toBe(204);
+            expect(estado.json()).toEqual({ linked: false });
+        });
+
+        it('cada usuario ve solo su propia cuenta', async () => {
+            const servidor = await armarApp(true).appMp;
+            const conCuenta = await conSesion('mp-uno@test.com');
+            const sinCuenta = await conSesion('mp-dos@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers: conCuenta,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers: sinCuenta });
+
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('authorization devuelve la dirección con el state y el desafío', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-auth@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/authorization',
+                headers,
+                payload: { state: 'estado-123', codeChallenge: DESAFIO },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().url).toContain('state=estado-123');
+            expect(oauth.authorizationUrl).toHaveBeenCalledWith({ state: 'estado-123', codeChallenge: DESAFIO });
+        });
+
+        describe('validación de los cuerpos', () => {
+            async function post(url: string, payload: unknown) {
+                const servidor = await armarApp(true).appMp;
+                const headers = await conSesion(`mp-val-${Math.random().toString(36).slice(2)}@test.com`);
+                return servidor.inject({ method: 'POST', url, headers, payload: payload as object });
+            }
+
+            it.each([
+                ['sin state', { codeChallenge: DESAFIO }],
+                ['state vacío', { state: '', codeChallenge: DESAFIO }],
+                ['state demasiado largo', { state: 'x'.repeat(513), codeChallenge: DESAFIO }],
+                ['sin desafío', { state: 'estado' }],
+                ['desafío vacío', { state: 'estado', codeChallenge: '' }],
+                ['desafío que no es base64url', { state: 'estado', codeChallenge: 'no es base64url!!' }],
+                ['desafío demasiado largo', { state: 'estado', codeChallenge: 'a'.repeat(129) }],
+            ])('authorization: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/authorization', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it.each([
+                ['sin code', { codeVerifier: VERIFICADOR }],
+                ['code vacío', { code: '', codeVerifier: VERIFICADOR }],
+                ['code demasiado largo', { code: 'x'.repeat(513), codeVerifier: VERIFICADOR }],
+                ['sin verificador', { code: 'codigo' }],
+                ['verificador corto (42)', { code: 'codigo', codeVerifier: 'v'.repeat(42) }],
+                ['verificador largo (129)', { code: 'codigo', codeVerifier: 'v'.repeat(129) }],
+            ])('link: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/link', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it('link acepta un verificador de 128 caracteres', async () => {
+                const res = await post('/me/mercadopago/link', { code: 'codigo', codeVerifier: 'v'.repeat(128) });
+
+                expect(res.statusCode).toBe(204);
+            });
+        });
     });
 });
 

@@ -4,6 +4,7 @@ import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
+import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
 import { ListingStatus } from '../entities/Listing';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
@@ -139,4 +140,27 @@ export interface IReportRepository {
     /** Las abiertas, para el tablero de la plataforma. */
     findOpen(): Promise<Report[]>;
     save(report: Report): Promise<void>;
+}
+
+/**
+ * La cuenta de Mercado Pago que cada vendedor vinculó para cobrar. Una por
+ * usuario. Los tokens se cifran en la implementación, nunca acá.
+ */
+export interface ISellerPaymentAccountRepository {
+    findByUserId(userId: string): Promise<SellerPaymentAccount | null>;
+    /**
+     * Si el usuario vinculó una cuenta, SIN descifrar los tokens. Alcanza para
+     * las puertas que solo preguntan "¿hay cuenta?": con la clave rotada o una
+     * fila corrupta, `findByUserId` lanzaría y taparía la respuesta real.
+     */
+    existsByUserId(userId: string): Promise<boolean>;
+    /**
+     * La cuenta que corresponde a un usuario de Mercado Pago. Una cuenta de
+     * Mercado Pago pertenece a un solo usuario de la plataforma. Sirve para
+     * saber a qué vendedor se le cobró cuando llega un aviso de pago.
+     */
+    findByMpUserId(mpUserId: string): Promise<SellerPaymentAccount | null>;
+    /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
+    save(account: SellerPaymentAccount): Promise<void>;
+    deleteByUserId(userId: string): Promise<void>;
 }

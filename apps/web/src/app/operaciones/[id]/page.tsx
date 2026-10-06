@@ -1,12 +1,11 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@marketplace/api-client';
-import type { OperationDetailDto } from '@marketplace/api-contract';
+import type { OperationDetailDto, PaymentOptionsDto } from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { Reveal } from '@/components/Reveal';
-import { SubmitButton } from '@/components/SubmitButton';
 import { Timeline } from '@/components/Timeline';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
@@ -15,7 +14,8 @@ import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm'
 import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
-import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
+import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
+import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
 import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
@@ -142,6 +142,18 @@ export default async function DetalleOperacion(props: {
     }
 
     const isAdmin = actor.role === UserRole.ADMIN;
+
+    // Cómo puede pagar el comprador. Solo lo piden las partes, y solo mientras
+    // el activo está en custodia. Si la consulta falla la pantalla no se rompe:
+    // se queda con lo que había antes (el botón de pagar, sin opciones).
+    let paymentOptions: PaymentOptionsDto | undefined;
+    if (!isAdmin && op.miParte && op.status === 'asset_in_custody') {
+        try {
+            paymentOptions = await api().paymentOptions(id);
+        } catch {
+            paymentOptions = undefined;
+        }
+    }
     const miTurno = op.miParte !== undefined && op.pendingResponseFrom === op.miParte;
     const negociando = op.status === 'offer_sent' || op.status === 'negotiating';
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
@@ -472,12 +484,11 @@ export default async function DetalleOperacion(props: {
                                 </p>
 
                                 {query.pago === 'no-disponible' && (
-                                    <div className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-alerta)]">
-                                        No pudimos abrir el pago: la pasarela todavía no está
-                                        configurada en este entorno. El activo sigue en nuestra
-                                        custodia, así que no perdiste nada — probá de nuevo más
-                                        tarde o escribinos.
-                                    </div>
+                                    <Alert tono="alerta">
+                                        No pudimos abrir el pago. El activo sigue en custodia, así
+                                        que no perdiste nada: probá de nuevo o pagá por
+                                        transferencia.
+                                    </Alert>
                                 )}
                                 {negociando && miTurno && (
                                     <>
@@ -612,15 +623,20 @@ export default async function DetalleOperacion(props: {
                                     <CustodyVerificationForm action={confirmCustody.bind(null, id)} />
                                 )}
 
-                                {op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
-                                    <form action={goToCheckout.bind(null, id)}>
-                                            <SubmitButton
-                                                className="w-full"
-                                                pendingText="Preparando el pago…"
-                                            >
-                                                Pagar {op.buyerPays ? money(op.buyerPays) : ''}
-                                        </SubmitButton>
-                                    </form>
+                                {/*
+                                    Con el activo en custodia, el comprador elige cómo pagar y
+                                    el vendedor espera. Un admin ve solo su formulario de abajo.
+                                */}
+                                {!isAdmin && op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
+                                    <PaymentChoice
+                                        options={paymentOptions}
+                                        buyerPays={op.buyerPays}
+                                        checkoutAction={goToCheckout.bind(null, id)}
+                                    />
+                                )}
+
+                                {!isAdmin && op.miParte === 'seller' && op.status === 'asset_in_custody' && (
+                                    <SellerPaymentWait options={paymentOptions} />
                                 )}
 
                                 {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (

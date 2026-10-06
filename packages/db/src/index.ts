@@ -9,6 +9,7 @@ export { OperationMapper } from "./mappers/OperationMapper";
 export { ContractMapper } from "./mappers/ContractMapper";
 export { NotificationMapper } from "./mappers/NotificationMapper";
 export { CustodyAccountMapper } from "./mappers/CustodyAccountMapper";
+export { SellerPaymentAccountMapper } from "./mappers/SellerPaymentAccountMapper";
 
 // Repositories
 export { PrismaUserRepository } from "./repositories/PrismaUserRepository";
@@ -17,6 +18,7 @@ export { PrismaOperationRepository } from "./repositories/PrismaOperationReposit
 export { PrismaContractRepository } from "./repositories/PrismaContractRepository";
 export { PrismaNotificationRepository } from "./repositories/PrismaNotificationRepository";
 export { PrismaCustodyAccountRepository } from "./repositories/PrismaCustodyAccountRepository";
+export { PrismaSellerPaymentAccountRepository } from "./repositories/PrismaSellerPaymentAccountRepository";
 
 // Unit of Work
 export { PrismaUnitOfWork } from "./PrismaUnitOfWork";

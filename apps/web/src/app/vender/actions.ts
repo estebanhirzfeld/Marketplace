@@ -16,7 +16,23 @@ import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
 
 /** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
-export type ActionState = { error?: string; ok?: boolean; message?: string };
+export type ActionState = {
+    error?: string;
+    ok?: boolean;
+    message?: string;
+    /** Un camino hacia donde se resuelve el error, cuando existe uno. */
+    next?: { href: string; label: string };
+};
+
+/**
+ * La API rechaza publicar sin cuenta de Mercado Pago vinculada con un
+ * `INVALID_STATE` genérico: no hay un código propio, así que se reconoce por
+ * el mensaje, que ya habla de Mercado Pago. Se acota a este caso para no
+ * mandar a vincular una cuenta cuando lo que falta es otra cosa.
+ */
+function isMissingMercadoPagoLink(e: ApiError): boolean {
+    return e.code === 'INVALID_STATE' && /Mercado Pago/.test(e.message);
+}
 
 /**
  * Publicar un activo. El assetData se arma según el tipo: su forma la valida
@@ -125,7 +141,12 @@ export async function submitForReview(
     try {
         await api().submitListing(listingId);
     } catch (e) {
-        if (e instanceof ApiError) return { error: e.message };
+        if (e instanceof ApiError) {
+            // El mensaje de la API ya explica qué falta; acá se suma a dónde ir.
+            return isMissingMercadoPagoLink(e)
+                ? { error: e.message, next: { href: '/perfil#mercadopago', label: 'Vincular Mercado Pago' } }
+                : { error: e.message };
+        }
         return { error: 'No pudimos enviarlo a revisión. Probá de nuevo.' };
     }
 

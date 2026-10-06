@@ -9,6 +9,7 @@ import type {
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
     InitiateTransferRequest,
+    PaymentOptionsDto,
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
@@ -113,6 +114,16 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
             const checkout = await c.crearCheckout.execute(request.params.id, actorOf(request));
             return reply.send({ url: checkout.url });
         },
+    );
+
+    /**
+     * Cómo puede pagar el comprador. Siempre responde: una opción que no está
+     * disponible se informa, no es un error. Solo para las partes y los admins.
+     */
+    app.get<{ Params: IdParams; Reply: PaymentOptionsDto }>(
+        '/operations/:id/payment-options',
+        { preHandler: [authenticate] },
+        async (request) => c.paymentOptions.execute(request.params.id, actorOf(request)),
     );
 
     /**

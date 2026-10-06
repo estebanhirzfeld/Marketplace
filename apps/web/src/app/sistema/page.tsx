@@ -9,7 +9,10 @@ import { PlatformAccessForm } from '@/components/PlatformAccessForm';
 import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
-import { noop } from './actions';
+import { MercadoPagoPanel } from '@/components/MercadoPagoPanel';
+import { UnlinkMercadoPagoButton } from '@/components/UnlinkMercadoPagoButton';
+import { ActionFailure } from '@/components/OperationAction';
+import { noop, noopVoid } from './actions';
 import {
     Alert,
     Button,
@@ -20,7 +23,8 @@ import {
     Heading,
     EmptyState,
 } from '@/components/ui';
-import type { OperationStatusDto } from '@marketplace/api-contract';
+import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
+import type { OperationStatusDto, PaymentOptionsDto } from '@marketplace/api-contract';
 
 /**
  * Sistema de diseño.
@@ -64,8 +68,33 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 // Fechas de muestra. El componente formatea, así que necesita fechas reales
 // para que el catálogo se vea como lo que van a ver los usuarios.
 const DIA = 24 * 60 * 60 * 1000;
+const CUENTA_VINCULADA = {
+    linked: true as const,
+    mpUserId: '123456789',
+    linkedAt: new Date(Date.now() - 3 * DIA).toISOString(),
+    expiresAt: new Date(Date.now() + 120 * DIA).toISOString(),
+    expired: false,
+};
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
+
+/** Opciones de pago de muestra, con la forma que devuelve la API. */
+const PAGO_AMBAS: PaymentOptionsDto = {
+    currency: 'ARS',
+    amount: { cents: 157_500_000, currency: 'ARS' },
+    mercadopago: { available: true, chargedIn: 'ARS', converted: false },
+    transfer: {
+        available: true,
+        instructions: 'Banco de ejemplo\nTitular: Plataforma de ejemplo\nCBU: 0000000000000000000000\nAlias: ejemplo.plataforma',
+        reference: '3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b',
+    },
+};
+const PAGO_EN_DOLARES: PaymentOptionsDto = {
+    ...PAGO_AMBAS,
+    currency: 'USD',
+    amount: { cents: 15_750_00, currency: 'USD' },
+    mercadopago: { available: true, chargedIn: 'ARS', converted: true },
+};
 
 /** Avisos de muestra, ya redactados como los redacta el servidor. */
 const AVISOS_DE_MUESTRA = [
@@ -337,6 +366,141 @@ export default function Sistema() {
                             <Panel title="CERRAR LA OPERACIÓN">
                                 <DeliveryVerificationForm action={noop} recipientIdentifier="comprador@gmail.com" />
                             </Panel>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Cuenta de Mercado Pago"
+                    note="La tarjeta del perfil donde el vendedor vincula la cuenta en la que cobra. Una sola decisión por estado: sin vincular hay un botón; vinculada solo ofrece desvincular, con poco peso y una confirmación; si la integración no está disponible no hay botón, porque no llevaría a ningún lado. Las acciones son de muestra: no guardan nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN VINCULAR</div>
+                            <MercadoPagoPanel status={{ linked: false }} startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VINCULADA</div>
+                            <MercadoPagoPanel status={CUENTA_VINCULADA} startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">RECIÉN VINCULADA</div>
+                            <MercadoPagoPanel
+                                status={CUENTA_VINCULADA}
+                                result="vinculada"
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PERMISO VENCIDO</div>
+                            <MercadoPagoPanel
+                                status={{ ...CUENTA_VINCULADA, expired: true }}
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NO SE PUDO VINCULAR</div>
+                            <MercadoPagoPanel
+                                status={{ linked: false }}
+                                result="error"
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NO DISPONIBLE TODAVÍA</div>
+                            <MercadoPagoPanel status="unavailable" startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONFIRMAR LA DESVINCULACIÓN</div>
+                            <Panel title="MERCADO PAGO">
+                                <UnlinkMercadoPagoButton action={noop} initiallyConfirming />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ENVIAR A REVISIÓN SIN CUENTA VINCULADA</div>
+                            <ActionFailure
+                                error="Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas."
+                                next={{ href: '/perfil#mercadopago', label: 'Vincular Mercado Pago' }}
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Elegir cómo pagar"
+                    note="Lo que ve el comprador con el activo en custodia: una sola decisión con dos opciones, cada una con lo necesario para ejecutarla ahí mismo. Mercado Pago deshabilitado es un botón deshabilitado de verdad, con el motivo y la alternativa; si no hay ninguna opción se dice una sola vez en lugar de mostrar dos callejones. El vendedor no decide nada: espera, y solo ve un aviso con un botón cuando su cuenta de Mercado Pago no está vinculada. Las acciones son de muestra: no cobran nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — LAS DOS OPCIONES</div>
+                            <PaymentChoice options={PAGO_AMBAS} checkoutAction={noopVoid} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — OPERACIÓN EN DÓLARES</div>
+                            <PaymentChoice options={PAGO_EN_DOLARES} checkoutAction={noopVoid} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">MERCADO PAGO — EL VENDEDOR NO LO HABILITÓ</div>
+                            <PaymentChoice
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'seller_not_linked' },
+                                }}
+                                checkoutAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">MERCADO PAGO — NO DISPONIBLE POR AHORA</div>
+                            <PaymentChoice
+                                options={{
+                                    ...PAGO_EN_DOLARES,
+                                    mercadopago: { ...PAGO_EN_DOLARES.mercadopago, available: false, reason: 'rate_unavailable' },
+                                }}
+                                checkoutAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TRANSFERENCIA NO DISPONIBLE</div>
+                            <PaymentChoice
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    transfer: { available: false, reference: PAGO_AMBAS.transfer.reference },
+                                }}
+                                checkoutAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NINGUNA OPCIÓN DISPONIBLE</div>
+                            <PaymentChoice
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'not_configured' },
+                                    transfer: { available: false, reference: PAGO_AMBAS.transfer.reference },
+                                }}
+                                checkoutAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NO SE PUDO ABRIR EL PAGO</div>
+                            <Alert tono="alerta">
+                                No pudimos abrir el pago. El activo sigue en custodia, así que no perdiste nada: probá de nuevo o pagá por transferencia.
+                            </Alert>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO</div>
+                            <SellerPaymentWait options={PAGO_AMBAS} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — SIN MERCADO PAGO VINCULADO</div>
+                            <SellerPaymentWait
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'seller_not_linked' },
+                                }}
+                            />
                         </div>
                     </div>
                 </Section>

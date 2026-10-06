@@ -713,6 +713,49 @@
         "Primera fase cuyo trabajo se verificó ejercitando la aplicación corriendo y no solo con la suite: los cinco defectos que encontró no eran detectables leyendo código.",
         "Incluye el rescate de los arreglos de aprovisionamiento varados en deploy-vps-oracle/05, que entraron por su propio PR."
       ]
+    },
+    {
+      "id": "fase-15",
+      "number": 15,
+      "kind": "fase",
+      "parent": null,
+      "label": "Cobro con reparto de Mercado Pago",
+      "doc": "docs/fase-15-cobro-con-reparto.md",
+      "docLines": 174,
+      "track": "fases",
+      "start": "2026-10-05T13:18:37-03:00",
+      "end": "2026-10-06T09:56:21-03:00",
+      "dating": "exact",
+      "group": null,
+      "commits": [
+        "726ae71",
+        "51bea09",
+        "8a52412",
+        "2733f02",
+        "cf33eca",
+        "82a1960",
+        "fa72c71",
+        "a2f9c72",
+        "11ac895",
+        "9f56a62",
+        "5017651",
+        "f309acd",
+        "d33f7da",
+        "be4ecab",
+        "f5654ea",
+        "390d8b4",
+        "5935a78"
+      ],
+      "commitCount": 17,
+      "branch": "feat/mp-split-cobro (y hotfix/mp-usd-guard)",
+      "docCommit": null,
+      "declaredStatus": "En curso",
+      "declaredDate": "Octubre 2026",
+      "warnings": [
+        "Ventana abierta: la fase sigue en curso, falta el recorrido de punta a punta en un entorno desplegado.",
+        "Primera fase construida tarea por tarea con revisión nativa por tramo: cada tramo aprobado, el candidato acumulado de la rama excede el presupuesto del revisor.",
+        "El único commit del hotfix (726ae71) entró por su propio PR (#17) y ya está desplegado; el resto está en la rama feat/mp-split-cobro, sin push."
+      ]
     }
   ],
   "sddChanges": [
