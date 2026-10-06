@@ -116,9 +116,59 @@ Las pruebas de base de datos y de la API completa **borran todos los datos** de 
 
 ---
 
+## Prueba en producción con la integración de prueba
+
+La aplicación de prueba `traspaso-mp-test` pertenece a una cuenta de prueba de Mercado Pago (tipo Marketplace), y solo operan con ella cuentas de prueba: es el entorno de demostración del sitio. Se prueba todo así y recién al final se cambia a la integración real (sección siguiente).
+
+### Variables de la VM
+
+Van en `/etc/marketplace/api.env`. Las que no figuran (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_BACK_URL`, `MERCADOPAGO_NOTIFICATION_URL`) se dejan como están.
+
+| Variable | Valor | De dónde sale |
+|---|---|---|
+| `MP_OAUTH_CLIENT_ID` | `2147524912249393` | Número de la aplicación `traspaso-mp-test`. |
+| `MP_OAUTH_CLIENT_SECRET` | secreto | Credenciales de esa aplicación en el panel de Mercado Pago. El que se compartió por chat conviene regenerarlo antes de cargarlo. |
+| `MP_OAUTH_REDIRECT_URI` | `https://traspaso.forzalabs.online/mercadopago/callback` | Tiene que coincidir letra por letra con la registrada en la aplicación (junto con PKCE activado). |
+| `MP_TOKEN_ENCRYPTION_KEY` | generar | `openssl rand -base64 32`, una sola vez, en la VM. No se puede recuperar: guardar una copia. |
+| `MERCADOPAGO_SPLIT_ENABLED` | `1` | Enciende el cobro con reparto. Sin las cuatro variables de arriba, la API no arranca y dice cuál falta. |
+| `EXCHANGE_RATE_ENABLED` | `1` | Pesificación de las operaciones en dólares. |
+| `TRANSFER_INSTRUCTIONS_ARS` y `TRANSFER_INSTRUCTIONS_USD` | texto | Para la demostración, un texto de prueba, claramente marcado como tal. Sin texto, la transferencia no se ofrece en esa moneda. |
+| `MERCADOPAGO_WEBHOOK_SECRET` | ver abajo | El secreto es **de cada aplicación**. |
+
+`REQUIRE_MP_LINK_TO_PUBLISH` se deja apagada durante las pruebas, para que los vendedores demo puedan publicar sin vincular.
+
+La firma del aviso de pago: si `MERCADOPAGO_WEBHOOK_SECRET` está cargada con el secreto de otra aplicación (por ejemplo `traspaso-mp`), la firma de los avisos no coincide, el aviso se ignora y el pago **nunca se confirma**. En el registro de la API aparece `Aviso de MercadoPago con firma inválida`. Se resuelve cargando el secreto de `traspaso-mp-test`, que es la aplicación que crea el cobro, o dejando la variable vacía mientras dure la prueba (sin ella no se valida la firma; no es peligroso, porque el pago se vuelve a consultar a Mercado Pago antes de darlo por válido).
+
+Después de cambiar las variables hay que reiniciar la API (`sudo systemctl restart marketplace-api`).
+
+### Recorrido
+
+1. Como vendedor de la plataforma, ir a `/perfil`, tocar **Vincular Mercado Pago** e iniciar sesión en Mercado Pago con el **vendedor de prueba** (si el navegador ya tiene abierta otra cuenta de Mercado Pago, usar una ventana privada de otro navegador: si no, se autoriza con la cuenta equivocada). Al volver, el perfil dice que la cuenta está vinculada.
+2. Llevar una operación de ese vendedor hasta `asset_in_custody` (aceptar, firmar, ceder, verificar la custodia).
+3. Como comprador de la plataforma, abrir la operación: aparece **Elegí cómo pagar**. Tocar **Pagar con Mercado Pago** y pagar con el **comprador de prueba** (tiene que ser una cuenta distinta del vendedor de prueba).
+4. Comprobar que la operación pasa a pago recibido, que el vendedor de prueba recibe el neto (el precio menos el 5 % y menos la comisión de Mercado Pago) y que la comisión de la plataforma aparece como "dinero a liquidar" en la cuenta de la aplicación.
+5. Repetir con una operación en dólares: la pantalla avisa que se cobra en pesos al cambio oficial y Mercado Pago muestra el monto en pesos.
+6. Sin avance después de pagar: mirar el registro de la API. `Aviso de MercadoPago con firma inválida` apunta a `MERCADOPAGO_WEBHOOK_SECRET`; `Token del vendedor no disponible` apunta a que hay que volver a vincular.
+
+---
+
+## Cambio a la integración real
+
+Se hace cuando la prueba terminó. Los tokens que se guardaron durante la prueba son de la aplicación de prueba y no sirven para la real.
+
+1. En la aplicación real (`traspaso-mp`) registrar la redirect URL `https://traspaso.forzalabs.online/mercadopago/callback` y activar PKCE (Configuraciones avanzadas de la aplicación), y tener habilitadas sus credenciales de producción.
+2. Reemplazar `MP_OAUTH_CLIENT_ID` y `MP_OAUTH_CLIENT_SECRET` por los de la aplicación real. La redirect URL no cambia si se mantiene el mismo dominio. Si `MERCADOPAGO_WEBHOOK_SECRET` está cargada, reemplazarla por la de la aplicación real.
+3. **Vaciar la tabla `seller_payment_accounts`** (`DELETE FROM seller_payment_accounts;`): los permisos guardados dejarían de renovarse y los vendedores verían "volver a vincular" sin entender por qué. Cada vendedor vincula de nuevo su cuenta real.
+4. Reiniciar la API.
+5. Hacer un cobro real de poco monto antes de abrir el sitio.
+
+No cambian: `MP_TOKEN_ENCRYPTION_KEY`, las banderas ni los textos de transferencia.
+
+---
+
 ## Pendiente
 
-1. **Recorrido de punta a punta en un entorno desplegado.** La vinculación y el aviso de pago necesitan una dirección pública, así que no se pueden recorrer en local. Antes de encender en producción: vincular un vendedor de prueba, pagar una operación en pesos y otra en dólares, y comprobar el reparto, el aviso y el avance a `payment_received`.
+1. **Recorrido de punta a punta en un entorno desplegado** (se hace con la sección "Prueba en producción con la integración de prueba"). La vinculación y el aviso de pago necesitan una dirección pública, así que no se pueden recorrer en local. Antes de encender en producción: vincular un vendedor de prueba, pagar una operación en pesos y otra en dólares, y comprobar el reparto, el aviso y el avance a `payment_received`.
 2. **Cargar la configuración en la VM**: `MP_TOKEN_ENCRYPTION_KEY` (con copia de resguardo), las tres variables `MP_OAUTH_*`, `TRANSFER_INSTRUCTIONS_ARS` y `_USD`; encender `MERCADOPAGO_SPLIT_ENABLED` recién después de probar.
 3. **Reembolsos y contracargos** con reparto: no se verificaron.
 4. **Vencimientos y recordatorios** de las operaciones trabadas: fase aparte.

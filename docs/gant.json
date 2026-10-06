@@ -721,7 +721,7 @@
       "parent": null,
       "label": "Cobro con reparto de Mercado Pago",
       "doc": "docs/fase-15-cobro-con-reparto.md",
-      "docLines": 124,
+      "docLines": 174,
       "track": "fases",
       "start": "2026-10-05T13:18:37-03:00",
       "end": "2026-10-06T09:56:21-03:00",
