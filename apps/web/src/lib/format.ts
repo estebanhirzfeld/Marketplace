@@ -31,6 +31,21 @@ export function shortMoney(m: MoneyDto): string {
     return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(m.cents / 100);
 }
 
+/**
+ * El monto exacto, con centavos cuando los hay. `money` redondea a enteros y
+ * sirve para precios; acá se usa donde la persona tiene que transferir
+ * exactamente esa cifra y un redondeo la haría fallar la conciliación.
+ */
+export function exactMoney(m: MoneyDto): string {
+    const simbolo = SIMBOLOS[m.currency] ?? m.currency;
+    const conCentavos = m.cents % 100 !== 0;
+    const numero = new Intl.NumberFormat('es-AR', {
+        minimumFractionDigits: conCentavos ? 2 : 0,
+        maximumFractionDigits: conCentavos ? 2 : 0,
+    }).format(m.cents / 100);
+    return `${simbolo} ${numero}`;
+}
+
 export function formatNumber(n: number): string {
     return new Intl.NumberFormat('es-AR').format(n);
 }
