@@ -148,6 +148,12 @@ export interface IReportRepository {
  */
 export interface ISellerPaymentAccountRepository {
     findByUserId(userId: string): Promise<SellerPaymentAccount | null>;
+    /**
+     * Si el usuario vinculó una cuenta, SIN descifrar los tokens. Alcanza para
+     * las puertas que solo preguntan "¿hay cuenta?": con la clave rotada o una
+     * fila corrupta, `findByUserId` lanzaría y taparía la respuesta real.
+     */
+    existsByUserId(userId: string): Promise<boolean>;
     /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
     save(account: SellerPaymentAccount): Promise<void>;
     deleteByUserId(userId: string): Promise<void>;

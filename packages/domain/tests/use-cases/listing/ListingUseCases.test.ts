@@ -12,7 +12,6 @@ import {
 } from '../../../src/ports/Repositories';
 import { Actor } from '../../../src/ports/Actor';
 import { ForbiddenError, InvalidStateError } from '../../../src/errors/DomainError';
-import { SellerPaymentAccount } from '../../../src/entities/SellerPaymentAccount';
 import { User } from '../../../src/entities/User';
 import { Listing } from '../../../src/entities/Listing';
 import { Contract } from '../../../src/entities/Contract';
@@ -213,7 +212,7 @@ describe('SubmitListingForReviewUseCase', () => {
 });
 
 describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado', () => {
-    function armar(cuenta: SellerPaymentAccount | null) {
+    function armar(vinculada: boolean) {
         const sellerId = new UniqueEntityID();
         const listing = Listing.create({
             sellerId,
@@ -222,28 +221,19 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
         });
         const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) });
         const userRepo = createMockUserRepo({ findById: vi.fn().mockResolvedValue(createVerifiedUser()) });
+        // La puerta solo necesita saber si hay cuenta: `findByUserId` descifra los
+        // tokens y acá lanza para probar que no se llama.
         const paymentAccounts: ISellerPaymentAccountRepository = {
-            findByUserId: vi.fn().mockResolvedValue(cuenta),
+            findByUserId: vi.fn().mockRejectedValue(new Error('la puerta no debe descifrar tokens')),
+            existsByUserId: vi.fn().mockResolvedValue(vinculada),
             save: vi.fn().mockResolvedValue(undefined),
             deleteByUserId: vi.fn().mockResolvedValue(undefined),
         };
         return { sellerId, listing, listingRepo, userRepo, paymentAccounts };
     }
 
-    function cuentaVinculada(userId: UniqueEntityID, expiresAt: Date) {
-        return SellerPaymentAccount.create({
-            userId,
-            mpUserId: '123',
-            accessToken: 'acceso',
-            refreshToken: 'refresco',
-            expiresAt,
-            scope: 'offline_access',
-            linkedAt: new Date('2026-10-01T00:00:00Z'),
-        });
-    }
-
     it('bloquea el envío si el vendedor no vinculó Mercado Pago', async () => {
-        const { sellerId, listing, listingRepo, userRepo, paymentAccounts } = armar(null);
+        const { sellerId, listing, listingRepo, userRepo, paymentAccounts } = armar(false);
         const useCase = new SubmitListingForReviewUseCase(listingRepo, userRepo, undefined, paymentAccounts);
 
         await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
@@ -253,13 +243,11 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
 
         expect(listing.status).toBe('draft');
         expect(listingRepo.save).not.toHaveBeenCalled();
-        expect(paymentAccounts.findByUserId).toHaveBeenCalledWith(sellerId.toString());
+        expect(paymentAccounts.existsByUserId).toHaveBeenCalledWith(sellerId.toString());
     });
 
     it('permite el envío si hay cuenta vinculada', async () => {
-        const base = armar(null);
-        const cuenta = cuentaVinculada(base.sellerId, new Date('2099-01-01T00:00:00Z'));
-        vi.mocked(base.paymentAccounts.findByUserId).mockResolvedValue(cuenta);
+        const base = armar(true);
         const useCase = new SubmitListingForReviewUseCase(base.listingRepo, base.userRepo, undefined, base.paymentAccounts);
 
         await useCase.execute(base.listing.id.toString(), actorDe(base.sellerId));
@@ -268,19 +256,17 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
         expect(base.listingRepo.save).toHaveBeenCalledOnce();
     });
 
-    it('una cuenta con el token vencido cuenta como vinculada', async () => {
-        const base = armar(null);
-        const cuenta = cuentaVinculada(base.sellerId, new Date('2020-01-01T00:00:00Z'));
-        vi.mocked(base.paymentAccounts.findByUserId).mockResolvedValue(cuenta);
+    it('la puerta no descifra los tokens: nunca llama a findByUserId', async () => {
+        const base = armar(true);
         const useCase = new SubmitListingForReviewUseCase(base.listingRepo, base.userRepo, undefined, base.paymentAccounts);
 
-        await useCase.execute(base.listing.id.toString(), actorDe(base.sellerId));
+        await expect(useCase.execute(base.listing.id.toString(), actorDe(base.sellerId))).resolves.toBeUndefined();
 
-        expect(base.listing.status).toBe('under_review');
+        expect(base.paymentAccounts.findByUserId).not.toHaveBeenCalled();
     });
 
     it('sin el repositorio de cuentas el comportamiento no cambia', async () => {
-        const { sellerId, listing, listingRepo, userRepo } = armar(null);
+        const { sellerId, listing, listingRepo, userRepo } = armar(false);
         const useCase = new SubmitListingForReviewUseCase(listingRepo, userRepo);
 
         await useCase.execute(listing.id.toString(), actorDe(sellerId));
@@ -289,7 +275,7 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
     });
 
     it('mantiene las guardas previas: sin KYC rechaza antes de mirar la cuenta', async () => {
-        const { sellerId, listing, listingRepo, paymentAccounts } = armar(null);
+        const { sellerId, listing, listingRepo, paymentAccounts } = armar(false);
         const sinKyc = User.create({
             email: Email.create('sinkyc2@test.com'),
             fullName: 'Sin KYC',
@@ -305,7 +291,7 @@ describe('SubmitListingForReviewUseCase — requisito de Mercado Pago vinculado'
 
         await expect(useCase.execute(listing.id.toString(), actorDe(sellerId)))
             .rejects.toThrow(ForbiddenError);
-        expect(paymentAccounts.findByUserId).not.toHaveBeenCalled();
+        expect(paymentAccounts.existsByUserId).not.toHaveBeenCalled();
     });
 });
 

@@ -1153,6 +1153,29 @@ describe("PrismaSellerPaymentAccountRepository", () => {
         expect(await paymentRepo.findByUserId(seller.id.toString())).toBeNull();
     });
 
+    it("existsByUserId distingue si hay cuenta vinculada", async () => {
+        const vinculado = await createPersistedUser({ email: "mp-ex-si@test.com", role: UserRole.SELLER });
+        const sinVincular = await createPersistedUser({ email: "mp-ex-no@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(vinculado.id));
+
+        expect(await paymentRepo.existsByUserId(vinculado.id.toString())).toBe(true);
+        expect(await paymentRepo.existsByUserId(sinVincular.id.toString())).toBe(false);
+    });
+
+    it("existsByUserId no descifra: responde aunque la fila no se pueda descifrar", async () => {
+        const seller = await createPersistedUser({ email: "mp-ex-corrupta@test.com", role: UserRole.SELLER });
+        await paymentRepo.save(unaCuenta(seller.id));
+        // Simula la clave rotada o una fila corrupta: el texto cifrado ya no es
+        // válido para el cifrador.
+        await prisma.sellerPaymentAccount.update({
+            where: { userId: seller.id.toString() },
+            data: { accessTokenCipher: "basura-ilegible" },
+        });
+
+        await expect(paymentRepo.findByUserId(seller.id.toString())).rejects.toThrow();
+        expect(await paymentRepo.existsByUserId(seller.id.toString())).toBe(true);
+    });
+
     it("vincular de nuevo reemplaza la cuenta anterior (upsert por usuario)", async () => {
         const seller = await createPersistedUser({ email: "mp-relink@test.com", role: UserRole.SELLER });
         await paymentRepo.save(unaCuenta(seller.id));

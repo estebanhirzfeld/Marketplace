@@ -42,10 +42,13 @@ export class SubmitListingForReviewUseCase {
         user.assertCanSign();
 
         // Cualquier cuenta vinculada alcanza, aunque su token esté vencido:
-        // solo la ausencia bloquea. El refresco es asunto del cobro.
+        // solo la ausencia bloquea. El refresco es asunto del cobro. Se
+        // pregunta por la existencia, sin descifrar los tokens: con la clave
+        // rotada o una fila corrupta, leer la cuenta lanzaría un error
+        // genérico en lugar de dejar publicar a un vendedor vinculado.
         if (this.paymentAccounts) {
-            const cuenta = await this.paymentAccounts.findByUserId(actor.id);
-            if (!cuenta) {
+            const vinculada = await this.paymentAccounts.existsByUserId(actor.id);
+            if (!vinculada) {
                 throw new InvalidStateError(
                     'Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas.',
                 );

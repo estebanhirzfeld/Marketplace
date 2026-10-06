@@ -21,6 +21,15 @@ export class PrismaSellerPaymentAccountRepository implements ISellerPaymentAccou
     }
 
     /**
+     * Solo cuenta filas: no lee ni descifra las columnas de tokens, así que
+     * responde aunque la clave haya cambiado o la fila esté corrupta.
+     */
+    async existsByUserId(userId: string): Promise<boolean> {
+        const filas = await this.db.sellerPaymentAccount.count({ where: { userId } });
+        return filas > 0;
+    }
+
+    /**
      * Upsert por `userId`, no por `id`: vincular de nuevo crea una entidad con
      * otro id y tiene que pisar la fila anterior en vez de chocar con el
      * índice único.
