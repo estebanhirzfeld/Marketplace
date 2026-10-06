@@ -9,7 +9,10 @@ import { PlatformAccessForm } from '@/components/PlatformAccessForm';
 import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
-import { noop } from './actions';
+import { MercadoPagoPanel } from '@/components/MercadoPagoPanel';
+import { UnlinkMercadoPagoButton } from '@/components/UnlinkMercadoPagoButton';
+import { ActionFailure } from '@/components/OperationAction';
+import { noop, noopVoid } from './actions';
 import {
     Alert,
     Button,
@@ -64,6 +67,13 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 // Fechas de muestra. El componente formatea, así que necesita fechas reales
 // para que el catálogo se vea como lo que van a ver los usuarios.
 const DIA = 24 * 60 * 60 * 1000;
+const CUENTA_VINCULADA = {
+    linked: true as const,
+    mpUserId: '123456789',
+    linkedAt: new Date(Date.now() - 3 * DIA).toISOString(),
+    expiresAt: new Date(Date.now() + 120 * DIA).toISOString(),
+    expired: false,
+};
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
 
@@ -337,6 +347,65 @@ export default function Sistema() {
                             <Panel title="CERRAR LA OPERACIÓN">
                                 <DeliveryVerificationForm action={noop} recipientIdentifier="comprador@gmail.com" />
                             </Panel>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Cuenta de Mercado Pago"
+                    note="La tarjeta del perfil donde el vendedor vincula la cuenta en la que cobra. Una sola decisión por estado: sin vincular hay un botón; vinculada solo ofrece desvincular, con poco peso y una confirmación; si la integración no está disponible no hay botón, porque no llevaría a ningún lado. Las acciones son de muestra: no guardan nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN VINCULAR</div>
+                            <MercadoPagoPanel status={{ linked: false }} startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VINCULADA</div>
+                            <MercadoPagoPanel status={CUENTA_VINCULADA} startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">RECIÉN VINCULADA</div>
+                            <MercadoPagoPanel
+                                status={CUENTA_VINCULADA}
+                                result="vinculada"
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PERMISO VENCIDO</div>
+                            <MercadoPagoPanel
+                                status={{ ...CUENTA_VINCULADA, expired: true }}
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NO SE PUDO VINCULAR</div>
+                            <MercadoPagoPanel
+                                status={{ linked: false }}
+                                result="error"
+                                startAction={noopVoid}
+                                unlinkAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NO DISPONIBLE TODAVÍA</div>
+                            <MercadoPagoPanel status="unavailable" startAction={noopVoid} unlinkAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONFIRMAR LA DESVINCULACIÓN</div>
+                            <Panel title="MERCADO PAGO">
+                                <UnlinkMercadoPagoButton action={noop} initiallyConfirming />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ENVIAR A REVISIÓN SIN CUENTA VINCULADA</div>
+                            <ActionFailure
+                                error="Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas."
+                                next={{ href: '/perfil#mercadopago', label: 'Vincular Mercado Pago' }}
+                            />
                         </div>
                     </div>
                 </Section>

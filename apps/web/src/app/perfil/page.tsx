@@ -6,6 +6,8 @@ import { Reveal } from '@/components/Reveal';
 import { ButtonLink, Panel, Heading, EmptyState } from '@/components/ui';
 import { logoutAction } from '@/app/actions';
 import { nombreDePais } from '@/components/paises';
+import { MercadoPagoSection } from '@/components/MercadoPagoSection';
+import { parseLinkResult } from '@/lib/mercadopagoLink';
 
 export const metadata = { title: 'Mi perfil · Traspaso' };
 
@@ -23,7 +25,11 @@ const ROLES: Record<string, string> = {
  * verlos. Es de solo lectura salvo la verificación de identidad, que tiene su
  * propia pantalla porque cambia lo que la cuenta puede hacer.
  */
-export default async function Perfil() {
+export default async function Perfil({
+    searchParams,
+}: {
+    searchParams: Promise<{ mercadopago?: string }>;
+}) {
     const actor = await requireSession();
     const perfil = await currentProfile();
 
@@ -39,6 +45,8 @@ export default async function Perfil() {
     }
 
     const esPlataforma = actor.role === UserRole.ADMIN;
+    // El resultado de la vuelta de Mercado Pago viaja en la dirección.
+    const resultadoMercadoPago = parseLinkResult((await searchParams).mercadopago);
 
     return (
         <div className="mx-auto max-w-[900px] px-6 py-16 sm:px-12">
@@ -82,16 +90,24 @@ export default async function Perfil() {
                 {/* La plataforma no compra ni vende, así que no tiene nada que
                     mirar en las pantallas de la contraparte. */}
                 {!esPlataforma && (
-                    <Reveal delay={160}>
-                        <Panel title="TU ACTIVIDAD">
-                            <div className="flex flex-wrap gap-3">
-                                <Atajo href="/vender" text="Mis activos" />
-                                <Atajo href="/operaciones" text="Mis operaciones" />
-                                <Atajo href="/denuncias" text="Mis reclamos" />
-                                <Atajo href="/avisos" text="Mis avisos" />
-                            </div>
-                        </Panel>
-                    </Reveal>
+                    <>
+                        {/* Dónde cobra el vendedor. Se monta acá y no siempre
+                            para que el admin no deje un hueco vacío. */}
+                        <Reveal delay={120}>
+                            <MercadoPagoSection role={actor.role} result={resultadoMercadoPago} />
+                        </Reveal>
+
+                        <Reveal delay={160}>
+                            <Panel title="TU ACTIVIDAD">
+                                <div className="flex flex-wrap gap-3">
+                                    <Atajo href="/vender" text="Mis activos" />
+                                    <Atajo href="/operaciones" text="Mis operaciones" />
+                                    <Atajo href="/denuncias" text="Mis reclamos" />
+                                    <Atajo href="/avisos" text="Mis avisos" />
+                                </div>
+                            </Panel>
+                        </Reveal>
+                    </>
                 )}
 
                 <Reveal delay={240}>
