@@ -707,6 +707,37 @@ export interface CheckoutDto {
     url: string;
 }
 
+/** Por qué Mercado Pago no se puede usar en una operación. */
+export type MercadoPagoUnavailableReasonDto =
+    | 'not_configured'
+    | 'seller_not_linked'
+    | 'rate_unavailable';
+
+/**
+ * Cómo puede pagar el comprador una operación con el activo en custodia. Lo
+ * pueden pedir las partes y los admins; las instrucciones de transferencia
+ * viajan solo a ellos.
+ */
+export interface PaymentOptionsDto {
+    /** Moneda de la operación. */
+    currency: string;
+    /** Lo que paga el comprador, comisión incluida, en la moneda de la operación. */
+    amount: MoneyDto;
+    mercadopago: {
+        available: boolean;
+        reason?: MercadoPagoUnavailableReasonDto;
+        chargedIn: 'ARS';
+        /** `true` cuando la operación no es en pesos y se cobra convertida. */
+        converted: boolean;
+    };
+    transfer: {
+        available: boolean;
+        instructions?: string;
+        /** Lo que el comprador indica al transferir: el id de la operación. */
+        reference: string;
+    };
+}
+
 /** Registro de una transferencia bancaria que solo una persona pudo ver llegar. */
 export interface ConfirmPaymentRequest {
     method: string;

@@ -197,6 +197,25 @@ describe('MarketplaceClient — errores', () => {
     });
 });
 
+describe('MarketplaceClient — opciones de pago', () => {
+    it('consulta las opciones de pago de una operación con GET', async () => {
+        const opciones = {
+            currency: 'ARS',
+            amount: { cents: 1050, currency: 'ARS' },
+            mercadopago: { available: true, chargedIn: 'ARS', converted: false },
+            transfer: { available: false, reference: 'op/1' },
+        };
+        const { impl, llamadas } = fetchQueDevuelve(200, opciones);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client.paymentOptions('op/1');
+
+        expect(respuesta).toEqual(opciones);
+        expect(llamadas[0][0]).toBe('http://api.test/operations/op%2F1/payment-options');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+});
+
 describe('MarketplaceClient — cuenta de Mercado Pago del vendedor', () => {
     it('consulta el estado de la vinculación', async () => {
         const { impl, llamadas } = fetchQueDevuelve(200, { linked: false });

@@ -10,6 +10,7 @@ import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/us
 import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
 import { SellerTokenUnavailableError } from '@marketplace/domain/src/errors/DomainError';
 import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
+import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -1713,6 +1714,136 @@ describe('POST /operations/:id/checkout', () => {
         });
 
         expect(res.statusCode).toBe(503);
+    });
+});
+
+describe('GET /operations/:id/payment-options', () => {
+    async function unaOperacionEnCustodia() {
+        const buyer = await crearUsuario('buyer-opts@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts@test.com', UserRole.SELLER);
+        await crearUsuario('admin-opts@test.com', UserRole.ADMIN);
+        await crearUsuario('extrano-opts@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({
+            verifiedBy: new UniqueEntityID(),
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+        });
+        await new PrismaOperationRepository().save(operation);
+        return operation.id.toString();
+    }
+
+    async function pedir(id: string, email?: string) {
+        return app.inject({
+            method: 'GET',
+            url: `/operations/${id}/payment-options`,
+            headers: email ? { authorization: `Bearer ${await tokenDe(email)}` } : {},
+        });
+    }
+
+    it('401 sin sesión', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id)).statusCode).toBe(401);
+    });
+
+    it('403 para quien no es parte ni admin', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id, 'extrano-opts@test.com')).statusCode).toBe(403);
+    });
+
+    it('404 si la operación no existe', async () => {
+        await crearUsuario('buyer-opts-404@test.com', UserRole.BUYER);
+        const res = await pedir(new UniqueEntityID().toString(), 'buyer-opts-404@test.com');
+        expect(res.statusCode).toBe(404);
+    });
+
+    it('409 si el activo todavía no está en custodia', async () => {
+        const buyer = await crearUsuario('buyer-opts2@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts2@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        await new PrismaOperationRepository().save(operation);
+
+        const res = await pedir(operation.id.toString(), 'buyer-opts2@test.com');
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    describe('con el contenedor sin pasarela ni textos de transferencia', () => {
+        it('responde la forma completa al comprador, al vendedor y al admin', async () => {
+            const id = await unaOperacionEnCustodia();
+
+            for (const email of ['buyer-opts@test.com', 'seller-opts@test.com', 'admin-opts@test.com']) {
+                const res = await pedir(id, email);
+
+                expect(res.statusCode).toBe(200);
+                expect(res.json()).toEqual({
+                    currency: 'ARS',
+                    amount: { cents: 1050000, currency: 'ARS' },
+                    mercadopago: { available: false, reason: 'not_configured', chargedIn: 'ARS', converted: false },
+                    transfer: { available: false, reference: id },
+                });
+            }
+        });
+    });
+
+    describe('con el contenedor con textos de transferencia', () => {
+        async function pedirComo(email: string) {
+            const id = await unaOperacionEnCustodia();
+            const container: Container = {
+                ...createContainer(fakeHasher),
+                paymentOptions: new GetPaymentOptionsUseCase(new PrismaOperationRepository(), {
+                    mercadoPagoEnabled: true,
+                    splitEnabled: false,
+                    transferInstructions: { ARS: 'Banco Ejemplo\nCBU 000' },
+                }),
+            };
+            const servidor = await buildApp({ container, jwtSecret: 'secreto-de-test' });
+
+            const res = await servidor.inject({
+                method: 'GET',
+                url: `/operations/${id}/payment-options`,
+                headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            });
+            return { res, id };
+        }
+
+        it('incluye las instrucciones para el comprador', async () => {
+            const { res, id } = await pedirComo('buyer-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().mercadopago).toEqual({ available: true, chargedIn: 'ARS', converted: false });
+            expect(res.json().transfer).toEqual({
+                available: true,
+                instructions: 'Banco Ejemplo\nCBU 000',
+                reference: id,
+            });
+        });
+
+        // El vendedor no paga ni confirma: no recibe los datos bancarios de la plataforma.
+        it('al vendedor le dice que hay transferencia pero no le manda las instrucciones', async () => {
+            const { res, id } = await pedirComo('seller-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().transfer).toEqual({ available: true, reference: id });
+        });
     });
 });
 

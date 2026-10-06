@@ -45,6 +45,7 @@ import { GetMyListingsUseCase } from '@marketplace/domain/src/use-cases/listing/
 import { GetListingsForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/GetListingsForReviewUseCase';
 import { GetMyOperationsUseCase } from '@marketplace/domain/src/use-cases/operation/GetMyOperationsUseCase';
 import { GetOperationDetailsUseCase } from '@marketplace/domain/src/use-cases/operation/GetOperationDetailsUseCase';
+import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
 import { CreateOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/CreateOfferUseCase';
 import { CounterOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/CounterOfferUseCase';
 import { AcceptOfferUseCase } from '@marketplace/domain/src/use-cases/negotiation/AcceptOfferUseCase';
@@ -160,6 +161,8 @@ export interface Container {
     tableroDePlataforma: GetPlatformDashboardUseCase;
     misOperaciones: GetMyOperationsUseCase;
     detalleOperacion: GetOperationDetailsUseCase;
+    /** Siempre disponible: informa qué opciones de pago hay, incluso si ninguna. */
+    paymentOptions: GetPaymentOptionsUseCase;
     createOffer: CreateOfferUseCase;
     counterOffer: CounterOfferUseCase;
     acceptOffer: AcceptOfferUseCase;
@@ -384,8 +387,18 @@ export function createContainer(
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
         detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo, custodyRepo),
+        paymentOptions: new GetPaymentOptionsUseCase(operationRepo, {
+            mercadoPagoEnabled: Boolean(mercadoPago),
+            splitEnabled,
+            paymentAccounts: paymentAccountRepo,
+            rates: exchangeRates,
+            transferInstructions: {
+                ARS: process.env.TRANSFER_INSTRUCTIONS_ARS?.trim() || undefined,
+                USD: process.env.TRANSFER_INSTRUCTIONS_USD?.trim() || undefined,
+            },
+        }),
 
-        createOffer: new CreateOfferUseCase(operationRepo, listingRepo, avisos),
+        createOffer:new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),
         // Único use case que necesita atomicidad: la cascada multi-oferta.
         acceptOffer: new AcceptOfferUseCase(new PrismaUnitOfWork(), avisos, avisosDePlataforma),

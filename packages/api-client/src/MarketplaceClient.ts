@@ -8,6 +8,7 @@ import {
     VerificationSourceDto,
     CloseReportRequest,
     CheckoutDto,
+    PaymentOptionsDto,
     ConfirmCustodyRequest,
     ConfirmPaymentRequest,
     InitiateTransferRequest,
@@ -311,6 +312,11 @@ export class MarketplaceClient {
     /** Pide el link de pago. Solo con el activo en custodia. */
     checkout(operationId: string): Promise<CheckoutDto> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/checkout`);
+    }
+
+    /** Cómo puede pagar el comprador: Mercado Pago y transferencia, con su disponibilidad. */
+    paymentOptions(operationId: string): Promise<PaymentOptionsDto> {
+        return this.request('GET', `/operations/${encodeURIComponent(operationId)}/payment-options`);
     }
 
     /** Registra una transferencia bancaria. Los pagos de MercadoPago los confirma el webhook. */
