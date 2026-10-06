@@ -90,6 +90,12 @@ import {
 } from '@marketplace/domain/src/ports/Repositories';
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
 import { AesGcmSecretCipher } from './adapters/AesGcmSecretCipher';
+import { MercadoPagoOAuthClient } from './adapters/MercadoPagoOAuthClient';
+import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
+import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
+import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
+import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import { GetSellerAccessTokenUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerAccessTokenUseCase';
 
 /**
  * Composition root.
@@ -106,6 +112,18 @@ export interface Container {
      * dónde guardar los tokens de los vendedores.
      */
     sellerPaymentAccounts?: ISellerPaymentAccountRepository;
+    /**
+     * La vinculación de la cuenta de Mercado Pago del vendedor. Ausentes
+     * mientras falte el cliente de OAuth (`MP_OAUTH_*`) o la clave de cifrado:
+     * las rutas de `/me/mercadopago` responden 503 en vez de que la API no
+     * arranque.
+     */
+    mercadoPagoOAuth?: IMercadoPagoOAuthClient;
+    linkSellerPaymentAccount?: LinkSellerPaymentAccountUseCase;
+    getSellerPaymentAccountStatus?: GetSellerPaymentAccountStatusUseCase;
+    unlinkSellerPaymentAccount?: UnlinkSellerPaymentAccountUseCase;
+    /** Lo usará el cobro con split (T6) para operar con el token del vendedor. */
+    getSellerAccessToken?: GetSellerAccessTokenUseCase;
     registerUser: RegisterUserUseCase;
     login: LoginUseCase;
     perfil: GetMyProfileUseCase;
@@ -233,6 +251,22 @@ export function createContainer(
         ? new PrismaSellerPaymentAccountRepository(secretCipher)
         : undefined;
 
+    // OAuth de Mercado Pago: hace falta el cliente completo Y dónde guardar los
+    // tokens. Si falta algo, las rutas de vinculación responden 503.
+    const mpOAuthConfig = {
+        clientId: process.env.MP_OAUTH_CLIENT_ID?.trim() ?? '',
+        clientSecret: process.env.MP_OAUTH_CLIENT_SECRET?.trim() ?? '',
+        redirectUri: process.env.MP_OAUTH_REDIRECT_URI?.trim() ?? '',
+    };
+    const mercadoPagoOAuth =
+        mpOAuthConfig.clientId && mpOAuthConfig.clientSecret && mpOAuthConfig.redirectUri
+            ? new MercadoPagoOAuthClient(mpOAuthConfig)
+            : undefined;
+    const paymentAccountWiring =
+        mercadoPagoOAuth && paymentAccountRepo
+            ? { oauth: mercadoPagoOAuth, accounts: paymentAccountRepo }
+            : undefined;
+
     const oauthConfig = {
         clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID?.trim() ?? '',
         clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET?.trim() ?? '',
@@ -265,6 +299,20 @@ export function createContainer(
     return {
         listingRepo,
         sellerPaymentAccounts: paymentAccountRepo,
+        mercadoPagoOAuth: paymentAccountWiring?.oauth,
+        linkSellerPaymentAccount: paymentAccountWiring
+            ? new LinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
+            : undefined,
+        getSellerPaymentAccountStatus: paymentAccountWiring
+            ? new GetSellerPaymentAccountStatusUseCase(paymentAccountWiring.accounts)
+            : undefined,
+        unlinkSellerPaymentAccount: paymentAccountWiring
+            ? new UnlinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts)
+            : undefined,
+        // Una sola instancia: el candado del refresco vive en ella.
+        getSellerAccessToken: paymentAccountWiring
+            ? new GetSellerAccessTokenUseCase(paymentAccountWiring.accounts, paymentAccountWiring.oauth)
+            : undefined,
 
         registerUser: new RegisterUserUseCase(userRepo, hasher),
         login: new LoginUseCase(userRepo, hasher),

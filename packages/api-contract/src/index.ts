@@ -318,6 +318,39 @@ export interface AuthorizationUrlDto {
     url: string;
 }
 
+// ── Cuenta de Mercado Pago del vendedor ──────────────────
+
+/**
+ * El estado de la vinculación. Nunca incluye los tokens: solo lo que el
+ * vendedor necesita ver.
+ */
+export type SellerPaymentAccountStatusDto =
+    | { linked: false }
+    | {
+          linked: true;
+          mpUserId: string;
+          linkedAt: string;
+          expiresAt: string;
+          /** El token de acceso venció; la cuenta sigue vinculada y se renueva al cobrar. */
+          expired: boolean;
+      };
+
+/**
+ * Pedido de la dirección de autorización. `state` y `codeChallenge` los genera
+ * el cliente (el desafío PKCE es el SHA-256 del verificador, en base64url).
+ */
+export interface MercadoPagoAuthorizationRequest {
+    state: string;
+    codeChallenge: string;
+}
+
+/** Completa la vinculación con lo que trajo el navegador al volver. */
+export interface LinkMercadoPagoRequest {
+    code: string;
+    /** El verificador PKCE original, de 43 a 128 caracteres. */
+    codeVerifier: string;
+}
+
 export interface ChannelMetricsReportDto {
     channelId: string;
     title: string;

@@ -196,3 +196,49 @@ describe('MarketplaceClient — errores', () => {
         expect(error.status).toBe(502);
     });
 });
+
+describe('MarketplaceClient — cuenta de Mercado Pago del vendedor', () => {
+    it('consulta el estado de la vinculación', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { linked: false });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const estado = await client.paymentAccountStatus();
+
+        expect(estado).toEqual({ linked: false });
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('pide la dirección de autorización con el state y el desafío PKCE', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { url: 'https://auth.mercadopago.com.ar/x' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client.mercadoPagoAuthorizationUrl({ state: 's', codeChallenge: 'c' });
+
+        expect(respuesta.url).toBe('https://auth.mercadopago.com.ar/x');
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago/authorization');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ state: 's', codeChallenge: 'c' });
+    });
+
+    it('vincula con el código y el verificador, y resuelve ante el 204', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(204);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.linkMercadoPago({ code: 'cod', codeVerifier: 'ver' })).resolves.toBeUndefined();
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago/link');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ code: 'cod', codeVerifier: 'ver' });
+    });
+
+    it('desvincula con DELETE', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(204);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.unlinkMercadoPago()).resolves.toBeUndefined();
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago');
+        expect(llamadas[0][1]?.method).toBe('DELETE');
+    });
+});

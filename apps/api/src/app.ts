@@ -9,6 +9,7 @@ import { registerReportRoutes } from './routes/reports';
 import { registerOperationRoutes } from './routes/operations';
 import { registerContractRoutes } from './routes/contracts';
 import { registerMeRoutes } from './routes/me';
+import { registerPaymentAccountRoutes } from './routes/paymentAccount';
 
 export interface BuildAppOptions {
     container?: Container;
@@ -40,6 +41,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     registerWebhookRoutes(app, container);
     registerContractRoutes(app, container);
     registerMeRoutes(app, container);
+    registerPaymentAccountRoutes(app, container);
 
     app.get('/health', async () => ({ status: 'ok' }));
 

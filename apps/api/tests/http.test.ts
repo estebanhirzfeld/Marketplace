@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
-import { createContainer } from '../src/container';
+import { Container, createContainer } from '../src/container';
+import { SellerPaymentAccount } from '@marketplace/domain/src/entities/SellerPaymentAccount';
+import { ISellerPaymentAccountRepository } from '@marketplace/domain/src/ports/Repositories';
+import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
+import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
+import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
+import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -1542,6 +1548,295 @@ describe('POST /operations/:id/checkout', () => {
         });
 
         expect(res.statusCode).toBe(503);
+    });
+});
+
+/**
+ * La cuenta de Mercado Pago del vendedor. Los usuarios y la sesión son reales;
+ * el repositorio de cuentas y el cliente de OAuth se inyectan en memoria para
+ * no necesitar la clave de cifrado ni salir a la red. Con `configurada: false`
+ * el contenedor queda como cuando faltan las variables de entorno.
+ */
+describe('Cuenta de Mercado Pago del vendedor — /me/mercadopago', () => {
+    const TOKENS_SECRETOS = ['APP_USR-acceso-secreto', 'TG-refresco-secreto'];
+
+    function armarApp(configurada: boolean) {
+        const filas = new Map<string, SellerPaymentAccount>();
+        const repo: ISellerPaymentAccountRepository = {
+            findByUserId: async (userId) => filas.get(userId) ?? null,
+            existsByUserId: async (userId) => filas.has(userId),
+            save: async (account) => {
+                filas.set(account.userId.toString(), account);
+            },
+            deleteByUserId: async (userId) => {
+                filas.delete(userId);
+            },
+        };
+        const oauth: IMercadoPagoOAuthClient = {
+            authorizationUrl: vi.fn(
+                ({ state, codeChallenge }) =>
+                    `https://auth.mercadopago.com.ar/authorization?state=${state}&code_challenge=${codeChallenge}`,
+            ),
+            exchangeCode: vi.fn().mockResolvedValue({
+                accessToken: TOKENS_SECRETOS[0],
+                refreshToken: TOKENS_SECRETOS[1],
+                expiresInSeconds: 15_552_000,
+                mpUserId: '987654',
+                scope: 'offline_access read write',
+            }),
+            refresh: vi.fn(),
+        };
+
+        const base = createContainer(fakeHasher);
+        const container: Container = configurada
+            ? {
+                  ...base,
+                  mercadoPagoOAuth: oauth,
+                  linkSellerPaymentAccount: new LinkSellerPaymentAccountUseCase(repo, oauth),
+                  getSellerPaymentAccountStatus: new GetSellerPaymentAccountStatusUseCase(repo),
+                  unlinkSellerPaymentAccount: new UnlinkSellerPaymentAccountUseCase(repo),
+              }
+            : {
+                  ...base,
+                  mercadoPagoOAuth: undefined,
+                  linkSellerPaymentAccount: undefined,
+                  getSellerPaymentAccountStatus: undefined,
+                  unlinkSellerPaymentAccount: undefined,
+              };
+
+        return { oauth, filas, appMp: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    const VERIFICADOR = 'v'.repeat(43);
+    const DESAFIO = 'abcDEF123-_abcDEF123-_abcDEF123-_abcDEF123-_';
+
+    async function conSesion(email: string, role: UserRole = UserRole.SELLER) {
+        await crearUsuario(email, role);
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('sin configurar', () => {
+        it('503 en las cuatro rutas', async () => {
+            const { appMp } = armarApp(false);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-503@test.com');
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago', headers }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    headers,
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    headers,
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([503, 503, 503, 503]);
+        });
+    });
+
+    describe('configurada', () => {
+        it('401 sin sesión en las cuatro rutas', async () => {
+            const servidor = await armarApp(true).appMp;
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago' }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago' }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([401, 401, 401, 401]);
+        });
+
+        it('GET informa linked: false si no vinculó nada', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-st0@test.com');
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('vincular y consultar: el estado no trae tokens', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-link@test.com');
+
+            const vinculo = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(vinculo.statusCode).toBe(204);
+            expect(vinculo.body).toBe('');
+            expect(estado.statusCode).toBe(200);
+            expect(estado.json()).toMatchObject({ linked: true, mpUserId: '987654', expired: false });
+            expect(typeof estado.json().linkedAt).toBe('string');
+            expect(typeof estado.json().expiresAt).toBe('string');
+            for (const secreto of TOKENS_SECRETOS) {
+                expect(estado.body).not.toContain(secreto);
+                expect(vinculo.body).not.toContain(secreto);
+            }
+        });
+
+        it('vincular pasa el código y el verificador al cliente', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-args@test.com');
+
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(oauth.exchangeCode).toHaveBeenCalledWith({ code: 'codigo', codeVerifier: VERIFICADOR });
+        });
+
+        it('un canje rechazado por Mercado Pago responde 400 sin filtrar secretos', async () => {
+            const { appMp, oauth } = armarApp(true);
+            vi.mocked(oauth.exchangeCode).mockRejectedValue(new Error('invalid_grant client_secret=SECRETO'));
+            const servidor = await appMp;
+            const headers = await conSesion('mp-rechazo@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+            expect(res.body).not.toContain('SECRETO');
+        });
+
+        it('un admin no puede vincular: 403', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-admin@test.com', UserRole.ADMIN);
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('desvincular borra la cuenta y es idempotente', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-unlink@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const primera = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const segunda = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(primera.statusCode).toBe(204);
+            expect(segunda.statusCode).toBe(204);
+            expect(estado.json()).toEqual({ linked: false });
+        });
+
+        it('cada usuario ve solo su propia cuenta', async () => {
+            const servidor = await armarApp(true).appMp;
+            const conCuenta = await conSesion('mp-uno@test.com');
+            const sinCuenta = await conSesion('mp-dos@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers: conCuenta,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers: sinCuenta });
+
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('authorization devuelve la dirección con el state y el desafío', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-auth@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/authorization',
+                headers,
+                payload: { state: 'estado-123', codeChallenge: DESAFIO },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().url).toContain('state=estado-123');
+            expect(oauth.authorizationUrl).toHaveBeenCalledWith({ state: 'estado-123', codeChallenge: DESAFIO });
+        });
+
+        describe('validación de los cuerpos', () => {
+            async function post(url: string, payload: unknown) {
+                const servidor = await armarApp(true).appMp;
+                const headers = await conSesion(`mp-val-${Math.random().toString(36).slice(2)}@test.com`);
+                return servidor.inject({ method: 'POST', url, headers, payload: payload as object });
+            }
+
+            it.each([
+                ['sin state', { codeChallenge: DESAFIO }],
+                ['state vacío', { state: '', codeChallenge: DESAFIO }],
+                ['state demasiado largo', { state: 'x'.repeat(513), codeChallenge: DESAFIO }],
+                ['sin desafío', { state: 'estado' }],
+                ['desafío vacío', { state: 'estado', codeChallenge: '' }],
+                ['desafío que no es base64url', { state: 'estado', codeChallenge: 'no es base64url!!' }],
+                ['desafío demasiado largo', { state: 'estado', codeChallenge: 'a'.repeat(129) }],
+            ])('authorization: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/authorization', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it.each([
+                ['sin code', { codeVerifier: VERIFICADOR }],
+                ['code vacío', { code: '', codeVerifier: VERIFICADOR }],
+                ['code demasiado largo', { code: 'x'.repeat(513), codeVerifier: VERIFICADOR }],
+                ['sin verificador', { code: 'codigo' }],
+                ['verificador corto (42)', { code: 'codigo', codeVerifier: 'v'.repeat(42) }],
+                ['verificador largo (129)', { code: 'codigo', codeVerifier: 'v'.repeat(129) }],
+            ])('link: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/link', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it('link acepta un verificador de 128 caracteres', async () => {
+                const res = await post('/me/mercadopago/link', { code: 'codigo', codeVerifier: 'v'.repeat(128) });
+
+                expect(res.statusCode).toBe(204);
+            });
+        });
     });
 });
 
