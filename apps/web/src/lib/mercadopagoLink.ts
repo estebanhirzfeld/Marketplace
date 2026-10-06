@@ -78,6 +78,43 @@ export function parseLinkCookie(raw: string | undefined): { state: string; verif
     }
 }
 
+/** Un host de verdad: letras, números, puntos, guiones y un puerto opcional. */
+const HOST_VALIDO = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/;
+
+/** Primer valor de un encabezado que un proxy puede haber vuelto una lista. */
+function primerValor(valor: string | null): string | undefined {
+    const primero = valor?.split(',')[0]?.trim();
+    return primero ? primero : undefined;
+}
+
+/**
+ * La dirección pública del sitio, para armar redirecciones absolutas.
+ *
+ * El release se compila en CI, donde `NEXT_PUBLIC_APP_URL` no existe, y
+ * `env.example` la documenta vacía: apoyarse solo en esa variable manda a la
+ * gente a localhost (o rompe con una cadena vacía). Se usa en este orden:
+ * 1. la variable, si tiene contenido;
+ * 2. el host y el protocolo que reenvía el proxy (Caddy): lo que la persona
+ *    realmente tiene en la barra de direcciones;
+ * 3. el origen del propio pedido.
+ *
+ * Un host reenviado que no parece un host, o un protocolo que no es http(s),
+ * se descarta: nunca se arma una dirección con algo que no se pueda confiar.
+ */
+export function publicBaseUrl(request: Request, envUrl: string | undefined): string {
+    const configurada = envUrl?.trim();
+    if (configurada) return configurada.replace(/\/+$/, '');
+
+    const host = primerValor(request.headers.get('x-forwarded-host'));
+    if (host && HOST_VALIDO.test(host)) {
+        const reenviado = primerValor(request.headers.get('x-forwarded-proto'));
+        const proto = reenviado === 'http' || reenviado === 'https' ? reenviado : 'https';
+        return `${proto}://${host}`;
+    }
+
+    return new URL(request.url).origin;
+}
+
 /** Resultado de la vinculación, tal como viaja en `?mercadopago=`. */
 export type LinkResult = 'vinculada' | 'error' | 'no-disponible';
 

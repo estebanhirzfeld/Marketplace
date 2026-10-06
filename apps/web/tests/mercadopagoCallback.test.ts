@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LINK_COOKIE } from '@/lib/mercadopagoLink';
 
 /**
@@ -48,6 +48,30 @@ beforeEach(() => {
 function cookieBorrada() {
     expect(store.delete).toHaveBeenCalledWith({ name: LINK_COOKIE, path: '/mercadopago' });
 }
+
+describe('GET /mercadopago/callback detrás del proxy', () => {
+    // La variable falsa no puede escaparse a los demás tests si uno falla.
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    /**
+     * El release se compila en CI sin `NEXT_PUBLIC_APP_URL`: la dirección de la
+     * vuelta tiene que salir de lo que reenvía Caddy, o la persona terminaría
+     * en localhost después de vincular.
+     */
+    it('vuelve a la dirección pública que reenvía el proxy, no a localhost', async () => {
+        vi.stubEnv('NEXT_PUBLIC_APP_URL', '');
+
+        const res = await GET(
+            new Request(`http://127.0.0.1:3000/mercadopago/callback?code=abc&state=${STATE}`, {
+                headers: { 'x-forwarded-host': 'traspaso.forzalabs.online', 'x-forwarded-proto': 'https' },
+            }),
+        );
+
+        expect(new URL(res.headers.get('location') ?? '').origin).toBe('https://traspaso.forzalabs.online');
+    });
+});
 
 describe('GET /mercadopago/callback', () => {
     it('con código y state correctos vincula y vuelve al perfil con el aviso', async () => {

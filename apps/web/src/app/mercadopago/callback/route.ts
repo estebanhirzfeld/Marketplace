@@ -6,6 +6,7 @@ import {
     LINK_COOKIE,
     LINK_COOKIE_OPTIONS,
     parseLinkCookie,
+    publicBaseUrl,
     statesMatch,
 } from '@/lib/mercadopagoLink';
 
@@ -35,18 +36,18 @@ export async function GET(request: Request): Promise<NextResponse> {
     const attempt = parseLinkCookie(store.get(LINK_COOKIE)?.value);
     store.delete({ name: LINK_COOKIE, path: LINK_COOKIE_OPTIONS.path });
 
-    if (!(await readSession())) return redirectTo('/ingresar');
+    if (!(await readSession())) return redirectTo(request, '/ingresar');
 
     const code = params.get('code');
 
     // La persona puede cancelar en la pantalla de Mercado Pago: llega `error`
     // en vez de `code`. Sin intento propio tampoco hay nada que canjear.
     if (params.get('error') || !code || !attempt) {
-        return redirectTo('/perfil?mercadopago=error');
+        return redirectTo(request, '/perfil?mercadopago=error');
     }
 
     if (!statesMatch(params.get('state'), attempt.state)) {
-        return redirectTo('/perfil?mercadopago=error');
+        return redirectTo(request, '/perfil?mercadopago=error');
     }
 
     try {
@@ -54,13 +55,13 @@ export async function GET(request: Request): Promise<NextResponse> {
     } catch {
         // El motivo lo explica la API; a la persona solo le sirve saber que
         // tiene que probar de nuevo.
-        return redirectTo('/perfil?mercadopago=error');
+        return redirectTo(request, '/perfil?mercadopago=error');
     }
 
-    return redirectTo('/perfil?mercadopago=vinculada');
+    return redirectTo(request, '/perfil?mercadopago=vinculada');
 }
 
-function redirectTo(path: string): NextResponse {
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    return NextResponse.redirect(new URL(path, base));
+function redirectTo(request: Request, path: string): NextResponse {
+    return NextResponse.redirect(new URL(path, publicBaseUrl(request, process.env.NEXT_PUBLIC_APP_URL)));
 }
+

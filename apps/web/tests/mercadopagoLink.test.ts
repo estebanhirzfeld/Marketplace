@@ -5,6 +5,7 @@ import {
     statesMatch,
     LINK_COOKIE,
     LINK_COOKIE_OPTIONS,
+    publicBaseUrl,
 } from '@/lib/mercadopagoLink';
 
 describe('createLinkAttempt', () => {
@@ -65,5 +66,77 @@ describe('la cookie del intento', () => {
             path: '/mercadopago',
             maxAge: 600,
         });
+    });
+});
+
+/**
+ * El release se compila en CI, donde `NEXT_PUBLIC_APP_URL` no existe: no se
+ * puede apoyar la dirección pública solo en esa variable, o una persona que
+ * vincula su cuenta en producción terminaría redirigida a localhost. Detrás de
+ * Caddy la dirección real llega en los encabezados `x-forwarded-*`.
+ */
+describe('publicBaseUrl', () => {
+    const pedido = (headers: Record<string, string> = {}, url = 'http://127.0.0.1:3000/mercadopago/callback') =>
+        new Request(url, { headers });
+
+    it('usa la variable de entorno cuando está definida', () => {
+        expect(publicBaseUrl(pedido(), 'https://traspaso.forzalabs.online')).toBe(
+            'https://traspaso.forzalabs.online',
+        );
+    });
+
+    it('sin variable, toma el host y el protocolo que reenvía el proxy', () => {
+        const base = publicBaseUrl(
+            pedido({ 'x-forwarded-host': 'traspaso.forzalabs.online', 'x-forwarded-proto': 'https' }),
+            undefined,
+        );
+
+        expect(base).toBe('https://traspaso.forzalabs.online');
+    });
+
+    it('una variable vacía cuenta como no definida', () => {
+        const base = publicBaseUrl(
+            pedido({ 'x-forwarded-host': 'traspaso.forzalabs.online', 'x-forwarded-proto': 'https' }),
+            '   ',
+        );
+
+        expect(base).toBe('https://traspaso.forzalabs.online');
+    });
+
+    it('si el proxy manda una lista, usa el primer valor', () => {
+        const base = publicBaseUrl(
+            pedido({
+                'x-forwarded-host': 'traspaso.forzalabs.online, interno:3000',
+                'x-forwarded-proto': 'https, http',
+            }),
+            undefined,
+        );
+
+        expect(base).toBe('https://traspaso.forzalabs.online');
+    });
+
+    it('sin variable ni proxy, usa el origen del propio pedido', () => {
+        expect(publicBaseUrl(pedido({}, 'http://localhost:3000/x'), undefined)).toBe('http://localhost:3000');
+    });
+
+    it('descarta un host reenviado que no parece un host', () => {
+        const base = publicBaseUrl(
+            pedido(
+                { 'x-forwarded-host': 'evil.com/phishing?x=', 'x-forwarded-proto': 'https' },
+                'http://localhost:3000/x',
+            ),
+            undefined,
+        );
+
+        expect(base).toBe('http://localhost:3000');
+    });
+
+    it('descarta un protocolo reenviado que no es http ni https', () => {
+        const base = publicBaseUrl(
+            pedido({ 'x-forwarded-host': 'traspaso.forzalabs.online', 'x-forwarded-proto': 'javascript' }),
+            undefined,
+        );
+
+        expect(base).toBe('https://traspaso.forzalabs.online');
     });
 });
