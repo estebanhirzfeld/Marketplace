@@ -19,7 +19,11 @@ import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount"
 import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
 import { SellerPaymentAccount } from "@marketplace/domain/src/entities/SellerPaymentAccount";
 import { ISecretCipher } from "@marketplace/domain/src/ports/ISecretCipher";
-import { PrismaSellerPaymentAccountRepository } from "../src/repositories/PrismaSellerPaymentAccountRepository";
+import {
+    PrismaSellerPaymentAccountRepository,
+    isMpUserIdConflict,
+} from "../src/repositories/PrismaSellerPaymentAccountRepository";
+import { ValidationError } from "@marketplace/domain/src/errors/DomainError";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
 import { Prisma } from "../generated/prisma/client";
@@ -1280,9 +1284,67 @@ describe("PrismaSellerPaymentAccountRepository", () => {
         const b = await createPersistedUser({ email: "mp-dup-b@test.com", role: UserRole.SELLER });
         await paymentRepo.save(unaCuenta(a.id, { mpUserId: "mp-compartido" }));
 
-        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toThrow();
+        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toThrow(
+            new ValidationError("Esa cuenta de Mercado Pago ya está vinculada a otro usuario."),
+        );
+        await expect(paymentRepo.save(unaCuenta(b.id, { mpUserId: "mp-compartido" }))).rejects.toBeInstanceOf(
+            ValidationError,
+        );
 
         expect(await paymentRepo.findByUserId(b.id.toString())).toBeNull();
+    });
+
+    it("un fallo ajeno al índice de mpUserId no se traduce: se propaga tal cual", async () => {
+        // Un usuario que nunca se persistió viola la clave foránea, no el índice único.
+        const fantasma = new UniqueEntityID();
+
+        const error = await paymentRepo.save(unaCuenta(fantasma, { mpUserId: "mp-fantasma" })).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error).not.toBeInstanceOf(ValidationError);
+    });
+
+    describe("isMpUserIdConflict", () => {
+        function p2002(meta: Record<string, unknown>) {
+            return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+                code: "P2002",
+                clientVersion: "test",
+                meta,
+            });
+        }
+
+        it("reconoce el campo como arreglo de nombres", () => {
+            expect(isMpUserIdConflict(p2002({ target: ["mpUserId"] }))).toBe(true);
+        });
+
+        it("reconoce el nombre del índice como texto", () => {
+            expect(isMpUserIdConflict(p2002({ target: "seller_payment_accounts_mpUserId_key" }))).toBe(true);
+        });
+
+        it("reconoce la forma del adaptador de driver de Prisma 7", () => {
+            const error = p2002({
+                driverAdapterError: {
+                    cause: { kind: "UniqueConstraintViolation", constraint: { fields: ['"mpUserId"'] } },
+                },
+            });
+            expect(isMpUserIdConflict(error)).toBe(true);
+        });
+
+        it("no reconoce un conflicto sobre otro campo", () => {
+            expect(isMpUserIdConflict(p2002({ target: ["userId"] }))).toBe(false);
+            expect(isMpUserIdConflict(p2002({ target: "seller_payment_accounts_userId_key" }))).toBe(false);
+        });
+
+        it("no reconoce otros códigos ni errores comunes", () => {
+            const otro = new Prisma.PrismaClientKnownRequestError("fk", {
+                code: "P2003",
+                clientVersion: "test",
+                meta: { target: ["mpUserId"] },
+            });
+            expect(isMpUserIdConflict(otro)).toBe(false);
+            expect(isMpUserIdConflict(new Error("mpUserId"))).toBe(false);
+            expect(isMpUserIdConflict("mpUserId")).toBe(false);
+        });
     });
 
     it("el mismo usuario puede volver a vincular la misma cuenta de Mercado Pago", async () => {

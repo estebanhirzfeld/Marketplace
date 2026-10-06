@@ -24,6 +24,7 @@ import {
     ForbiddenError,
     InvalidStateError,
     NotFoundError,
+    SellerTokenUnavailableError,
     ValidationError,
 } from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -605,6 +606,38 @@ describe('ConfirmPaymentFromGatewayUseCase', () => {
 
             expect(gateway.fetchPayment).toHaveBeenCalledWith('1234567890');
             expect(payoutNeeded).toHaveBeenCalledOnce();
+        });
+
+        describe('cuando no se puede obtener el token del vendedor', () => {
+            it.each([
+                ['la cuenta no existe (NotFoundError)', new NotFoundError('sin cuenta')],
+                ['la renovación falló (InvalidStateError)', new InvalidStateError('renovación fallida')],
+            ])('%s: falla con SellerTokenUnavailableError y no confirma nada', async (_caso, causa) => {
+                const { uso, operation, gateway, sellerTokens, payoutNeeded } = armarSplit();
+                (sellerTokens.execute as ReturnType<typeof vi.fn>).mockRejectedValue(causa);
+
+                const error = await uso
+                    .execute('1234567890', { collectorMpUserId: MP_USER_ID })
+                    .catch((e: unknown) => e);
+
+                expect(error).toBeInstanceOf(SellerTokenUnavailableError);
+                expect((error as SellerTokenUnavailableError).code).toBe('SELLER_TOKEN_UNAVAILABLE');
+                // La causa original no se filtra en el mensaje.
+                expect((error as Error).message).not.toContain(causa.message);
+                expect(gateway.fetchPayment).not.toHaveBeenCalled();
+                expect(operation.status).toBe('asset_in_custody');
+                expect(payoutNeeded).not.toHaveBeenCalled();
+            });
+
+            it('un error inesperado se propaga sin cambios', async () => {
+                const { uso, sellerTokens } = armarSplit();
+                const inesperado = new Error('la base se cayó');
+                (sellerTokens.execute as ReturnType<typeof vi.fn>).mockRejectedValue(inesperado);
+
+                await expect(
+                    uso.execute('1234567890', { collectorMpUserId: MP_USER_ID }),
+                ).rejects.toBe(inesperado);
+            });
         });
 
         it('la conciliación sigue igual: rechaza un monto que no cierra', async () => {

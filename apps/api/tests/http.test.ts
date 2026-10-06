@@ -8,6 +8,7 @@ import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoP
 import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
 import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
 import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import { SellerTokenUnavailableError } from '@marketplace/domain/src/errors/DomainError';
 import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
@@ -1622,6 +1623,72 @@ describe('POST /webhooks/mercadopago — pista del cobrador', () => {
 
         expect(res.statusCode).toBe(200);
         expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+});
+
+/**
+ * Si el pago de un vendedor con split no se puede consultar porque su token no
+ * está disponible, se responde 503 para que Mercado Pago reintente el aviso;
+ * cualquier otro fallo sigue respondiendo 200.
+ */
+describe('POST /webhooks/mercadopago — token del vendedor no disponible', () => {
+    async function armarWebhook(resultado: () => Promise<void>) {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        vi.spyOn(confirmar, 'execute').mockImplementation(resultado);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return servidor;
+    }
+
+    const aviso = { type: 'payment', data: { id: '555' }, user_id: 987654 };
+
+    it('responde 503 para que Mercado Pago reintente', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new SellerTokenUnavailableError();
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('responde 200 ante cualquier otro fallo', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new Error('falla inesperada');
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('responde 200 cuando se procesa bien', async () => {
+        const servidor = await armarWebhook(async () => undefined);
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
     });
 });
 

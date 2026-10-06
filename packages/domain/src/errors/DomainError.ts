@@ -35,6 +35,21 @@ export class InvalidStateError extends DomainError {
     public readonly code = 'INVALID_STATE';
 }
 
+/**
+ * No se pudo obtener el token del vendedor para consultar un pago que ya
+ * ocurrió. Es un fallo transitorio de nuestro lado, no del aviso: el transporte
+ * puede pedir que se reintente. El mensaje nunca incluye la causa original.
+ */
+export class SellerTokenUnavailableError extends DomainError {
+    public readonly code = 'SELLER_TOKEN_UNAVAILABLE';
+
+    constructor(
+        message = 'No se pudo obtener el acceso del vendedor a Mercado Pago para confirmar el pago.',
+    ) {
+        super(message);
+    }
+}
+
 /** Los datos recibidos no cumplen una invariante del dominio. */
 export class ValidationError extends DomainError {
     public readonly code = 'VALIDATION';

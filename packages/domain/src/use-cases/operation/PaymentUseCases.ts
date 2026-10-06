@@ -16,6 +16,7 @@ import {
     ForbiddenError,
     InvalidStateError,
     NotFoundError,
+    SellerTokenUnavailableError,
     ValidationError,
 } from '../../errors/DomainError';
 
@@ -262,6 +263,16 @@ export class ConfirmPaymentFromGatewayUseCase {
         const account = await this.paymentAccounts.findByMpUserId(collectorMpUserId);
         if (!account) return undefined;
 
-        return this.sellerTokens.execute(account.userId.toString());
+        // Sin token no se puede ni consultar el pago: se avisa con un error
+        // propio para que el transporte pida reintentar, en vez de dejar la
+        // operación sin confirmar. Cualquier otro fallo se propaga igual.
+        try {
+            return await this.sellerTokens.execute(account.userId.toString());
+        } catch (error) {
+            if (error instanceof NotFoundError || error instanceof InvalidStateError) {
+                throw new SellerTokenUnavailableError();
+            }
+            throw error;
+        }
     }
 }

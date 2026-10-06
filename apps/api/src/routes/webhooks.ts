@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
+import { SellerTokenUnavailableError } from '@marketplace/domain/src/errors/DomainError';
 import { firmaValida } from '../adapters/MercadoPagoSignature';
 
 interface AvisoDeMercadoPago {
@@ -35,9 +36,12 @@ function collectorFrom(userId: unknown): string | undefined {
  * credenciales, así que un aviso falsificado no puede dar por pagada una
  * operación: en el peor caso provoca una consulta que no encuentra nada.
  *
- * Siempre responde 200. Un error nuestro devuelto como 500 haría que
- * MercadoPago reintente el aviso indefinidamente; los problemas se registran
- * en el log y se resuelven mirándolo, no haciendo reintentar a la pasarela.
+ * Responde 200 siempre, salvo una excepción: si el pago es de un vendedor con
+ * split y su token no está disponible, responde 503 para que MercadoPago
+ * reintente más tarde (el pago ya ocurrió y no hay otra forma de enterarse).
+ * Cualquier otro error nuestro devuelto como 500 haría que MercadoPago
+ * reintente el aviso indefinidamente; esos se registran en el log y se
+ * resuelven mirándolo.
  */
 export function registerWebhookRoutes(app: FastifyInstance, c: Container): void {
     app.post<{ Body: AvisoDeMercadoPago; Querystring: { 'data.id'?: string } }>(
@@ -80,6 +84,16 @@ export function registerWebhookRoutes(app: FastifyInstance, c: Container): void 
                     collectorMpUserId ? { collectorMpUserId } : undefined,
                 );
             } catch (error) {
+                // Sin el token del vendedor el pago no se puede consultar:
+                // 503 para que Mercado Pago reintente más tarde. Se registra
+                // sin el cuerpo del aviso ni ningún token.
+                if (error instanceof SellerTokenUnavailableError) {
+                    request.log.error(
+                        { paymentId, code: error.code },
+                        'Token del vendedor no disponible: se pide a Mercado Pago que reintente el aviso',
+                    );
+                    return reply.code(503).send({ received: false });
+                }
                 request.log.error({ err: error, paymentId }, 'No se pudo procesar el aviso de pago');
             }
 
