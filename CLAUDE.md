@@ -20,6 +20,7 @@ The `Makefile` is the sanctioned entry point — `make help` lists every target.
 | DB integration tests (needs DB) | `make test-db` |
 | Reset DB + migrations + seed | `make db-reset` |
 | Prisma Studio | `make db-studio` |
+| Test data on the VPS (create `[TEST]` listings/operations in a given state, delete them) | `make testbed-custody` / `make testbed-clean` (see `make help` for `testbed-*`; docs in `docs/fase-15-cobro-con-reparto.md`) |
 
 Single test file / single case:
 ```bash

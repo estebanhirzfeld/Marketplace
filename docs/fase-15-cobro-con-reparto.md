@@ -166,6 +166,54 @@ No cambian: `MP_TOKEN_ENCRYPTION_KEY`, las banderas ni los textos de transferenc
 
 ---
 
+## Datos de prueba en la VPS
+
+Para no armar a mano cada operación del recorrido, el script `scripts/testbed/cli.mjs` crea activos y operaciones en un estado dado y los borra con un comando. Se usa con los `make testbed-*` y no tiene dependencias (solo Node 20 y `ssh`).
+
+### Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `make testbed-users` | Muestra el id, el rol y el KYC de los tres usuarios que se usan. Sirve para confirmar cuáles son antes de crear nada. |
+| `make testbed-published` | Crea un activo y lo deja `published`. |
+| `make testbed-offer` | Además deja una oferta del comprador en `offer_sent`. |
+| `make testbed-contract` | Acepta la oferta y firma el contrato: `contract_signed`. |
+| `make testbed-custody` | Cede el control y confirma la custodia: `asset_in_custody`, donde el comprador elige cómo pagar. |
+| `make testbed-status` | Cuenta y lista lo marcado en la VPS. |
+| `make testbed-clean` | Borra todo lo marcado, previa confirmación (`YES=1` la omite). |
+
+Opcionales para los que crean: `TYPE=youtube|web`, `PRICE=<centavos>` y `CURRENCY=ARS|USD`. Para ver el plan sin tocar nada: `node scripts/testbed/cli.mjs up --state in_custody --dry-run`.
+
+Los usuarios son `seller@forzalabs.online`, `buyer@forzalabs.online` y `admin@forzalabs.online`; se cambian con `TESTBED_SELLER_EMAIL`, `TESTBED_BUYER_EMAIL` y `TESTBED_ADMIN_EMAIL`, y la VPS con `TESTBED_HOST` (por defecto `ubuntu@144.22.175.14`).
+
+### Cómo funciona
+
+1. Los ids de los tres usuarios se resuelven por SQL, en el contenedor `marketplace-db-1`, y se comprueba que el vendedor tenga KYC (y el comprador, si hay que firmar). Si falta, el script corta antes de crear nada y nombra al usuario.
+2. Por cada actor, la VPS firma un token de diez minutos con `JWT_SECRET` de `/etc/marketplace/api.env`. El secreto no sale de la VPS y los tokens viven solo en memoria.
+3. Un túnel SSH (`ssh -N -L`) lleva la API de `127.0.0.1:3001` de la VPS a un puerto local libre, y se cierra al terminar.
+4. Cada transición pasa por la API real, con la misma secuencia que sigue una persona: crear, enviar, aprobar, ofertar, registrar el acceso de la plataforma con fecha retrotraída ocho días (YouTube exige siete), aceptar, firmar como comprador y como vendedor, ceder y confirmar la custodia. Así rigen todas las reglas del dominio. El SQL se usa solo para resolver usuarios, contar y borrar.
+
+Si un paso falla, el script informa cuál y el id del activo que quedó creado; `make testbed-clean` lo borra.
+
+### Marca y garantías de `clean`
+
+El `assetData.name` de cada activo creado empieza con `[TEST] `. El borrado se limita a los activos con ese prefijo y a lo que cuelga de ellos: avisos, denuncias, contratos, operaciones y los propios activos, en una sola transacción y en orden compatible con las claves foráneas. Al terminar vuelve a contar y falla si queda alguna fila marcada.
+
+`clean` nunca borra ni modifica usuarios, cuentas de custodia (`custody_accounts`) ni cuentas de pago (`seller_payment_accounts`). Un activo creado a mano cuyo nombre no empiece con `[TEST] ` no se toca.
+
+### Lo que no crea
+
+- **Usuarios**: tienen que existir. No crea ni borra ninguno, y no llama a `/me/kyc`.
+- **Vinculación de Mercado Pago**: el vendedor tiene que haberla hecho antes desde el navegador (ver "Recorrido"). Si `REQUIRE_MP_LINK_TO_PUBLISH` está encendida y no la hizo, el paso de publicar falla con el error de la API.
+- **El pago**: se hace en el navegador con el comprador de prueba, sobre la operación que deja `make testbed-custody`.
+- **Cuenta de custodia**: se reutiliza la primera activa del tipo; solo si no hay ninguna se crea una con identificador de ejemplo (`custodia-yt-01@forzalabs.online` o `custodia-web-01@forzalabs.online`), que no se borra con `clean`.
+
+### Tests
+
+`node --test scripts/testbed/*.test.mjs` corre las pruebas del núcleo puro (plan por estado, cuerpos, SQL de borrado, firma del token, argumentos). No usan red ni SSH.
+
+---
+
 ## Pendiente
 
 1. **Recorrido de punta a punta en un entorno desplegado** (se hace con la sección "Prueba en producción con la integración de prueba"). La vinculación y el aviso de pago necesitan una dirección pública, así que no se pueden recorrer en local. Antes de encender en producción: vincular un vendedor de prueba, pagar una operación en pesos y otra en dólares, y comprobar el reparto, el aviso y el avance a `payment_received`.
