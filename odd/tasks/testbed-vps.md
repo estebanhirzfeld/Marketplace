@@ -32,7 +32,7 @@ que ya existen, y borrar todo lo de prueba con un solo comando.
 - [x] T2 Cliente de la VPS (ssh, túnel, token, psql en el contenedor) y comando `up <estado>`. Commit `1d5385c`.
 - [x] T3 Comando `clean` y `status` (cuenta lo marcado) con confirmación de conteos. Commit `7991709`.
 - [x] T4 Targets en el `Makefile`, documentación en `docs/` y nota en `CLAUDE.md`. Commit `d78309e`.
-- [ ] T5 Recorrido real contra la VPS: crear hasta custodia, verificar estado por la API, borrar, verificar cero filas.
+- [x] T5 Recorrido real contra la VPS: crear hasta custodia, verificar estado por la API, borrar, verificar cero filas.
 
 ## Ruta por tarea
 
@@ -53,6 +53,16 @@ Evidencia (runner: `node --test scripts/testbed/*.test.mjs`; el directorio como 
 
 Rutas y cuerpos confirmados leyendo `apps/api/src/routes/*.ts` y los use cases. El token se firma con `@fastify/jwt` por defecto (HS256, payload `{id, role}`, sin issuer ni audience).
 
+Revisión nativa de T1–T4 (tramo desde `7b713a8`, riesgo alto por el `Makefile`): aprobada con 4 lentes, sin hallazgos bloqueantes, autoridad quemada. Avisos no bloqueantes anotados para después: el borrado se acota solo por el prefijo del nombre; las llamadas a la API no tienen tiempo máximo; el borrado no conoce filas creadas por el pago si las hubiera (verificar al borrar una operación ya pagada).
+
+T5 observada el 2026-10-08 en la VPS:
+
+- `make testbed-users`: resolvió admin, vendedor y comprador (los tres con KYC).
+- `make testbed-custody`: 12 de 12 pasos por la API hasta `asset_in_custody`.
+- `make testbed-status`: 1 activo, 1 operación, 1 contrato y 8 avisos marcados.
+- `make testbed-clean YES=1`: "no queda ninguna fila marcada".
+- Se volvió a crear una operación en custodia para probar el pago desde el navegador.
+
 ## Siguiente paso
 
-T5: recorrido real contra la VPS (`make testbed-users`, `make testbed-custody`, verificar por la API, `make testbed-clean`, verificar cero filas).
+Pagar esa operación con el comprador de prueba por Mercado Pago y verificar el aviso, el estado `payment_received` y la comisión retenida.
