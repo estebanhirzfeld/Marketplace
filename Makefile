@@ -4,7 +4,7 @@
 # Uso: make <comando>
 # Ayuda: make help
 
-.PHONY: help install up down restart db-generate db-push db-migrate db-seed db-studio db-reset db-psql test test-domain test-db test-api api web front env-check
+.PHONY: help install up down restart db-generate db-push db-migrate db-seed db-studio db-reset db-psql test test-domain test-db test-api api web front env-check testbed-users testbed-published testbed-offer testbed-contract testbed-custody testbed-status testbed-clean
 
 # ── Setup ────────────────────────────────────────────────
 
@@ -93,3 +93,34 @@ dev: up ## Levanta todo el entorno de desarrollo
 
 fresh: up db-push db-seed ## Setup limpio: levanta DB, sincroniza schema, carga seeds
 	@echo "✅ Entorno listo con datos de ejemplo"
+
+# ── Testbed (datos de prueba en la VPS) ──────────────────
+# Crea activos y operaciones marcados con "[TEST] " usando usuarios EXISTENTES,
+# siempre a través de la API real, y los borra con `testbed-clean`.
+# Opcionales: TYPE=youtube|web  PRICE=<centavos>  CURRENCY=ARS|USD
+# Entorno: TESTBED_HOST, TESTBED_SELLER_EMAIL, TESTBED_BUYER_EMAIL, TESTBED_ADMIN_EMAIL
+# Detalle en docs/fase-15-cobro-con-reparto.md ("Datos de prueba en la VPS").
+
+TESTBED = node scripts/testbed/cli.mjs
+TESTBED_UP_FLAGS = $(if $(TYPE),--type $(TYPE)) $(if $(PRICE),--price $(PRICE)) $(if $(CURRENCY),--currency $(CURRENCY))
+
+testbed-users: ## Testbed: muestra los usuarios que se usan (id, rol, KYC)
+	$(TESTBED) list-users
+
+testbed-published: ## Testbed: crea un activo [TEST] publicado
+	$(TESTBED) up --state published $(TESTBED_UP_FLAGS)
+
+testbed-offer: ## Testbed: crea un activo [TEST] con una oferta enviada
+	$(TESTBED) up --state offer $(TESTBED_UP_FLAGS)
+
+testbed-contract: ## Testbed: crea una operación [TEST] con el contrato firmado
+	$(TESTBED) up --state contract_signed $(TESTBED_UP_FLAGS)
+
+testbed-custody: ## Testbed: crea una operación [TEST] en custodia, lista para pagar
+	$(TESTBED) up --state in_custody $(TESTBED_UP_FLAGS)
+
+testbed-status: ## Testbed: cuenta y lista lo marcado como [TEST] en la VPS
+	$(TESTBED) status
+
+testbed-clean: ## Testbed: borra TODO lo marcado como [TEST] (pide confirmación)
+	$(TESTBED) clean $(if $(YES),--yes)
