@@ -253,6 +253,20 @@ export function parseUserRows(output) {
         });
 }
 
+/** Filas `tabla|cantidad` de `countStatements` a un objeto. */
+export function parseCounts(output) {
+    const counts = {};
+    for (const line of output.split('\n').filter(Boolean)) {
+        const [table, n] = line.split('|');
+        const value = Number(n);
+        if (!table || !Number.isInteger(value)) throw new Error(`Conteo ilegible: ${JSON.stringify(line)}`);
+        counts[table] = value;
+    }
+    return counts;
+}
+
+export const totalCount = (counts) => Object.values(counts).reduce((a, b) => a + b, 0);
+
 /** SQL de `status`: una fila `tipo|id|estado|nombre` por activo y por operación marcados. */
 export function statusListStatement() {
     return [

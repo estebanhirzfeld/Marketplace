@@ -21,6 +21,8 @@ import {
     renderPlan,
     buildRequest,
     countStatements,
+    parseCounts,
+    totalCount,
     cleanupStatements,
     statusListStatement,
     userLookupSql,
@@ -216,19 +218,8 @@ async function runStep(tunnel, token, step, ctx, opts) {
     }
 }
 
-function parseCounts(output) {
-    const counts = {};
-    for (const line of output.split('\n').filter(Boolean)) {
-        const [table, n] = line.split('|');
-        counts[table] = Number(n);
-    }
-    return counts;
-}
-
 const formatCounts = (counts) =>
     Object.entries(counts).map(([t, n]) => `${t}: ${n}`).join(', ');
-
-const total = (counts) => Object.values(counts).reduce((a, b) => a + b, 0);
 
 function cmdStatus(cfg) {
     const counts = parseCounts(runSql(cfg, countStatements()));
@@ -255,7 +246,7 @@ async function confirm(question) {
 async function cmdClean(cfg, flags) {
     const before = parseCounts(runSql(cfg, countStatements()));
     console.log(`Se van a borrar (marcados con "${TEST_PREFIX.trim()}"): ${formatCounts(before)}`);
-    if (total(before) === 0) {
+    if (totalCount(before) === 0) {
         console.log('No hay nada para borrar.');
         return;
     }
@@ -267,7 +258,7 @@ async function cmdClean(cfg, flags) {
     runSql(cfg, cleanupStatements().join('\n'));
 
     const after = parseCounts(runSql(cfg, countStatements()));
-    if (total(after) !== 0) {
+    if (totalCount(after) !== 0) {
         throw new Error(`Quedaron filas marcadas después del borrado: ${formatCounts(after)}`);
     }
     console.log('Borrado completo: no queda ninguna fila marcada.');
