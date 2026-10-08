@@ -157,6 +157,25 @@ function TransferOption({ options }: { options: PaymentOptionsDto }) {
 }
 
 /**
+ * Si corresponde mostrar la espera del pago al vendedor.
+ *
+ * Solo el vendedor, y solo con el activo en custodia. Un administrador mira
+ * como plataforma aunque figure como parte: no cobra, así que no se le habla
+ * como a quien cobra.
+ */
+export function showSellerPaymentWait({
+    status,
+    miParte,
+    isAdmin,
+}: {
+    status: string;
+    miParte?: 'buyer' | 'seller';
+    isAdmin: boolean;
+}): boolean {
+    return !isAdmin && miParte === 'seller' && status === 'asset_in_custody';
+}
+
+/**
  * Lo que ve el vendedor mientras el comprador paga.
  *
  * No hay nada que decidir: la única cosa que puede hacer es asegurarse de que
@@ -166,6 +185,10 @@ function TransferOption({ options }: { options: PaymentOptionsDto }) {
  */
 export function SellerPaymentWait({ options }: { options?: PaymentOptionsDto }) {
     const needsLink = options?.mercadopago.reason === 'seller_not_linked';
+    // El aviso importa mientras Mercado Pago sea una forma posible de cobrar:
+    // disponible, o a un vínculo de distancia. Si la pasarela o la cotización
+    // no están, el comprador solo puede transferir y no hay nada que avisar.
+    const showFeeNotice = options?.mercadopago.available === true || needsLink;
 
     return (
         <section
@@ -176,6 +199,18 @@ export function SellerPaymentWait({ options }: { options?: PaymentOptionsDto }) 
                 Esperando el pago del comprador
             </h3>
             <p className={ESTILO_TEXTO}>No tenés nada que hacer por ahora.</p>
+            {/*
+              * Sin porcentajes ni plazos: dependen del medio con que pague el
+              * comprador y cambian. Lo que el vendedor necesita saber es que
+              * cobra distinto según cómo pague el comprador.
+              */}
+            {showFeeNotice && (
+                <p className={ESTILO_TEXTO}>
+                    Si el comprador paga con Mercado Pago, Mercado Pago descuenta su comisión de tu
+                    cobro y acredita el dinero en sus plazos. Si paga por transferencia cobrás el
+                    monto acordado, sin ese descuento.
+                </p>
+            )}
             {needsLink && (
                 <>
                     <Alert tono="alerta">

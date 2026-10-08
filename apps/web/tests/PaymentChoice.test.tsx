@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PaymentOptionsDto } from '@marketplace/api-contract';
-import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
+import { PaymentChoice, SellerPaymentWait, showSellerPaymentWait } from '@/components/PaymentChoice';
 import { exactMoney } from '@/lib/format';
 
 /**
@@ -256,6 +256,76 @@ describe('SellerPaymentWait', () => {
 
         expect(texto(html)).toContain('Esperando el pago del comprador');
         expect(html).not.toContain('/perfil#mercadopago');
+    });
+});
+
+describe('SellerPaymentWait — aviso de la comisión de Mercado Pago', () => {
+    const AVISO = /Mercado Pago descuenta su comisión/i;
+
+    it('con Mercado Pago disponible explica la diferencia entre los dos medios de pago', () => {
+        const t = texto(vendedor(opciones({})));
+
+        expect(t).toMatch(AVISO);
+        expect(t).toMatch(/acredita el dinero en sus plazos/i);
+        expect(t).toMatch(/por transferencia cobrás el monto acordado/i);
+    });
+
+    it('con la cuenta sin vincular también avisa, porque vincularla es la decisión del vendedor', () => {
+        const t = texto(
+            vendedor(opciones({ mercadopago: { available: false, reason: 'seller_not_linked' } })),
+        );
+
+        expect(t).toMatch(AVISO);
+    });
+
+    it.each(['rate_unavailable', 'not_configured'] as const)(
+        'con %s el comprador no puede pagar por ahí y el aviso no aparece',
+        (reason) => {
+            const t = texto(vendedor(opciones({ mercadopago: { available: false, reason } })));
+
+            expect(t).not.toMatch(/comisión de Mercado Pago/i);
+        },
+    );
+
+    it('sin poder consultar las opciones no aparece', () => {
+        expect(texto(vendedor(undefined))).not.toMatch(/comisión de Mercado Pago/i);
+    });
+
+    it('no fija porcentajes ni cantidades de días: dependen del medio de pago', () => {
+        const t = texto(vendedor(opciones({})));
+
+        expect(t).not.toMatch(/\d\s?%|por ciento/);
+        expect(t).not.toMatch(/\b\d+\s+(días|dias|horas)\b/i);
+    });
+
+    it('el comprador nunca lo ve', () => {
+        const t = texto(comprador(opciones({})));
+
+        expect(t).not.toMatch(/Mercado Pago descuenta/i);
+        expect(t).not.toMatch(/cobrás/i);
+    });
+});
+
+describe('showSellerPaymentWait — quién lo ve y cuándo', () => {
+    it('solo el vendedor, con el activo en custodia', () => {
+        expect(showSellerPaymentWait({ status: 'asset_in_custody', miParte: 'seller', isAdmin: false })).toBe(true);
+    });
+
+    it.each(['contract_signed', 'transfer_in_progress', 'payment_received', 'completed', 'cancelled'] as const)(
+        'no en %s',
+        (status) => {
+            expect(showSellerPaymentWait({ status, miParte: 'seller', isAdmin: false })).toBe(false);
+        },
+    );
+
+    it('no para el comprador ni para quien no es parte', () => {
+        expect(showSellerPaymentWait({ status: 'asset_in_custody', miParte: 'buyer', isAdmin: false })).toBe(false);
+        expect(showSellerPaymentWait({ status: 'asset_in_custody', miParte: undefined, isAdmin: false })).toBe(false);
+    });
+
+    it('no para el administrador, aunque figure como parte', () => {
+        expect(showSellerPaymentWait({ status: 'asset_in_custody', miParte: 'seller', isAdmin: true })).toBe(false);
+        expect(showSellerPaymentWait({ status: 'asset_in_custody', miParte: undefined, isAdmin: true })).toBe(false);
     });
 });
 

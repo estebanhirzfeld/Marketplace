@@ -502,8 +502,17 @@ export default function Sistema() {
                             </Alert>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO, CON AVISO DE LA COMISIÓN DE MERCADO PAGO</div>
                             <SellerPaymentWait options={PAGO_AMBAS} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO, SIN MERCADO PAGO DISPONIBLE (SIN AVISO DE COMISIÓN)</div>
+                            <SellerPaymentWait
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'not_configured' },
+                                }}
+                            />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — SIN MERCADO PAGO VINCULADO</div>

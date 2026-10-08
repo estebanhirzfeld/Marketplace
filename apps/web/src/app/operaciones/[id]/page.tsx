@@ -14,7 +14,7 @@ import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm'
 import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
-import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
+import { PaymentChoice, SellerPaymentWait, showSellerPaymentWait } from '@/components/PaymentChoice';
 import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
 import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
@@ -640,7 +640,7 @@ export default async function DetalleOperacion(props: {
                                     />
                                 )}
 
-                                {!isAdmin && op.miParte === 'seller' && op.status === 'asset_in_custody' && (
+                                {showSellerPaymentWait({ status: op.status, miParte: op.miParte, isAdmin }) && (
                                     <SellerPaymentWait options={paymentOptions} />
                                 )}
 

@@ -166,6 +166,39 @@ No cambian: `MP_TOKEN_ENCRYPTION_KEY`, las banderas ni los textos de transferenc
 
 ---
 
+## Comisión de Mercado Pago a cargo del vendedor
+
+El recorrido de la sección "Prueba en producción" se hizo el 8 de octubre de 2026 con un pago real de la integración de prueba, y mostró algo que el diseño no tenía en cuenta: cuando el comprador paga por Mercado Pago, Mercado Pago descuenta **su propia comisión de procesamiento** del cobro del vendedor, además de la comisión de la plataforma.
+
+### Caso observado
+
+| Concepto | Monto |
+|---|---|
+| Pago del comprador | $ 7.956.375 |
+| Cargo de Mercado Pago (4,10 % del total cobrado) | $ 326.211,38 |
+| Comisión de la plataforma | $ 757.750 |
+| Neto del vendedor | $ 6.872.413,62 |
+| Acreditación | a liquidar el 26 de octubre (18 días después, pago con tarjeta de crédito) |
+
+Por transferencia bancaria el vendedor recibe el monto acordado, sin ese descuento. El porcentaje y el plazo salen del medio de pago que elige el comprador dentro de Mercado Pago (tarjeta, dinero en cuenta, etc.) y cambian con el tiempo; los valores de arriba describen solo este caso.
+
+### Decisión
+
+La plataforma no absorbe ese costo ni se lo traslada al comprador: es una intermediaria limitada, con comisión del 5 % por lado, y no asume riesgo ni costos de terceros. Se le avisa al vendedor para que sepa cómo cobra en cada caso.
+
+### Qué dice el aviso y dónde
+
+En el detalle de la operación, el panel **Esperando el pago del comprador** suma una frase:
+
+> Si el comprador paga con Mercado Pago, Mercado Pago descuenta su comisión de tu cobro y acredita el dinero en sus plazos. Si paga por transferencia cobrás el monto acordado, sin ese descuento.
+
+- **Quién lo ve**: solo el vendedor, y solo con la operación en `asset_in_custody`. El comprador y el administrador no lo ven (`showSellerPaymentWait`).
+- **Cuándo aparece**: cuando Mercado Pago es una forma posible de cobrar, es decir, disponible o a un vínculo de distancia (`seller_not_linked`). Con `rate_unavailable` o `not_configured`, o sin poder consultar las opciones, el comprador solo puede transferir y el aviso no se muestra. No hizo falta ningún endpoint nuevo: sale de `paymentOptions`, que la pantalla ya consultaba.
+- **Qué no dice**: ningún porcentaje ni cantidad de días, porque dependen del medio de pago. Un test lo fija.
+- El panel se refleja en `/sistema`, con y sin el aviso.
+
+---
+
 ## Pendiente
 
 1. **Recorrido de punta a punta en un entorno desplegado** (se hace con la sección "Prueba en producción con la integración de prueba"). La vinculación y el aviso de pago necesitan una dirección pública, así que no se pueden recorrer en local. Antes de encender en producción: vincular un vendedor de prueba, pagar una operación en pesos y otra en dólares, y comprobar el reparto, el aviso y el avance a `payment_received`.
