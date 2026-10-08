@@ -11,7 +11,7 @@ import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
-import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
+import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
@@ -592,24 +592,29 @@ export default async function DetalleOperacion(props: {
                                     <RecipientIdentityForm
                                         action={declareRecipientIdentity.bind(null, id)}
                                         urgente={destinoUrgente}
+                                        assetType={op.assetType}
                                     />
                                 )}
                                 {puedeDeclararDestino && op.recipientIdentity && (
-                                    <details className="text-[13px]">
-                                        <summary className="cursor-pointer text-[var(--color-tenue)]">
-                                            Vas a recibir el activo en{' '}
-                                            <span className="font-mono">
-                                                {op.recipientIdentity.identifier}
-                                            </span>
-                                        </summary>
-                                        <div className="mt-3">
-                                            <RecipientIdentityForm
-                                                action={declareRecipientIdentity.bind(null, id)}
-                                                urgente={false}
-                                                valorActual={op.recipientIdentity.identifier}
-                                            />
-                                        </div>
-                                    </details>
+                                    <div className="flex flex-col gap-2 text-[13px]">
+                                        <RecipientIdentitySaved
+                                            identifier={op.recipientIdentity.identifier}
+                                            assetType={op.assetType}
+                                        />
+                                        <details>
+                                            <summary className="cursor-pointer text-[var(--color-tenue)]">
+                                                Cambiar la cuenta
+                                            </summary>
+                                            <div className="mt-3">
+                                                <RecipientIdentityForm
+                                                    action={declareRecipientIdentity.bind(null, id)}
+                                                    urgente={false}
+                                                    valorActual={op.recipientIdentity.identifier}
+                                                    assetType={op.assetType}
+                                                />
+                                            </div>
+                                        </details>
+                                    </div>
                                 )}
 
                                 {op.status === 'contract_signed' && op.miParte === 'seller' && (
