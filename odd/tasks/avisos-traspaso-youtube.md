@@ -28,7 +28,7 @@ Que los pasos que se le muestran al vendedor y a la plataforma en `YouTubeStrate
 
 - [x] T1 Dominio: tests nuevos en rojo (6 fallos observados), luego los pasos de `getTransferSteps()` en verde. `PlatformHandover.test.ts` no necesitó cambios (filtra solo pasos del vendedor).
 - [x] T2 Web: lista fija de `apps/web/src/app/sistema/page.tsx` actualizada (paso 3 como administrador, texto de promoción). El paso nuevo es de la plataforma y esa lista solo muestra pasos del vendedor.
-- [~] T3 Verificación: hecha en dominio y `/sistema`; falta revisar `/activos/[id]` con un activo real.
+- [x] T3 Verificación: dominio, `tsc`, `/sistema` y la respuesta de la API para un activo real de YouTube (ver Progreso). No se miró la pantalla de `/activos/[id]` en el navegador.
 
 ## Ruta por tarea
 
@@ -50,7 +50,8 @@ Verificación observada:
 - `pnpm --filter @marketplace/domain exec vitest run`: 58 archivos, 785 tests en verde.
 - `tsc --noEmit` en `packages/domain` y `apps/web`: sin errores (no hay script `typecheck` en esos paquetes).
 - `next dev` en el puerto 3100: `/sistema` responde 200 y muestra "como administrador del canal" y el texto nuevo de la promoción; ya no aparece "como propietaria del canal".
-- Pendiente: ver `/activos/[id]` con un activo de YouTube real (requiere base de datos).
+- Con la base local levantada (Docker reiniciado), API en el puerto 3001 y login como el vendedor sembrado, `GET /listings/f2fdc64f-0328-4dc6-90b7-954af8f2a348` (YouTube, publicado) devuelve en `handoverSteps` los 4 pasos del vendedor con los textos nuevos (ids 1, 2, 3 y 7; el paso de aceptación de la plataforma no aparece porque esa lista solo trae pasos del vendedor). Solo lecturas sobre la base, un login y nada escrito a propósito.
+- No se miró la pantalla en el navegador: la página renderiza `instruction ?? description` de ese mismo DTO.
 
 Commit de la unidad de trabajo: `325a131` (T1 y T2, 143 líneas cambiadas). Evaluación de riesgo nativa (`gentle-ai review assess` con base `origin/fase-5-frontend-y-avisos`, archivos sin seguimiento excluidos): riesgo medio por cambio ejecutable en `apps/web/src/app/sistema/page.tsx`, `review_due: false` con motivo `under_budget`. La revisión queda pendiente dentro de la rebanada hasta que otro commit alcance el presupuesto de unas 400 líneas.
 
