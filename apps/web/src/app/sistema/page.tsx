@@ -6,7 +6,7 @@ import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
 import { CustodyAccountForm } from '@/components/CustodyAccountForm';
 import { PlatformAccessForm } from '@/components/PlatformAccessForm';
-import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
+import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
 import { MercadoPagoPanel } from '@/components/MercadoPagoPanel';
@@ -358,8 +358,20 @@ export default function Sistema() {
                             </Panel>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TAREA PENDIENTE DEL COMPRADOR (URGENTE)</div>
-                            <RecipientIdentityForm action={noop} urgente />
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TAREA PENDIENTE DEL COMPRADOR — CANAL (URGENTE)</div>
+                            <RecipientIdentityForm action={noop} urgente assetType="youtube" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TAREA PENDIENTE DEL COMPRADOR — DOMINIO</div>
+                            <RecipientIdentityForm action={noop} urgente={false} assetType="web" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CUENTA RECEPTORA YA DECLARADA</div>
+                            <RecipientIdentitySaved identifier="tunombre@gmail.com" assetType="youtube" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CORRECCIÓN DE LA CUENTA RECEPTORA</div>
+                            <RecipientIdentityForm action={noop} urgente={false} assetType="web" valorActual="mi-usuario" />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONSTANCIA DE ENTREGA</div>
@@ -490,8 +502,17 @@ export default function Sistema() {
                             </Alert>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO, CON AVISO DE LA COMISIÓN DE MERCADO PAGO</div>
                             <SellerPaymentWait options={PAGO_AMBAS} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — ESPERANDO EL PAGO, SIN MERCADO PAGO DISPONIBLE (SIN AVISO DE COMISIÓN)</div>
+                            <SellerPaymentWait
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'not_configured' },
+                                }}
+                            />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — SIN MERCADO PAGO VINCULADO</div>
