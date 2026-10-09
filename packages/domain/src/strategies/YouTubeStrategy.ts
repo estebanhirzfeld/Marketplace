@@ -240,7 +240,15 @@ export class YouTubeStrategy implements IAssetStrategy {
     const pasos: Omit<TransferStep, 'id'>[] = [
       {
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
-        instruction: 'Convertí el canal a Cuenta de Marca, si todavía no lo es',
+        instruction: [
+          'Convertí el canal a Cuenta de Marca, si todavía no lo es.',
+          'La cuenta de marca se crea con "Crear un canal nuevo" desde youtube.com/channel_switcher; después usás Configuración avanzada → "Transferir canal". Si YouTube dice "No hay otras cuentas disponibles", falta crear la cuenta de marca.',
+          'Al elegir la cuenta de marca, YouTube te avisa que va a borrar el canal vacío que se creó junto con ella ("Reemplazar"): es lo esperado, y tu canal con sus suscriptores no se pierde.',
+          'Mientras dura la transferencia YouTube bloquea el acceso a la cuenta, hasta unos 10 minutos: no lo hagas cuando necesites publicar algo.',
+          'La transferencia quita todos los delegados de Permisos y borra la información demográfica del creador: por eso este paso va ANTES de invitar a la plataforma.',
+          'Lo más probable es que el canal pierda la verificación y la foto de perfil; conviene volver a subir la foto después.',
+          'El nombre del canal original se mantiene aunque la cuenta de marca se llame distinto (por ejemplo "Traspaso Cuenta de Marca"): no hace falta ponerle a la cuenta de marca el nombre del canal.',
+        ].join(' '),
         requiredActor: 'seller',
         automated: false,
       },
@@ -269,8 +277,17 @@ export class YouTubeStrategy implements IAssetStrategy {
          * una en positivo le pide que nos crea.
          */
         description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
-        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca. No como propietario: un administrador no puede eliminar el canal, no puede quitarte a vos, y no puede transferir nada. Lo único que cambia es que arranca el plazo de siete días que exige Google — y ese plazo corre mientras seguís recibiendo ofertas.`,
+        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca. No elijas el rol "Propietario": ese rol permite borrar la cuenta de marca, y lo dice el propio diálogo de Google. Vos vas a ver a la plataforma como "Administrador" y ella se va a ver como "Supervisor/a" en tu cuenta: es el mismo rol. Un administrador no puede eliminar el canal, no puede quitarte a vos, y no puede transferir nada. Lo único que cambia es que, con ese rol, la plataforma empieza a acumular los siete días que exige Google — y esa espera corre mientras seguís recibiendo ofertas.`,
         requiredActor: 'seller',
+        automated: false,
+      },
+      {
+        // Aceptar la invitación es lo que convierte a la plataforma en
+        // administradora, y de ahí cuenta el plazo de Google. No se afirma si
+        // el plazo corre desde la invitación o desde la aceptación: no está
+        // verificado.
+        description: 'La plataforma acepta la invitación como administradora desde la cuenta de custodia',
+        requiredActor: 'platform',
         automated: false,
       },
       {
@@ -285,7 +302,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         // Informativo: a los 7 días se cumple el requisito de Google, pero no
         // pasa nada solo. El cambio de propietario principal lo hace el
         // vendedor, y es el paso siguiente.
-        description: 'Pasados 7 días desde la invitación, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
+        description: 'Pasados 7 días como administradora, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
         automated: false,
       },
@@ -299,7 +316,7 @@ export class YouTubeStrategy implements IAssetStrategy {
          * producto intenta eliminar.
          */
         description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
-        instruction: `Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.`,
+        instruction: `Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado. La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada. Google te va a mostrar lo que cedés: agregar y borrar propietarios y administradores, cambiar permisos y borrar la cuenta por completo.`,
         requiredActor: 'seller',
         automated: false,
       },

@@ -333,7 +333,7 @@ export default function Sistema() {
                                     handoverSteps={[
                                         { id: '1', description: 'El vendedor convierte el canal a Cuenta de Marca' },
                                         { id: '2', description: 'El vendedor sale de los permisos de canal en YouTube Studio' },
-                                        { id: '3', description: 'El vendedor invita a custodia-yt-01@traspaso.com como propietaria del canal' },
+                                        { id: '3', description: 'El vendedor invita a custodia-yt-01@traspaso.com como administrador del canal' },
                                     ]}
                                     custodyAccounts={[
                                         { id: 'a', label: 'Custodia YouTube 01', identifier: 'custodia-yt-01@traspaso.com' },
@@ -350,7 +350,7 @@ export default function Sistema() {
                                         {
                                             id: '1',
                                             description: 'El vendedor promueve a custodia-yt-01@traspaso.com de administrador a propietario principal',
-                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada. Google te va a mostrar lo que cedés: agregar y borrar propietarios y administradores, cambiar permisos y borrar la cuenta por completo.',
                                             afterPlatformStarts: true,
                                         },
                                     ]}
