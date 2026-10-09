@@ -52,6 +52,8 @@ Verificación observada:
 - `next dev` en el puerto 3100: `/sistema` responde 200 y muestra "como administrador del canal" y el texto nuevo de la promoción; ya no aparece "como propietaria del canal".
 - Pendiente: ver `/activos/[id]` con un activo de YouTube real (requiere base de datos).
 
+Commit de la unidad de trabajo: `325a131` (T1 y T2, 143 líneas cambiadas). Evaluación de riesgo nativa (`gentle-ai review assess` con base `origin/fase-5-frontend-y-avisos`, archivos sin seguimiento excluidos): riesgo medio por cambio ejecutable en `apps/web/src/app/sistema/page.tsx`, `review_due: false` con motivo `under_budget`. La revisión queda pendiente dentro de la rebanada hasta que otro commit alcance el presupuesto de unas 400 líneas.
+
 ## Próximo paso
 
 Commit de la unidad de trabajo y revisión de `/activos/[id]`. Después, esperar al 16/10 para la prueba del reloj de 7 días.
