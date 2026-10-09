@@ -8,6 +8,7 @@ import type {
     YouTubeConnectionDto,
 } from '@marketplace/api-contract';
 import type { YouTubeConnectionSummary } from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import { ASSET_NICHES } from '@marketplace/shared-types';
 import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
 
@@ -117,14 +118,15 @@ export function registerYouTubeConnectionRoutes(app: FastifyInstance, c: Contain
                     required: ['niche', 'hasNoFaceContent', 'askingPrice'],
                     additionalProperties: false,
                     properties: {
-                        niche: { type: 'string', minLength: 1 },
+                        // El rubro es uno del catálogo compartido, no texto libre.
+                        niche: { type: 'string', enum: [...ASSET_NICHES] },
                         hasNoFaceContent: { type: 'boolean' },
                         askingPrice: {
                             type: 'object',
                             required: ['cents', 'currency'],
                             additionalProperties: false,
                             properties: {
-                                cents: { type: 'integer' },
+                                cents: { type: 'integer', minimum: 1 },
                                 currency: { type: 'string', enum: ['ARS', 'USD'] },
                             },
                         },

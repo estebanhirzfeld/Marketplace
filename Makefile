@@ -60,10 +60,10 @@ test: ## Ejecuta TODOS los tests (dominio + integración + API)
 test-domain: ## Ejecuta solo tests de dominio
 	pnpm --filter @marketplace/domain test
 
-test-db: ## Ejecuta solo tests de integración (requiere DB)
+test-db: ## Ejecuta solo tests de integración (requiere el servidor de DB; usan marketplace_test, nunca la de desarrollo)
 	pnpm --filter @marketplace/db test
 
-test-api: ## Ejecuta solo tests HTTP de la API (requiere DB)
+test-api: ## Ejecuta solo tests HTTP de la API (requiere el servidor de DB; usan marketplace_test)
 	pnpm --filter @marketplace/api test
 
 api: ## Levanta solo la API (http://localhost:3001)

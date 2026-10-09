@@ -108,9 +108,17 @@ export class ConnectYouTubeChannelUseCase {
         let reading: YouTubeChannelAnalytics | null;
         try {
             reading = await this.reader.read(tokens.accessToken);
-        } catch {
-            // Con el permiso ya verificado, que no se pueda leer es de Google.
-            throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE);
+        } catch (error) {
+            // Red, tiempo agotado, cuota o 5xx: es de Google y se reintenta solo.
+            if (error instanceof ServiceUnavailableError) {
+                throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE);
+            }
+            // Cualquier otra falla (401, 403 que no es de cuota) es permanente:
+            // reintentar no sirve, hay que volver a autorizar. El error original
+            // no se propaga porque puede traer datos de la respuesta de Google.
+            throw new ValidationError(
+                'No pudimos leer tu canal con este permiso. Volvé a conectarlo y aceptá todos los permisos.',
+            );
         }
         if (!reading) {
             throw new ValidationError(

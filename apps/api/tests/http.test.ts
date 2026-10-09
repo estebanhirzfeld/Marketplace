@@ -2553,6 +2553,10 @@ describe('Conexión de canal de YouTube — /me/youtube', () => {
             ['sin precio', { niche: 'gaming', hasNoFaceContent: true }],
             ['con moneda inválida', { ...LISTING_BODY, askingPrice: { cents: 100, currency: 'EUR' } }],
             ['con precio decimal', { ...LISTING_BODY, askingPrice: { cents: 10.5, currency: 'USD' } }],
+            ['con precio en cero', { ...LISTING_BODY, askingPrice: { cents: 0, currency: 'USD' } }],
+            ['con precio negativo', { ...LISTING_BODY, askingPrice: { cents: -500, currency: 'USD' } }],
+            ['con un rubro fuera del catálogo', { ...LISTING_BODY, niche: 'rubro-inventado' }],
+            ['con un rubro larguísimo', { ...LISTING_BODY, niche: 'a'.repeat(10_000) }],
             ['sin el dato de contenido sin rostro', { niche: 'gaming', askingPrice: LISTING_BODY.askingPrice }],
         ])('400 al crear el activo %s', async (_label, payload) => {
             const server = await buildTestApp().server;

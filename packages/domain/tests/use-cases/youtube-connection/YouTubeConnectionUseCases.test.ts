@@ -295,11 +295,8 @@ describe('ConnectYouTubeChannelUseCase', () => {
         expect(repo.save).not.toHaveBeenCalled();
     });
 
-    it.each([
-        ['una falla transitoria', new ServiceUnavailableError('cuota agotada secreto')],
-        ['una falla inesperada', new Error('503 secreto')],
-    ])('si Google falla al leer el canal (%s), responde no disponible y no guarda', async (_label, failure) => {
-        const { useCase, repo } = setup({ reader: fakeReader(failure) });
+    it('si Google falla de forma transitoria al leer el canal, responde no disponible y no guarda', async () => {
+        const { useCase, repo } = setup({ reader: fakeReader(new ServiceUnavailableError('cuota agotada secreto')) });
 
         const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
 
@@ -310,6 +307,26 @@ describe('ConnectYouTubeChannelUseCase', () => {
         expect((error as Error).message).not.toContain('secreto');
         expect(repo.save).not.toHaveBeenCalled();
     });
+
+    it.each([
+        ['un 401', new Error('401 secreto')],
+        ['un 403 que no es de cuota', new Error('403 secreto')],
+    ])(
+        'si la lectura del canal falla de forma permanente (%s), pide volver a conectar y no guarda',
+        async (_label, failure) => {
+            const { useCase, repo } = setup({ reader: fakeReader(failure) });
+
+            const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect(error).not.toBeInstanceOf(ServiceUnavailableError);
+            expect((error as Error).message).toBe(
+                'No pudimos leer tu canal con este permiso. Volvé a conectarlo y aceptá todos los permisos.',
+            );
+            expect((error as Error).message).not.toContain('secreto');
+            expect(repo.save).not.toHaveBeenCalled();
+        },
+    );
 
     it('un administrador no conecta canales', async () => {
         const { useCase, oauth } = setup();
