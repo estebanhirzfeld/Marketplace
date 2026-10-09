@@ -42,6 +42,9 @@ export class YouTubeConnection extends Entity<YouTubeConnectionProps> {
         assertNotBlank(props.channelTitle, 'El título del canal es obligatorio.');
         assertToken(props.encryptedRefreshToken);
         assertAllScopes(props.grantedScopes);
+        if (props.lastSnapshot.channelId !== props.channelId) {
+            throw new ValidationError('La lectura corresponde a otro canal.');
+        }
 
         return new YouTubeConnection({
             ...props,

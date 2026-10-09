@@ -46,6 +46,11 @@ import {
     SellerPaymentAccountStatusDto,
     MercadoPagoAuthorizationRequest,
     LinkMercadoPagoRequest,
+    YouTubeAuthorizationRequest,
+    ConnectYouTubeChannelRequest,
+    YouTubeConnectionDto,
+    CreateListingFromYouTubeRequest,
+    CreatedYouTubeListingDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -136,6 +141,31 @@ export class MarketplaceClient {
     /** Desvincula la cuenta. Idempotente. */
     unlinkMercadoPago(): Promise<void> {
         return this.request('DELETE', '/me/mercadopago');
+    }
+
+    // ── Conexión del vendedor con un canal de YouTube ────
+
+    /** Dónde tiene que autorizar el vendedor para conectar su canal. */
+    youTubeAuthorizationUrl(body: YouTubeAuthorizationRequest): Promise<AuthorizationUrlDto> {
+        return this.request('POST', '/me/youtube/authorization', { body });
+    }
+
+    /** Completa la conexión con el código de Google. Nunca devuelve tokens. */
+    connectYouTubeChannel(body: ConnectYouTubeChannelRequest): Promise<YouTubeConnectionDto> {
+        return this.request('POST', '/me/youtube/connect', { body });
+    }
+
+    /** Los canales que el vendedor tiene conectados, con su última lectura. */
+    youTubeConnections(): Promise<YouTubeConnectionDto[]> {
+        return this.request('GET', '/me/youtube/connections');
+    }
+
+    /** Crea el borrador del activo con los datos que Google verificó. */
+    createListingFromYouTubeConnection(
+        channelId: string,
+        body: CreateListingFromYouTubeRequest,
+    ): Promise<CreatedYouTubeListingDto> {
+        return this.request('POST', `/me/youtube/connections/${encodeURIComponent(channelId)}/listing`, { body });
     }
 
     // ── Listings ─────────────────────────────────────────

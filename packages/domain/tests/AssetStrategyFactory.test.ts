@@ -120,3 +120,41 @@ describe('createAssetStrategy — validación de entrada', () => {
         expect(strategy.toJSON().assetData.currency).toBe('USD');
     });
 });
+
+describe('createAssetStrategy — fecha de verificación con YouTube', () => {
+    const base = { monthlyRevenueUsdCents: 0, subscribers: 10, isMonetized: false };
+    const verifiedAt = (data: Record<string, unknown>) =>
+        createAssetStrategy(AssetType.YOUTUBE, { ...base, ...data }).toJSON().assetData.verifiedFromYouTubeAt;
+
+    it('acepta un ISO 8601 completo', () => {
+        expect(verifiedAt({ verifiedFromYouTubeAt: '2026-10-09T12:00:00.000Z' })).toBe('2026-10-09T12:00:00.000Z');
+        expect(verifiedAt({ verifiedFromYouTubeAt: '2026-10-09T09:00:00-03:00' })).toBe('2026-10-09T12:00:00.000Z');
+    });
+
+    it('acepta una instancia de Date', () => {
+        const date = new Date('2026-10-09T12:00:00.000Z');
+
+        expect(verifiedAt({ verifiedFromYouTubeAt: date })).toBe('2026-10-09T12:00:00.000Z');
+    });
+
+    it('sin el campo queda sin marca', () => {
+        expect(verifiedAt({})).toBeUndefined();
+    });
+
+    it.each([['2026'], ['2026-10-09'], ['October 9, 2026'], ['1760000000000'], ['2026-13-45T00:00:00Z'], ['no es fecha']])(
+        'rechaza el texto %s: no es un ISO 8601 completo',
+        (value) => {
+            expect(() => createAssetStrategy(AssetType.YOUTUBE, { ...base, verifiedFromYouTubeAt: value })).toThrow(
+                ValidationError,
+            );
+        },
+    );
+
+    it('rechaza un Date inválido y valores que no son texto ni fecha', () => {
+        for (const value of [new Date('x'), 1760000000000, true, {}]) {
+            expect(() => createAssetStrategy(AssetType.YOUTUBE, { ...base, verifiedFromYouTubeAt: value })).toThrow(
+                ValidationError,
+            );
+        }
+    });
+});

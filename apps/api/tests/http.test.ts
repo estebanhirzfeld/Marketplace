@@ -8,9 +8,17 @@ import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoP
 import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
 import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
 import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
-import { SellerTokenUnavailableError } from '@marketplace/domain/src/errors/DomainError';
+import { SellerTokenUnavailableError, ServiceUnavailableError } from '@marketplace/domain/src/errors/DomainError';
 import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
+import { IYouTubeConnectionOAuthClient, YouTubeConnectionTokens } from '@marketplace/domain/src/ports/IYouTubeConnectionOAuthClient';
+import { IYouTubeAnalyticsReader } from '@marketplace/domain/src/ports/IYouTubeAnalyticsReader';
+import { ISecretCipher } from '@marketplace/domain/src/ports/ISecretCipher';
+import { ConnectYouTubeChannelUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import { ListYouTubeConnectionsUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
+import { CreateListingFromYouTubeConnectionUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
+import { YouTubeChannelAnalytics } from '@marketplace/domain/src/value-objects/YouTubeChannelAnalytics';
+import { REQUIRED_YOUTUBE_SCOPES } from '@marketplace/domain/src/value-objects/YouTubeScopes';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -28,6 +36,8 @@ import {
     PrismaListingRepository,
     PrismaOperationRepository,
     PrismaCustodyAccountRepository,
+    PrismaYouTubeConnectionRepository,
+    PrismaYouTubeChannelListingFinder,
 } from '@marketplace/db';
 
 /**
@@ -2166,6 +2176,396 @@ describe('Cuenta de Mercado Pago del vendedor — /me/mercadopago', () => {
 
                 expect(res.statusCode).toBe(204);
             });
+        });
+    });
+});
+
+describe('Conexión de canal de YouTube — /me/youtube', () => {
+    const CHANNEL_ID = 'UCq-Fj5jknLsUf-MWSy4_brA';
+    const NOW = new Date('2026-10-09T12:00:00.000Z');
+    const PLAIN_REFRESH_TOKEN = 'refresco-secreto-en-claro';
+    const PLAIN_ACCESS_TOKEN = 'acceso-secreto-en-claro';
+
+    const cipher: ISecretCipher = {
+        encrypt: (plain) => `enc:${Buffer.from(plain).toString('base64')}`,
+        decrypt: (payload) => Buffer.from(payload.slice(4), 'base64').toString('utf8'),
+    };
+
+    function reading(channelId = CHANNEL_ID) {
+        return YouTubeChannelAnalytics.create({
+            channelId,
+            title: 'Canal de prueba',
+            subscribers: 12_000,
+            views12Months: 480_000,
+            revenue12MonthsCents: 360_000,
+            monthly: ['2026-07', '2026-08', '2026-09'].map((month) => ({
+                month,
+                views: 40_000,
+                subscribersGained: 300,
+                subscribersLost: 20,
+                revenueCents: 30_000,
+            })),
+            topCountry: 'US',
+            periodStart: new Date('2025-10-01T00:00:00.000Z'),
+            periodEnd: new Date('2026-09-30T00:00:00.000Z'),
+            readAt: NOW,
+        });
+    }
+
+    function tokens(overrides: Partial<YouTubeConnectionTokens> = {}): YouTubeConnectionTokens {
+        return {
+            accessToken: PLAIN_ACCESS_TOKEN,
+            refreshToken: PLAIN_REFRESH_TOKEN,
+            grantedScopes: [...REQUIRED_YOUTUBE_SCOPES],
+            ...overrides,
+        };
+    }
+
+    /** Google simulado; la base y los repositorios son los de verdad. */
+    function buildTestApp(
+        options: {
+            configured?: boolean;
+            exchange?: () => Promise<YouTubeConnectionTokens>;
+            read?: () => Promise<YouTubeChannelAnalytics | null>;
+        } = {},
+    ) {
+        const oauth: IYouTubeConnectionOAuthClient = {
+            authorizationUrl: vi.fn(({ state }) => `https://accounts.google.com/o/oauth2/v2/auth?state=${state}`),
+            exchangeCode: vi.fn(options.exchange ?? (async () => tokens())),
+        };
+        const reader: IYouTubeAnalyticsReader = { read: vi.fn(options.read ?? (async () => reading())) };
+        const connections = new PrismaYouTubeConnectionRepository();
+        const base = createContainer(fakeHasher);
+
+        const container: Container =
+            options.configured === false
+                ? {
+                      ...base,
+                      youtubeConnectionOAuth: undefined,
+                      connectYouTubeChannel: undefined,
+                      listYouTubeConnections: undefined,
+                      createListingFromYouTubeConnection: undefined,
+                  }
+                : {
+                      ...base,
+                      youtubeConnectionOAuth: oauth,
+                      connectYouTubeChannel: new ConnectYouTubeChannelUseCase(connections, oauth, reader, cipher, () => NOW),
+                      listYouTubeConnections: new ListYouTubeConnectionsUseCase(connections),
+                      createListingFromYouTubeConnection: new CreateListingFromYouTubeConnectionUseCase(
+                          connections,
+                          listingRepo,
+                          new PrismaYouTubeChannelListingFinder(),
+                      ),
+                  };
+
+        return { oauth, reader, server: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    async function withSession(email: string, role: UserRole = UserRole.SELLER) {
+        await crearUsuario(email, role);
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    const LISTING_BODY = {
+        niche: 'gaming',
+        hasNoFaceContent: true,
+        askingPrice: { cents: 1_500_000, currency: 'USD' },
+    };
+
+    describe('sin configurar', () => {
+        it('503 en las cuatro rutas', async () => {
+            const server = await buildTestApp({ configured: false }).server;
+            const headers = await withSession('yt-503@test.com');
+
+            const responses = await Promise.all([
+                server.inject({ method: 'POST', url: '/me/youtube/authorization', headers, payload: { state: 'estado' } }),
+                server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'codigo' } }),
+                server.inject({ method: 'GET', url: '/me/youtube/connections', headers }),
+                server.inject({
+                    method: 'POST',
+                    url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                    headers,
+                    payload: LISTING_BODY,
+                }),
+            ]);
+
+            expect(responses.map((r) => r.statusCode)).toEqual([503, 503, 503, 503]);
+        });
+    });
+
+    describe('configurada', () => {
+        it('401 sin sesión en las cuatro rutas', async () => {
+            const server = await buildTestApp().server;
+
+            const responses = await Promise.all([
+                server.inject({ method: 'POST', url: '/me/youtube/authorization', payload: { state: 'estado' } }),
+                server.inject({ method: 'POST', url: '/me/youtube/connect', payload: { code: 'codigo' } }),
+                server.inject({ method: 'GET', url: '/me/youtube/connections' }),
+                server.inject({
+                    method: 'POST',
+                    url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                    payload: LISTING_BODY,
+                }),
+            ]);
+
+            expect(responses.map((r) => r.statusCode)).toEqual([401, 401, 401, 401]);
+        });
+
+        it('la dirección de autorización lleva el state que armó el cliente', async () => {
+            const { server: pendingServer, oauth } = buildTestApp();
+            const server = await pendingServer;
+            const headers = await withSession('yt-url@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/authorization',
+                headers,
+                payload: { state: 'estado-aleatorio' },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toEqual({ url: 'https://accounts.google.com/o/oauth2/v2/auth?state=estado-aleatorio' });
+            expect(oauth.authorizationUrl).toHaveBeenCalledWith({ state: 'estado-aleatorio' });
+        });
+
+        it.each([
+            ['sin state', {}],
+            ['con state vacío', { state: '' }],
+            ['con state larguísimo', { state: 'x'.repeat(513) }],
+        ])('400 al pedir la dirección %s', async (_label, payload) => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-url400@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/authorization', headers, payload });
+
+            expect(res.statusCode).toBe(400);
+        });
+
+        it('conectar guarda la conexión y devuelve un resumen sin tokens', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-connect@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/connect',
+                headers,
+                payload: { code: 'codigo' },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toMatchObject({
+                channelId: CHANNEL_ID,
+                channelTitle: 'Canal de prueba',
+                subscribers: 12_000,
+                views12Months: 480_000,
+                monthlyRevenueCents: 30_000,
+                isMonetized: true,
+                topCountry: 'US',
+                periodStart: '2025-10-01T00:00:00.000Z',
+                readAt: NOW.toISOString(),
+            });
+            expect(res.body).not.toContain(PLAIN_REFRESH_TOKEN);
+            expect(res.body).not.toContain(PLAIN_ACCESS_TOKEN);
+            expect(res.body).not.toContain(cipher.encrypt(PLAIN_REFRESH_TOKEN));
+
+            // En la base, el token está cifrado.
+            const row = await prisma.youTubeConnection.findFirstOrThrow();
+            expect(row.refreshTokenCipher).toBe(cipher.encrypt(PLAIN_REFRESH_TOKEN));
+            expect(row.refreshTokenCipher).not.toContain(PLAIN_REFRESH_TOKEN);
+        });
+
+        it('400 si falta un permiso, nombrando lo que falta, y no guarda nada', async () => {
+            const server = await buildTestApp({
+                exchange: async () => tokens({ grantedScopes: [REQUIRED_YOUTUBE_SCOPES[0]] }),
+            }).server;
+            const headers = await withSession('yt-scope@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+            expect(res.json().message).toContain('las estadísticas de ingresos');
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 si Google rechaza el código', async () => {
+            const server = await buildTestApp({
+                exchange: async () => {
+                    throw new Error('invalid_grant');
+                },
+            }).server;
+            const headers = await withSession('yt-bad@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+        });
+
+        it.each([
+            [
+                'al canjear el código',
+                { exchange: async (): Promise<YouTubeConnectionTokens> => { throw new ServiceUnavailableError('Google respondió 503'); } },
+            ],
+            [
+                'al leer el canal',
+                { read: async (): Promise<YouTubeChannelAnalytics | null> => { throw new ServiceUnavailableError('cuota'); } },
+            ],
+        ])('503 con mensaje claro si Google no está disponible %s, y no guarda nada', async (_label, options) => {
+            const server = await buildTestApp(options).server;
+            const headers = await withSession('yt-down@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(503);
+            expect(res.json()).toEqual({
+                code: 'SERVICE_UNAVAILABLE',
+                message: 'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
+            });
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 si no viene el código, 403 si es administrador', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-nocode@test.com');
+            const admin = await withSession('yt-admin@test.com', UserRole.ADMIN);
+
+            const withoutCode = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: {} });
+            const asAdmin = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/connect',
+                headers: admin,
+                payload: { code: 'c' },
+            });
+
+            expect(withoutCode.statusCode).toBe(400);
+            expect(asAdmin.statusCode).toBe(403);
+        });
+
+        it('lista solo las conexiones del vendedor, como resúmenes', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-list@test.com');
+            const other = await withSession('yt-list2@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            const own = await server.inject({ method: 'GET', url: '/me/youtube/connections', headers });
+            const foreign = await server.inject({ method: 'GET', url: '/me/youtube/connections', headers: other });
+
+            expect(own.statusCode).toBe(200);
+            expect(own.json()).toHaveLength(1);
+            expect(own.json()[0]).toMatchObject({ channelId: CHANNEL_ID, channelTitle: 'Canal de prueba' });
+            expect(own.body).not.toContain(PLAIN_REFRESH_TOKEN);
+            expect(own.body).not.toContain('enc:');
+            expect(foreign.json()).toEqual([]);
+        });
+
+        it('crear el activo desde la conexión devuelve 201 con el id y la valuación', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-create@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(201);
+            const { listingId, estimatedPriceCents } = res.json();
+            expect(typeof listingId).toBe('string');
+            expect(estimatedPriceCents).toBeGreaterThan(0);
+
+            const row = await prisma.listing.findUniqueOrThrow({ where: { id: listingId } });
+            expect(row.status).toBe('draft');
+            expect(row.assetData).toMatchObject({
+                subscribers: 12_000,
+                channelUrl: `https://www.youtube.com/channel/${CHANNEL_ID}`,
+                verifiedFromYouTubeAt: NOW.toISOString(),
+            });
+            expect(row.ownershipCheck).toMatchObject({ assetId: CHANNEL_ID, source: 'youtube' });
+        });
+
+        it('409 si el canal ya está publicado: con el id del activo si es propio', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-dup@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+            const first = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(res.json()).toMatchObject({ code: 'INVALID_STATE', listingId: first.json().listingId });
+            expect(await prisma.listing.count()).toBe(1);
+        });
+
+        it('409 sin revelar el activo si el canal lo publicó otro vendedor', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-own1@test.com');
+            const other = await withSession('yt-own2@test.com');
+            for (const h of [headers, other]) {
+                await server.inject({ method: 'POST', url: '/me/youtube/connect', headers: h, payload: { code: 'c' } });
+            }
+            const first = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers: other,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(res.json().listingId).toBeUndefined();
+            expect(res.body).not.toContain(first.json().listingId);
+        });
+
+        it('404 si ese canal no está conectado a la cuenta', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-404@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+
+        it.each([
+            ['sin precio', { niche: 'gaming', hasNoFaceContent: true }],
+            ['con moneda inválida', { ...LISTING_BODY, askingPrice: { cents: 100, currency: 'EUR' } }],
+            ['con precio decimal', { ...LISTING_BODY, askingPrice: { cents: 10.5, currency: 'USD' } }],
+            ['sin el dato de contenido sin rostro', { niche: 'gaming', askingPrice: LISTING_BODY.askingPrice }],
+        ])('400 al crear el activo %s', async (_label, payload) => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-body@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload,
+            });
+
+            expect(res.statusCode).toBe(400);
         });
     });
 });

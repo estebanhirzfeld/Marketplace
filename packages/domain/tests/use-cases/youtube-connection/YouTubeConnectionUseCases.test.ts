@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { UserRole, AssetType } from '@marketplace/shared-types';
 import { ConnectYouTubeChannelUseCase } from '../../../src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import { ListYouTubeConnectionsUseCase } from '../../../src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
 import { CreateListingFromYouTubeConnectionUseCase } from '../../../src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
 import { IListingRepository, IYouTubeConnectionRepository } from '../../../src/ports/Repositories';
 import { IYouTubeChannelListingFinder } from '../../../src/ports/IYouTubeChannelListingFinder';
@@ -23,6 +24,7 @@ import {
     ForbiddenError,
     InvalidStateError,
     NotFoundError,
+    ServiceUnavailableError,
     ValidationError,
 } from '../../../src/errors/DomainError';
 
@@ -267,7 +269,7 @@ describe('ConnectYouTubeChannelUseCase', () => {
         expect(repo.save).not.toHaveBeenCalled();
     });
 
-    it('si el canje del código falla, no propaga la causa original ni guarda', async () => {
+    it('si Google rechaza el código (inválido o vencido), es un error de validación y no guarda', async () => {
         const { useCase, repo } = setup({ oauth: fakeOAuth(new Error('invalid_grant: code=SECRETO')) });
 
         const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
@@ -277,13 +279,34 @@ describe('ConnectYouTubeChannelUseCase', () => {
         expect(repo.save).not.toHaveBeenCalled();
     });
 
-    it('si Google falla al leer, dice que no se guardó nada y no guarda', async () => {
-        const { useCase, repo } = setup({ reader: fakeReader(new Error('503 secreto')) });
+    it('si Google no está disponible al canjear el código, no culpa al vendedor y no guarda', async () => {
+        const { useCase, repo, reader } = setup({
+            oauth: fakeOAuth(new ServiceUnavailableError('Google respondió 503 con code=SECRETO')),
+        });
 
         const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
 
-        expect(error).toBeInstanceOf(ValidationError);
-        expect((error as Error).message).toMatch(/No pudimos leer tu canal/);
+        expect(error).toBeInstanceOf(ServiceUnavailableError);
+        expect(error).not.toBeInstanceOf(ValidationError);
+        expect((error as Error).message).toBe(
+            'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
+        );
+        expect(reader.read).not.toHaveBeenCalled();
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['una falla transitoria', new ServiceUnavailableError('cuota agotada secreto')],
+        ['una falla inesperada', new Error('503 secreto')],
+    ])('si Google falla al leer el canal (%s), responde no disponible y no guarda', async (_label, failure) => {
+        const { useCase, repo } = setup({ reader: fakeReader(failure) });
+
+        const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ServiceUnavailableError);
+        expect((error as Error).message).toBe(
+            'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
+        );
         expect((error as Error).message).not.toContain('secreto');
         expect(repo.save).not.toHaveBeenCalled();
     });
@@ -448,5 +471,36 @@ describe('CreateListingFromYouTubeConnectionUseCase', () => {
         await expect(useCase.execute({ ...input, askingPriceCents: 0 }, SELLER)).rejects.toThrow(ValidationError);
         await expect(useCase.execute(input, ADMIN)).rejects.toThrow(ForbiddenError);
         expect(listings.save).not.toHaveBeenCalled();
+    });
+});
+
+describe('ListYouTubeConnectionsUseCase', () => {
+    it('lista los resúmenes de las conexiones activas del vendedor, sin tokens ni las de otros', async () => {
+        const mine = connectionOf(SELLER);
+        const store = fakeConnections([mine, connectionOf(OTHER_SELLER)]);
+        const useCase = new ListYouTubeConnectionsUseCase(store.repo);
+
+        const summaries = await useCase.execute(SELLER);
+
+        expect(summaries).toHaveLength(1);
+        expect(summaries[0]).toMatchObject({
+            connectionId: mine.id.toString(),
+            channelId: CHANNEL_ID,
+            monthlyRevenueCents: 60_000,
+        });
+        expect(JSON.stringify(summaries)).not.toContain(PLAIN_REFRESH_TOKEN);
+        expect(JSON.stringify(summaries)).not.toContain(cipher.encrypt(PLAIN_REFRESH_TOKEN));
+    });
+
+    it('omite las conexiones desconectadas', async () => {
+        const store = fakeConnections([connectionOf(SELLER, { disconnected: true })]);
+
+        await expect(new ListYouTubeConnectionsUseCase(store.repo).execute(SELLER)).resolves.toEqual([]);
+    });
+
+    it('un administrador no tiene conexiones', async () => {
+        const store = fakeConnections();
+
+        await expect(new ListYouTubeConnectionsUseCase(store.repo).execute(ADMIN)).rejects.toThrow(ForbiddenError);
     });
 });

@@ -8,6 +8,8 @@ import {
     PrismaNotificationRepository,
     PrismaCustodyAccountRepository,
     PrismaSellerPaymentAccountRepository,
+    PrismaYouTubeConnectionRepository,
+    PrismaYouTubeChannelListingFinder,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -92,6 +94,12 @@ import {
 import { BcryptPasswordHasher } from './adapters/BcryptPasswordHasher';
 import { AesGcmSecretCipher } from './adapters/AesGcmSecretCipher';
 import { MercadoPagoOAuthClient } from './adapters/MercadoPagoOAuthClient';
+import { YouTubeConnectionOAuthClient } from './adapters/YouTubeConnectionOAuthClient';
+import { YouTubeAnalyticsReader } from './adapters/YouTubeAnalyticsReader';
+import { IYouTubeConnectionOAuthClient } from '@marketplace/domain/src/ports/IYouTubeConnectionOAuthClient';
+import { ConnectYouTubeChannelUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import { ListYouTubeConnectionsUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
+import { CreateListingFromYouTubeConnectionUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
 import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
 import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
 import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
@@ -125,6 +133,15 @@ export interface Container {
     unlinkSellerPaymentAccount?: UnlinkSellerPaymentAccountUseCase;
     /** Lo usa el cobro con split (`MERCADOPAGO_SPLIT_ENABLED`) para operar con el token del vendedor. */
     getSellerAccessToken?: GetSellerAccessTokenUseCase;
+    /**
+     * La conexión del vendedor con su canal de YouTube. Ausentes mientras falte
+     * el cliente de OAuth (`YOUTUBE_OAUTH_*`) o la clave de cifrado del token:
+     * las rutas de `/me/youtube` responden 503 en vez de que la API no arranque.
+     */
+    youtubeConnectionOAuth?: IYouTubeConnectionOAuthClient;
+    connectYouTubeChannel?: ConnectYouTubeChannelUseCase;
+    listYouTubeConnections?: ListYouTubeConnectionsUseCase;
+    createListingFromYouTubeConnection?: CreateListingFromYouTubeConnectionUseCase;
     registerUser: RegisterUserUseCase;
     login: LoginUseCase;
     perfil: GetMyProfileUseCase;
@@ -312,6 +329,18 @@ export function createContainer(
     const userRepo = new PrismaUserRepository();
     const listingRepo = new PrismaListingRepository();
     const reportRepo = new PrismaReportRepository();
+    // La conexión de canales necesita el OAuth completo Y la clave que cifra
+    // el token de actualización (la misma de Mercado Pago). El adaptador de
+    // Analytics no guarda nada: solo lee con el token de acceso que recibe.
+    const youtubeConnectionWiring =
+        googleOAuth && secretCipher
+            ? {
+                  oauth: new YouTubeConnectionOAuthClient(oauthConfig),
+                  reader: new YouTubeAnalyticsReader(),
+                  connections: new PrismaYouTubeConnectionRepository(),
+                  cipher: secretCipher,
+              }
+            : undefined;
     const operationRepo = new PrismaOperationRepository();
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
@@ -342,6 +371,26 @@ export function createContainer(
             ? new UnlinkSellerPaymentAccountUseCase(paymentAccountWiring.accounts)
             : undefined,
         getSellerAccessToken,
+
+        youtubeConnectionOAuth: youtubeConnectionWiring?.oauth,
+        connectYouTubeChannel: youtubeConnectionWiring
+            ? new ConnectYouTubeChannelUseCase(
+                  youtubeConnectionWiring.connections,
+                  youtubeConnectionWiring.oauth,
+                  youtubeConnectionWiring.reader,
+                  youtubeConnectionWiring.cipher,
+              )
+            : undefined,
+        listYouTubeConnections: youtubeConnectionWiring
+            ? new ListYouTubeConnectionsUseCase(youtubeConnectionWiring.connections)
+            : undefined,
+        createListingFromYouTubeConnection: youtubeConnectionWiring
+            ? new CreateListingFromYouTubeConnectionUseCase(
+                  youtubeConnectionWiring.connections,
+                  listingRepo,
+                  new PrismaYouTubeChannelListingFinder(),
+              )
+            : undefined,
 
         registerUser: new RegisterUserUseCase(userRepo, hasher),
         login: new LoginUseCase(userRepo, hasher),

@@ -195,6 +195,78 @@ describe('YouTubeConnection', () => {
         expect(connection.lastSnapshot.subscribers).toBe(13_000);
     });
 
+    it('no admite crear la conexión con el snapshot de otro canal', () => {
+        const otherChannel = YouTubeChannelAnalytics.create(readingProps({ channelId: 'UCotro-canal' }));
+
+        expect(() => YouTubeConnection.create({ ...data(), lastSnapshot: otherChannel })).toThrow(
+            /otro canal/,
+        );
+    });
+
+    describe('reconnect rechaza datos inválidos sin tocar el estado', () => {
+        function disconnectedConnection() {
+            const connection = YouTubeConnection.create(data());
+            connection.disconnect();
+            return connection;
+        }
+
+        function expectUntouched(connection: YouTubeConnection) {
+            expect(connection.status).toBe('disconnected');
+            expect(connection.encryptedRefreshToken).toBe('enc:refresco');
+            expect(connection.grantedScopes).toEqual([...REQUIRED_YOUTUBE_SCOPES]);
+            expect(connection.lastSnapshot.subscribers).toBe(12_000);
+            expect(connection.lastReadAt).toEqual(READ_AT);
+            expect(connection.channelTitle).toBe('Canal de prueba');
+        }
+
+        const newReading = () =>
+            YouTubeChannelAnalytics.create(
+                readingProps({ readAt: new Date('2026-10-10T12:00:00Z'), subscribers: 13_000, title: 'Otro nombre' }),
+            );
+
+        it('con el token vacío', () => {
+            const connection = disconnectedConnection();
+
+            expect(() =>
+                connection.reconnect({
+                    grantedScopes: [...REQUIRED_YOUTUBE_SCOPES],
+                    encryptedRefreshToken: '  ',
+                    snapshot: newReading(),
+                }),
+            ).toThrow(ValidationError);
+            expectUntouched(connection);
+        });
+
+        it('con permisos faltantes', () => {
+            const connection = disconnectedConnection();
+
+            expect(() =>
+                connection.reconnect({
+                    grantedScopes: [YOUTUBE_SCOPE.CHANNEL],
+                    encryptedRefreshToken: 'enc:otro',
+                    snapshot: newReading(),
+                }),
+            ).toThrow(ValidationError);
+            expectUntouched(connection);
+        });
+
+        it('con la lectura de otro canal', () => {
+            const connection = disconnectedConnection();
+            const otherChannel = YouTubeChannelAnalytics.create(
+                readingProps({ channelId: 'UCotro-canal', subscribers: 13_000 }),
+            );
+
+            expect(() =>
+                connection.reconnect({
+                    grantedScopes: [...REQUIRED_YOUTUBE_SCOPES],
+                    encryptedRefreshToken: 'enc:otro',
+                    snapshot: otherChannel,
+                }),
+            ).toThrow(/otro canal/);
+            expectUntouched(connection);
+        });
+    });
+
     it('reconstitute no completa ni valida nada', () => {
         const connection = YouTubeConnection.reconstitute(
             { ...data(), status: 'disconnected', lastReadAt: READ_AT },

@@ -27,7 +27,8 @@ Que el vendedor publique un canal autorizando YouTube primero, con suscriptores,
 ## Tareas
 
 - [x] T1 Dominio: entidad `YouTubeConnection`, value objects `YouTubeChannelAnalytics` y `YouTubeScopes` (`MissingYouTubeScopesError`), puertos `IYouTubeAnalyticsReader`, `IYouTubeConnectionOAuthClient`, `IYouTubeChannelListingFinder` e `IYouTubeConnectionRepository`, casos de uso `ConnectYouTubeChannelUseCase` y `CreateListingFromYouTubeConnectionUseCase` (`ChannelAlreadyListedError`), marca `verifiedFromYouTubeAt` en `assetData`. Tests vistos en rojo (módulos inexistentes) y luego 60 archivos / 838 tests en verde; `tsc` sin errores. Identificadores en español renombrados a inglés tras la revisión.
-- [ ] T2 Infraestructura: modelo y migración en `packages/db`, repositorio y mapper, adaptador del lector de Analytics y del OAuth `offline` en `apps/api`, rutas y cliente de la API. Tests con Google simulado.
+- [x] T2 Infraestructura: migración `20261009202120_add_youtube_connections` (tabla de conexiones con unicidad vendedor+canal e índice único parcial `listings_active_youtube_channel_key` contra canal duplicado), repositorio, mapper y finder en `packages/db`; adaptadores `YouTubeConnectionOAuthClient` (offline, `select_account consent`) y `YouTubeAnalyticsReader` en `apps/api`; `ServiceUnavailableError` → 503 para fallas de Google; rutas `POST /me/youtube/authorization`, `POST /me/youtube/connect`, `GET /me/youtube/connections`, `POST /me/youtube/connections/:channelId/listing`; DTOs y cliente. Hallazgos de la revisión de T1 resueltos. Verificado: dominio 857, db 92, api 357, api-client 22 tests en verde; `tsc` sin errores; migración aplicada sin reset.
+  - Efecto no deseado: la suite de integración de `packages/db` (la existente y la nueva) borra todas las tablas de la base local de desarrollo. Al correrla, la base quedó vacía (antes: 7 activos y 5 usuarios del seed).
 - [ ] T3 Pantalla `/vender` para canal (rebanada 2 del plan).
 - [ ] T4 Componentes en el sistema visual y `/sistema` (rebanada 3).
 - [ ] T5 Arreglos menores: atajo de `/perfil` y callback viejo (rebanada 4).
@@ -54,6 +55,11 @@ Pendiente para T2, informado por el escritor de T1:
 - `hydrateStrategy` de `ListingMapper` tiene que aceptar `verifiedFromYouTubeAt` (o delegar en `createAssetStrategy`).
 - Adaptadores de Analytics y OAuth `offline` con `prompt=consent`, rutas y cifrado con `AesGcmSecretCipher`.
 
+Commit de T1: `166080d`. Revisión nativa (lineage `review-8cb25b5e3ab94415`, riesgo medio, una lente de confiabilidad): **aprobada y reconocida**, con hallazgos no bloqueantes que se resuelven en T2:
+- Las fallas transitorias de Google (red, 5xx, cuota) salen como `ValidationError` (400) y con un mensaje que culpa al vendedor. Clasificarlas como no disponibilidad.
+- "Un canal ya publicado no se publica de nuevo" se apoya en consultar y después guardar, sin respaldo en la base: dos pedidos simultáneos pueden crear dos activos. Hace falta una restricción de unicidad en persistencia.
+- Sugerencias: tests de los resguardos de `reconnect`, validar en `create` que el canal del snapshot coincida, y que `optionalDate` acepte solo ISO.
+
 ## Próximo paso
 
-Commit de T1 y delegar T2.
+Delegar T2, incluyendo esos hallazgos.

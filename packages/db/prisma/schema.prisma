@@ -95,6 +95,7 @@ model User {
   contractsAsSigner  Contract[]
   notifications      Notification[]
   paymentAccount     SellerPaymentAccount?
+  youtubeConnections YouTubeConnection[]
   reportsFiled      Report[]      @relation("ReportsFiled")
   reportsReceived    Report[]      @relation("ReportsReceived")
 
@@ -284,4 +285,28 @@ model SellerPaymentAccount {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("seller_payment_accounts")
+}
+
+/// La conexión de un vendedor con un canal de YouTube. Una por vendedor y
+/// canal. El token de actualización se guarda cifrado (AES-256-GCM): la base
+/// nunca lo ve en claro.
+model YouTubeConnection {
+  id                 String   @id @default(uuid())
+  sellerId           String
+  channelId          String
+  channelTitle       String
+  grantedScopes      String[]
+  refreshTokenCipher String
+  /// `active` o `disconnected`; el mapper valida el valor al leer.
+  status             String   @default("active")
+  connectedAt        DateTime
+  lastReadAt         DateTime
+  /// Última lectura de Analytics (fechas ISO); el mapper la rehidrata.
+  lastSnapshot       Json
+  updatedAt          DateTime @updatedAt
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, channelId])
+  @@map("youtube_connections")
 }

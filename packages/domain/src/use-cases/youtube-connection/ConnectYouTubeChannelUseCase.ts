@@ -8,7 +8,10 @@ import { YouTubeConnection } from '../../entities/YouTubeConnection';
 import { YouTubeChannelAnalytics } from '../../value-objects/YouTubeChannelAnalytics';
 import { MissingYouTubeScopesError, missingYouTubeScopes } from '../../value-objects/YouTubeScopes';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
-import { ForbiddenError, ValidationError } from '../../errors/DomainError';
+import { ForbiddenError, ServiceUnavailableError, ValidationError } from '../../errors/DomainError';
+
+const CHANNEL_UNREADABLE_MESSAGE =
+    'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.';
 
 export interface ConnectYouTubeChannelInput {
     /** El código que Google entregó al volver; es de un solo uso. */
@@ -78,7 +81,13 @@ export class ConnectYouTubeChannelUseCase {
         let tokens: YouTubeConnectionTokens;
         try {
             tokens = await this.oauth.exchangeCode({ code: input.code });
-        } catch {
+        } catch (error) {
+            // Google caído o sin cuota no es culpa del vendedor: no se le pide
+            // que vuelva a autorizar, se le dice que pruebe más tarde.
+            if (error instanceof ServiceUnavailableError) {
+                throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE);
+            }
+            // Cualquier otro rechazo es del código: inválido, vencido o usado.
             // El error original puede traer el código o el secreto de la app.
             throw new ValidationError(
                 'No pudimos conectar tu canal: el permiso venció o ya se usó. Probá de nuevo.',
@@ -100,9 +109,8 @@ export class ConnectYouTubeChannelUseCase {
         try {
             reading = await this.reader.read(tokens.accessToken);
         } catch {
-            throw new ValidationError(
-                'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
-            );
+            // Con el permiso ya verificado, que no se pueda leer es de Google.
+            throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE);
         }
         if (!reading) {
             throw new ValidationError(

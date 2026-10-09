@@ -58,11 +58,17 @@ export type ApiErrorCode =
     | 'INVALID_STATE'
     | 'VALIDATION'
     | 'UNAUTHORIZED'
+    | 'SERVICE_UNAVAILABLE'
     | 'INTERNAL';
 
 export interface ApiErrorDto {
     code: ApiErrorCode;
     message: string;
+    /**
+     * Solo en el 409 de publicar un canal ya publicado por el propio vendedor:
+     * el activo existente, para poder enlazarlo. Nunca se revela el de otro.
+     */
+    listingId?: string;
 }
 
 // ── Autenticación ────────────────────────────────────────
@@ -349,6 +355,58 @@ export interface LinkMercadoPagoRequest {
     code: string;
     /** El verificador PKCE original, de 43 a 128 caracteres. */
     codeVerifier: string;
+}
+
+// ── Conexión del vendedor con un canal de YouTube ────────
+
+/**
+ * Pedido de la dirección de autorización. El `state` lo genera el cliente y lo
+ * ata a su navegador (cookie): al volver de Google compara el que trae la
+ * dirección con el de la cookie, igual que en Mercado Pago.
+ */
+export interface YouTubeAuthorizationRequest {
+    state: string;
+}
+
+/** Completa la conexión con el código que trajo el navegador al volver. */
+export interface ConnectYouTubeChannelRequest {
+    code: string;
+}
+
+/**
+ * Un canal conectado, con la última lectura de Google. Nunca incluye el token
+ * ni los permisos: solo lo que el vendedor necesita ver. El dinero va en
+ * centavos de dólar.
+ */
+export interface YouTubeConnectionDto {
+    connectionId: string;
+    channelId: string;
+    channelTitle: string;
+    thumbnailUrl?: string;
+    subscribers: number;
+    views12Months: number;
+    revenue12MonthsCents: number;
+    /** Promedio de los últimos 3 meses completos: el que usa la valuación. */
+    monthlyRevenueCents: number;
+    isMonetized: boolean;
+    /** Ausente si Google no informó ningún país (canal sin vistas). */
+    topCountry?: string;
+    periodStart: string;
+    periodEnd: string;
+    readAt: string;
+}
+
+/** Lo que Google no sabe y el vendedor completa al publicar su canal. */
+export interface CreateListingFromYouTubeRequest {
+    niche: string;
+    hasNoFaceContent: boolean;
+    askingPrice: { cents: number; currency: 'ARS' | 'USD' };
+}
+
+export interface CreatedYouTubeListingDto {
+    listingId: string;
+    /** Valuación sobre los datos verificados, en centavos de dólar. */
+    estimatedPriceCents: number;
 }
 
 export interface ChannelMetricsReportDto {

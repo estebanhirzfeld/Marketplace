@@ -10,6 +10,7 @@ import { registerOperationRoutes } from './routes/operations';
 import { registerContractRoutes } from './routes/contracts';
 import { registerMeRoutes } from './routes/me';
 import { registerPaymentAccountRoutes } from './routes/paymentAccount';
+import { registerYouTubeConnectionRoutes } from './routes/youtubeConnection';
 
 export interface BuildAppOptions {
     container?: Container;
@@ -42,6 +43,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     registerContractRoutes(app, container);
     registerMeRoutes(app, container);
     registerPaymentAccountRoutes(app, container);
+    registerYouTubeConnectionRoutes(app, container);
 
     app.get('/health', async () => ({ status: 'ok' }));
 

@@ -56,6 +56,15 @@ export class ValidationError extends DomainError {
 }
 
 /**
+ * Un servicio externo (Google, por ejemplo) no pudo responder: red caída, error
+ * 5xx o cuota agotada. No es culpa de quien hizo el pedido y reintentar más
+ * tarde puede funcionar. El mensaje nunca incluye la causa original.
+ */
+export class ServiceUnavailableError extends DomainError {
+    public readonly code = 'SERVICE_UNAVAILABLE';
+}
+
+/**
  * El canal ya tiene un activo vigente. Lleva el id del activo solo cuando es
  * del propio solicitante, para que la pantalla pueda enlazarlo; el de otro
  * vendedor no se revela.
