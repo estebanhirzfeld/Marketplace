@@ -54,3 +54,18 @@ export class SellerTokenUnavailableError extends DomainError {
 export class ValidationError extends DomainError {
     public readonly code = 'VALIDATION';
 }
+
+/**
+ * El canal ya tiene un activo vigente. Lleva el id del activo solo cuando es
+ * del propio solicitante, para que la pantalla pueda enlazarlo; el de otro
+ * vendedor no se revela.
+ */
+export class ChannelAlreadyListedError extends InvalidStateError {
+    constructor(
+        message: string,
+        public readonly ownedByRequester: boolean,
+        public readonly listingId?: string,
+    ) {
+        super(message);
+    }
+}

@@ -29,6 +29,11 @@ interface YouTubeStrategyProps {
   name?: string;
   /** Rubro del canal. Público: dice de qué trata, no cuál es. */
   niche?: string;
+  /**
+   * Cuándo leyó YouTube Analytics los datos de este activo. Presente solo si
+   * suscriptores, ingreso y país los verificó Google en lugar de tipearlos.
+   */
+  verifiedFromYouTubeAt?: Date;
 }
 
 export class YouTubeStrategy implements IAssetStrategy {
@@ -47,6 +52,7 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly channelUrl: string;
   private readonly name: string;
   private readonly niche: string;
+  private readonly verifiedFromYouTubeAt?: Date;
 
   constructor({
     monthlyRevenueUsd,
@@ -58,7 +64,9 @@ export class YouTubeStrategy implements IAssetStrategy {
     channelUrl = '',
     name = '',
     niche = AssetNiche.OTHER,
+    verifiedFromYouTubeAt,
   }: YouTubeStrategyProps) {
+    this.verifiedFromYouTubeAt = verifiedFromYouTubeAt;
     this.niche = niche;
     this.monthlyRevenueUsd = monthlyRevenueUsd;
     this.subscribers = subscribers;
@@ -93,6 +101,9 @@ export class YouTubeStrategy implements IAssetStrategy {
         { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },
         { key: 'name', label: 'Nombre del canal', kind: 'text', confidential: true },
         channelUrl,
+        ...(this.verifiedFromYouTubeAt
+          ? [{ key: 'verifiedFromYouTubeAt', label: 'Datos verificados con YouTube el', kind: 'text' as const, confidential: false }]
+          : []),
       ],
       summaryMetricKeys: ['subscribers', 'monthlyRevenueUsdCents', 'audienceTopCountry'],
       ownershipSource: 'youtube',
@@ -373,6 +384,8 @@ export class YouTubeStrategy implements IAssetStrategy {
       'growthFactor',
       'audienceTopCountry',
       'hasNoFaceContent',
+      // Dice de dónde salen los números, no cuál es el canal: no lo identifica.
+      ...(this.verifiedFromYouTubeAt ? ['verifiedFromYouTubeAt'] : []),
     ];
   }
 
@@ -425,6 +438,9 @@ export class YouTubeStrategy implements IAssetStrategy {
         hasNoFaceContent: this.hasNoFaceContent,
         name: this.name,
         channelUrl: this.channelUrl,
+        ...(this.verifiedFromYouTubeAt
+          ? { verifiedFromYouTubeAt: this.verifiedFromYouTubeAt.toISOString() }
+          : {}),
       }
     };
   }

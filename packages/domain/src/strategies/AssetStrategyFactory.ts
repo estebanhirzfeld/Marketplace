@@ -64,6 +64,7 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
                 name: textoOpcional(assetData, 'name', ''),
                 niche: rubro(assetData),
+                verifiedFromYouTubeAt: optionalDate(assetData, 'verifiedFromYouTubeAt'),
             });
 
         case AssetType.WEB:
@@ -127,6 +128,17 @@ function textoOpcional(data: AssetData, field: string, porDefecto: string): stri
         throw new ValidationError(`El campo "${field}" debe ser texto.`);
     }
     return value;
+}
+
+/** Una fecha ISO opcional; ausente queda `undefined`, no una fecha inventada. */
+function optionalDate(data: AssetData, field: string): Date | undefined {
+    const value = data[field];
+    if (value === undefined || value === null || value === '') return undefined;
+    const parsed = typeof value === 'string' ? new Date(value) : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) {
+        throw new ValidationError(`El campo "${field}" debe ser una fecha válida.`);
+    }
+    return parsed;
 }
 
 /**
