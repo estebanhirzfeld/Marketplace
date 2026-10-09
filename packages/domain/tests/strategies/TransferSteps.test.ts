@@ -62,6 +62,63 @@ describe('YouTubeStrategy.getTransferSteps sin contexto', () => {
     });
 });
 
+describe('YouTubeStrategy.getTransferSteps: avisos de la prueba real', () => {
+    const textoDe = (p: { description: string; instruction?: string }) =>
+        `${p.description} ${p.instruction ?? ''}`;
+
+    it('hay un paso de la plataforma que acepta la invitación, entre la invitación del vendedor y la verificación', () => {
+        const pasos = youtube().getTransferSteps();
+        const iInvitacion = pasos.findIndex((p) => /invita a la plataforma/i.test(p.description));
+        const iVerificacion = pasos.findIndex((p) => /verifica la titularidad/i.test(p.description));
+        const iAceptacion = pasos.findIndex(
+            (p) => p.requiredActor === 'platform' && /acepta la invitaci/i.test(p.description),
+        );
+
+        expect(iAceptacion).toBeGreaterThan(iInvitacion);
+        expect(iAceptacion).toBeLessThan(iVerificacion);
+        expect(pasos[iAceptacion].requiredActor).toBe('platform');
+        expect(pasos[iAceptacion].automated).toBe(false);
+    });
+
+    it('la invitación del vendedor pide no elegir el rol Propietario', () => {
+        const pasos = youtube().getTransferSteps();
+        const invitacion = pasos.find((p) => /invita a la plataforma/i.test(p.description))!;
+
+        expect(invitacion.instruction).toMatch(/no elijas.*Propietario/i);
+        expect(invitacion.instruction).toMatch(/Supervisor/i);
+    });
+
+    it('el paso 1 avisa del canal vacío que se reemplaza y de los delegados que se quitan', () => {
+        const [primero] = youtube().getTransferSteps();
+
+        expect(primero.requiredActor).toBe('seller');
+        expect(primero.instruction).toMatch(/Reemplazar/);
+        expect(primero.instruction).toMatch(/canal vac/i);
+        expect(primero.instruction).toMatch(/delegados/i);
+    });
+
+    it('el paso de promoción avisa que Google lo rechaza hasta pasados los 7 días', () => {
+        const pasos = youtube().getTransferSteps();
+        const promocion = pasos.find((p) => /promueve a/i.test(p.description))!;
+
+        expect(promocion.instruction).toMatch(/rechaza/i);
+        expect(promocion.instruction).toMatch(/7 días/);
+    });
+
+    it('ningún texto de los pasos afirma que el plazo corre desde la invitación', () => {
+        const pasos = youtube().getTransferSteps({ custodyAccountIdentifier: 'custodia1@gmail.com' });
+
+        expect(pasos.some((p) => /desde la invitaci/i.test(textoDe(p)))).toBe(false);
+    });
+
+    it('los id siguen siendo correlativos con el paso nuevo', () => {
+        const pasos = youtube().getTransferSteps();
+
+        expect(pasos).toHaveLength(12);
+        expect(pasos.map((p) => p.id)).toEqual(pasos.map((_, i) => String(i + 1)));
+    });
+});
+
 describe('YouTubeStrategy.getTransferSteps con contexto', () => {
     it('el identificador de custodia aparece en description e instruction del paso de invitación', () => {
         const pasos = youtube().getTransferSteps({ custodyAccountIdentifier: 'custodia1@gmail.com' });
