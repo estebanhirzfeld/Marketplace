@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { ASSET_NICHES, AssetNiche } from '@marketplace/shared-types';
 import { money, nicheLabel } from '@/lib/format';
+import { scheduleEstimate } from '@/lib/latestEstimate';
 import { Button } from './ui';
 import { ActionFailure } from './OperationAction';
 
@@ -40,10 +41,12 @@ export function YouTubeListingForm({
     useEffect(() => {
         // La pausa evita un pedido por cada cambio; el rubro y el rostro son
         // lo único que mueve la valuación mientras se completa el formulario.
-        const t = setTimeout(() => {
-            estimate('youtube', { ...verifiedData, niche, hasNoFaceContent: noFace }).then(setEstimated);
-        }, 300);
-        return () => clearTimeout(t);
+        // Al cambiar algo, el pedido anterior se cancela y su respuesta se descarta.
+        return scheduleEstimate(
+            () => estimate('youtube', { ...verifiedData, niche, hasNoFaceContent: noFace }),
+            setEstimated,
+            300,
+        );
     }, [estimate, verifiedData, niche, noFace]);
 
     return (

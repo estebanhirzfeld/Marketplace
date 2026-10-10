@@ -7,7 +7,7 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { ButtonLink, Heading, EmptyState } from '@/components/ui';
 import { money, nicheLabel } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
-import { OWNERSHIP_RESULTS } from '@/lib/ownershipResults';
+import { findOwnershipResult } from '@/lib/ownershipResults';
 
 export const metadata = { title: 'Mis activos · Traspaso' };
 
@@ -32,7 +32,7 @@ export default async function MisActivos(props: {
     const nombreDeTipo = await assetTypeLabeller();
     const params = await props.searchParams;
 
-    const resultado = OWNERSHIP_RESULTS[params.verificacion ?? ''];
+    const resultado = findOwnershipResult(params.verificacion);
     const grupo = esGrupo(params.estado) ? params.estado : undefined;
 
     let todos: MyListingDto[] = [];

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { ASSET_NICHES, AssetNiche } from '@marketplace/shared-types';
 import { money, nicheLabel } from '@/lib/format';
+import { scheduleEstimate } from '@/lib/latestEstimate';
 import { Alert, Button, Field } from './ui';
 import { PAISES_CPM_ALTO, PAISES_RESTO } from './paises';
 
@@ -81,10 +82,8 @@ export function PublishListingForm({
             assetData.domainAuthority = Math.round(metrica || 0);
         }
 
-        const t = setTimeout(() => {
-            estimate(type, assetData).then(setEstimado);
-        }, 400);
-        return () => clearTimeout(t);
+        // Al cambiar algo, el pedido anterior se cancela y su respuesta se descarta.
+        return scheduleEstimate(() => estimate(type, assetData), setEstimado, 400);
     }, [type, niche, metrica, ingreso, monetizado, estimate]);
 
     return (

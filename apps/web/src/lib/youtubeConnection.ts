@@ -120,3 +120,48 @@ export function classifyConnectionError(error: unknown): ConnectionFailure {
 
     return { reason: 'invalida' };
 }
+
+/**
+ * Qué hacer cuando falla la lectura de los canales conectados.
+ *
+ * La API responde 503 mientras no están las credenciales de Google: es la única
+ * condición en la que existe la carga manual (`null`). Cualquier otra falla se
+ * trata como "ninguno todavía": volver a conectar un canal ya conectado lo
+ * reutiliza, así que no se pierde nada.
+ */
+export function connectionsFromReadError(error: unknown): null | never[] {
+    return error instanceof ApiError && error.status === 503 ? null : [];
+}
+
+export type SellView<C> =
+    | { kind: 'web' }
+    | { kind: 'manual' }
+    | { kind: 'selected'; channel: C }
+    | { kind: 'list'; channels: C[] };
+
+/**
+ * Qué pantalla de `/vender` corresponde.
+ *
+ * - `web`: el sitio no pasa por la conexión con YouTube.
+ * - `manual`: la integración no está configurada.
+ * - `selected`: un canal elegido con `?canal`, o el único que hay mientras no
+ *   venga de un error de conexión (un error tiene que verse en la lista).
+ * - `list`: elegir uno o conectar el primero; un `?canal` desconocido cae acá.
+ */
+export function chooseSellView<C extends { channelId: string }>(input: {
+    connections: C[] | null;
+    canal: string | undefined;
+    failed: boolean;
+    web: boolean;
+    notConfigured?: boolean;
+}): SellView<C> {
+    if (input.web) return { kind: 'web' };
+    if (input.connections === null || input.notConfigured) return { kind: 'manual' };
+
+    const channels = input.connections;
+    const selected =
+        channels.find((c) => c.channelId === input.canal) ??
+        (channels.length === 1 && !input.failed ? channels[0] : undefined);
+
+    return selected ? { kind: 'selected', channel: selected } : { kind: 'list', channels };
+}

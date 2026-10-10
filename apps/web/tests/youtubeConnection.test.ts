@@ -5,6 +5,8 @@ import {
     createConnectionState,
     describeConnectionFailure,
     parseConnectionReason,
+    chooseSellView,
+    connectionsFromReadError,
 } from '@/lib/youtubeConnection';
 
 /**
@@ -131,5 +133,72 @@ describe('createConnectionState', () => {
 
         expect(a).not.toBe(b);
         expect(a).toMatch(/^[0-9a-f]{32}$/);
+    });
+});
+
+describe('connectionsFromReadError', () => {
+    it('un 503 es la integración sin configurar: ninguna lista', () => {
+        expect(connectionsFromReadError(new ApiError('INTERNAL', 'sin credenciales', 503))).toBeNull();
+    });
+
+    it('cualquier otra falla de lectura es una lista vacía', () => {
+        expect(connectionsFromReadError(new ApiError('INTERNAL', 'boom', 500))).toEqual([]);
+        expect(connectionsFromReadError(new Error('red caída'))).toEqual([]);
+    });
+});
+
+describe('chooseSellView', () => {
+    const A = { channelId: 'UCa' };
+    const B = { channelId: 'UCb' };
+
+    it('503 (integración sin configurar) va al formulario manual', () => {
+        expect(chooseSellView({ connections: null, canal: undefined, failed: false, web: false })).toEqual({
+            kind: 'manual',
+        });
+    });
+
+    it('`conexion=no-configurada` también va al formulario manual', () => {
+        expect(chooseSellView({ connections: [A], canal: undefined, failed: false, web: false, notConfigured: true })).toEqual({
+            kind: 'manual',
+        });
+    });
+
+    it('una sola conexión sin error se elige sola', () => {
+        expect(chooseSellView({ connections: [A], canal: undefined, failed: false, web: false })).toEqual({
+            kind: 'selected',
+            channel: A,
+        });
+    });
+
+    it('una sola conexión con un error de vuelta no se elige sola', () => {
+        expect(chooseSellView({ connections: [A], canal: undefined, failed: true, web: false })).toEqual({
+            kind: 'list',
+            channels: [A],
+        });
+    });
+
+    it('`?canal` conocido se elige aunque haya varias', () => {
+        expect(chooseSellView({ connections: [A, B], canal: 'UCb', failed: false, web: false })).toEqual({
+            kind: 'selected',
+            channel: B,
+        });
+    });
+
+    it('`?canal` desconocido vuelve a la lista', () => {
+        expect(chooseSellView({ connections: [A, B], canal: 'UCx', failed: false, web: false })).toEqual({
+            kind: 'list',
+            channels: [A, B],
+        });
+    });
+
+    it('sin conexiones muestra la lista vacía para conectar', () => {
+        expect(chooseSellView({ connections: [], canal: undefined, failed: false, web: false })).toEqual({
+            kind: 'list',
+            channels: [],
+        });
+    });
+
+    it('`tipo=web` va al formulario de sitio, sin paso de conexión', () => {
+        expect(chooseSellView({ connections: [A], canal: 'UCa', failed: false, web: true })).toEqual({ kind: 'web' });
     });
 });

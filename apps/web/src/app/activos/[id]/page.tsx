@@ -9,7 +9,7 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { Alert, OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import { OperationAction } from '@/components/OperationAction';
-import { OWNERSHIP_RESULTS } from '@/lib/ownershipResults';
+import { findOwnershipResult } from '@/lib/ownershipResults';
 import {
     fechaLarga,
     money,
@@ -47,6 +47,7 @@ export default async function DetalleDeActivo(props: {
     await requireCounterparty();
     const { id } = await props.params;
     const query = await props.searchParams;
+    const resultado = findOwnershipResult(query.verificacion);
     const pestana = esPestana(query.ver) ? query.ver : 'estado';
 
     // El catálogo propio dice el estado real y el motivo de rechazo; el detalle
@@ -273,10 +274,10 @@ export default async function DetalleDeActivo(props: {
                         parecía no hacer nada.
                     */}
                     {/* La vuelta de Google trae el resultado en la dirección. */}
-                    {query.verificacion && query.verificacion !== 'no-configurada' && OWNERSHIP_RESULTS[query.verificacion] && (
+                    {query.verificacion !== 'no-configurada' && resultado && (
                         <div className="mt-6">
-                            <Alert tono={OWNERSHIP_RESULTS[query.verificacion].ok ? 'listo' : 'alerta'}>
-                                {OWNERSHIP_RESULTS[query.verificacion].text}
+                            <Alert tono={resultado.ok ? 'listo' : 'alerta'}>
+                                {resultado.text}
                             </Alert>
                         </div>
                     )}

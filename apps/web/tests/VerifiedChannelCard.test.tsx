@@ -89,7 +89,8 @@ describe('VerifiedChannelCard', () => {
         const html = renderToStaticMarkup(<VerifiedChannelCard channel={EN_CERO} />);
 
         expect(html).not.toContain('<img');
-        expect(texto(html)).toContain('C');
+        // El marcador es el elemento de la inicial, no una "C" suelta en el texto.
+        expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>C<\/span>/);
     });
 
     it('es de solo lectura: no tiene campos', () => {

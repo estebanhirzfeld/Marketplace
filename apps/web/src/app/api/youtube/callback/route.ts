@@ -16,7 +16,7 @@ import { YOUTUBE_STATE_COOKIE, classifyConnectionError } from '@/lib/youtubeConn
  * - **Conexión del vendedor**: el `state` es aleatorio y coincide con el de una
  *   cookie httpOnly. Se comprueba ANTES de tocar la API: es la defensa contra
  *   que alguien nos mande a la víctima con un código ajeno y deje un canal
- *   ajeno conectado a su cuenta. La cookie se borra en todos los caminos.
+ *   ajeno conectado a su cuenta. La cookie se borra en todos los caminos de este modo.
  * - **Titularidad de un activo**: el `state` es `fuente:listingId`. No lleva
  *   cookie y vuelve al activo del que salió.
  *
@@ -28,16 +28,18 @@ export async function GET(request: Request): Promise<NextResponse> {
     const params = new URL(request.url).searchParams;
 
     const store = await cookies();
-    const attemptState = store.get(YOUTUBE_STATE_COOKIE)?.value;
-    store.delete({ name: YOUTUBE_STATE_COOKIE, path: '/api/youtube' });
-
     const state = params.get('state') ?? '';
     const code = params.get('code');
 
-    // Los `state` de titularidad llevan dos puntos y los de conexión nunca.
+    // Los `state` de titularidad llevan dos puntos y los de conexión nunca. La
+    // cookie no es de este modo: borrarla cortaría un intento de conexión en
+    // curso en otra pestaña.
     if (state.includes(':')) {
         return verifyOwnership(request, state, code, params.get('error'));
     }
+
+    const attemptState = store.get(YOUTUBE_STATE_COOKIE)?.value;
+    store.delete({ name: YOUTUBE_STATE_COOKIE, path: '/api/youtube' });
 
     if (!statesMatch(state, attemptState)) {
         return redirectTo(request, '/vender?conexion=invalida');

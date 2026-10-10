@@ -63,6 +63,14 @@ describe('callback de YouTube en modo conexión', () => {
         expect(store.delete).toHaveBeenCalledWith({ name: YOUTUBE_STATE_COOKIE, path: '/api/youtube' });
     });
 
+    it('en modo titularidad no toca la cookie de un intento de conexión en curso', async () => {
+        verifyOwnership.mockResolvedValue(undefined);
+
+        await llamar('?code=abc&state=youtube:l1');
+
+        expect(store.delete).not.toHaveBeenCalled();
+    });
+
     it('un state que no coincide con la cookie NUNCA llama a la API', async () => {
         const res = await llamar(`?code=abc&state=${'b'.repeat(32)}`);
 

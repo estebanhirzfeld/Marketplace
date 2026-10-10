@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { ApiError } from '@marketplace/api-client';
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
@@ -10,7 +9,12 @@ import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
 import { Panel, Heading } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
-import { parseConnectionReason, type ConnectionFailure } from '@/lib/youtubeConnection';
+import {
+    chooseSellView,
+    connectionsFromReadError,
+    parseConnectionReason,
+    type ConnectionFailure,
+} from '@/lib/youtubeConnection';
 import {
     createYouTubeListing,
     estimateListingPrice,
@@ -25,19 +29,18 @@ type Connections =
     YouTubeConnectionDto[] | null;
 
 /**
- * Los canales que el vendedor ya conectó.
+ * Los canales que el vendedor ya conectó. La decisión de qué hacer con una
+ * falla de lectura está en `connectionsFromReadError`.
  *
- * La API responde 503 mientras no están las credenciales de Google: es la única
- * condición en la que existe la carga manual. Cualquier otra falla de lectura
- * se trata como "ninguno todavía": volver a conectar un canal ya conectado lo
- * reutiliza, así que no se pierde nada.
+ * Nota: la web no tiene un registro de errores del servidor (solo los
+ * `console.error` de las pantallas de error), así que una falla distinta de 503
+ * se trata como lista vacía sin dejar rastro.
  */
 async function loadConnections(): Promise<Connections> {
     try {
         return await api().youTubeConnections();
     } catch (e) {
-        if (e instanceof ApiError && e.status === 503) return null;
-        return [];
+        return connectionsFromReadError(e);
     }
 }
 
@@ -73,15 +76,20 @@ export default async function Publicar(props: {
 
     const wantsWeb = params.tipo === 'web';
     const connections = wantsWeb ? [] : await loadConnections();
-    const manual = !wantsWeb && (connections === null || params.conexion === 'no-configurada');
 
     const reason = parseConnectionReason(params.conexion);
     const failure: ConnectionFailure | undefined = reason ? { reason, detail: params.detalle } : undefined;
 
-    const channels = connections ?? [];
-    const selected =
-        channels.find((c) => c.channelId === params.canal) ??
-        (channels.length === 1 && !failure ? channels[0] : undefined);
+    const view = chooseSellView({
+        connections,
+        canal: params.canal,
+        failed: failure !== undefined,
+        web: wantsWeb,
+        notConfigured: params.conexion === 'no-configurada',
+    });
+    const manual = view.kind === 'manual';
+    const channels = view.kind === 'list' ? view.channels : (connections ?? []);
+    const selected = view.kind === 'selected' ? view.channel : undefined;
 
     return (
         <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
