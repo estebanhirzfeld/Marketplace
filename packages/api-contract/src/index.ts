@@ -548,7 +548,7 @@ export interface MyListingDto {
  * no presentación — el formato de los números y los colores siguen siendo de
  * la vista.
  */
-export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche' | 'date';
 
 export interface AssetFieldDto {
     key: string;
@@ -573,6 +573,12 @@ export interface AssetTypeDescriptorDto {
     revenueNotice: string;
 }
 
+/** Un enlace directo a la pantalla donde se hace un paso. */
+export interface HandoverStepLinkDto {
+    label: string;
+    href: string;
+}
+
 /** Un paso de la cesión del activo a la plataforma. */
 export interface HandoverStepDto {
     id: string;
@@ -580,6 +586,12 @@ export interface HandoverStepDto {
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */
     instruction?: string;
+    /** Título corto, para el carrusel de instrucciones. */
+    title?: string;
+    /** El detalle del paso en viñetas cortas. */
+    details?: string[];
+    /** Enlaces directos a las pantallas donde se hace el paso. */
+    links?: HandoverStepLinkDto[];
     /**
      * Si le toca después de que la plataforma entre en escena. Separa lo que
      * el vendedor puede hacer ya de lo que se le va a pedir con el contrato

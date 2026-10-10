@@ -63,8 +63,8 @@ describe('YouTubeStrategy.getTransferSteps sin contexto', () => {
 });
 
 describe('YouTubeStrategy.getTransferSteps: avisos de la prueba real', () => {
-    const textoDe = (p: { description: string; instruction?: string }) =>
-        `${p.description} ${p.instruction ?? ''}`;
+    const textoDe = (p: { description: string; instruction?: string; details?: string[] }) =>
+        `${p.description} ${p.instruction ?? ''} ${(p.details ?? []).join(' ')}`;
 
     it('hay un paso de la plataforma que acepta la invitación, entre la invitación del vendedor y la verificación', () => {
         const pasos = youtube().getTransferSteps();
@@ -84,25 +84,25 @@ describe('YouTubeStrategy.getTransferSteps: avisos de la prueba real', () => {
         const pasos = youtube().getTransferSteps();
         const invitacion = pasos.find((p) => /invita a la plataforma/i.test(p.description))!;
 
-        expect(invitacion.instruction).toMatch(/no elijas.*Propietario/i);
-        expect(invitacion.instruction).toMatch(/Supervisor/i);
+        expect(textoDe(invitacion)).toMatch(/no elijas.*Propietario/i);
+        expect(textoDe(invitacion)).toMatch(/Supervisor/i);
     });
 
     it('el paso 1 avisa del canal vacío que se reemplaza y de los delegados que se quitan', () => {
         const [primero] = youtube().getTransferSteps();
 
         expect(primero.requiredActor).toBe('seller');
-        expect(primero.instruction).toMatch(/Reemplazar/);
-        expect(primero.instruction).toMatch(/canal vac/i);
-        expect(primero.instruction).toMatch(/delegados/i);
+        expect(textoDe(primero)).toMatch(/Reemplazar/);
+        expect(textoDe(primero)).toMatch(/canal vac/i);
+        expect(textoDe(primero)).toMatch(/delegados/i);
     });
 
     it('el paso de promoción avisa que Google lo rechaza hasta pasados los 7 días', () => {
         const pasos = youtube().getTransferSteps();
         const promocion = pasos.find((p) => /promueve a/i.test(p.description))!;
 
-        expect(promocion.instruction).toMatch(/rechaza/i);
-        expect(promocion.instruction).toMatch(/7 días/);
+        expect(textoDe(promocion)).toMatch(/rechaza/i);
+        expect(textoDe(promocion)).toMatch(/7 días/);
     });
 
     it('ningún texto de los pasos afirma que el plazo corre desde la invitación', () => {
@@ -154,5 +154,117 @@ describe('WebStrategy.getTransferSteps', () => {
         const pasos = web().getTransferSteps({ recipientIdentifier: 'comprador@gmail.com' });
         const delComprador = pasos.find((p) => p.requiredActor === 'buyer')!;
         expect(delComprador.description).toContain('comprador@gmail.com');
+    });
+});
+
+/**
+ * El texto largo vivía todo en `instruction` y se mostraba como una pared. Ahora
+ * `instruction` es una oración y el detalle viaja estructurado: título, viñetas
+ * cortas y enlaces directos, que es lo que dibuja el carrusel del vendedor.
+ */
+describe('YouTubeStrategy.getTransferSteps: contenido estructurado del vendedor', () => {
+    const delVendedor = () => youtube().getTransferSteps().filter((p) => p.requiredActor === 'seller');
+    const completo = (p: { instruction?: string; details?: string[] }) =>
+        `${p.instruction ?? ''} ${(p.details ?? []).join(' ')}`;
+
+    it('cada paso del vendedor trae título, de 2 a 5 viñetas y al menos un enlace', () => {
+        const pasos = delVendedor();
+
+        expect(pasos).toHaveLength(4);
+        for (const paso of pasos) {
+            expect(paso.title).toBeTruthy();
+            expect(paso.details!.length).toBeGreaterThanOrEqual(2);
+            expect(paso.details!.length).toBeLessThanOrEqual(5);
+            expect(paso.links!.length).toBeGreaterThanOrEqual(1);
+        }
+    });
+
+    it('la instrucción es una sola oración', () => {
+        for (const paso of delVendedor()) {
+            const oraciones = paso.instruction!.split(/(?<=[.!?])\s+/).filter(Boolean);
+            expect(oraciones).toHaveLength(1);
+            expect(paso.instruction!.length).toBeLessThanOrEqual(160);
+        }
+    });
+
+    it('los enlaces son directos a Google o YouTube, con https', () => {
+        const permitidos = [
+            'https://www.youtube.com/channel_switcher',
+            'https://www.youtube.com/account_advanced',
+            'https://myaccount.google.com/brandaccounts',
+            'https://studio.youtube.com',
+        ];
+        for (const paso of delVendedor()) {
+            for (const enlace of paso.links!) {
+                expect(enlace.label).toBeTruthy();
+                expect(permitidos).toContain(enlace.href);
+            }
+        }
+    });
+
+    it('cada paso lleva los enlaces que le corresponden', () => {
+        const [convertir, permisos, invitar, promover] = delVendedor();
+        const hrefs = (p: { links?: { href: string }[] }) => p.links!.map((l) => l.href);
+
+        expect(hrefs(convertir)).toEqual([
+            'https://www.youtube.com/channel_switcher',
+            'https://www.youtube.com/account_advanced',
+        ]);
+        expect(hrefs(permisos)).toEqual(['https://studio.youtube.com']);
+        expect(hrefs(invitar)).toEqual(['https://myaccount.google.com/brandaccounts']);
+        expect(hrefs(promover)).toEqual(['https://myaccount.google.com/brandaccounts']);
+    });
+
+    it('el primer paso conserva todos los avisos verificados', () => {
+        const [primero] = delVendedor();
+        const t = completo(primero);
+
+        expect(t).toMatch(/Reemplazar/);
+        expect(t).toMatch(/canal vac/i);
+        expect(t).toMatch(/10 minutos/);
+        expect(t).toMatch(/delegados/i);
+        expect(t).toMatch(/verificaci/i);
+        expect(t).toMatch(/foto/i);
+        expect(t).toMatch(/nombre/i);
+        expect(t).toMatch(/No hay otras cuentas disponibles/);
+        expect(t).toMatch(/antes de invitar/i);
+    });
+
+    it('la invitación conserva los avisos y nombra la cuenta de custodia en la instrucción', () => {
+        const pasos = youtube().getTransferSteps({ custodyAccountIdentifier: 'custodia1@gmail.com' });
+        const invitacion = pasos.find((p) => /invita/i.test(p.description) && p.requiredActor === 'seller')!;
+        const t = completo(invitacion);
+
+        expect(invitacion.instruction).toContain('custodia1@gmail.com');
+        expect(t).toMatch(/no elijas.*Propietario/i);
+        expect(t).toMatch(/Administrador/);
+        expect(t).toMatch(/Supervisor\/a/);
+        expect(t).toMatch(/no puede eliminar el canal/i);
+        expect(t).toMatch(/siete días/);
+    });
+
+    it('la promoción conserva el aviso del rechazo hasta el día 7 y lo que se cede', () => {
+        const promocion = delVendedor()[3];
+        const t = completo(promocion);
+
+        expect(t).toMatch(/contrato ya firmado/i);
+        expect(t).toMatch(/rechaza/i);
+        expect(t).toMatch(/7 días/);
+        expect(t).toMatch(/borrar la cuenta/i);
+    });
+
+    it('el paso de permisos conserva el aviso de que la promoción falla sin explicar por qué', () => {
+        const permisos = delVendedor()[1];
+
+        expect(completo(permisos)).toMatch(/falla sin avisar/i);
+    });
+
+    it('los pasos de otras partes no llevan contenido estructurado', () => {
+        const ajenos = youtube().getTransferSteps().filter((p) => p.requiredActor !== 'seller');
+
+        for (const paso of ajenos) {
+            expect(paso.links).toBeUndefined();
+            expect(paso.details).toBeUndefined();
+        }
     });
 });

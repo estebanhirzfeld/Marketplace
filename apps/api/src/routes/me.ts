@@ -79,10 +79,13 @@ function aMyListingDto(
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, description, instruction, afterPlatformStarts }) => ({
+        handoverSteps: pasos.map(({ id, description, instruction, title, details, links, afterPlatformStarts }) => ({
             id,
             description,
             instruction,
+            title,
+            details,
+            links,
             afterPlatformStarts,
         })),
         custodyAccountIdentifier: custodyAccountIdentifier,

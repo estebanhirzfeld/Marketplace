@@ -1,6 +1,7 @@
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { formatNumber, money } from '@/lib/format';
 import { nombreDePais } from './paises';
+import { ChannelAvatar } from './ChannelAvatar';
 import { VerificationSeal } from './VerificationSeal';
 
 /**
@@ -19,25 +20,7 @@ export function VerifiedChannelCard({ channel }: { channel: YouTubeConnectionDto
     return (
         <div className="flex flex-col gap-5 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-5">
             <div className="flex items-center gap-4">
-                {channel.thumbnailUrl ? (
-                    // Una foto de Google: next/image exigiría declarar el dominio
-                    // para una imagen de 48 píxeles que no necesita optimización.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={channel.thumbnailUrl}
-                        alt=""
-                        width={48}
-                        height={48}
-                        className="h-12 w-12 rounded-full border border-[var(--color-borde)] object-cover"
-                    />
-                ) : (
-                    <span
-                        aria-hidden="true"
-                        className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--color-borde-fuerte)] text-[18px] font-bold text-[var(--color-tenue)]"
-                    >
-                        {channel.channelTitle.trim().charAt(0).toUpperCase() || '?'}
-                    </span>
-                )}
+                <ChannelAvatar src={channel.thumbnailUrl} name={channel.channelTitle} />
                 <div className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-[17px] font-bold">{channel.channelTitle}</span>
                     <VerificationSeal source="YouTube" at={channel.readAt} />

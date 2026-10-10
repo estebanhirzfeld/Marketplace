@@ -16,6 +16,8 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { VerificationSeal } from '@/components/VerificationSeal';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { InstructionsModal } from '@/components/InstructionsModal';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { noop, noopEstimate, noopVoid } from './actions';
 import {
     Alert,
@@ -28,7 +30,12 @@ import {
     EmptyState,
 } from '@/components/ui';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
-import type { OperationStatusDto, PaymentOptionsDto, YouTubeConnectionDto } from '@marketplace/api-contract';
+import type {
+    HandoverStepDto,
+    OperationStatusDto,
+    PaymentOptionsDto,
+    YouTubeConnectionDto,
+} from '@marketplace/api-contract';
 import type { ConnectionReason } from '@/lib/youtubeConnection';
 
 /**
@@ -84,6 +91,48 @@ const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
 
 /** Un canal conectado de muestra, con la forma que devuelve la API. */
+/** Pasos de muestra para el modal: los mismos que escribe el dominio para un canal. */
+const PASOS_DE_MUESTRA: HandoverStepDto[] = [
+    {
+        id: '1',
+        description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
+        title: 'Convertí el canal a Cuenta de Marca',
+        instruction: 'Convertí el canal a Cuenta de Marca si todavía no lo es: este paso va antes de invitar a la plataforma.',
+        details: [
+            'Creá la cuenta de marca con "Crear un canal nuevo". Puede llamarse distinto: el canal conserva su nombre.',
+            'Después, en Configuración avanzada, elegí "Transferir canal".',
+            'YouTube avisa que borra el canal vacío que se creó junto con la cuenta ("Reemplazar"): es lo esperado.',
+        ],
+        links: [
+            { label: 'Crear la cuenta de marca', href: 'https://www.youtube.com/channel_switcher' },
+            { label: 'Transferir el canal', href: 'https://www.youtube.com/account_advanced' },
+        ],
+    },
+    {
+        id: '2',
+        description: 'El vendedor sale de los permisos de canal en YouTube Studio',
+        title: 'Salí de los permisos de canal',
+        instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
+        details: [
+            'Entrá a YouTube Studio → Configuración → Permisos.',
+            'Quitá tu acceso de nivel de canal.',
+        ],
+        links: [{ label: 'Abrir YouTube Studio', href: 'https://studio.youtube.com' }],
+    },
+    {
+        id: '3',
+        description: 'El vendedor promueve a la plataforma a propietario principal',
+        title: 'Promovenos a propietario principal',
+        instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+        details: [
+            'Recién en este momento cedés el control, con el precio acordado.',
+            'Google rechaza la promoción con un aviso breve hasta que pasen los 7 días.',
+        ],
+        links: [{ label: 'Promover a propietario principal', href: 'https://myaccount.google.com/brandaccounts' }],
+        afterPlatformStarts: true,
+    },
+];
+
 const CANAL_CON_DATOS: YouTubeConnectionDto = {
     connectionId: 'muestra-1',
     channelId: 'UCmuestra',
@@ -395,7 +444,9 @@ export default function Sistema() {
                                         {
                                             id: '1',
                                             description: 'El vendedor promueve a custodia-yt-01@traspaso.com de administrador a propietario principal',
-                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada. Google te va a mostrar lo que cedés: agregar y borrar propietarios y administradores, cambiar permisos y borrar la cuenta por completo.',
+                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+                                            details: PASOS_DE_MUESTRA[2].details,
+                                            links: PASOS_DE_MUESTRA[2].links,
                                             afterPlatformStarts: true,
                                         },
                                     ]}
@@ -539,6 +590,27 @@ export default function Sistema() {
                                 error="Ese canal ya lo publicaste."
                                 next={{ href: '/activos', label: 'Ver el activo' }}
                             />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Instrucciones paso a paso"
+                    note="Un modal con carrusel para lo que antes era una pared de texto: un paso por pantalla, con título, viñetas cortas y botones con enlaces directos a Google o YouTube, que abren en una pestaña nueva. Es un elemento nativo dialog: atrapa el foco, cierra con Esc o con el botón y devuelve el foco al botón que lo abrió. El contenido sale del dominio. La foto del canal se pide sin referrer y, si no carga, se cae a la inicial."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">BOTÓN Y MODAL — TRES PASOS</div>
+                            <Panel title="ACCESO DE LA PLATAFORMA">
+                                <InstructionsModal steps={PASOS_DE_MUESTRA} />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">FOTO DEL CANAL — CON IMAGEN Y CAÍDA A LA INICIAL</div>
+                            <div className="flex items-center gap-4">
+                                <ChannelAvatar src="data:image/png;base64,AAAA" name="Nivel Completo" />
+                                <ChannelAvatar name="Canal nuevo" />
+                            </div>
                         </div>
                     </div>
                 </Section>

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
+import { ChannelAvatarView } from '@/components/ChannelAvatar';
 import { VerificationSeal } from '@/components/VerificationSeal';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 
@@ -93,6 +94,17 @@ describe('VerifiedChannelCard', () => {
         expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>C<\/span>/);
     });
 
+    /*
+     * En Firefox y derivados la foto de yt3.ggpht.com no cargaba aunque la
+     * dirección respondiera 200: Google la rechaza según el referrer. Sin
+     * referrer carga, y si igual falla se cae a la inicial.
+     */
+    it('la foto se pide sin referrer', () => {
+        const html = renderToStaticMarkup(<VerifiedChannelCard channel={CANAL} />);
+
+        expect(html).toMatch(/referrerPolicy="no-referrer"/i);
+    });
+
     it('es de solo lectura: no tiene campos', () => {
         const html = renderToStaticMarkup(<VerifiedChannelCard channel={CANAL} />);
 
@@ -134,5 +146,33 @@ describe('YouTubeConnectStep', () => {
         const t = texto(renderToStaticMarkup(<YouTubeConnectStep startAction={start} hasConnections />));
 
         expect(t).toContain('Conectar otro canal');
+    });
+});
+
+describe('ChannelAvatarView', () => {
+    const noop = () => {};
+
+    it('con foto y sin fallo dibuja la imagen sin referrer', () => {
+        const html = renderToStaticMarkup(
+            <ChannelAvatarView src="https://yt3.ggpht.com/foto" name="Nivel Completo" failed={false} onError={noop} />,
+        );
+
+        expect(html).toContain('<img');
+        expect(html).toMatch(/referrerPolicy="no-referrer"/i);
+    });
+
+    it('si la imagen falló muestra el marcador con la inicial', () => {
+        const html = renderToStaticMarkup(
+            <ChannelAvatarView src="https://yt3.ggpht.com/foto" name="nivel completo" failed onError={noop} />,
+        );
+
+        expect(html).not.toContain('<img');
+        expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>N<\/span>/);
+    });
+
+    it('sin nombre usa un signo de pregunta', () => {
+        const html = renderToStaticMarkup(<ChannelAvatarView name="  " failed onError={noop} />);
+
+        expect(html).toMatch(/>\?<\/span>/);
     });
 });

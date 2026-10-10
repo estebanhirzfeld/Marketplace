@@ -25,7 +25,7 @@ export function Button({
     variant = 'primario',
     className = '',
     ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+}: React.ComponentProps<'button'> & { variant?: Variant }) {
     return <button {...props} className={`${BASE} ${VARIANTS[variant]} ${className}`} />;
 }
 
@@ -44,6 +44,34 @@ export function ButtonLink({
         <Link href={href} className={`${BASE} ${VARIANTS[variant]} ${className}`}>
             {children}
         </Link>
+    );
+}
+
+/**
+ * Un enlace con forma de botón hacia otro sitio (Google, YouTube). Abre en una
+ * pestaña nueva y no le pasa el origen ni la ventana al destino: la persona
+ * está en medio de un trámite acá y tiene que poder volver donde lo dejó.
+ */
+export function ExternalButtonLink({
+    href,
+    variant = 'secundario',
+    className = '',
+    children,
+}: {
+    href: string;
+    variant?: Variant;
+    className?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${BASE} ${VARIANTS[variant]} ${className}`}
+        >
+            {children}
+        </a>
     );
 }
 

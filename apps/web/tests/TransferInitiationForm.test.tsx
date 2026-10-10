@@ -71,4 +71,19 @@ describe('TransferInitiationForm', () => {
 
         expect(html).toMatch(/<button[^>]*disabled[^>]*type="submit"|<button[^>]*type="submit"[^>]*disabled/);
     });
+
+    it('con un paso que trae detalle, ofrece verlo en el modal; sin detalle, no', () => {
+        const conDetalle = renderToStaticMarkup(
+            <TransferInitiationForm
+                action={accion}
+                steps={[{ ...PASO_YOUTUBE, details: ['Google lo rechaza hasta el día 7.'], links: [] }]}
+            />,
+        );
+        const sinDetalle = renderToStaticMarkup(
+            <TransferInitiationForm action={accion} steps={[PASO_YOUTUBE]} />,
+        );
+
+        expect(conDetalle).toContain('Ver cómo hacerlo');
+        expect(sinDetalle).not.toContain('Ver cómo hacerlo');
+    });
 });

@@ -53,19 +53,24 @@ const MUESTRA: Record<AssetType, AssetData> = {
 
 export function createAssetStrategy(assetType: string, assetData: AssetData): IAssetStrategy {
     switch (assetType) {
-        case AssetType.YOUTUBE:
+        case AssetType.YOUTUBE: {
+            const verifiedFromYouTubeAt = optionalDate(assetData, 'verifiedFromYouTubeAt');
             return new YouTubeStrategy({
                 monthlyRevenueUsd: dinero(assetData, 'monthlyRevenueUsdCents'),
                 subscribers: entero(assetData, 'subscribers'),
                 isMonetized: readBoolean(assetData, 'isMonetized'),
                 growthFactor: numeroOpcional(assetData, 'growthFactor', 1.0),
-                audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
+                // Verificado y sin país: Google no informó ninguno y no se inventa uno.
+                audienceTopCountry: verifiedFromYouTubeAt
+                    ? textoOpcionalONada(assetData, 'audienceTopCountry')
+                    : textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
                 name: textoOpcional(assetData, 'name', ''),
                 niche: rubro(assetData),
-                verifiedFromYouTubeAt: optionalDate(assetData, 'verifiedFromYouTubeAt'),
+                verifiedFromYouTubeAt,
             });
+        }
 
         case AssetType.WEB:
             return new WebStrategy(
@@ -124,6 +129,15 @@ function booleanoOpcional(data: AssetData, field: string, porDefecto: boolean): 
 function textoOpcional(data: AssetData, field: string, porDefecto: string): string {
     const value = data[field];
     if (value === undefined || value === null) return porDefecto;
+    if (typeof value !== 'string') {
+        throw new ValidationError(`El campo "${field}" debe ser texto.`);
+    }
+    return value;
+}
+
+function textoOpcionalONada(data: AssetData, field: string): string | undefined {
+    const value = data[field];
+    if (value === undefined || value === null) return undefined;
     if (typeof value !== 'string') {
         throw new ValidationError(`El campo "${field}" debe ser texto.`);
     }

@@ -1283,6 +1283,43 @@ describe('POST y DELETE /admin/listings/:id/acceso', () => {
  * vez de fallar con un 500, y la autorización se resuelve antes de necesitar
  * la clave para nada.
  */
+describe('Pasos de la cesión: contenido estructurado', () => {
+    async function conUnVendedor() {
+        const seller = await crearUsuario('seller-pasos@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        const token = await tokenDe('seller-pasos@test.com');
+        return { id: listing.id.toString(), headers: { authorization: `Bearer ${token}` } };
+    }
+
+    const esperado = {
+        title: expect.any(String),
+        details: expect.arrayContaining([expect.any(String)]),
+        links: expect.arrayContaining([
+            expect.objectContaining({ label: expect.any(String), href: expect.stringMatching(/^https:\/\//) }),
+        ]),
+    };
+
+    it('GET /me/listings entrega título, viñetas y enlaces de cada paso del vendedor', async () => {
+        const { headers } = await conUnVendedor();
+
+        const res = await app.inject({ method: 'GET', url: '/me/listings', headers });
+        const pasos = res.json()[0].handoverSteps;
+
+        expect(pasos.length).toBeGreaterThan(0);
+        for (const paso of pasos) expect(paso).toMatchObject(esperado);
+    });
+
+    it('GET /listings/:id entrega lo mismo al dueño', async () => {
+        const { id, headers } = await conUnVendedor();
+
+        const res = await app.inject({ method: 'GET', url: `/listings/${id}`, headers });
+        const pasos = res.json().handoverSteps;
+
+        expect(pasos.length).toBeGreaterThan(0);
+        for (const paso of pasos) expect(paso).toMatchObject(esperado);
+    });
+});
+
 describe('POST /listings/:id/verificar-metricas', () => {
     it('503 mientras la integración no esté configurada', async () => {
         const seller = await crearUsuario('seller-yt@test.com', UserRole.SELLER);

@@ -101,9 +101,16 @@ export function nicheLabel(niche: unknown): string {
  * en el descriptor y acá queda únicamente el formato, que sí es de la vista.
  */
 export function fieldValue(kind: AssetFieldKindDto, value: unknown): string {
-    if (value === undefined || value === null || value === '') return '—';
+    // `null` es un dato que la fuente no informó (p. ej. el país que Google no
+    // da): se dice, no se esconde detrás de un guion como un campo vacío.
+    if (value === null) return 'Sin datos';
+    if (value === undefined || value === '') return '—';
 
     switch (kind) {
+        case 'date':
+            return typeof value === 'string' && !Number.isNaN(new Date(value).getTime())
+                ? fechaLarga(value)
+                : String(value);
         case 'money':
             return typeof value === 'number' ? money({ cents: value, currency: 'USD' }) : String(value);
         case 'number':
