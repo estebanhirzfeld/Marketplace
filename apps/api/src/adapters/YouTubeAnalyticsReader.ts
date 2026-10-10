@@ -3,7 +3,7 @@ import {
     MonthlyAnalytics,
     YouTubeChannelAnalytics,
 } from '@marketplace/domain/src/value-objects/YouTubeChannelAnalytics';
-import { ServiceUnavailableError } from '@marketplace/domain/src/errors/DomainError';
+import { ServiceUnavailableError, YouTubeAuthorizationRevokedError } from '@marketplace/domain/src/errors/DomainError';
 import { fetchOrUnavailable, isQuotaError, isTransientStatus } from './googleHttp';
 
 const CHANNELS_ENDPOINT = 'https://www.googleapis.com/youtube/v3/channels';
@@ -16,8 +16,9 @@ const UNAVAILABLE_MESSAGE = 'No se pudo leer el canal en Google.';
  * API, y vistas, suscriptores ganados/perdidos, ingresos y país de Analytics.
  *
  * Las fallas se separan en dos: red, 5xx, 429 y cuota agotada son
- * `ServiceUnavailableError` (reintentar más tarde puede funcionar); el resto
- * (token inválido, falta de permiso) es un `Error` común. Ningún mensaje
+ * `ServiceUnavailableError` (reintentar más tarde puede funcionar); un 401 o un
+ * 403 que no es de cuota (token inválido, falta de permiso) es
+ * `YouTubeAuthorizationRevokedError`; cualquier otro rechazo es un `Error` común. Ningún mensaje
  * incluye el token ni el cuerpo de la respuesta.
  */
 export class YouTubeAnalyticsReader implements IYouTubeAnalyticsReader {
@@ -143,6 +144,10 @@ export class YouTubeAnalyticsReader implements IYouTubeAnalyticsReader {
 
         if (isTransientStatus(response.status) || (response.status === 403 && (await isQuotaError(response)))) {
             throw new ServiceUnavailableError(`Google no pudo responder (${response.status}).`);
+        }
+        // Token inválido o falta de permiso (y no de cuota): reintentar no sirve.
+        if (response.status === 401 || response.status === 403) {
+            throw new YouTubeAuthorizationRevokedError(`Google rechazó la autorización (${response.status}).`);
         }
         if (!response.ok) {
             // El cuerpo del error puede traer el token: no se propaga.

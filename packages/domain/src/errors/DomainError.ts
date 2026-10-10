@@ -10,8 +10,12 @@ export abstract class DomainError extends Error {
     /** Código estable para que el transporte discrimine sin parsear el mensaje. */
     public abstract readonly code: string;
 
-    constructor(message: string) {
-        super(message);
+    /**
+     * `cause` es solo para diagnóstico: el transporte la registra y nunca la
+     * muestra, porque puede traer datos de la respuesta de un tercero.
+     */
+    constructor(message: string, options?: { cause?: unknown }) {
+        super(message, options);
         this.name = new.target.name;
 
         // Sin esto, `instanceof` deja de funcionar si el target de compilación
@@ -62,6 +66,16 @@ export class ValidationError extends DomainError {
  */
 export class ServiceUnavailableError extends DomainError {
     public readonly code = 'SERVICE_UNAVAILABLE';
+}
+
+/**
+ * Google dejó de aceptar la autorización del vendedor (token inválido o falta
+ * de permiso, sin relación con la cuota): reintentar no sirve, hay que volver a
+ * conectar. Lo lanza el lector del canal para que el caso de uso lo distinga de
+ * una falla transitoria o desconocida sin saber nada de HTTP.
+ */
+export class YouTubeAuthorizationRevokedError extends DomainError {
+    public readonly code = 'YOUTUBE_AUTHORIZATION_REVOKED';
 }
 
 /**

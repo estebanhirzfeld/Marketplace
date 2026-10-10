@@ -55,6 +55,41 @@ export function useTestDatabase(env: NodeJS.ProcessEnv = process.env): string {
     return url;
 }
 
+/** Lo único que hace falta de un cliente de Postgres para crear la base. */
+interface QueryRunner {
+    query(sql: string, params?: unknown[]): Promise<{ rowCount: number | null }>;
+}
+
+/** Código de Postgres para `duplicate_database`. */
+const DUPLICATE_DATABASE = "42P04";
+/** Violación de unicidad: dos `create database` simultáneos chocan así en el catálogo. */
+const UNIQUE_VIOLATION = "23505";
+const PG_DATABASE_NAME_INDEX = "pg_database_datname_index";
+
+function isConcurrentCreation(error: unknown): boolean {
+    if (typeof error !== "object" || error === null || !("code" in error)) return false;
+    if (error.code === DUPLICATE_DATABASE) return true;
+    return error.code === UNIQUE_VIOLATION && "constraint" in error && error.constraint === PG_DATABASE_NAME_INDEX;
+}
+
+/**
+ * Crea la base si no existe. Es idempotente aun con suites en paralelo (db y
+ * api bajo `make test`): si otra la creó entre la consulta y el `create`,
+ * Postgres responde `42P04` (o `23505` sobre el índice de `pg_database`, que
+ * es lo que se observó con dos creaciones realmente simultáneas) y se sigue como si la hubiéramos creado nosotros.
+ * `name` ya se validó contra `^[a-z0-9_]+$` antes de llegar acá.
+ */
+export async function createDatabaseIfMissing(client: QueryRunner, name: string): Promise<void> {
+    const found = await client.query("select 1 from pg_database where datname = $1", [name]);
+    if (found.rowCount !== 0) return;
+    try {
+        await client.query(`create database "${name}"`);
+    } catch (error) {
+        if (isConcurrentCreation(error)) return;
+        throw error;
+    }
+}
+
 /** Crea la base de prueba si no existe y le aplica las migraciones. */
 export async function provisionTestDatabase(url: string): Promise<void> {
     assertTestDatabaseUrl(url);
@@ -68,10 +103,7 @@ export async function provisionTestDatabase(url: string): Promise<void> {
     const client = new Client({ connectionString: maintenance.toString() });
     await client.connect();
     try {
-        const found = await client.query("select 1 from pg_database where datname = $1", [name]);
-        if (found.rowCount === 0) {
-            await client.query(`create database "${name}"`);
-        }
+        await createDatabaseIfMissing(client, name);
     } finally {
         await client.end();
     }

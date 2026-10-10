@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { YouTubeAnalyticsReader } from '../src/adapters/YouTubeAnalyticsReader';
-import { ServiceUnavailableError } from '@marketplace/domain/src/errors/DomainError';
+import { ServiceUnavailableError, YouTubeAuthorizationRevokedError } from '@marketplace/domain/src/errors/DomainError';
 
 /**
  * El lector de YouTube Analytics contra respuestas fabricadas, con `fetch`
@@ -285,22 +285,31 @@ describe('YouTubeAnalyticsReader — fallas', () => {
         expect(`${(error as Error).message} ${(error as Error).stack}`).not.toContain(TOKEN);
     });
 
-    it('un 401 (token inválido) no es una falla transitoria', async () => {
-        const error = await build(route({ channels: () => json({ error: { message: TOKEN } }, 401) }))
-            .read(TOKEN)
-            .catch((e: unknown) => e);
+    it.each([
+        ['un 401 (token inválido)', 'channels', () => json({ error: { message: TOKEN } }, 401)],
+        [
+            'un 403 sin relación con la cuota (falta de permiso) al leer la serie mensual',
+            'month',
+            () => json({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403),
+        ],
+        [
+            'un 403 sin relación con la cuota (falta de permiso) al leer el país',
+            'country',
+            () => json({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403),
+        ],
+    ] as const)('%s es una autorización revocada, sin arrastrar el token', async (_label, endpoint, failing) => {
+        const error = await build(route({ [endpoint]: failing })).read(TOKEN).catch((e: unknown) => e);
 
-        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(YouTubeAuthorizationRevokedError);
         expect(error).not.toBeInstanceOf(ServiceUnavailableError);
         expect((error as Error).message).not.toContain(TOKEN);
     });
 
-    it('un 403 sin relación con la cuota (falta de permiso) no es transitorio', async () => {
-        const forbidden = () => json({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403);
-
-        const error = await build(route({ month: forbidden })).read(TOKEN).catch((e: unknown) => e);
+    it('un 4xx que no es de autorización (400) no se hace pasar por una autorización revocada', async () => {
+        const error = await build(route({ month: () => json({}, 400) })).read(TOKEN).catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(Error);
+        expect(error).not.toBeInstanceOf(YouTubeAuthorizationRevokedError);
         expect(error).not.toBeInstanceOf(ServiceUnavailableError);
     });
 

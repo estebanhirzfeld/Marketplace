@@ -27,6 +27,11 @@ function statusFor(error: DomainError): number {
 export function registerErrorHandler(app: FastifyInstance): void {
     app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
         if (error instanceof DomainError) {
+            // La causa original (un fallo inesperado detrás de un 503, por
+            // ejemplo) nunca llega al cliente, pero tiene que quedar en el log.
+            if (error.cause !== undefined) {
+                request.log.error({ err: error.cause, code: error.code }, error.message);
+            }
             // El dominio solo lleva el id del activo cuando es del propio
             // solicitante: el de otro vendedor nunca llega a este punto.
             if (error instanceof ChannelAlreadyListedError && error.listingId) {

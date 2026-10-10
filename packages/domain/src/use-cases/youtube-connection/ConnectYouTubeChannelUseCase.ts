@@ -8,10 +8,18 @@ import { YouTubeConnection } from '../../entities/YouTubeConnection';
 import { YouTubeChannelAnalytics } from '../../value-objects/YouTubeChannelAnalytics';
 import { MissingYouTubeScopesError, missingYouTubeScopes } from '../../value-objects/YouTubeScopes';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
-import { ForbiddenError, ServiceUnavailableError, ValidationError } from '../../errors/DomainError';
+import {
+    ForbiddenError,
+    ServiceUnavailableError,
+    ValidationError,
+    YouTubeAuthorizationRevokedError,
+} from '../../errors/DomainError';
 
-const CHANNEL_UNREADABLE_MESSAGE =
+export const CHANNEL_UNREADABLE_MESSAGE =
     'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.';
+
+export const RECONNECT_CHANNEL_MESSAGE =
+    'No pudimos leer tu canal con este permiso. Volvé a conectarlo y aceptá todos los permisos.';
 
 export interface ConnectYouTubeChannelInput {
     /** El código que Google entregó al volver; es de un solo uso. */
@@ -109,16 +117,18 @@ export class ConnectYouTubeChannelUseCase {
         try {
             reading = await this.reader.read(tokens.accessToken);
         } catch (error) {
-            // Red, tiempo agotado, cuota o 5xx: es de Google y se reintenta solo.
-            if (error instanceof ServiceUnavailableError) {
-                throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE);
+            // Solo lo que el lector marca como autorización rechazada (401, 403
+            // que no es de cuota) es permanente: reintentar no sirve, hay que
+            // volver a autorizar. El error original no se propaga porque puede
+            // traer datos de la respuesta de Google.
+            if (error instanceof YouTubeAuthorizationRevokedError) {
+                throw new ValidationError(RECONNECT_CHANNEL_MESSAGE);
             }
-            // Cualquier otra falla (401, 403 que no es de cuota) es permanente:
-            // reintentar no sirve, hay que volver a autorizar. El error original
-            // no se propaga porque puede traer datos de la respuesta de Google.
-            throw new ValidationError(
-                'No pudimos leer tu canal con este permiso. Volvé a conectarlo y aceptá todos los permisos.',
-            );
+            // Todo lo demás (red, tiempo agotado, cuota, 5xx y también un fallo
+            // inesperado nuestro) no es culpa del vendedor: se responde "no
+            // disponible". El dominio no tiene puerto de logging, así que la
+            // causa viaja en `cause` y el manejador HTTP la registra.
+            throw new ServiceUnavailableError(CHANNEL_UNREADABLE_MESSAGE, { cause: error });
         }
         if (!reading) {
             throw new ValidationError(

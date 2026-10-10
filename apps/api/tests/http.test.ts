@@ -8,13 +8,20 @@ import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoP
 import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
 import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
 import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
-import { SellerTokenUnavailableError, ServiceUnavailableError } from '@marketplace/domain/src/errors/DomainError';
+import {
+    SellerTokenUnavailableError,
+    ServiceUnavailableError,
+    YouTubeAuthorizationRevokedError,
+} from '@marketplace/domain/src/errors/DomainError';
 import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
 import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
 import { IYouTubeConnectionOAuthClient, YouTubeConnectionTokens } from '@marketplace/domain/src/ports/IYouTubeConnectionOAuthClient';
 import { IYouTubeAnalyticsReader } from '@marketplace/domain/src/ports/IYouTubeAnalyticsReader';
 import { ISecretCipher } from '@marketplace/domain/src/ports/ISecretCipher';
-import { ConnectYouTubeChannelUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import {
+    ConnectYouTubeChannelUseCase,
+    RECONNECT_CHANNEL_MESSAGE,
+} from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
 import { ListYouTubeConnectionsUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
 import { CreateListingFromYouTubeConnectionUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
 import { YouTubeChannelAnalytics } from '@marketplace/domain/src/value-objects/YouTubeChannelAnalytics';
@@ -2422,6 +2429,36 @@ describe('Conexión de canal de YouTube — /me/youtube', () => {
                 code: 'SERVICE_UNAVAILABLE',
                 message: 'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
             });
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 pidiendo volver a conectar si el lector marca la autorización como revocada, y no guarda nada', async () => {
+            const server = await buildTestApp({
+                read: async () => {
+                    throw new YouTubeAuthorizationRevokedError('Google rechazó la autorización (401).');
+                },
+            }).server;
+            const headers = await withSession('yt-revoked@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json()).toEqual({ code: 'VALIDATION', message: RECONNECT_CHANNEL_MESSAGE });
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('503 sin culpar al vendedor si el lector falla con un error desconocido', async () => {
+            const server = await buildTestApp({
+                read: async () => {
+                    throw new TypeError('respuesta inesperada');
+                },
+            }).server;
+            const headers = await withSession('yt-unknown@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(503);
+            expect(res.json().code).toBe('SERVICE_UNAVAILABLE');
             expect(await prisma.youTubeConnection.count()).toBe(0);
         });
 

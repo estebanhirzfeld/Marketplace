@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { UserRole, AssetType } from '@marketplace/shared-types';
-import { ConnectYouTubeChannelUseCase } from '../../../src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import {
+    ConnectYouTubeChannelUseCase,
+    CHANNEL_UNREADABLE_MESSAGE,
+    RECONNECT_CHANNEL_MESSAGE,
+} from '../../../src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
 import { ListYouTubeConnectionsUseCase } from '../../../src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
 import { CreateListingFromYouTubeConnectionUseCase } from '../../../src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
 import { IListingRepository, IYouTubeConnectionRepository } from '../../../src/ports/Repositories';
@@ -26,6 +30,7 @@ import {
     NotFoundError,
     ServiceUnavailableError,
     ValidationError,
+    YouTubeAuthorizationRevokedError,
 } from '../../../src/errors/DomainError';
 
 // ── Fakes ────────────────────────────────────────────────
@@ -90,6 +95,15 @@ function fakeReader(result: YouTubeChannelAnalytics | null | Error): IYouTubeAna
         read: vi.fn(async () => {
             if (result instanceof Error) throw result;
             return result;
+        }),
+    };
+}
+
+/** Un lector que falla con lo que se le pida, sea o no un `Error`. */
+function failingReader(failure: unknown): IYouTubeAnalyticsReader {
+    return {
+        read: vi.fn(async () => {
+            throw failure;
         }),
     };
 }
@@ -289,7 +303,7 @@ describe('ConnectYouTubeChannelUseCase', () => {
         expect(error).toBeInstanceOf(ServiceUnavailableError);
         expect(error).not.toBeInstanceOf(ValidationError);
         expect((error as Error).message).toBe(
-            'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
+            CHANNEL_UNREADABLE_MESSAGE,
         );
         expect(reader.read).not.toHaveBeenCalled();
         expect(repo.save).not.toHaveBeenCalled();
@@ -301,32 +315,41 @@ describe('ConnectYouTubeChannelUseCase', () => {
         const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(ServiceUnavailableError);
-        expect((error as Error).message).toBe(
-            'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
-        );
+        expect((error as Error).message).toBe(CHANNEL_UNREADABLE_MESSAGE);
+        expect((error as Error).message).not.toContain('secreto');
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('si el lector marca la autorización como revocada, pide volver a conectar y no guarda', async () => {
+        const { useCase, repo } = setup({
+            reader: failingReader(new YouTubeAuthorizationRevokedError('Google respondió 401 secreto')),
+        });
+
+        const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ValidationError);
+        expect(error).not.toBeInstanceOf(ServiceUnavailableError);
+        expect((error as Error).message).toBe(RECONNECT_CHANNEL_MESSAGE);
         expect((error as Error).message).not.toContain('secreto');
         expect(repo.save).not.toHaveBeenCalled();
     });
 
     it.each([
-        ['un 401', new Error('401 secreto')],
-        ['un 403 que no es de cuota', new Error('403 secreto')],
-    ])(
-        'si la lectura del canal falla de forma permanente (%s), pide volver a conectar y no guarda',
-        async (_label, failure) => {
-            const { useCase, repo } = setup({ reader: fakeReader(failure) });
+        ['un TypeError del lector', new TypeError('x is undefined secreto')],
+        ['un Error común sin clasificar', new Error('JSON ilegible secreto')],
+        ['un valor que no es un Error', 'cadena secreta'],
+    ])('si la lectura falla con %s, responde no disponible sin culpar al vendedor y no guarda', async (_label, failure) => {
+        const { useCase, repo } = setup({ reader: failingReader(failure) });
 
-            const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
+        const error = await useCase.execute({ code: 'c' }, SELLER).catch((e: unknown) => e);
 
-            expect(error).toBeInstanceOf(ValidationError);
-            expect(error).not.toBeInstanceOf(ServiceUnavailableError);
-            expect((error as Error).message).toBe(
-                'No pudimos leer tu canal con este permiso. Volvé a conectarlo y aceptá todos los permisos.',
-            );
-            expect((error as Error).message).not.toContain('secreto');
-            expect(repo.save).not.toHaveBeenCalled();
-        },
-    );
+        expect(error).toBeInstanceOf(ServiceUnavailableError);
+        expect((error as Error).message).toBe(CHANNEL_UNREADABLE_MESSAGE);
+        expect((error as Error).message).not.toContain('secreto');
+        // La causa se conserva para que el transporte la registre.
+        expect((error as ServiceUnavailableError).cause).toBe(failure);
+        expect(repo.save).not.toHaveBeenCalled();
+    });
 
     it('un administrador no conecta canales', async () => {
         const { useCase, oauth } = setup();
