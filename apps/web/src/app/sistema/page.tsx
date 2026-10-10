@@ -606,10 +606,12 @@ export default function Sistema() {
                             </Panel>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">FOTO DEL CANAL — CON IMAGEN Y CAÍDA A LA INICIAL</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">FOTO DEL CANAL — REDONDA EN LA FICHA, CUADRADA EN EL LISTADO, CON CAÍDA A LA INICIAL</div>
                             <div className="flex items-center gap-4">
                                 <ChannelAvatar src="data:image/png;base64,AAAA" name="Nivel Completo" />
                                 <ChannelAvatar name="Canal nuevo" />
+                                <ChannelAvatar src="data:image/png;base64,AAAA" name="Nivel Completo" shape="square" />
+                                <ChannelAvatar name="Canal nuevo" shape="square" />
                             </div>
                         </div>
                     </div>

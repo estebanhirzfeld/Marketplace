@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { channelIdFromUrl } from '@/lib/youtubeChannel';
+import type { YouTubeConnectionDto } from '@marketplace/api-contract';
+import { channelIdFromUrl, thumbnailsByChannelId } from '@/lib/youtubeChannel';
 
 describe('channelIdFromUrl', () => {
     it('saca el identificador de la dirección que arma la plataforma', () => {
@@ -20,5 +21,43 @@ describe('channelIdFromUrl', () => {
         expect(channelIdFromUrl(undefined)).toBeUndefined();
         expect(channelIdFromUrl('')).toBeUndefined();
         expect(channelIdFromUrl(42)).toBeUndefined();
+    });
+});
+
+const CONEXION: YouTubeConnectionDto = {
+    connectionId: 'c1',
+    channelId: 'UC1',
+    channelTitle: 'Canal uno',
+    thumbnailUrl: 'https://yt3.ggpht.com/uno',
+    subscribers: 10,
+    views12Months: 100,
+    revenue12MonthsCents: 0,
+    monthlyRevenueCents: 0,
+    isMonetized: false,
+    periodStart: '2025-10-01T00:00:00.000Z',
+    periodEnd: '2026-09-30T00:00:00.000Z',
+    readAt: '2026-10-09T15:00:00.000Z',
+};
+
+describe('thumbnailsByChannelId', () => {
+    it('arma el mapa de identificador de canal a foto', () => {
+        const mapa = thumbnailsByChannelId([
+            CONEXION,
+            { ...CONEXION, connectionId: 'c2', channelId: 'UC2', thumbnailUrl: 'https://yt3.ggpht.com/dos' },
+        ]);
+        expect(mapa.get('UC1')).toBe('https://yt3.ggpht.com/uno');
+        expect(mapa.get('UC2')).toBe('https://yt3.ggpht.com/dos');
+    });
+
+    it('sin conexiones, el mapa queda vacio', () => {
+        expect(thumbnailsByChannelId([]).size).toBe(0);
+    });
+
+    it('si la lectura fallo, el mapa queda vacio y no rompe', () => {
+        expect(thumbnailsByChannelId(undefined).size).toBe(0);
+    });
+
+    it('un canal sin foto no entra al mapa', () => {
+        expect(thumbnailsByChannelId([{ ...CONEXION, thumbnailUrl: undefined }]).has('UC1')).toBe(false);
     });
 });

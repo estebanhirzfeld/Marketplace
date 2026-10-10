@@ -41,6 +41,12 @@ function nombreDelActivo(listing: Listing): string | undefined {
     return typeof valor === 'string' && valor ? valor : undefined;
 }
 
+/** La dirección del canal, para su dueño; solo existe en un activo de YouTube. */
+function direccionDelCanal(listing: Listing): string | undefined {
+    const valor = listing.assetDataFor(true).assetData.channelUrl;
+    return typeof valor === 'string' && valor ? valor : undefined;
+}
+
 /**
  * Los pasos de traspaso los resuelve el use case —puede nombrar la cuenta de
  * custodia concreta, y para eso hace falta consultar persistencia, que no
@@ -71,6 +77,7 @@ function aMyListingDto(
             currency: listing.estimatedPrice.getCurrency(),
         },
         assetName: nombreDelActivo(listing),
+        channelUrl: direccionDelCanal(listing),
         rejectionReason: props.rejectionReason,
         ownership: listing.ownershipVerification && {
             verifiedAt: listing.ownershipVerification.verifiedAt.toISOString(),

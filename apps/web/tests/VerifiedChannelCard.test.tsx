@@ -175,4 +175,26 @@ describe('ChannelAvatarView', () => {
 
         expect(html).toMatch(/>\?<\/span>/);
     });
+
+    it('la variante cuadrada usa el radio chico del sistema, no el redondo', () => {
+        const html = renderToStaticMarkup(
+            <ChannelAvatarView src="https://yt3.ggpht.com/foto" name="Nivel Completo" failed={false} onError={noop} shape="square" />,
+        );
+        expect(html).toContain('rounded-[var(--radius-chico)]');
+        expect(html).not.toContain('rounded-full');
+    });
+
+    it('la variante cuadrada tambien cae a la inicial con esquinas chicas', () => {
+        const html = renderToStaticMarkup(
+            <ChannelAvatarView name="nivel" failed onError={noop} shape="square" />,
+        );
+        expect(html).toContain('N');
+        expect(html).toContain('rounded-[var(--radius-chico)]');
+        expect(html).not.toContain('rounded-full');
+    });
+
+    it('por defecto sigue siendo redonda', () => {
+        const html = renderToStaticMarkup(<ChannelAvatarView name="nivel" failed onError={noop} />);
+        expect(html).toContain('rounded-full');
+    });
 });

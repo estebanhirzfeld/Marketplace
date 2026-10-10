@@ -514,6 +514,11 @@ export interface MyListingDto {
     custodyAccountIdentifier?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
+    /**
+     * Dirección del canal, solo en un activo de YouTube. Es de su dueño: de ahí
+     * se saca el identificador para mostrarle la foto de su canal conectado.
+     */
+    channelUrl?: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
     rejectionReason?: string;
