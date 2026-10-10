@@ -12,7 +12,11 @@ import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm'
 import { MercadoPagoPanel } from '@/components/MercadoPagoPanel';
 import { UnlinkMercadoPagoButton } from '@/components/UnlinkMercadoPagoButton';
 import { ActionFailure } from '@/components/OperationAction';
-import { noop, noopVoid } from './actions';
+import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
+import { VerificationSeal } from '@/components/VerificationSeal';
+import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
+import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { noop, noopEstimate, noopVoid } from './actions';
 import {
     Alert,
     Button,
@@ -24,7 +28,8 @@ import {
     EmptyState,
 } from '@/components/ui';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
-import type { OperationStatusDto, PaymentOptionsDto } from '@marketplace/api-contract';
+import type { OperationStatusDto, PaymentOptionsDto, YouTubeConnectionDto } from '@marketplace/api-contract';
+import type { ConnectionReason } from '@/lib/youtubeConnection';
 
 /**
  * Sistema de diseño.
@@ -77,6 +82,46 @@ const CUENTA_VINCULADA = {
 };
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
+
+/** Un canal conectado de muestra, con la forma que devuelve la API. */
+const CANAL_CON_DATOS: YouTubeConnectionDto = {
+    connectionId: 'muestra-1',
+    channelId: 'UCmuestra',
+    channelTitle: 'Nivel Completo',
+    subscribers: 12_400,
+    views12Months: 1_250_000,
+    revenue12MonthsCents: 345_600,
+    monthlyRevenueCents: 28_800,
+    isMonetized: true,
+    topCountry: 'AR',
+    periodStart: '2025-10-01T00:00:00.000Z',
+    periodEnd: '2026-09-30T00:00:00.000Z',
+    readAt: AYER,
+};
+const CANAL_EN_CERO: YouTubeConnectionDto = {
+    ...CANAL_CON_DATOS,
+    connectionId: 'muestra-2',
+    channelId: 'UCcero',
+    channelTitle: 'Canal nuevo',
+    subscribers: 0,
+    views12Months: 0,
+    revenue12MonthsCents: 0,
+    monthlyRevenueCents: 0,
+    isMonetized: false,
+    topCountry: undefined,
+};
+const MOTIVOS_DE_CONEXION: { reason: ConnectionReason; titulo: string; detail?: string }[] = [
+    { reason: 'cancelada', titulo: 'CANCELÓ EN GOOGLE' },
+    {
+        reason: 'permisos',
+        titulo: 'FALTAN PERMISOS',
+        detail:
+            'Para publicar tu canal necesitamos que nos dejes las estadísticas de ingresos. Volvé a conectar y dejá todos los permisos tildados: solo leemos, no podemos publicar ni borrar nada.',
+    },
+    { reason: 'sin-canal', titulo: 'LA CUENTA NO TIENE UN CANAL' },
+    { reason: 'no-disponible', titulo: 'GOOGLE NO RESPONDIÓ' },
+    { reason: 'invalida', titulo: 'LA CONEXIÓN NO SE PUDO VALIDAR' },
+];
 
 /** Opciones de pago de muestra, con la forma que devuelve la API. */
 const PAGO_AMBAS: PaymentOptionsDto = {
@@ -436,6 +481,63 @@ export default function Sistema() {
                             <ActionFailure
                                 error="Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas."
                                 next={{ href: '/perfil#mercadopago', label: 'Vincular Mercado Pago' }}
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Publicar un canal conectado"
+                    note="El vendedor autoriza YouTube y los números los lee Google: no se tipean. La tarjeta es de solo lectura, con el sello de verificación y la fecha de la lectura; todo número lleva su unidad y su período, y un cero se muestra como cero. Debajo, el vendedor completa solo lo que Google no sabe. Las acciones son de muestra: no salen a Google ni crean nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SELLO DE VERIFICACIÓN</div>
+                            <VerificationSeal source="YouTube" at={AYER} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PRIMER PASO — CONECTAR</div>
+                            <Panel title="CONECTÁ TU CANAL">
+                                <YouTubeConnectStep startAction={noopVoid} />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL CANAL — CON DATOS</div>
+                            <VerifiedChannelCard channel={CANAL_CON_DATOS} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL CANAL — EN CERO, SIN FOTO NI PAÍS</div>
+                            <VerifiedChannelCard channel={CANAL_EN_CERO} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CON UN CANAL YA CONECTADO — OFRECE SUMAR OTRO</div>
+                            <Panel title="ELEGÍ UN CANAL">
+                                <YouTubeConnectStep startAction={noopVoid} hasConnections />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO, PRECIO Y VALUACIÓN</div>
+                            <Panel>
+                                <YouTubeListingForm
+                                    action={noop}
+                                    estimate={noopEstimate}
+                                    verifiedData={{ subscribers: CANAL_CON_DATOS.subscribers }}
+                                />
+                            </Panel>
+                        </div>
+                        {MOTIVOS_DE_CONEXION.map(({ reason, titulo, detail }) => (
+                            <div key={reason} className="flex flex-col gap-3">
+                                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ERROR AL CONECTAR — {titulo}</div>
+                                <Panel title="CONECTÁ TU CANAL">
+                                    <YouTubeConnectStep startAction={noopVoid} failure={{ reason, detail }} />
+                                </Panel>
+                            </div>
+                        ))}
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ESE CANAL YA ESTÁ PUBLICADO</div>
+                            <ActionFailure
+                                error="Ese canal ya lo publicaste."
+                                next={{ href: '/activos', label: 'Ver el activo' }}
                             />
                         </div>
                     </div>

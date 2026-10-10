@@ -41,7 +41,10 @@ const IDENTIDAD = {
 export function PublishListingForm({
     action,
     estimate,
+    types = ['youtube', 'web'],
 }: {
+    /** Con un solo tipo, el selector no se muestra: no hay nada que elegir. */
+    types?: readonly ('youtube' | 'web')[];
     action: (state: State, form: FormData) => Promise<State>;
     estimate: (
         assetType: string,
@@ -49,7 +52,7 @@ export function PublishListingForm({
     ) => Promise<{ cents: number; currency: string } | null>;
 }) {
     const [state, submit, pending] = useActionState(action, {});
-    const [type, setTipo] = useState<string>('youtube');
+    const [type, setTipo] = useState<string>(types[0] ?? 'youtube');
     const [moneda, setMoneda] = useState<string>('USD');
     const [niche, setRubro] = useState<string>(AssetNiche.OTHER);
     const [metrica, setMetrica] = useState<number>(0);
@@ -86,6 +89,8 @@ export function PublishListingForm({
 
     return (
         <form action={submit} className="flex flex-col gap-4">
+            {types.length === 1 && <input type="hidden" name="assetType" value={type} />}
+            {types.length > 1 && (
             <label className="flex flex-col gap-2">
                 <span className="text-[13px] text-[var(--color-tenue)]">Tipo de activo</span>
                 <select
@@ -94,11 +99,12 @@ export function PublishListingForm({
                     onChange={(e) => setTipo(e.target.value)}
                     className="h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none focus:border-[var(--color-acento)]"
                 >
-                    {TIPOS.map((t) => (
+                    {TIPOS.filter((t) => types.includes(t.value)).map((t) => (
                         <option key={t.value} value={t.value}>{t.text}</option>
                     ))}
                 </select>
             </label>
+            )}
 
             {/* El rubro es lo único que dice de qué trata un activo blindado
                 sin revelar cuál es, así que es lo que la grilla usa de título.

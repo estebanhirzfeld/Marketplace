@@ -8,12 +8,18 @@
  * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
  */
 
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
+import {
+    YOUTUBE_STATE_COOKIE,
+    YOUTUBE_STATE_COOKIE_OPTIONS,
+    createConnectionState,
+} from '@/lib/youtubeConnection';
 
 /** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
 export type ActionState = {
@@ -82,8 +88,10 @@ export async function publishListing(
         assetData.domain = identidad;
     }
 
+    let listingId: string;
+
     try {
-        await api().createListing({
+        const created = await api().createListing({
             assetType,
             assetData,
             // La moneda es la que el vendedor eligió. Estaba fija en 'USD':
@@ -91,13 +99,16 @@ export async function publishListing(
             // igual en dólares, con el precio multiplicado por la cotización.
             askingPrice: { cents: Math.round(price * 100), currency: moneda },
         });
+        listingId = created.id;
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
         return { error: 'No pudimos publicar el activo. Probá de nuevo.' };
     }
 
     revalidatePath('/activos');
-    return { ok: true };
+    // Al borrador creado, donde está lo que falta para enviarlo a revisión.
+    // `redirect` lanza, así que va fuera del `try`.
+    redirect(`/activos/${listingId}`);
 }
 
 /**
@@ -180,4 +191,81 @@ export async function startVerification(
     }
 
     redirect(url);
+}
+
+/**
+ * Manda al vendedor a autorizar su canal en Google.
+ *
+ * Genera el `state`, le pide la dirección a la API (la única que conoce el
+ * cliente de OAuth) y lo deja en una cookie para la vuelta. La cookie se
+ * escribe recién con la dirección en la mano: un intento que no salió no deja
+ * nada guardado. `redirect` lanza, así que va fuera del `try`.
+ */
+export async function startYouTubeConnection(): Promise<void> {
+    await requireCounterparty();
+
+    const state = createConnectionState();
+    let url: string;
+
+    try {
+        ({ url } = await api().youTubeAuthorizationUrl({ state }));
+    } catch (e) {
+        // Sin las credenciales de Google la API responde 503: `/vender` pasa a
+        // la carga manual, que existe solo para ese caso.
+        const notConfigured = e instanceof ApiError && e.status === 503;
+        redirect(`/vender?conexion=${notConfigured ? 'no-configurada' : 'no-disponible'}`);
+    }
+
+    (await cookies()).set(YOUTUBE_STATE_COOKIE, state, YOUTUBE_STATE_COOKIE_OPTIONS);
+
+    redirect(url);
+}
+
+/**
+ * Crea el borrador desde un canal conectado y lleva al vendedor a él.
+ *
+ * Suscriptores, vistas, ingresos y país salen de la lectura de Google que
+ * guarda la API: acá solo viaja lo que Google no sabe.
+ */
+export async function createYouTubeListing(
+    channelId: string,
+    _state: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireCounterparty();
+
+    const price = Number(form.get('precio'));
+    if (!Number.isFinite(price) || price <= 0) {
+        return { error: 'Ingresá un precio válido.' };
+    }
+
+    let listingId: string;
+
+    try {
+        const created = await api().createListingFromYouTubeConnection(channelId, {
+            niche: String(form.get('niche') ?? 'other'),
+            hasNoFaceContent: form.get('sinRostro') === 'on',
+            askingPrice: {
+                cents: Math.round(price * 100),
+                currency: form.get('moneda') === 'ARS' ? 'ARS' : 'USD',
+            },
+        });
+        listingId = created.listingId;
+    } catch (e) {
+        if (e instanceof ApiError) {
+            // La API manda `listingId` solo cuando el canal ya publicado es del
+            // propio vendedor: ahí hay adónde llevarlo.
+            if (e.status === 409 && e.listingId) {
+                return {
+                    error: 'Ese canal ya lo publicaste.',
+                    next: { href: `/activos/${e.listingId}`, label: 'Ver el activo' },
+                };
+            }
+            return { error: e.message };
+        }
+        return { error: 'No pudimos publicar el canal. Probá de nuevo.' };
+    }
+
+    revalidatePath('/activos');
+    redirect(`/activos/${listingId}`);
 }

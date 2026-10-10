@@ -7,26 +7,9 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { ButtonLink, Heading, EmptyState } from '@/components/ui';
 import { money, nicheLabel } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
+import { OWNERSHIP_RESULTS } from '@/lib/ownershipResults';
 
 export const metadata = { title: 'Mis activos · Traspaso' };
-
-/**
- * El resultado de la vuelta del consentimiento de Google. Llega por la
- * dirección porque la vuelta la maneja un route handler, que redirige acá: la
- * verificación se dispara desde un activo, así que corresponde volver al
- * catálogo y no al formulario de publicación.
- */
-const RESULTADOS: Record<string, { text: string; ok: boolean }> = {
-    ok: { text: 'Listo: quedó comprobado que controlás el activo.', ok: true },
-    'sin-control': {
-        text: 'Esa cuenta de Google no controla el activo que publicaste. Si es un canal con Cuenta de Marca, elegila al iniciar sesión.',
-        ok: false,
-    },
-    cancelada: { text: 'Cancelaste la verificación. Podés volver a intentarla cuando quieras.', ok: false },
-    'no-configurada': { text: 'La verificación con Google todavía no está configurada.', ok: false },
-    invalida: { text: 'No pudimos identificar qué activo se estaba verificando.', ok: false },
-    error: { text: 'No pudimos completar la verificación. Probá de nuevo.', ok: false },
-};
 
 /** Los estados que agrupamos en la barra de filtros. */
 const GRUPOS = {
@@ -49,7 +32,7 @@ export default async function MisActivos(props: {
     const nombreDeTipo = await assetTypeLabeller();
     const params = await props.searchParams;
 
-    const resultado = RESULTADOS[params.verificacion ?? ''];
+    const resultado = OWNERSHIP_RESULTS[params.verificacion ?? ''];
     const grupo = esGrupo(params.estado) ? params.estado : undefined;
 
     let todos: MyListingDto[] = [];

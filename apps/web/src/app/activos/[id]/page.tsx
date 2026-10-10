@@ -6,9 +6,10 @@ import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
-import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
+import { Alert, OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import { OperationAction } from '@/components/OperationAction';
+import { OWNERSHIP_RESULTS } from '@/lib/ownershipResults';
 import {
     fechaLarga,
     money,
@@ -271,6 +272,14 @@ export default async function DetalleDeActivo(props: {
                         publicar, que ya no muestra este aviso, así que el clic
                         parecía no hacer nada.
                     */}
+                    {/* La vuelta de Google trae el resultado en la dirección. */}
+                    {query.verificacion && query.verificacion !== 'no-configurada' && OWNERSHIP_RESULTS[query.verificacion] && (
+                        <div className="mt-6">
+                            <Alert tono={OWNERSHIP_RESULTS[query.verificacion].ok ? 'listo' : 'alerta'}>
+                                {OWNERSHIP_RESULTS[query.verificacion].text}
+                            </Alert>
+                        </div>
+                    )}
                     {query.verificacion === 'no-configurada' && (
                         <div className="mt-6 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[14px] leading-relaxed text-[var(--color-alerta)]">
                             La verificación con Google todavía no está configurada en este entorno,
