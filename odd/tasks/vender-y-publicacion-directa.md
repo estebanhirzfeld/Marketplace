@@ -96,6 +96,10 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
     - El aviso al admin es genérico («Un vendedor ya nos invitó»): para nombrar al vendedor y al canal hacen falta campos y una migración.
     - La pestaña de reclamos solo muestra el conteo, porque no hay listado de reclamos del admin en la API.
     - Las migraciones de T6.1a y T6.1b siguen pendientes en `marketplace_dev`.
+  - Revisión `review-f3f6297226e77ac2`: consentimiento `granted`, aprobada y reconocida. El límite revisado avanza a `7d95781`.
+    - Hallazgos informativos:
+      - `R3-notify-after-save-lost`: si falla el aviso al admin después de guardar, el admin no se entera; el panel igual lo muestra.
+      - `R3-seller-lookup-failure`.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
