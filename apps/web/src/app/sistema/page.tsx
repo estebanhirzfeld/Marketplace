@@ -16,6 +16,9 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { VerificationSeal } from '@/components/VerificationSeal';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
+import { SellSteps } from '@/components/SellSteps';
+import { PriceSectionDemo } from './PriceSectionDemo';
 import { InstructionsModal } from '@/components/InstructionsModal';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { noop, noopEstimate, noopVoid } from './actions';
@@ -538,6 +541,56 @@ export default function Sistema() {
                 </Section>
 
                 <Section
+                    title="Elegir qué vender"
+                    note="La entrada de /vender: una tarjeta por tipo de activo, con el logo, qué se hace y la llamada abajo. La de YouTube envía una acción (abre Google) cuando no hay canales conectados; con canales, o en la de sitio web, es un enlace. Arriba del recorrido, los pasos de cada tipo con el actual resaltado."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <AssetTypeCard
+                            logo={<YouTubeLogo />}
+                            title="Canal de YouTube"
+                            description="Conectás tu canal y traemos los números directo de YouTube. No tipeás nada."
+                            cta="Conectar YouTube →"
+                            action={noopVoid}
+                        />
+                        <AssetTypeCard
+                            logo={<WebLogo />}
+                            title="Sitio web"
+                            description="Cargás los datos del sitio y comprobás que es tuyo con AdSense."
+                            cta="Cargar sitio →"
+                            href="/sistema"
+                        />
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — CANAL DE YOUTUBE, COMPLETANDO</div>
+                            <SellSteps labels={['1 · CONECTAR', '2 · COMPLETAR', '3 · PRECIO']} current={1} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — SITIO WEB, DATOS</div>
+                            <SellSteps labels={['1 · DATOS', '2 · PRECIO', '3 · COMPROBAR']} current={0} />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Precio con referencia"
+                    note="El precio va primero, con la moneda y un monto grande; la valuación queda al costado como referencia y dice cuánto se aparta el precio. Si el vendedor elige una moneda distinta a la de la valuación no se compara: la web no tiene cotización para convertir y no inventa una."
+                >
+                    <div className="grid gap-8">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PRECIO POR ENCIMA DE LA VALUACIÓN</div>
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="13000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN PRECIO NI VALUACIÓN</div>
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="" estimated={null} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PESOS — LA VALUACIÓN SE MUESTRA EN USD</div>
+                            <PriceSectionDemo initialCurrency="ARS" initialPrice="13000000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
                     title="Publicar un canal conectado"
                     note="El vendedor autoriza YouTube y los números los lee Google: no se tipean. La tarjeta es de solo lectura, con el sello de verificación y la fecha de la lectura; todo número lleva su unidad y su período, y un cero se muestra como cero. Debajo, el vendedor completa solo lo que Google no sabe. Las acciones son de muestra: no salen a Google ni crean nada."
                 >
@@ -567,7 +620,7 @@ export default function Sistema() {
                             </Panel>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO, PRECIO Y VALUACIÓN</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO Y PRECIO CON REFERENCIA</div>
                             <Panel>
                                 <YouTubeListingForm
                                     action={noop}

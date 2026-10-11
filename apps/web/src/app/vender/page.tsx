@@ -7,11 +7,14 @@ import { PublishListingForm } from '@/components/PublishListingForm';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
+import { SellSteps } from '@/components/SellSteps';
 import { Panel, Heading } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import {
     chooseSellView,
     connectionsFromReadError,
+    isTypePick,
     parseConnectionReason,
     type ConnectionFailure,
 } from '@/lib/youtubeConnection';
@@ -88,12 +91,81 @@ export default async function Publicar(props: {
         notConfigured: params.conexion === 'no-configurada',
     });
     const manual = view.kind === 'manual';
+    const picking = isTypePick({
+        tipo: params.tipo,
+        canal: params.canal,
+        failed: failure !== undefined,
+        notConfigured: params.conexion === 'no-configurada',
+        configured: connections !== null,
+    });
     const channels = view.kind === 'list' ? view.channels : (connections ?? []);
     const selected = view.kind === 'selected' ? view.channel : undefined;
+
+    if (picking) {
+        // Con canales ya conectados se elige entre ellos; sin ninguno, la
+        // tarjeta abre Google directamente.
+        const hasConnections = (connections ?? []).length > 0;
+        return (
+            <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
+                <Reveal>
+                    <div className="flex flex-col gap-2">
+                        <span className="font-mono text-[12px] tracking-[0.14em] text-[var(--color-apagado)]">
+                            VENDER
+                        </span>
+                        <h1 className="text-[30px] font-bold tracking-[-0.03em] sm:text-[36px]">
+                            ¿Qué querés vender?
+                        </h1>
+                    </div>
+                </Reveal>
+                <Reveal delay={80}>
+                    <div className="mt-10 grid gap-5 sm:grid-cols-2">
+                        <AssetTypeCard
+                            logo={<YouTubeLogo />}
+                            title="Canal de YouTube"
+                            description="Conectás tu canal y traemos los números directo de YouTube. No tipeás nada."
+                            cta="Conectar YouTube →"
+                            {...(hasConnections
+                                ? { href: '/vender?tipo=youtube' }
+                                : { action: startYouTubeConnection })}
+                        />
+                        <AssetTypeCard
+                            logo={<WebLogo />}
+                            title="Sitio web"
+                            description="Cargás los datos del sitio y comprobás que es tuyo con AdSense."
+                            cta="Cargar sitio →"
+                            href="/vender?tipo=web"
+                        />
+                    </div>
+                    <p className="mt-6 text-[14px] text-[var(--color-apagado)]">
+                        Próximamente: cuentas de redes sociales.
+                    </p>
+                </Reveal>
+            </div>
+        );
+    }
+
+    // Los pasos solo existen donde el flujo es de un tipo; la carga manual
+    // ofrece los dos y no tiene un recorrido propio.
+    const steps = wantsWeb
+        ? { labels: ['1 · DATOS', '2 · PRECIO', '3 · COMPROBAR'], current: 0, kind: 'Sitio web' }
+        : !manual
+          ? { labels: ['1 · CONECTAR', '2 · COMPLETAR', '3 · PRECIO'], current: selected ? 1 : 0, kind: 'Canal de YouTube' }
+          : null;
 
     return (
         <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
             <Reveal>
+                {steps && (
+                    <div className="mb-8 flex max-w-[720px] flex-col gap-5">
+                        <div className="flex items-center justify-between">
+                            <Link href="/vender" className="text-[14px] text-[var(--color-tenue)] hover:text-[var(--color-tinta)]">
+                                ← Cambiar tipo
+                            </Link>
+                            <span className="text-[14px] text-[var(--color-tenue)]">{steps.kind}</span>
+                        </div>
+                        <SellSteps labels={steps.labels} current={steps.current} />
+                    </div>
+                )}
                 <div className="flex items-center gap-2 text-[13px] text-[var(--color-apagado)]">
                     <Link href="/activos" className="hover:text-[var(--color-tinta)]">
                         Mis activos

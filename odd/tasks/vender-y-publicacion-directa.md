@@ -29,7 +29,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - [x] T2 · Dominio: pasos por fase en `getTransferSteps`; `requestPlatformAccess()` con `platformAccessRequestedAt` (migración y mapper); ruta de acceso solicitado; estado del acceso en el DTO. Ruta: delegado.
 - [x] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
 - [x] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
-- [ ] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
+- [x] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
 - [ ] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
@@ -113,6 +113,24 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
     - control del orquestador: 30/30.
   - `lint`: solo los 2 errores previos.
 
+- **Revisión T3+T4** (`review-ee61b5e3a84403eb`).
+  - El commit de T4 movió el candidato de T3, así que se rearmó como uno solo: T3 y T4, 22 archivos y 1478 líneas. Consentimiento `granted`, revisión aprobada y reconocida. El límite revisado avanza a `d9c7c27`.
+  - Hallazgos informativos:
+    - `R3-oauth-verify-does-not-prove-custody-identity` (WARNING): la verificación prueba que la cuenta elegida administra el canal, pero no que sea la cuenta de custodia. Si el operador entra con otra cuenta que también administra el canal, se registraría el acceso igual. Pendiente de decisión.
+    - `R3-first-active-custody-account-arbitrary`: con varias cuentas de custodia activas se usa la primera.
+    - `R3-google-error-reported-as-cancelled`: un error de Google se informa como «cancelada».
+    - `R3-awaiting-access-failure-silent`: si falla la lista de pendientes, el panel no se muestra y no avisa.
+- **T5** (ruta: delegado).
+  - Portada de `/vender` con tarjetas por tipo (`AssetTypeCard`, logos YouTube y web), `SellSteps` y «← Cambiar tipo».
+  - `PriceSection`: tu precio primero y la referencia al costado, con `priceDifference` y `comparableEstimate`.
+  - `/sistema` actualizado.
+  - Brecha: la valuación solo existe en USD. Si el vendedor elige ARS se muestra «en USD», sin diferencia porcentual. Convertirla necesita un endpoint de cotización.
+  - RED: `pricing`, `SellSteps`, `isTypePick` y `PriceSection` sin implementación.
+  - GREEN:
+    - web: 271/271;
+    - `tsc` limpio;
+    - `lint`: solo los 2 errores previos.
+
 ## Siguiente paso
 
-T5.
+T6.

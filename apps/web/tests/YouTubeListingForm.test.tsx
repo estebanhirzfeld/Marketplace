@@ -22,6 +22,8 @@ function vista(props: Partial<React.ComponentProps<typeof YouTubeListingFormView
             estimated={null}
             currency="USD"
             onCurrencyChange={() => {}}
+            price=""
+            onPriceChange={() => {}}
             niche="other"
             onNicheChange={() => {}}
             noFace={false}
@@ -50,7 +52,7 @@ describe('YouTubeListingFormView', () => {
         const t = texto(vista({ estimated: { cents: 1_250_000, currency: 'USD' } }));
 
         expect(t).toContain('US$ 12.500');
-        expect(t).toMatch(/datos verificados de tu canal/);
+        expect(t).toMatch(/números verificados de tu canal/);
     });
 
     it('sin valuación muestra un guion', () => {

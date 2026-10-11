@@ -6,6 +6,7 @@ import {
     describeConnectionFailure,
     parseConnectionReason,
     chooseSellView,
+    isTypePick,
     connectionsFromReadError,
 } from '@/lib/youtubeConnection';
 
@@ -200,5 +201,25 @@ describe('chooseSellView', () => {
 
     it('`tipo=web` va al formulario de sitio, sin paso de conexión', () => {
         expect(chooseSellView({ connections: [A], canal: 'UCa', failed: false, web: true })).toEqual({ kind: 'web' });
+    });
+});
+
+describe('isTypePick', () => {
+    const base = { tipo: undefined, canal: undefined, failed: false, notConfigured: false, configured: true };
+
+    it('sin nada elegido muestra la elección de tipo', () => {
+        expect(isTypePick(base)).toBe(true);
+    });
+
+    it('cualquier elección, vuelta de Google o error la saltea', () => {
+        expect(isTypePick({ ...base, tipo: 'web' })).toBe(false);
+        expect(isTypePick({ ...base, tipo: 'youtube' })).toBe(false);
+        expect(isTypePick({ ...base, canal: 'UC1' })).toBe(false);
+        expect(isTypePick({ ...base, failed: true })).toBe(false);
+        expect(isTypePick({ ...base, notConfigured: true })).toBe(false);
+    });
+
+    it('sin la integración configurada se mantiene la carga manual', () => {
+        expect(isTypePick({ ...base, configured: false })).toBe(false);
     });
 });
