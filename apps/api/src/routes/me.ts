@@ -11,12 +11,16 @@ import type {
     OperationDetailDto,
     PendingOperationDto,
     RegisterPlatformAccessRequest,
+    AuthorizationUrlDto,
+    PlatformAccessAuthorizationRequest,
+    VerifyPlatformAccessRequest,
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
 } from '@marketplace/api-contract';
 import { PendingOperation } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
+import { SCOPE_OPENID_EMAIL, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { HandoverStep } from '@marketplace/domain/src/entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
@@ -86,15 +90,18 @@ function aMyListingDto(
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, description, instruction, title, details, links, afterPlatformStarts }) => ({
+        handoverSteps: pasos.map(({ id, description, instruction, title, details, links, phase, afterPlatformStarts }) => ({
             id,
             description,
             instruction,
             title,
             details,
             links,
+            phase,
             afterPlatformStarts,
         })),
+        platformAccessStatus: listing.platformAccessStatus(),
+        platformAccessRequestedAt: listing.platformAccessRequestedAt?.toISOString(),
         custodyAccountIdentifier: custodyAccountIdentifier,
         descriptor: listing.describeAssetType(),
         createdAt: createdAt.toISOString(),
@@ -284,6 +291,88 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         },
     );
 
+    /** Los activos que esperan que confirmemos el acceso: el vendedor avisó que ya invitó. */
+    app.get<{ Reply: MyListingDto[] }>(
+        '/admin/listings/acceso-pendiente',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const listings = await c.listAwaitingAccess.executeWithSellerNames(actorOf(request));
+            return reply.send(listings.map(({ listing, sellerName }) => ({ ...aMyListingDto(listing), sellerName })));
+        },
+    );
+
+    /**
+     * Paso uno de la verificación por OAuth: la dirección de Google con la cuenta
+     * de custodia sugerida. `youtube.readonly` más `openid email` (para saber quién
+     * inició sesión) y en línea: no queda ningún token guardado.
+     */
+    app.post<{ Params: IdParams; Body: PlatformAccessAuthorizationRequest; Reply: AuthorizationUrlDto }>(
+        '/admin/listings/:id/acceso/autorizacion',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['state'],
+                    additionalProperties: false,
+                    properties: { state: { type: 'string', minLength: 1, maxLength: 512 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            if (!c.googleOAuth || !c.startPlatformAccessVerification) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const { custodyAccountIdentifier } = await c.startPlatformAccessVerification.execute(
+                request.params.id,
+                actorOf(request),
+            );
+            return reply.send({
+                url: c.googleOAuth.authorizationUrl(`${SCOPE_YOUTUBE} ${SCOPE_OPENID_EMAIL}`, request.body.state, {
+                    loginHint: custodyAccountIdentifier,
+                    // `consent` fuerza el selector de canal en cada intento: sin él
+                    // Google recuerda el canal elegido antes y lo reusa en silencio.
+                    prompt: 'select_account consent',
+                    enableYoutubePermissions: true,
+                }),
+            });
+        },
+    );
+
+    /**
+     * Paso dos: con el código, se le pregunta a Google qué canales administra la
+     * cuenta elegida y, si está el del activo, se registra el acceso.
+     */
+    app.post<{ Params: IdParams; Body: VerifyPlatformAccessRequest }>(
+        '/admin/listings/:id/acceso/verificar',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['code'],
+                    additionalProperties: false,
+                    properties: { code: { type: 'string', minLength: 1, maxLength: 2048 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            if (!c.verifyPlatformAccess) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            await c.verifyPlatformAccess.execute(request.params.id, request.body.code, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
     /** El tablero de la plataforma: qué hay pendiente y en qué estado va todo. */
     app.get<{ Reply: PlatformDashboardDto }>(
         '/admin/dashboard',
@@ -423,6 +512,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             await c.activarCuentaCustodia.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. */
+    app.post<{ Params: IdParams }>(
+        '/admin/listings/:id/acceso/rechazar',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.rejectPlatformAccessRequest.execute(request.params.id, actorOf(request));
             return reply.code(204).send();
         },
     );

@@ -30,7 +30,11 @@ export class GoogleOAuthClient {
      * `state` viaja de ida y vuelta sin que Google lo toque: sirve para saber,
      * al volver, de qué listing se trataba y que el pedido salió de nosotros.
      */
-    authorizationUrl(scope: string, state: string): string {
+    authorizationUrl(
+        scope: string,
+        state: string,
+        options: { loginHint?: string; prompt?: string; enableYoutubePermissions?: boolean } = {},
+    ): string {
         const url = new URL(AUTH_ENDPOINT);
         url.searchParams.set('client_id', this.config.clientId);
         url.searchParams.set('redirect_uri', this.config.redirectUri);
@@ -41,12 +45,26 @@ export class GoogleOAuthClient {
         url.searchParams.set('access_type', 'online');
         // Que la cuenta se elija siempre: un canal puede estar bajo una Cuenta
         // de Marca distinta de la sesión abierta en el navegador.
-        url.searchParams.set('prompt', 'select_account consent');
+        url.searchParams.set('prompt', options.prompt ?? 'select_account consent');
+        // Sugiere con qué cuenta ingresar (la de custodia, en la verificación del
+        // acceso); Google igual deja elegir otra.
+        if (options.loginHint) url.searchParams.set('login_hint', options.loginHint);
+        // Muestra el selector de canales de YouTube (incluidas las Cuentas de Marca) y
+        // hace que el id_token traiga a la persona real que inició sesión.
+        if (options.enableYoutubePermissions) url.searchParams.set('enable_yt_permissions', 'true');
         return url.toString();
     }
 
     /** Canjea el código por un token de acceso de un solo uso. */
     async exchange(code: string): Promise<string> {
+        return (await this.exchangeWithIdentity(code)).accessToken;
+    }
+
+    /**
+     * Igual que `exchange`, pero conserva el `id_token` cuando Google lo manda
+     * (si se pidieron los scopes `openid email`).
+     */
+    async exchangeWithIdentity(code: string): Promise<{ accessToken: string; idToken: string | undefined }> {
         const respuesta = await this.fetchImpl(TOKEN_ENDPOINT, {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -64,14 +82,18 @@ export class GoogleOAuthClient {
             throw new Error(`Google rechazó el código de autorización (${respuesta.status}).`);
         }
 
-        const cuerpo = (await respuesta.json()) as { access_token?: unknown };
+        const cuerpo = (await respuesta.json()) as { access_token?: unknown; id_token?: unknown };
         if (typeof cuerpo.access_token !== 'string' || cuerpo.access_token === '') {
             throw new Error('Google no devolvió un token de acceso.');
         }
 
-        return cuerpo.access_token;
+        return {
+            accessToken: cuerpo.access_token,
+            idToken: typeof cuerpo.id_token === 'string' && cuerpo.id_token !== '' ? cuerpo.id_token : undefined,
+        };
     }
 }
 
 export const SCOPE_YOUTUBE = 'https://www.googleapis.com/auth/youtube.readonly';
 export const SCOPE_ADSENSE = 'https://www.googleapis.com/auth/adsense.readonly';
+export const SCOPE_OPENID_EMAIL = 'openid email';

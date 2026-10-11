@@ -42,9 +42,11 @@ export type ListingCurrency = 'ARS' | 'USD';
  * `created` es la antigüedad del activo en la plataforma y `published` la de
  * la publicación: son dos fechas distintas porque un listing puede pasar días
  * en borrador o en revisión antes de salir. `estimated` es la proyección que
- * calcula la estrategia del activo, no un dato guardado.
+ * calcula la estrategia del activo, no un dato guardado. `relevance` es el
+ * orden por defecto: lo listo para traspasar primero y luego lo más reciente;
+ * ignora `direction`.
  */
-export type ListingSort = 'price' | 'created' | 'published' | 'estimated';
+export type ListingSort = 'relevance' | 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -94,6 +96,18 @@ export interface IListingRepository {
      */
     findHeldBy(custodyAccountId: string): Promise<Listing[]>;
     save(listing: Listing): Promise<void>;
+}
+
+/**
+ * Eliminar un listing. Va en un puerto aparte para que quien solo lee o guarda
+ * no cargue con una operación destructiva.
+ *
+ * Solo borra un borrador o un rechazado: la condición se vuelve a comprobar
+ * en la consulta, para que dos pedidos simultáneos no borren un activo que
+ * mientras tanto se publicó.
+ */
+export interface IListingDeleter {
+    delete(id: string): Promise<void>;
 }
 
 /**

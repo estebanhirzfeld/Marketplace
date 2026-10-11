@@ -8,10 +8,17 @@
  * que una llamada sin sesión devuelva un error confuso en vez de redirigir.
  */
 
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { requireAdmin } from '@/lib/guards';
+import {
+    ACCESS_STATE_COOKIE,
+    ACCESS_STATE_COOKIE_OPTIONS,
+    createAccessVerificationState,
+} from '@/lib/platformAccessVerification';
 
 export type ActionState = { error?: string };
 
@@ -105,4 +112,50 @@ export async function revokePlatformAccess(
     revalidatePath(`/listings/${listingId}`);
     revalidatePath('/listings');
     return {};
+}
+
+/**
+ * Manda al admin a Google para ingresar con la cuenta de custodia. La cookie
+ * con el `state` se escribe recién cuando hay una dirección a la que ir.
+ */
+export async function startPlatformAccessVerification(listingId: string): Promise<void> {
+    await requireAdmin();
+
+    const state = createAccessVerificationState(listingId);
+    const back = new URLSearchParams({ activo: listingId });
+    let url: string;
+
+    try {
+        ({ url } = await api().platformAccessAuthorization(listingId, state));
+    } catch (e) {
+        if (e instanceof ApiError && e.status === 503) {
+            redirect(`/admin?${new URLSearchParams({ acceso: 'no-configurado', ...Object.fromEntries(back) })}`);
+        }
+        const query = new URLSearchParams({ acceso: 'error', ...Object.fromEntries(back) });
+        if (e instanceof ApiError) query.set('detalle', e.message);
+        redirect(`/admin?${query}`);
+    }
+
+    (await cookies()).set(ACCESS_STATE_COOKIE, state, ACCESS_STATE_COOKIE_OPTIONS);
+
+    redirect(url);
+}
+
+/**
+ * El admin no encontró la invitación del vendedor: el activo vuelve a
+ * pendiente y el vendedor recibe un aviso. Vuelve al panel con el resultado.
+ */
+export async function rejectPlatformAccessRequest(listingId: string): Promise<void> {
+    await requireAdmin();
+
+    try {
+        await api().rejectPlatformAccessRequest(listingId);
+    } catch (e) {
+        const query = new URLSearchParams({ acceso: 'error', activo: listingId });
+        if (e instanceof ApiError) query.set('detalle', e.message);
+        redirect(`/admin?${query}`);
+    }
+
+    revalidatePath('/admin');
+    redirect(`/admin?${new URLSearchParams({ acceso: 'rechazado', activo: listingId })}`);
 }

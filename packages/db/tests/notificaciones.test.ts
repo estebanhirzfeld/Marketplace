@@ -38,6 +38,32 @@ afterAll(async () => {
 });
 
 describe("PrismaNotificationRepository", () => {
+    it("guarda el aviso de acceso no encontrado", async () => {
+        const user = await crearUsuario("acceso@test.com");
+        const aviso = Notification.create({
+            userId: user.id,
+            type: "acceso_no_encontrado",
+            listingId: new UniqueEntityID(),
+        });
+        await repo.save(aviso);
+
+        const recuperado = await repo.findById(aviso.id.toString());
+        expect(recuperado!.type).toBe("acceso_no_encontrado");
+    });
+
+    it("persiste y recupera el aviso a la plataforma de un acceso solicitado", async () => {
+        const user = await crearUsuario("admin-acceso@test.com");
+        const aviso = Notification.create({
+            userId: user.id,
+            type: "acceso_solicitado",
+            listingId: new UniqueEntityID(),
+        });
+        await repo.save(aviso);
+
+        const recuperado = await repo.findById(aviso.id.toString());
+        expect(recuperado!.type).toBe("acceso_solicitado");
+    });
+
     it("persiste y recupera un aviso con todos sus campos", async () => {
         const user = await crearUsuario("uno@test.com");
 

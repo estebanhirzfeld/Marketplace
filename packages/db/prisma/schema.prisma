@@ -67,6 +67,10 @@ enum NotificationType {
   acceso_pendiente
   custodia_pendiente
   liquidacion_pendiente
+  // Al vendedor: el admin no encontró su invitación a la plataforma.
+  acceso_no_encontrado
+  // A los administradores: un vendedor avisó que ya invitó a la plataforma.
+  acceso_solicitado
 }
 
 enum ContractType {
@@ -119,6 +123,9 @@ model Listing {
   // asignada, a propósito y sin backfill.
   custodyAccountId String?
   ownershipCheck  Json?
+  // Cuándo el vendedor declaró que ya invitó a la plataforma. Declaración, no
+  // constancia: la constancia es `platformAccess`.
+  platformAccessRequestedAt DateTime?
   createdAt       DateTime      @default(now())
 
   seller        User           @relation(fields: [sellerId], references: [id])

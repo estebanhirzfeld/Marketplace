@@ -2,10 +2,11 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { ASSET_NICHES, AssetNiche } from '@marketplace/shared-types';
-import { money, nicheLabel } from '@/lib/format';
+import { nicheLabel } from '@/lib/format';
 import { scheduleEstimate } from '@/lib/latestEstimate';
 import { Button } from './ui';
 import { ActionFailure } from './OperationAction';
+import { PriceSection } from './PriceSection';
 
 const CONTROL =
     'h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none focus:border-[var(--color-acento)]';
@@ -34,6 +35,7 @@ export function YouTubeListingForm({
 }) {
     const [state, submit, pending] = useActionState(action, {});
     const [currency, setCurrency] = useState('USD');
+    const [price, setPrice] = useState('');
     const [niche, setNiche] = useState<string>(AssetNiche.OTHER);
     const [noFace, setNoFace] = useState(false);
     const [estimated, setEstimated] = useState<Estimate>(null);
@@ -57,6 +59,8 @@ export function YouTubeListingForm({
             estimated={estimated}
             currency={currency}
             onCurrencyChange={setCurrency}
+            price={price}
+            onPriceChange={setPrice}
             niche={niche}
             onNicheChange={setNiche}
             noFace={noFace}
@@ -73,6 +77,8 @@ export function YouTubeListingFormView({
     estimated,
     currency,
     onCurrencyChange,
+    price,
+    onPriceChange,
     niche,
     onNicheChange,
     noFace,
@@ -84,6 +90,8 @@ export function YouTubeListingFormView({
     estimated: Estimate;
     currency: string;
     onCurrencyChange: (value: string) => void;
+    price: string;
+    onPriceChange: (value: string) => void;
     niche: string;
     onNicheChange: (value: string) => void;
     noFace: boolean;
@@ -123,47 +131,13 @@ export function YouTubeListingFormView({
                 Mi contenido es sin rostro
             </label>
 
-            <div className="flex flex-col gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] text-[var(--color-tenue)]">Nuestra valuación estimada</span>
-                    <span className="font-mono text-[18px] font-bold text-[var(--color-acento)]">
-                        {estimated ? money(estimated) : '—'}
-                    </span>
-                </div>
-                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                    Sale de los datos verificados de tu canal. Es una referencia: el precio lo ponés vos.
-                </span>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-                <span className="text-[13px] text-[var(--color-tenue)]">Precio pedido</span>
-                <div className="flex gap-2.5">
-                    <input
-                        name="precio"
-                        type="number"
-                        min={1}
-                        step="0.01"
-                        required
-                        aria-label="Precio pedido"
-                        className="h-11 flex-1 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none transition-colors focus:border-[var(--color-acento)]"
-                    />
-                    <select
-                        name="moneda"
-                        value={currency}
-                        onChange={(e) => onCurrencyChange(e.target.value)}
-                        aria-label="Moneda"
-                        className="h-11 w-24 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3 text-[14px] outline-none focus:border-[var(--color-acento)]"
-                    >
-                        <option value="USD">USD</option>
-                        <option value="ARS">ARS</option>
-                    </select>
-                </div>
-                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                    {currency === 'USD'
-                        ? 'Si el comprador paga en pesos, la conversión se hace al tipo de cambio del día en que se paga.'
-                        : 'El precio queda fijado en pesos. Si el comprador paga en otra moneda, la conversión se hace al tipo de cambio del día en que se paga.'}
-                </span>
-            </div>
+            <PriceSection
+                currency={currency}
+                onCurrencyChange={onCurrencyChange}
+                price={price}
+                onPriceChange={onPriceChange}
+                estimated={estimated}
+            />
 
             {state.error && <ActionFailure error={state.error} next={state.next} />}
 
@@ -172,8 +146,8 @@ export function YouTubeListingFormView({
             </Button>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión, y
-                eso requiere tener la identidad verificada.
+                Nace como borrador. Como tu canal está verificado, lo publicás sin revisión.
+                Necesitás tener la identidad verificada.
             </p>
         </form>
     );

@@ -22,6 +22,8 @@ function vista(props: Partial<React.ComponentProps<typeof YouTubeListingFormView
             estimated={null}
             currency="USD"
             onCurrencyChange={() => {}}
+            price=""
+            onPriceChange={() => {}}
             niche="other"
             onNicheChange={() => {}}
             noFace={false}
@@ -32,6 +34,14 @@ function vista(props: Partial<React.ComponentProps<typeof YouTubeListingFormView
 }
 
 describe('YouTubeListingFormView', () => {
+    it('al pie dice que el canal verificado se publica sin revisión', () => {
+        const text = texto(vista());
+
+        expect(text).toContain('Nace como borrador. Como tu canal está verificado, lo publicás sin revisión.');
+        expect(text).toContain('Necesitás tener la identidad verificada.');
+        expect(text).not.toContain('enviarlo a revisión');
+    });
+
     it('pide solo rubro, contenido sin rostro, precio y moneda', () => {
         const html = vista();
 
@@ -50,7 +60,7 @@ describe('YouTubeListingFormView', () => {
         const t = texto(vista({ estimated: { cents: 1_250_000, currency: 'USD' } }));
 
         expect(t).toContain('US$ 12.500');
-        expect(t).toMatch(/datos verificados de tu canal/);
+        expect(t).toMatch(/números verificados de tu canal/);
     });
 
     it('sin valuación muestra un guion', () => {
@@ -71,6 +81,6 @@ describe('YouTubeListingFormView', () => {
         const t = texto(vista());
 
         expect(t).toContain('Crear borrador');
-        expect(t).toMatch(/Nace como borrador y no lo ve nadie/);
+        expect(t).toMatch(/Nace como borrador\./);
     });
 });

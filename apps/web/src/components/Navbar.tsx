@@ -5,6 +5,35 @@ import { currentActor } from '@/lib/session';
 import { currentProfile } from '@/lib/profile';
 import { logoutAction } from '@/app/actions';
 import { UserRole } from '@marketplace/shared-types';
+import { api } from '@/lib/api';
+import { adminPendingTotal } from '@/lib/adminInbox';
+
+/**
+ * Cuántas cosas esperan un movimiento de la plataforma, para el contador del
+ * menú. Son dos lecturas que ya existen; si cualquiera falla, esa parte cuenta
+ * cero: un contador que no llega no puede tumbar la barra de navegación.
+ */
+async function adminPending(): Promise<number> {
+    const [tablero, accesos] = await Promise.allSettled([api().platformDashboard(), api().listingsConAccesoPendiente()]);
+    return adminPendingTotal({
+        accesos: accesos.status === 'fulfilled' ? accesos.value.length : 0,
+        revision: tablero.status === 'fulfilled' ? tablero.value.listingsToReview : 0,
+        reclamos: tablero.status === 'fulfilled' ? tablero.value.openReports : 0,
+    });
+}
+
+/** El número de pendientes junto a «ADMIN». Sin pendientes no dibuja nada. */
+export function PendingBadge({ count }: { count?: number }) {
+    if (!count) return null;
+    return (
+        <span
+            aria-label={`${count} pendientes`}
+            className="ml-2 rounded-full bg-[var(--color-alerta)] px-1.5 py-px font-mono text-[11px] font-medium text-[var(--color-fondo)]"
+        >
+            {count}
+        </span>
+    );
+}
 
 export async function Navbar() {
     const actor = await currentActor();
@@ -13,6 +42,7 @@ export async function Navbar() {
     // rol. `currentProfile` está memoizado por request, así que esto no agrega
     // una llamada — la comparte con el aviso de verificación del layout.
     const profile = await currentProfile();
+    const pendientes = isAdmin ? await adminPending() : 0;
 
     /*
      * Un solo lugar donde se decide qué ve cada rol, para que el menú de
@@ -23,7 +53,7 @@ export async function Navbar() {
      * abrirlos una de las partes.
      */
     // Lo que ve cualquiera, con sesión o sin ella.
-    const enlaces: { href: string; text: string; destacado?: boolean }[] = [
+    const enlaces: { href: string; text: string; destacado?: boolean; contador?: number }[] = [
         { href: '/listings', text: 'Mercado' },
         { href: '/#proceso', text: 'Cómo funciona' },
     ];
@@ -48,7 +78,7 @@ export async function Navbar() {
     if (isAdmin) {
         enlaces.push(
             { href: '/admin/cuentas', text: 'Cuentas' },
-            { href: '/admin', text: 'ADMIN', destacado: true },
+            { href: '/admin', text: 'ADMIN', destacado: true, contador: pendientes },
         );
     }
 
@@ -72,6 +102,7 @@ export async function Navbar() {
                                 }
                             >
                                 {e.text}
+                                <PendingBadge count={e.contador} />
                             </Link>
                         ))}
                     </div>
@@ -148,6 +179,7 @@ export async function Navbar() {
                                     }`}
                                 >
                                     {e.text}
+                                    <PendingBadge count={e.contador} />
                                 </Link>
                             ))}
                             {profile && (

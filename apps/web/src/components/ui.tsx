@@ -190,3 +190,35 @@ export function Heading({ children, sub }: { children: React.ReactNode; sub?: st
         </div>
     );
 }
+
+/* ── Líneas de verificación ───────────────────────────────
+   Lo que ya está hecho se dice con una línea simple y un tilde chico: sin
+   caja ni fondo de color, que le robarían la atención a lo que falta. */
+
+export function CheckIcon({ className = '' }: { className?: string }) {
+    return (
+        <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className={`flex-none text-[var(--color-listo)] ${className}`}
+        >
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+    );
+}
+
+export function CheckLine({ children }: { children: React.ReactNode }) {
+    return (
+        <li className="flex items-center gap-2.5 text-[15px]">
+            <CheckIcon />
+            <span>{children}</span>
+        </li>
+    );
+}

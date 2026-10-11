@@ -201,7 +201,7 @@ export type ListingCurrencyDto = 'ARS' | 'USD';
  * porque un activo puede pasar días en borrador o en revisión. `estimated` es
  * la proyección que calcula la plataforma, no un dato declarado.
  */
-export type ListingSortDto = 'price' | 'created' | 'published' | 'estimated';
+export type ListingSortDto = 'relevance' | 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirectionDto = 'asc' | 'desc';
 
@@ -246,6 +246,16 @@ export interface ListingFiltersQuery {
  * Un admin registra que la plataforma obtuvo acceso al activo. Es manual
  * porque la API de YouTube no expone quiénes son los propietarios de un canal.
  */
+export interface PlatformAccessAuthorizationRequest {
+    /** Ata la vuelta de Google al navegador del admin y al activo; lo valida la capa web. */
+    state: string;
+}
+
+/** El código que Google devolvió tras elegir la cuenta de custodia. */
+export interface VerifyPlatformAccessRequest {
+    code: string;
+}
+
 export interface RegisterPlatformAccessRequest {
     /** Desde cuándo hay acceso, en ISO. No puede ser futura. */
     accessSince: string;
@@ -441,6 +451,17 @@ export interface CreatedListingDto {
     estimatedPrice: MoneyDto;
 }
 
+/**
+ * Cambios del vendedor sobre su listing. Todo es opcional pero tiene que haber
+ * al menos un campo. En borrador o rechazado admite los tres; publicado, solo
+ * `askingPrice`.
+ */
+export interface EditListingRequest {
+    niche?: string;
+    hasNoFaceContent?: boolean;
+    askingPrice?: MoneyDto;
+}
+
 export interface RejectListingRequest {
     reason: string;
 }
@@ -540,6 +561,12 @@ export interface MyListingDto {
      * se cede con su código de autorización.
      */
     handoverSteps: HandoverStepDto[];
+    /** Si el vendedor avisó que invitó a la plataforma y si un admin ya lo confirmó. */
+    platformAccessStatus: PlatformAccessStatusDto;
+    /** Cuándo avisó. La cola del admin ordena por esta fecha. */
+    platformAccessRequestedAt?: string;
+    /** Quién vende el activo. Solo viaja en la bandeja de accesos del admin. */
+    sellerName?: string;
     /** Lo que este tipo de activo sabe de sí mismo. */
     descriptor: AssetTypeDescriptorDto;
     createdAt: string;
@@ -560,6 +587,8 @@ export interface AssetFieldDto {
     label: string;
     kind: AssetFieldKindDto;
     confidential: boolean;
+    /** Dato interno de la valuación: las vistas no lo muestran. */
+    internal?: boolean;
 }
 
 export interface AssetTypeDescriptorDto {
@@ -585,8 +614,16 @@ export interface HandoverStepLinkDto {
 }
 
 /** Un paso de la cesión del activo a la plataforma. */
+/** Cuándo le toca el paso al vendedor: publicado, o con una venta en curso. */
+export type TransferPhaseDto = 'listing' | 'operation';
+
+/** Dónde está el acceso de la plataforma al activo, visto desde el vendedor. */
+export type PlatformAccessStatusDto = 'pending' | 'verifying' | 'waiting' | 'immediate';
+
 export interface HandoverStepDto {
     id: string;
+    /** Cuándo se le pide. Los pasos de la fase `operation` aparecen recién con la venta firmada. */
+    phase?: TransferPhaseDto;
     /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */
@@ -1011,7 +1048,11 @@ export type NotificationTypeDto =
     | 'revision_pendiente'
     | 'acceso_pendiente'
     | 'custodia_pendiente'
-    | 'liquidacion_pendiente';
+    | 'liquidacion_pendiente'
+    /** Al vendedor: el admin no encontró su invitación a la plataforma. */
+    | 'acceso_no_encontrado'
+    /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
+    | 'acceso_solicitado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

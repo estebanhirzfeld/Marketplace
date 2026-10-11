@@ -19,11 +19,21 @@ import { GetMyProfileUseCase } from '@marketplace/domain/src/use-cases/auth/GetM
 import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/CreateListingUseCase';
 import { EstimateListingPriceUseCase } from '@marketplace/domain/src/use-cases/listing/EstimateListingPriceUseCase';
 import { GetPlatformDashboardUseCase } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
+import { PublishListingUseCase } from '@marketplace/domain/src/use-cases/listing/PublishListingUseCase';
+import { RejectPlatformAccessRequestUseCase } from '@marketplace/domain/src/use-cases/listing/RejectPlatformAccessRequestUseCase';
+import { RequestPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RequestPlatformAccessUseCase';
+import { EditListingUseCase } from '@marketplace/domain/src/use-cases/listing/EditListingUseCase';
+import { DeleteDraftListingUseCase } from '@marketplace/domain/src/use-cases/listing/DeleteDraftListingUseCase';
 import { SubmitListingForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/SubmitListingForReviewUseCase';
 import {
     RegisterPlatformAccessUseCase,
     RevokePlatformAccessUseCase,
 } from '@marketplace/domain/src/use-cases/listing/RegisterPlatformAccessUseCase';
+import {
+    ListListingsAwaitingAccessUseCase,
+    StartPlatformAccessVerificationUseCase,
+    VerifyPlatformAccessUseCase,
+} from '@marketplace/domain/src/use-cases/listing/VerifyPlatformAccessUseCases';
 import { VerifyChannelMetricsUseCase } from '@marketplace/domain/src/use-cases/listing/VerifyChannelMetricsUseCase';
 import { YouTubeApiChannelReader } from './adapters/YouTubeApiChannelReader';
 import {
@@ -33,6 +43,7 @@ import {
 } from './adapters/GoogleOAuthClient';
 import {
     AdSenseApiReader,
+    YouTubeOAuthCustodyAccessReader,
     YouTubeOAuthOwnershipReader,
 } from './adapters/GoogleOwnershipReaders';
 import {
@@ -151,6 +162,10 @@ export interface Container {
     createListing: CreateListingUseCase;
     estimateListingPrice: EstimateListingPriceUseCase;
     submitListing: SubmitListingForReviewUseCase;
+    publishListing: PublishListingUseCase;
+    requestPlatformAccess: RequestPlatformAccessUseCase;
+    editListing: EditListingUseCase;
+    deleteDraftListing: DeleteDraftListingUseCase;
     approveListing: ApproveListingUseCase;
     rejectListing: RejectListingUseCase;
     /**
@@ -168,9 +183,14 @@ export interface Container {
      */
     googleOAuth?: GoogleOAuthClient;
     verifyChannelOwnership?: VerifyChannelOwnershipUseCase;
+    /** Verificación del acceso de la plataforma con OAuth de la cuenta de custodia. */
+    listAwaitingAccess: ListListingsAwaitingAccessUseCase;
+    startPlatformAccessVerification?: StartPlatformAccessVerificationUseCase;
+    verifyPlatformAccess?: VerifyPlatformAccessUseCase;
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
+    rejectPlatformAccessRequest: RejectPlatformAccessRequestUseCase;
     listadoPublico: GetPublishedListingsUseCase;
     getListingDetails: GetListingDetailsUseCase;
     misListings: GetMyListingsUseCase;
@@ -345,6 +365,7 @@ export function createContainer(
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
     const custodyRepo = new PrismaCustodyAccountRepository();
+    const registerPlatformAccess = new RegisterPlatformAccessUseCase(listingRepo, custodyRepo);
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
@@ -407,6 +428,14 @@ export function createContainer(
             avisosDePlataforma,
             requireMpLink ? paymentAccountRepo : undefined,
         ),
+        publishListing: new PublishListingUseCase(
+            listingRepo,
+            userRepo,
+            requireMpLink ? paymentAccountRepo : undefined,
+        ),
+        editListing: new EditListingUseCase(listingRepo),
+        requestPlatformAccess: new RequestPlatformAccessUseCase(listingRepo, avisosDePlataforma),
+        deleteDraftListing: new DeleteDraftListingUseCase(listingRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         verifyChannelMetrics: youtubeApiKey
@@ -427,8 +456,24 @@ export function createContainer(
         verifyWebsiteRevenue: googleOAuth
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
             : undefined,
-        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
+        registerPlatformAccess,
+        listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo, userRepo),
+        // Con las mismas credenciales de Google que la verificación de titularidad.
+        startPlatformAccessVerification: googleOAuth
+            ? new StartPlatformAccessVerificationUseCase(listingRepo, custodyRepo)
+            : undefined,
+        verifyPlatformAccess:
+            googleOAuth && youtubeApiKey
+                ? new VerifyPlatformAccessUseCase(
+                      listingRepo,
+                      custodyRepo,
+                      new YouTubeOAuthCustodyAccessReader(googleOAuth),
+                      new YouTubeApiChannelReader(youtubeApiKey),
+                      registerPlatformAccess,
+                  )
+                : undefined,
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
+        rejectPlatformAccessRequest: new RejectPlatformAccessRequestUseCase(listingRepo, avisos),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo, custodyRepo),
         misListings: new GetMyListingsUseCase(listingRepo, custodyRepo),

@@ -6,12 +6,22 @@ import { api } from '@/lib/api';
 import { readSession } from '@/lib/session';
 import { publicBaseUrl, statesMatch } from '@/lib/mercadopagoLink';
 import { YOUTUBE_STATE_COOKIE, classifyConnectionError } from '@/lib/youtubeConnection';
+import {
+    ACCESS_STATE_COOKIE,
+    isAccessVerificationState,
+    isOtherAccountMessage,
+    listingIdFromAccessState,
+} from '@/lib/platformAccessVerification';
+import { UserRole } from '@marketplace/shared-types';
 
 /**
  * Vuelta del consentimiento de Google.
  *
- * La misma dirección registrada en Google sirve a dos flujos, y el `state` dice
+ * La misma dirección registrada en Google sirve a tres flujos, y el `state` dice
  * cuál es:
+ *
+ * - **Acceso de la plataforma**: el `state` es `acceso:activo:azar` y coincide
+ *   con una cookie propia del admin. Se comprueba antes de llamar a la API.
  *
  * - **Conexión del vendedor**: el `state` es aleatorio y coincide con el de una
  *   cookie httpOnly. Se comprueba ANTES de tocar la API: es la defensa contra
@@ -30,6 +40,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     const store = await cookies();
     const state = params.get('state') ?? '';
     const code = params.get('code');
+
+    if (isAccessVerificationState(state)) {
+        const attempt = store.get(ACCESS_STATE_COOKIE)?.value;
+        store.delete({ name: ACCESS_STATE_COOKIE, path: '/api/youtube' });
+        return verifyPlatformAccess(request, state, attempt, code, params.get('error'));
+    }
 
     // Los `state` de titularidad llevan dos puntos y los de conexión nunca. La
     // cookie no es de este modo: borrarla cortaría un intento de conexión en
@@ -61,6 +77,46 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (detail) query.set('detalle', detail);
         return redirectTo(request, `/vender?${query}`);
     }
+}
+
+/** Acceso de la plataforma: vuelve al panel del admin con el resultado. */
+async function verifyPlatformAccess(
+    request: Request,
+    state: string,
+    attemptState: string | undefined,
+    code: string | null,
+    error: string | null,
+): Promise<NextResponse> {
+    const listingId = listingIdFromAccessState(state);
+    if (!listingId || !statesMatch(state, attemptState)) {
+        return redirectTo(request, '/admin?acceso=invalida');
+    }
+
+    const session = await readSession();
+    if (!session) return redirectTo(request, '/ingresar');
+    // El dominio también lo exige; acá se evita siquiera llamar a la API.
+    if (session.actor.role !== UserRole.ADMIN) return redirectTo(request, '/ingresar');
+
+    const back = (result: string, detail?: string) => {
+        const query = new URLSearchParams({ acceso: result, activo: listingId });
+        if (detail) query.set('detalle', detail);
+        return redirectTo(request, `/admin?${query}`);
+    };
+
+    if (error || !code) return back('cancelada');
+
+    try {
+        await api().verifyPlatformAccess(listingId, code);
+    } catch (e) {
+        if (e instanceof ApiError && e.code === 'FORBIDDEN') {
+            if (isOtherAccountMessage(e.message)) return back('otra-cuenta', e.message);
+            // Google no dijo quién inició sesión: no es un problema de acceso al canal.
+            if (e.message.startsWith('Google no informó')) return back('error', e.message);
+            return back('sin-acceso', e.message);
+        }
+        return back('error', e instanceof ApiError ? e.message : undefined);
+    }
+    return back('ok');
 }
 
 /** Verificación de titularidad: vuelve al activo, en su pestaña de verificaciones. */

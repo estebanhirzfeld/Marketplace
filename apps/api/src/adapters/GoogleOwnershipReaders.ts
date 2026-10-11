@@ -1,6 +1,9 @@
 import {
     AdSenseEarnings,
+    AuthorizedYouTubeChannels,
+    GoogleAuthorizer,
     IAdSenseReader,
+    IYouTubeCustodyAccessReader,
     IYouTubeOwnershipReader,
     OwnedYouTubeChannel,
 } from '@marketplace/domain/src/ports/IOwnershipReaders';
@@ -44,22 +47,67 @@ export class YouTubeOAuthOwnershipReader implements IYouTubeOwnershipReader {
 
     async channelsOf(grant: string): Promise<OwnedYouTubeChannel[]> {
         const token = await this.oauth.exchange(grant);
-
-        const url = new URL(YOUTUBE_CHANNELS);
-        url.searchParams.set('part', 'snippet');
-        url.searchParams.set('mine', 'true');
-
-        const cuerpo = await comoJson<{
-            items?: Array<{ id?: unknown; snippet?: { title?: unknown } }>;
-        }>(await this.fetchImpl(url.toString(), { headers: autorizado(token) }), 'los canales propios');
-
-        return (cuerpo.items ?? [])
-            .filter((i): i is { id: string; snippet?: { title?: unknown } } => typeof i.id === 'string')
-            .map((i) => ({
-                channelId: i.id,
-                title: typeof i.snippet?.title === 'string' ? i.snippet.title : '',
-            }));
+        return canalesPropios(this.fetchImpl, token);
     }
+}
+
+async function canalesPropios(fetchImpl: typeof fetch, token: string): Promise<OwnedYouTubeChannel[]> {
+    const url = new URL(YOUTUBE_CHANNELS);
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('mine', 'true');
+
+    const cuerpo = await comoJson<{
+        items?: Array<{ id?: unknown; snippet?: { title?: unknown } }>;
+    }>(await fetchImpl(url.toString(), { headers: autorizado(token) }), 'los canales propios');
+
+    return (cuerpo.items ?? [])
+        .filter((i): i is { id: string; snippet?: { title?: unknown } } => typeof i.id === 'string')
+        .map((i) => ({
+            channelId: i.id,
+            title: typeof i.snippet?.title === 'string' ? i.snippet.title : '',
+        }));
+}
+
+/**
+ * Los canales de la sesión y quién la inició, para la verificación del acceso
+ * de la plataforma. Con `enable_yt_permissions` y los scopes `openid email`,
+ * el `id_token` trae a la persona real que inició sesión aunque haya elegido
+ * una Cuenta de Marca; sin eso Google devuelve una identidad sintética.
+ */
+export class YouTubeOAuthCustodyAccessReader implements IYouTubeCustodyAccessReader {
+    constructor(
+        private readonly oauth: GoogleOAuthClient,
+        private readonly fetchImpl: typeof fetch = fetch,
+    ) {}
+
+    async authorizedChannelsOf(grant: string): Promise<AuthorizedYouTubeChannels> {
+        const { accessToken, idToken } = await this.oauth.exchangeWithIdentity(grant);
+        const channels = await canalesPropios(this.fetchImpl, accessToken);
+        return { authorizer: idToken ? leerIdentidad(idToken) : null, channels };
+    }
+}
+
+/**
+ * Lee el payload del `id_token`. No se verifica la firma: el token llega
+ * directo del endpoint de tokens de Google, por TLS, en el canje del código
+ * hecho desde el servidor, y Google indica que en ese caso no hace falta
+ * validarla. Cualquier forma inesperada se trata como «sin identidad».
+ */
+function leerIdentidad(idToken: string): GoogleAuthorizer | null {
+    const partes = idToken.split('.');
+    if (partes.length !== 3) return null;
+
+    let payload: unknown;
+    try {
+        payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString('utf8'));
+    } catch {
+        return null;
+    }
+    if (typeof payload !== 'object' || payload === null) return null;
+
+    const { email, email_verified: verified, sub } = payload as Record<string, unknown>;
+    if (typeof email !== 'string' || email === '' || typeof sub !== 'string' || sub === '') return null;
+    return { email, emailVerified: verified === true, subject: sub };
 }
 
 /**

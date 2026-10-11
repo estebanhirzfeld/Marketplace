@@ -16,9 +16,27 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { VerificationSeal } from '@/components/VerificationSeal';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
+import { SellSteps } from '@/components/SellSteps';
+import { PriceSectionDemo } from './PriceSectionDemo';
 import { InstructionsModal } from '@/components/InstructionsModal';
+import { AccessPanel } from '@/components/AccessPanel';
+import { DraftPanel } from '@/components/DraftPanel';
+import { SellMoreAside } from '@/components/SellMoreAside';
+import { EditListingDialog } from '@/components/EditListingDialog';
+import { DiscardDraftButton } from '@/components/DiscardDraftButton';
+import { SellerLevelGauge } from '@/components/SellerLevelGauge';
+import { VerificationCards } from '@/components/VerificationCards';
+import { WhyPopover } from '@/components/WhyPopover';
+import { ImmediateBadge, ShimmerBolt } from '@/components/ShimmerBolt';
+import { CheckLine } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { noop, noopEstimate, noopVoid } from './actions';
+import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
+import { DraftChoice } from '@/components/DraftChoice';
+import { PublishedData } from '@/components/PublishedData';
+import { YOUTUBE_CARD_FIELD_KEYS } from '@/lib/publishedFields';
+import { PendingBadge } from '@/components/Navbar';
 import {
     Alert,
     Button,
@@ -92,6 +110,39 @@ const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
 
 /** Un canal conectado de muestra, con la forma que devuelve la API. */
 /** Pasos de muestra para el modal: los mismos que escribe el dominio para un canal. */
+/** Los dos pasos de antes de la venta de un canal, con detalle para el diálogo. */
+const PASOS_DE_ACCESO: HandoverStepDto[] = [
+    {
+        id: '1',
+        phase: 'listing',
+        description: 'El vendedor convierte el canal a Cuenta de Marca',
+        title: 'Pasá tu canal a una cuenta de marca',
+        details: ['Mover canal a una cuenta de marca.'],
+        links: [{ label: 'Transferir el canal', href: 'https://www.youtube.com/account_advanced' }],
+    },
+    {
+        id: '2',
+        phase: 'listing',
+        description: 'El vendedor invita a la plataforma como administrador',
+        title: 'Invitanos como administrador',
+        details: ['Invitar con el rol Administrador.'],
+        links: [{ label: 'Administrar permisos', href: 'https://myaccount.google.com/brandaccounts' }],
+    },
+];
+
+/** Dos canales esperando que verifiquemos el acceso, uno de hoy y otro de ayer. */
+const ACCESOS_DE_MUESTRA = [
+    { id: 'a1', assetName: 'Pc Lover', sellerName: 'Esteban Vendedor', hace: 2 * 60 * 60 * 1000 },
+    { id: 'a2', assetName: 'Lovi en Reddit', sellerName: 'Esteban Vendedor', hace: 26 * 60 * 60 * 1000 },
+].map(({ id, assetName, sellerName, hace }) => ({
+    id,
+    assetName,
+    sellerName,
+    platformAccessRequestedAt: new Date(Date.now() - hace).toISOString(),
+}));
+
+const AHORA_DE_MUESTRA = '2026-10-13T12:00:00.000Z';
+
 const PASOS_DE_MUESTRA: HandoverStepDto[] = [
     {
         id: '1',
@@ -192,6 +243,14 @@ const PAGO_EN_DOLARES: PaymentOptionsDto = {
 
 /** Avisos de muestra, ya redactados como los redacta el servidor. */
 const AVISOS_DE_MUESTRA = [
+    {
+        id: '0',
+        title: 'Un vendedor ya nos invitó',
+        body: 'Avisó que ya nos invitó a su canal. Falta verificar el acceso.',
+        href: '/admin?bandeja=accesos',
+        when: 'hace 2 min',
+        read: false,
+    },
     {
         id: '1',
         title: 'Te contraofertaron',
@@ -327,7 +386,7 @@ export default function Sistema() {
 
                 <Section
                     title="Transferibilidad del activo"
-                    note="Los tres estados posibles de un activo respecto de la custodia. Ninguno afirma nada que la plataforma no pueda respaldar: la API de YouTube no expone quiénes son los propietarios de un canal, así que un “listo para transferir” permanente estaría mintiendo. Por eso el estado intermedio muestra una fecha calculada y no una promesa, y el tercero admite abiertamente que el acceso no está cedido."
+                    note="Lo que lee el comprador, en una línea: desde cuándo se cierra y que puede ofertar hoy. Con fecha lleva el calendario; cuando ya es inmediata, el rayo del acento. No explica la custodia ni los plazos del tipo de activo, y tampoco nombra a administradores ni dueños: eso es cosa de la plataforma y del vendedor."
                 >
                     <div className="grid gap-6 lg:grid-cols-3">
                         <div className="flex flex-col gap-3">
@@ -336,20 +395,15 @@ export default function Sistema() {
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PERÍODO DE ESPERA</div>
-                            {/* El motivo de la espera lo escribe el tipo de activo:
-                                acá se pasa uno de ejemplo porque el catálogo no
-                                está a mano en la página del sistema. */}
                             <TransferStatus
                                 transferable={false}
                                 transferableFrom={EN_CINCO_DIAS}
-                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
                             />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN ACCESO CEDIDO</div>
                             <TransferStatus
                                 transferable={false}
-                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
                             />
                         </div>
                     </div>
@@ -371,13 +425,77 @@ export default function Sistema() {
                 </Section>
 
                 <Section
+                    title="Bandeja del panel de la plataforma"
+                    note="Lo que espera un movimiento de la plataforma, en pestañas con contador: accesos por verificar, activos por revisar y reclamos. La pestaña abierta es la primera con pendientes, y cada pestaña es un enlace, así que se comparte. Los accesos son una tabla con las dos acciones de siempre; la antigüedad del aviso se pinta en ámbar durante el primer día. Las acciones son de muestra."
+                >
+                    <div className="flex flex-col gap-8">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PESTAÑAS — ACCESOS ABIERTA</div>
+                            <InboxTabs active="accesos" counts={{ accesos: 2, revision: 1, reclamos: 0 }} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ACCESOS POR VERIFICAR</div>
+                            <AccessInbox
+                                listings={ACCESOS_DE_MUESTRA}
+                                now={new Date()}
+                                verifyAction={noopVoid}
+                                rejectAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONTADOR EN EL MENÚ</div>
+                            <span className="font-mono text-[12px] tracking-wider text-[var(--color-alerta)]">
+                                ADMIN
+                                <PendingBadge count={3} />
+                            </span>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Vender con un borrador"
+                    note="Cuando el canal que el vendedor conectó ya tiene un borrador, dos tarjetas del mismo peso: seguir con ese o traer otro canal desde YouTube. La del borrador lleva el acento y dice lo que le falta —si no tiene precio, no promete «solo falta publicarlo»."
+                >
+                    <div className="flex flex-col gap-8">
+                        <DraftChoice channelTitle="Lovi en Reddit" hasPrice draftHref="/sistema" connectAction={noopVoid} />
+                        <DraftChoice channelTitle="Pc Lover" hasPrice={false} draftHref="/sistema" connectAction={noopVoid} />
+                    </div>
+                </Section>
+
+                <Section
+                    title="Verificaciones: canal y datos publicados"
+                    note="La tarjeta del canal ya trae suscriptores, ingresos, audiencia y nombre, así que los datos publicados de un canal de YouTube no los repiten: muestran solo lo que falta. Ocupan todo el ancho en dos columnas, y la dirección del canal es un enlace real, abreviado a la vista."
+                >
+                    <div className="flex flex-col gap-6">
+                        <VerifiedChannelCard channel={CANAL_CON_DATOS} />
+                        <PublishedData
+                            fields={[
+                                { key: 'niche', label: 'Rubro', kind: 'niche' },
+                                { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean' },
+                                { key: 'isMonetized', label: 'Monetizado', kind: 'boolean' },
+                                { key: 'name', label: 'Nombre del canal', kind: 'text' },
+                                { key: 'channelUrl', label: 'Canal', kind: 'text' },
+                            ]}
+                            exclude={YOUTUBE_CARD_FIELD_KEYS}
+                            data={{
+                                niche: 'finance',
+                                hasNoFaceContent: true,
+                                isMonetized: false,
+                                name: 'Pc Lover',
+                                channelUrl: 'https://www.youtube.com/channel/UCkHabcdefghijklmnopUvGQ',
+                            }}
+                        />
+                    </div>
+                </Section>
+
+                <Section
                     title="Avisos"
                     note="La campana del navbar. Abre un desplegable con las novedades recientes y un enlace a la bandeja completa: un aviso suele leerse de un vistazo —te toca responder, se firmó el contrato— y mandar a otra pantalla para leer una línea es más fricción de la que el contenido justifica. Hacé clic para verlo abierto."
                 >
                     <div className="flex flex-wrap items-start gap-16">
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CON AVISOS SIN LEER</div>
-                            <NotificationDropdown items={AVISOS_DE_MUESTRA} unread={2} />
+                            <NotificationDropdown items={AVISOS_DE_MUESTRA} unread={3} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TODO LEÍDO</div>
@@ -538,6 +656,56 @@ export default function Sistema() {
                 </Section>
 
                 <Section
+                    title="Elegir qué vender"
+                    note="La entrada de /vender: una tarjeta por tipo de activo, con el logo, qué se hace y la llamada abajo. La de YouTube envía una acción (abre Google) cuando no hay canales conectados; con canales, o en la de sitio web, es un enlace. Arriba del recorrido, los pasos de cada tipo con el actual resaltado."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <AssetTypeCard
+                            logo={<YouTubeLogo />}
+                            title="Canal de YouTube"
+                            description="Conectás tu canal y traemos los números directo de YouTube. No tipeás nada."
+                            cta="Conectar YouTube →"
+                            action={noopVoid}
+                        />
+                        <AssetTypeCard
+                            logo={<WebLogo />}
+                            title="Sitio web"
+                            description="Cargás los datos del sitio y comprobás que es tuyo con AdSense."
+                            cta="Cargar sitio →"
+                            href="/sistema"
+                        />
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — CANAL DE YOUTUBE, COMPLETANDO</div>
+                            <SellSteps labels={['1 · CONECTAR', '2 · COMPLETAR', '3 · PRECIO']} current={1} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — SITIO WEB, DATOS</div>
+                            <SellSteps labels={['1 · DATOS', '2 · PRECIO', '3 · COMPROBAR']} current={0} />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Precio con referencia"
+                    note="El precio va primero, con la moneda y un monto grande; la valuación queda al costado como referencia y dice cuánto se aparta el precio. Si el vendedor elige una moneda distinta a la de la valuación no se compara: la web no tiene cotización para convertir y no inventa una."
+                >
+                    <div className="grid gap-8">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PRECIO POR ENCIMA DE LA VALUACIÓN</div>
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="13000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN PRECIO NI VALUACIÓN</div>
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="" estimated={null} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PESOS — LA VALUACIÓN SE MUESTRA EN USD</div>
+                            <PriceSectionDemo initialCurrency="ARS" initialPrice="13000000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
                     title="Publicar un canal conectado"
                     note="El vendedor autoriza YouTube y los números los lee Google: no se tipean. La tarjeta es de solo lectura, con el sello de verificación y la fecha de la lectura; todo número lleva su unidad y su período, y un cero se muestra como cero. Debajo, el vendedor completa solo lo que Google no sabe. Las acciones son de muestra: no salen a Google ni crean nada."
                 >
@@ -567,7 +735,7 @@ export default function Sistema() {
                             </Panel>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO, PRECIO Y VALUACIÓN</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO Y PRECIO CON REFERENCIA</div>
                             <Panel>
                                 <YouTubeListingForm
                                     action={noop}
@@ -699,6 +867,99 @@ export default function Sistema() {
                                 }}
                             />
                         </div>
+                    </div>
+                </Section>
+                <Section
+                    title="Borrador: publicar, editar y borrar"
+                    note="La tarjeta principal de un borrador tiene tres caras: con la titularidad comprobada se publica en el momento; sin comprobar, comprobar con Google es lo principal y la revisión a mano queda como alternativa más lenta; rechazado, solo se puede volver a mandar a revisión. Es la única tarjeta con el acento. Lo hecho se dice con una línea y un tilde chico, nunca con una caja. Borrar pide una segunda confirmación en la propia pantalla, sin cuadros del navegador."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LISTO PARA PUBLICAR</div>
+                            <DraftPanel variant="ready" subject="canal" sourceLabel="YouTube" price="US$ 1.500" kycVerified publishAction={noop} reviewAction={noop} verifyAction={noopVoid} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN TITULARIDAD COMPROBADA</div>
+                            <DraftPanel variant="unverified" subject="sitio" sourceLabel="AdSense" price="US$ 1.500" kycVerified={false} publishAction={noop} reviewAction={noop} verifyAction={noopVoid} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">RECHAZADO</div>
+                            <DraftPanel variant="rejected" subject="canal" sourceLabel="YouTube" price="US$ 1.500" kycVerified rejectionReason="El canal no tiene contenido propio." publishAction={noop} reviewAction={noop} verifyAction={noopVoid} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDÉ MÁS RÁPIDO — SIN NIVELES NI PUNTOS</div>
+                            <SellMoreAside accessHref="#" showAccess showMercadoPago />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EDITAR (DIÁLOGO) Y BORRAR (DOS PASOS)</div>
+                            <div className="flex flex-wrap items-start gap-2">
+                                <EditListingDialog action={noop} scope="listing" niche="gaming" showNoFace priceCents={150000} currency="USD" />
+                                <EditListingDialog action={noop} scope="price" priceCents={150000} currency="USD" />
+                                <DiscardDraftButton action={noop} />
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">RAYO Y ETIQUETA CON EL MISMO BRILLO · LÍNEA DE LO HECHO</div>
+                            <div className="flex items-center gap-4">
+                                <ShimmerBolt size={32} />
+                                <ImmediateBadge />
+                            </div>
+                            <ul><CheckLine>Titularidad comprobada</CheckLine></ul>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Acceso de la plataforma, en el orden en que se hace"
+                    note="Solo los dos pasos de antes de la venta, que se destraban de a uno: el primero lo tilda el vendedor en su navegador; el segundo avisa a la plataforma. Después el panel cuenta en qué va: verificando, cuenta regresiva de siete días o transferencia inmediata. «Ver cómo» abre un diálogo nativo con una maqueta animada de Google (se quieta con prefers-reduced-motion) y el texto «¿Por qué te pedimos esto?». Los pasos de la operación no aparecen acá."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — AÚN SIN AVISAR</div>
+                            <AccessPanel listingId="muestra" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="pending" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VERIFICANDO</div>
+                            <AccessPanel listingId="muestra-2" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="verifying" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONFIRMADO — CUENTA REGRESIVA</div>
+                            <AccessPanel listingId="muestra-3" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="waiting" transferableFrom="2026-10-17T12:00:00.000Z" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TRANSFERENCIA INMEDIATA</div>
+                            <AccessPanel listingId="muestra-4" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="immediate" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                        </div>
+                        <div className="relative flex flex-col gap-3 pb-56">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">«¿POR QUÉ TE PEDIMOS ESTO?» — PASO 1 Y PASO 2</div>
+                            <div className="relative h-52"><WhyPopover step={0} /></div>
+                        </div>
+                        <div className="relative flex flex-col gap-3 pb-56">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASO 2</div>
+                            <div className="relative h-52"><WhyPopover step={1} /></div>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Nivel de vendedor"
+                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un tilde."
+                >
+                    <div className="flex flex-col gap-8">
+                        <div className="flex flex-wrap gap-4">
+                            {[0, 1, 3, 4].map((n) => (
+                                <div key={n} className="w-[220px]"><SellerLevelGauge level={n} /></div>
+                            ))}
+                            <div className="w-[220px]"><SellerLevelGauge level={3} mercadoPago="unavailable" /></div>
+                        </div>
+                        <VerificationCards
+                            ownership={{ done: true, sourceLabel: 'YouTube', verifiedAt: AHORA_DE_MUESTRA }}
+                            access={{ done: false }}
+                            mercadoPago={{ done: false }}
+                            ownershipSource="YouTube"
+                            kycVerified
+                            verifyAction={noopVoid}
+                        />
                     </div>
                 </Section>
             </div>

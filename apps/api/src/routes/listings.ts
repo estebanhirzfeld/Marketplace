@@ -11,6 +11,7 @@ import type {
     CreateOfferRequest,
     CreatedListingDto,
     CreatedOperationDto,
+    EditListingRequest,
     EstimateListingRequest,
     EstimatedPriceDto,
     ListingDetailDto,
@@ -59,7 +60,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                         minSubscribers: { type: 'integer', minimum: 0 },
                         onlyMonetized: { type: 'boolean' },
                         minDomainAuthority: { type: 'integer', minimum: 0, maximum: 100 },
-                        sort: { type: 'string', enum: ['price', 'created', 'published', 'estimated'] },
+                        sort: { type: 'string', enum: ['relevance', 'price', 'created', 'published', 'estimated'] },
                         direction: { type: 'string', enum: ['asc', 'desc'] },
                     },
                 },
@@ -126,13 +127,14 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
-                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links }) => ({
+                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links, phase }) => ({
                     id,
                     description,
                     instruction,
                     title,
                     details,
                     links,
+                    phase,
                 })),
                 descriptor: view.descriptor,
                 createdAt: view.createdAt.toISOString(),
@@ -281,6 +283,75 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         { preHandler: [authenticate] },
         async (request, reply) => {
             await c.submitListing.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * Publica sin revisión. Solo procede con la titularidad ya comprobada; si
+     * no, 409 y el vendedor sigue por `/submit`.
+     */
+    app.post<{ Params: IdParams }>(
+        '/listings/:id/publish',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.publishListing.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * El vendedor avisa que ya invitó a la plataforma. No registra el acceso:
+     * deja el activo en «verificando» hasta que un admin lo confirme.
+     */
+    app.post<{ Params: IdParams }>(
+        '/listings/:id/acceso-solicitado',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.requestPlatformAccess.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * Edita un listing propio. En borrador o rechazado admite rubro, sin rostro
+     * y precio; publicado, solo el precio.
+     */
+    app.patch<{ Params: IdParams; Body: EditListingRequest }>(
+        '/listings/:id',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        niche: { type: 'string' },
+                        hasNoFaceContent: { type: 'boolean' },
+                        askingPrice: {
+                            type: 'object',
+                            required: ['cents', 'currency'],
+                            properties: {
+                                cents: { type: 'integer' },
+                                currency: { type: 'string', enum: ['ARS', 'USD'] },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.editListing.execute(request.params.id, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /** Elimina un borrador o rechazado propio. */
+    app.delete<{ Params: IdParams }>(
+        '/listings/:id',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.deleteDraftListing.execute(request.params.id, actorOf(request));
             return reply.code(204).send();
         },
     );

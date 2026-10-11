@@ -165,3 +165,20 @@ export function chooseSellView<C extends { channelId: string }>(input: {
 
     return selected ? { kind: 'selected', channel: selected } : { kind: 'list', channels };
 }
+
+/**
+ * Si `/vender` empieza por la elección del tipo de activo.
+ *
+ * Solo cuando no hay nada elegido: ni tipo, ni canal, ni la vuelta de Google
+ * con un error. Sin la integración con YouTube configurada se mantiene la
+ * carga manual, que ya ofrece los dos tipos.
+ */
+export function isTypePick(input: {
+    tipo: string | undefined;
+    canal: string | undefined;
+    failed: boolean;
+    notConfigured: boolean;
+    configured: boolean;
+}): boolean {
+    return input.configured && !input.tipo && !input.canal && !input.failed && !input.notConfigured;
+}

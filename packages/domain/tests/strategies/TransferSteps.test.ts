@@ -47,13 +47,29 @@ describe('YouTubeStrategy.getTransferSteps sin contexto', () => {
         expect(optOut!.requiredActor).toBe('seller');
     });
 
-    it('el opt-out aparece ANTES del paso de invitación a la plataforma', () => {
+    it('el opt-out es de la fase de operación y va DESPUÉS de la invitación, antes de la promoción', () => {
         const pasos = youtube().getTransferSteps();
         const iOptOut = pasos.findIndex((p) => mencionaPermisosDeCanal(p.description));
         const iInvitacion = pasos.findIndex((p) => /invita a la plataforma/i.test(p.description));
+        const iPromocion = pasos.findIndex((p) => /promueve a/i.test(p.description));
 
-        expect(iOptOut).toBeGreaterThanOrEqual(0);
-        expect(iOptOut).toBeLessThan(iInvitacion);
+        expect(pasos[iOptOut].phase).toBe('operation');
+        expect(iOptOut).toBeGreaterThan(iInvitacion);
+        expect(iOptOut).toBeLessThan(iPromocion);
+    });
+
+    it('cada paso del vendedor declara su fase y los de la plataforma y el comprador no', () => {
+        const pasos = youtube().getTransferSteps();
+
+        expect(pasos.filter((p) => p.phase === 'listing').map((p) => p.title)).toEqual([
+            'Pasá tu canal a una cuenta de marca',
+            'Invitanos como administrador',
+        ]);
+        expect(pasos.filter((p) => p.phase === 'operation').map((p) => p.title)).toEqual([
+            'Quitá tu acceso directo al canal',
+            'Hacenos propietario principal',
+        ]);
+        expect(pasos.filter((p) => p.requiredActor !== 'seller').every((p) => p.phase === undefined)).toBe(true);
     });
 
     it('los id son posicionales y correlativos', () => {
@@ -203,7 +219,7 @@ describe('YouTubeStrategy.getTransferSteps: contenido estructurado del vendedor'
     });
 
     it('cada paso lleva los enlaces que le corresponden', () => {
-        const [convertir, permisos, invitar, promover] = delVendedor();
+        const [convertir, invitar, permisos, promover] = delVendedor();
         const hrefs = (p: { links?: { href: string }[] }) => p.links!.map((l) => l.href);
 
         expect(hrefs(convertir)).toEqual([
@@ -240,7 +256,8 @@ describe('YouTubeStrategy.getTransferSteps: contenido estructurado del vendedor'
         expect(t).toMatch(/Administrador/);
         expect(t).toMatch(/Supervisor\/a/);
         expect(t).toMatch(/no puede eliminar el canal/i);
-        expect(t).toMatch(/siete días/);
+        // La mecánica de la espera no se explica antes de la venta.
+        expect(t).not.toMatch(/siete días|7 días/);
     });
 
     it('la promoción conserva el aviso del rechazo hasta el día 7 y lo que se cede', () => {
@@ -254,7 +271,7 @@ describe('YouTubeStrategy.getTransferSteps: contenido estructurado del vendedor'
     });
 
     it('el paso de permisos conserva el aviso de que la promoción falla sin explicar por qué', () => {
-        const permisos = delVendedor()[1];
+        const permisos = delVendedor()[2];
 
         expect(completo(permisos)).toMatch(/falla sin avisar/i);
     });

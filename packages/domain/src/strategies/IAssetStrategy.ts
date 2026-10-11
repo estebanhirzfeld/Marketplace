@@ -10,8 +10,26 @@ export interface TransferStepLink {
     href: string;
 }
 
+/**
+ * En qué momento de la vida del activo le toca el paso al vendedor.
+ *
+ * - `listing`: mientras está publicado. Es lo único que se le explica antes de
+ *   que haya un comprador: sumarnos con permisos mínimos, sin ceder control.
+ * - `operation`: con una venta en curso, el contrato firmado y la espera de la
+ *   plataforma del activo cumplida. Es cuando recién tiene sentido pedirle que
+ *   quite su acceso directo o que nos ceda la titularidad.
+ */
+export type TransferPhase = 'listing' | 'operation';
+
 export interface TransferStep {
     id: string;
+    /**
+     * Cuándo se le muestra el paso al vendedor. Ausente en los pasos que no son
+     * suyos —de la plataforma o del comprador— y en los del vendedor que son de
+     * la entrega y no de la cesión, que no se le piden en ninguna de las dos
+     * fases.
+     */
+    phase?: TransferPhase;
     /** Qué pasa en este paso, contado en tercera persona. */
     description: string;
     /**
@@ -64,6 +82,8 @@ export interface AssetFieldDescriptor {
     kind: AssetFieldKind;
     /** Si identifica al activo y por lo tanto queda detrás del NDA. */
     confidential: boolean;
+    /** Dato de la valuación que las vistas no muestran a vendedores ni compradores. */
+    internal?: boolean;
 }
 
 /**

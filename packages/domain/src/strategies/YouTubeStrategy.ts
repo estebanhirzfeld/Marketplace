@@ -106,7 +106,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         { key: 'subscribers', label: 'Suscriptores', kind: 'number', confidential: false },
         { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
         { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
-        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false },
+        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false, internal: true },
         { key: 'isMonetized', label: 'Monetizado', kind: 'boolean', confidential: false },
         { key: 'audienceTopCountry', label: 'País principal de la audiencia', kind: 'text', confidential: false },
         { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },
@@ -282,9 +282,10 @@ export class YouTubeStrategy implements IAssetStrategy {
     // viajan al DTO como clave de render.
     const pasos: Omit<TransferStep, 'id'>[] = [
       {
+        phase: 'listing',
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
-        title: 'Convertí el canal a Cuenta de Marca',
-        instruction: 'Convertí el canal a Cuenta de Marca si todavía no lo es: este paso va antes de invitar a la plataforma.',
+        title: 'Pasá tu canal a una cuenta de marca',
+        instruction: 'Pasá tu canal a una cuenta de marca si todavía no lo es: este paso va antes de invitarnos.',
         details: [
           'Creá la cuenta de marca con "Crear un canal nuevo". Puede llamarse distinto: el canal conserva su nombre.',
           'Después, en Configuración avanzada, elegí "Transferir canal". Si dice "No hay otras cuentas disponibles", falta crear la cuenta de marca.',
@@ -296,23 +297,6 @@ export class YouTubeStrategy implements IAssetStrategy {
           { label: 'Crear la cuenta de marca', href: YOUTUBE_LINKS.channelSwitcher },
           { label: 'Transferir el canal', href: YOUTUBE_LINKS.advancedSettings },
         ],
-        requiredActor: 'seller',
-        automated: false,
-      },
-      {
-        // El paso que faltaba: mientras el vendedor conserve permisos de canal
-        // heredados en YouTube Studio, la invitación parece funcionar pero el
-        // cambio de propietario principal falla sin explicar por qué. Va ANTES
-        // de invitar porque es la causa de ese error incomprensible.
-        description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
-        title: 'Salí de los permisos de canal',
-        instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
-        details: [
-          'Entrá a YouTube Studio → Configuración → Permisos.',
-          'Quitá tu acceso de nivel de canal. Solo tiene que quedar el de la Cuenta de Marca.',
-          'Si no lo hacés, la invitación va a parecer aceptada pero el cambio de propietario principal falla sin avisar por qué.',
-        ],
-        links: [{ label: 'Abrir YouTube Studio', href: YOUTUBE_LINKS.studio }],
         requiredActor: 'seller',
         automated: false,
       },
@@ -330,14 +314,14 @@ export class YouTubeStrategy implements IAssetStrategy {
          * negativo el vendedor la puede verificar en la interfaz de Google;
          * una en positivo le pide que nos crea.
          */
+        phase: 'listing',
         description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
-        title: 'Invitá a la plataforma como administrador',
-        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca.`,
+        title: 'Invitanos como administrador',
+        instruction: `Invitá a ${aQuienInvita} con el rol Administrador desde la administración de tu Cuenta de Marca.`,
         details: [
           'No elijas el rol "Propietario": permite borrar la cuenta de marca, y lo dice el propio diálogo de Google.',
           'Vos vas a ver a la plataforma como "Administrador" y ella se va a ver como "Supervisor/a" en tu cuenta: es el mismo rol.',
           'Un administrador no puede eliminar el canal, no puede quitarte a vos y no puede transferir nada.',
-          'Con ese rol la plataforma empieza a acumular los siete días que exige Google, y esa espera corre mientras seguís recibiendo ofertas.',
         ],
         links: [{ label: 'Administrar permisos', href: YOUTUBE_LINKS.brandAccounts }],
         requiredActor: 'seller',
@@ -369,6 +353,24 @@ export class YouTubeStrategy implements IAssetStrategy {
         automated: false,
       },
       {
+        // Mientras el vendedor conserve permisos de canal heredados en YouTube
+        // Studio, el cambio de propietario principal falla sin explicar por
+        // qué. Va en la operación y justo ANTES de la promoción: es la causa
+        // de ese error incomprensible, y recién ahí hay una venta que lo pida.
+        phase: 'operation',
+        description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
+        title: 'Quitá tu acceso directo al canal',
+        instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
+        details: [
+          'Entrá a YouTube Studio → Configuración → Permisos.',
+          'Quitá tu acceso de nivel de canal. Solo tiene que quedar el de la Cuenta de Marca.',
+          'Si no lo hacés, el cambio de propietario principal falla sin avisar por qué.',
+        ],
+        links: [{ label: 'Abrir YouTube Studio', href: YOUTUBE_LINKS.studio }],
+        requiredActor: 'seller',
+        automated: false,
+      },
+      {
         /*
          * El único momento en que el vendedor cede el control, y ocurre entre
          * dos pasos nuestros. Se le muestra desde el principio a propósito: la
@@ -377,9 +379,10 @@ export class YouTubeStrategy implements IAssetStrategy {
          * convertiría en una sorpresa tardía, que es la desconfianza que el
          * producto intenta eliminar.
          */
+        phase: 'operation',
         description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
-        title: 'Promovenos a propietario principal',
-        instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+        title: 'Hacenos propietario principal',
+        instruction: 'Con el contrato ya firmado, hacenos propietario principal desde la Cuenta de Marca.',
         details: [
           'Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.',
           'La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada.',

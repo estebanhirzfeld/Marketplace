@@ -23,7 +23,7 @@ import {
     PrismaSellerPaymentAccountRepository,
     isMpUserIdConflict,
 } from "../src/repositories/PrismaSellerPaymentAccountRepository";
-import { ValidationError } from "@marketplace/domain/src/errors/DomainError";
+import { InvalidStateError, ValidationError } from "@marketplace/domain/src/errors/DomainError";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
 import { Prisma } from "../generated/prisma/client";
@@ -345,7 +345,28 @@ describe("PrismaCustodyAccountRepository", () => {
             custodyRepo.save(
                 CustodyAccount.create({ label: "B", identifier, assetType: AssetType.WEB }),
             ),
-        ).rejects.toThrow();
+        ).rejects.toThrow(InvalidStateError);
+    });
+
+    it("un identifier duplicado dice qué pasó, tanto al crear como al editar", async () => {
+        const identifier = `dup-msg-${Date.now()}@test.com`;
+        await custodyRepo.save(
+            CustodyAccount.create({ label: "A", identifier, assetType: AssetType.YOUTUBE }),
+        );
+        const otra = await createPersistedCustodyAccount();
+
+        await expect(
+            custodyRepo.save(CustodyAccount.create({ label: "B", identifier, assetType: AssetType.WEB })),
+        ).rejects.toThrow("Ya existe una cuenta de custodia con ese identificador.");
+
+        const reconstituida = CustodyAccount.reconstitute(
+            { ...otra.toSnapshot().props, identifier },
+            otra.id,
+            otra.createdAt,
+        );
+        await expect(custodyRepo.save(reconstituida)).rejects.toThrow(
+            "Ya existe una cuenta de custodia con ese identificador.",
+        );
     });
 
     it("findActive filtra por isActive y opcionalmente por assetType", async () => {
@@ -465,6 +486,83 @@ describe("PrismaListingRepository — constancia de titularidad", () => {
 
         expect(guardado!.ownershipVerification!.monthlyRevenueCents).toBe(78_450);
         expect(guardado!.ownershipVerification!.source).toBe("adsense");
+    });
+});
+
+describe("PrismaListingRepository — solicitud de acceso de la plataforma", () => {
+    it("debería persistir la fecha de la solicitud y devolverla", async () => {
+        const seller = await createPersistedUser({ email: "seller-req@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        const pedida = new Date(Date.now() - 60_000);
+        listing.requestPlatformAccess(pedida);
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.platformAccessRequestedAt).toEqual(pedida);
+        expect(guardado!.platformAccessStatus()).toBe("verifying");
+    });
+
+    it("debería dejarla vacía cuando nadie la pidió", async () => {
+        const seller = await createPersistedUser({ email: "seller-noreq@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.platformAccessRequestedAt).toBeUndefined();
+        expect(guardado!.platformAccessStatus()).toBe("pending");
+    });
+
+    it("debería borrarla en la base al revocar el acceso", async () => {
+        const seller = await createPersistedUser({ email: "seller-rev@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.requestPlatformAccess(new Date(Date.now() - 60_000));
+        await listingRepo.save(listing);
+
+        listing.revokePlatformAccess();
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+        expect(guardado!.platformAccessRequestedAt).toBeUndefined();
+    });
+});
+
+describe("PrismaListingRepository — eliminación", () => {
+    it("debería borrar un borrador", async () => {
+        const seller = await createPersistedUser({ email: "seller-del@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+    });
+
+    it("debería borrar un rechazado", async () => {
+        const seller = await createPersistedUser({ email: "seller-rej@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.submitForReview();
+        listing.reject("No cierra");
+        await listingRepo.save(listing);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+    });
+
+    it("no debería borrar un activo que ya salió de borrador, aunque se lo pidan", async () => {
+        const seller = await createPersistedUser({ email: "seller-pub@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.submitForReview();
+        listing.approve();
+        await listingRepo.save(listing);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+    });
+
+    it("debería ignorar un id que no existe", async () => {
+        await expect(listingRepo.delete(new UniqueEntityID().toString())).resolves.toBeUndefined();
     });
 });
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
@@ -37,6 +38,14 @@ import { UniqueEntityID } from '@marketplace/domain/src/value-objects/UniqueEnti
 import { YouTubeStrategy } from '@marketplace/domain/src/strategies/YouTubeStrategy';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { AssetType } from '@marketplace/shared-types';
+import { GoogleOAuthClient } from '../src/adapters/GoogleOAuthClient';
+import { GoogleAuthorizer, IYouTubeCustodyAccessReader } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { IYouTubeChannelReader } from '@marketplace/domain/src/ports/IYouTubeChannelReader';
+import { RegisterPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RegisterPlatformAccessUseCase';
+import {
+    StartPlatformAccessVerificationUseCase,
+    VerifyPlatformAccessUseCase,
+} from '@marketplace/domain/src/use-cases/listing/VerifyPlatformAccessUseCases';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import {
     PrismaUserRepository,
@@ -2707,5 +2716,694 @@ describe('ABM de cuentas de custodia — solo admin', () => {
         expect(lista.statusCode).toBe(200);
         expect(lista.json()).toHaveLength(1);
         expect(lista.json()[0].heldAssets).toBe(0);
+    });
+});
+
+describe('Publicación directa, edición y borrado de un listing', () => {
+    async function crearBorrador(sellerId: UniqueEntityID, conTitularidad: boolean): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        if (conTitularidad) {
+            listing.registerOwnershipVerification({
+                verifiedBy: sellerId,
+                assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+                source: 'youtube',
+            });
+        }
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('POST /listings/:id/publish', () => {
+        it('204 y queda publicado sin pasar por revisión cuando la titularidad está comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('published');
+        });
+
+        it('409 sin titularidad comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('draft');
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/publish' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+
+    describe('PATCH /listings/:id', () => {
+        it('204 edita rubro, sin rostro y precio de un borrador', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: {
+                    niche: 'gaming',
+                    hasNoFaceContent: true,
+                    askingPrice: { cents: 2000000, currency: 'ARS' },
+                },
+            });
+
+            expect(res.statusCode).toBe(204);
+            const guardado = (await listingRepo.findById(listing.id.toString()))!;
+            expect(guardado.askingPrice.getCents()).toBe(2000000);
+            expect(guardado.askingPrice.getCurrency()).toBe('ARS');
+            expect(guardado.assetDataFor(true).assetData.niche).toBe('gaming');
+        });
+
+        it('204 cambia el precio de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { askingPrice: { cents: 999000, currency: 'USD' } },
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.askingPrice.getCents()).toBe(999000);
+        });
+
+        it('409 al editar el rubro de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('400 con un rubro desconocido', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'inventado' },
+            });
+
+            expect(res.statusCode).toBe(400);
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+    });
+
+    describe('DELETE /listings/:id', () => {
+        it('204 borra un borrador del dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+        });
+
+        it('409 y no borra un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${new UniqueEntityID().toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+    });
+});
+
+describe('Publicar un activo rechazado y pedir la verificación del acceso', () => {
+    async function crearCanal(sellerId: UniqueEntityID): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        listing.registerOwnershipVerification({
+            verifiedBy: sellerId,
+            assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+            source: 'youtube',
+        });
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    it('POST /listings/:id/publish responde 409 a un rechazado: tiene que volver a revisión', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        const listing = await crearCanal(seller.id);
+        listing.submitForReview();
+        listing.reject('Faltan datos');
+        await listingRepo.save(listing);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/publish`,
+            headers: await headersDe('seller@test.com'),
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('rejected');
+    });
+
+    describe('POST /listings/:id/acceso-solicitado', () => {
+        it('204 y el activo pasa a «verificando» en el listado del vendedor y en el del admin', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('admin@test.com', UserRole.ADMIN);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+            const publicado = await crearCanal(seller.id);
+            publicado.publish();
+            await listingRepo.save(publicado);
+
+            const antes = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const propio = (id: string, cuerpo: { id: string }[]) => cuerpo.find((l) => l.id === id) as {
+                platformAccessStatus: string;
+                platformAccessRequestedAt?: string;
+            };
+            expect(propio(publicado.id.toString(), antes.json()).platformAccessStatus).toBe('pending');
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            expect(res.statusCode).toBe(204);
+
+            const despues = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const dto = propio(publicado.id.toString(), despues.json());
+            expect(dto.platformAccessStatus).toBe('verifying');
+            expect(typeof dto.platformAccessRequestedAt).toBe('string');
+
+            const admin = await app.inject({
+                method: 'GET',
+                url: '/admin/listings',
+                headers: await headersDe('admin@test.com'),
+            });
+            expect(admin.statusCode).toBe(200);
+            const enCola = admin.json().find((l: { id: string }) => l.id === listing.id.toString());
+            expect(enCola.platformAccessStatus).toBe('pending');
+
+            // Le avisa a la plataforma, y solo la primera vez.
+            await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            const avisos = await prisma.notification.findMany({ where: { type: 'acceso_solicitado' } });
+            expect(avisos).toHaveLength(1);
+            expect(avisos[0].listingId).toBe(publicado.id.toString());
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect((await listingRepo.findById(listing.id.toString()))!.platformAccessRequestedAt).toBeUndefined();
+        });
+
+        it('409 en un activo en revisión', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${new UniqueEntityID().toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/acceso-solicitado' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+});
+
+describe('Verificación del acceso de la plataforma con la cuenta de custodia', () => {
+    const CHANNEL_ID = 'UCq-Fj5jknLsUf-MWSy4_brA';
+    const OTHER_CHANNEL_ID = 'UC00000000000000000000aa';
+    const CUSTODY_IDENTIFIER = 'custodia-oauth@traspaso.com';
+    const OAUTH_CONFIG = {
+        clientId: 'cliente',
+        clientSecret: 'secreto',
+        redirectUri: 'http://localhost:3000/api/youtube/callback',
+    };
+
+    async function seedVerifyingChannel(): Promise<{ id: string; seller: User }> {
+        const seller = await crearUsuario('seller-vf@test.com', UserRole.SELLER);
+        await crearUsuario('admin-vf@test.com', UserRole.ADMIN);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+                channelUrl: `https://www.youtube.com/channel/${CHANNEL_ID}`,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        listing.registerOwnershipVerification({ verifiedBy: seller.id, assetId: CHANNEL_ID, source: 'youtube' });
+        listing.publish();
+        listing.requestPlatformAccess(new Date());
+        await listingRepo.save(listing);
+        await new PrismaCustodyAccountRepository().save(
+            CustodyAccount.create({
+                label: 'Custodia OAuth',
+                identifier: CUSTODY_IDENTIFIER,
+                assetType: AssetType.YOUTUBE,
+            }),
+        );
+        return { id: listing.id.toString(), seller };
+    }
+
+    function buildTestApp(
+        options: { configured?: boolean; channels?: string[]; authorizer?: GoogleAuthorizer | null } = {},
+    ) {
+        const base = createContainer(fakeHasher);
+        const custodyRepo = new PrismaCustodyAccountRepository();
+        const authorizer: GoogleAuthorizer | null =
+            options.authorizer === undefined
+                ? { email: CUSTODY_IDENTIFIER, emailVerified: true, subject: 'sub-custodia' }
+                : options.authorizer;
+        const reader: IYouTubeCustodyAccessReader = {
+            authorizedChannelsOf: vi.fn(async () => ({
+                authorizer,
+                channels: (options.channels ?? [CHANNEL_ID]).map((channelId) => ({ channelId, title: 'Canal' })),
+            })),
+        };
+        const channelReader: IYouTubeChannelReader = { read: vi.fn(async () => null) };
+        const container: Container =
+            options.configured === false
+                ? { ...base, googleOAuth: undefined, startPlatformAccessVerification: undefined, verifyPlatformAccess: undefined }
+                : {
+                      ...base,
+                      googleOAuth: new GoogleOAuthClient(OAUTH_CONFIG),
+                      startPlatformAccessVerification: new StartPlatformAccessVerificationUseCase(listingRepo, custodyRepo),
+                      verifyPlatformAccess: new VerifyPlatformAccessUseCase(
+                          listingRepo,
+                          custodyRepo,
+                          reader,
+                          channelReader,
+                          new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
+                      ),
+                  };
+        return { reader, server: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    async function asAdmin() {
+        return { authorization: `Bearer ${await tokenDe('admin-vf@test.com')}` };
+    }
+
+    it('GET /admin/listings/acceso-pendiente lista los activos en «verificando» y es solo para admin', async () => {
+        const { id } = await seedVerifyingChannel();
+        const server = await buildTestApp().server;
+
+        const res = await server.inject({ method: 'GET', url: '/admin/listings/acceso-pendiente', headers: await asAdmin() });
+        expect(res.statusCode).toBe(200);
+        const body: { id: string; platformAccessStatus: string; sellerName?: string }[] = res.json();
+        expect(body.map((l) => l.id)).toEqual([id]);
+        expect(body[0].platformAccessStatus).toBe('verifying');
+        expect(body[0].sellerName).toEqual(expect.any(String));
+
+        const asSeller = await server.inject({
+            method: 'GET',
+            url: '/admin/listings/acceso-pendiente',
+            headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+        });
+        expect(asSeller.statusCode).toBe(403);
+    });
+
+    describe('POST /admin/listings/:id/acceso/rechazar', () => {
+        it('204: vuelve a pending y avisa al vendedor', async () => {
+            const { id, seller } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+
+            expect(res.statusCode).toBe(204);
+            const listing = (await listingRepo.findById(id))!;
+            expect(listing.platformAccessStatus()).toBe('pending');
+            const avisos = await prisma.notification.findMany({ where: { userId: seller.id.toString() } });
+            expect(avisos.map((a) => a.type)).toEqual(['acceso_no_encontrado']);
+        });
+
+        it('403 para quien no es admin, 404 si no existe y 409 si no estaba verificando', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const asSeller = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+            });
+            expect(asSeller.statusCode).toBe(403);
+
+            const missing = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${randomUUID()}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(missing.statusCode).toBe(404);
+
+            const listing = (await listingRepo.findById(id))!;
+            listing.rejectPlatformAccessRequest();
+            await listingRepo.save(listing);
+            const again = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(again.statusCode).toBe(409);
+        });
+    });
+
+    describe('POST /admin/listings/:id/acceso/autorizacion', () => {
+        it('devuelve la dirección de Google con youtube.readonly e identidad (openid email), el selector de canales, la cuenta de custodia sugerida y sin acceso offline', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: `acceso:${id}:abc` },
+            });
+
+            expect(res.statusCode).toBe(200);
+            const url = new URL(res.json().url);
+            expect(url.searchParams.get('scope')).toBe(
+                'https://www.googleapis.com/auth/youtube.readonly openid email',
+            );
+            expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
+            expect(url.searchParams.get('login_hint')).toBe(CUSTODY_IDENTIFIER);
+            // Con `consent` Google vuelve a mostrar el selector de canal en cada
+            // intento: sin él, recuerda el canal elegido la vez anterior.
+            expect(url.searchParams.get('prompt')).toBe('select_account consent');
+            expect(url.searchParams.get('access_type')).toBe('online');
+            expect(url.searchParams.get('state')).toBe(`acceso:${id}:abc`);
+        });
+
+        it('409 si el vendedor todavía no avisó que invitó a la plataforma', async () => {
+            const { id } = await seedVerifyingChannel();
+            const listing = (await listingRepo.findById(id))!;
+            listing.revokePlatformAccess();
+            await listingRepo.save(listing);
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: 'x' },
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('403 para quien no es admin y 503 sin configurar', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+            const asSeller = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+                payload: { state: 'x' },
+            });
+            expect(asSeller.statusCode).toBe(403);
+
+            const unconfigured = await buildTestApp({ configured: false }).server;
+            const res = await unconfigured.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: 'x' },
+            });
+            expect(res.statusCode).toBe(503);
+        });
+    });
+
+    describe('POST /admin/listings/:id/acceso/verificar', () => {
+        it('204 y registra el acceso cuando la cuenta elegida administra el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server, reader } = buildTestApp();
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect(reader.authorizedChannelsOf).toHaveBeenCalledWith('codigo-de-google');
+            const listing = (await listingRepo.findById(id))!;
+            expect(listing.platformAccess?.notes).toBe(
+                `Verificado por OAuth de la cuenta de custodia ${CUSTODY_IDENTIFIER} (sub sub-custodia)`,
+            );
+            expect(listing.platformAccessStatus()).not.toBe('verifying');
+        });
+
+        it('403 y no registra nada cuando la cuenta elegida no administra el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({ channels: [OTHER_CHANNEL_ID] });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toContain('Elegiste «Canal» y el activo es');
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 con otra cuenta de Google y no registra nada, aunque administre el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({
+                authorizer: { email: 'otra@gmail.com', emailVerified: true, subject: 'sub-otra' },
+            });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toBe(
+                `Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (${CUSTODY_IDENTIFIER}).`,
+            );
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 si Google no informa quién inició sesión', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({ authorizer: null });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toContain('Google no informó quién inició sesión');
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('409 si el acceso ya estaba registrado', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp();
+            const call = async () =>
+                (await server).inject({
+                    method: 'POST',
+                    url: `/admin/listings/${id}/acceso/verificar`,
+                    headers: await asAdmin(),
+                    payload: { code: 'codigo-de-google' },
+                });
+
+            expect((await call()).statusCode).toBe(204);
+            expect((await call()).statusCode).toBe(409);
+        });
+
+        it('503 sin configurar, 403 para quien no es admin y 400 sin código', async () => {
+            const { id } = await seedVerifyingChannel();
+            const unconfigured = await buildTestApp({ configured: false }).server;
+            const res503 = await unconfigured.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'c' },
+            });
+            expect(res503.statusCode).toBe(503);
+
+            const server = await buildTestApp().server;
+            const res403 = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+                payload: { code: 'c' },
+            });
+            expect(res403.statusCode).toBe(403);
+
+            const res400 = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: {},
+            });
+            expect(res400.statusCode).toBe(400);
+        });
     });
 });

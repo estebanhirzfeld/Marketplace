@@ -1,7 +1,7 @@
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { formatNumber, money } from '@/lib/format';
 import { nombreDePais } from './paises';
-import { ChannelAvatar } from './ChannelAvatar';
+import { ChannelAvatar, type ChannelAvatarShape } from './ChannelAvatar';
 import { VerificationSeal } from './VerificationSeal';
 
 /**
@@ -14,13 +14,22 @@ import { VerificationSeal } from './VerificationSeal';
  * Es presentacional y no hace pedidos: `/vender` le pasa la conexión y
  * `/sistema` la muestra con datos inventados.
  */
-export function VerifiedChannelCard({ channel }: { channel: YouTubeConnectionDto }) {
+export function VerifiedChannelCard({
+    channel,
+    avatarShape,
+    children,
+}: {
+    channel: YouTubeConnectionDto;
+    avatarShape?: ChannelAvatarShape;
+    /** Un pie opcional, por ejemplo el ingreso mensual que sostiene la valuación. */
+    children?: React.ReactNode;
+}) {
     const hasRevenue = channel.revenue12MonthsCents > 0;
 
     return (
         <div className="flex flex-col gap-5 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-5">
             <div className="flex items-center gap-4">
-                <ChannelAvatar src={channel.thumbnailUrl} name={channel.channelTitle} />
+                <ChannelAvatar src={channel.thumbnailUrl} name={channel.channelTitle} shape={avatarShape} />
                 <div className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-[17px] font-bold">{channel.channelTitle}</span>
                     <VerificationSeal source="YouTube" at={channel.readAt} />
@@ -57,6 +66,12 @@ export function VerifiedChannelCard({ channel }: { channel: YouTubeConnectionDto
                 <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
                     Si tu canal es nuevo: YouTube tarda hasta 3 días en informar las estadísticas.
                 </p>
+            )}
+
+            {children && (
+                <div className="border-t border-[var(--color-borde)] pt-4 text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                    {children}
+                </div>
             )}
         </div>
     );

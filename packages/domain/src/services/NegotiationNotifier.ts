@@ -99,6 +99,19 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** El admin no encontró la invitación: el vendedor tiene que revisarla y avisar de nuevo. */
+    async platformAccessNotFound(listing: Listing): Promise<void> {
+        const { props } = listing.toSnapshot();
+
+        await this.enviar([
+            Notification.create({
+                userId: props.sellerId,
+                type: 'acceso_no_encontrado',
+                listingId: listing.id,
+            }),
+        ]);
+    }
+
     /**
      * El contrato quedó cerrado, pero no les toca lo mismo a las dos partes:
      * al comprador no le queda nada pendiente y conserva `contrato_firmado`;

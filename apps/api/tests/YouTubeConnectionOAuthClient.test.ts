@@ -72,6 +72,17 @@ describe('YouTubeConnectionOAuthClient.authorizationUrl', () => {
         expect(url.searchParams.get('prompt')?.split(' ')).toContain('select_account');
     });
 
+    it('pide el selector de canales de YouTube y conserva el selector de cuenta con consentimiento', () => {
+        const { client } = build();
+
+        const url = new URL(client.authorizationUrl({ state: 's' }));
+
+        // El selector viejo lista cuentas; el nuevo lista los canales por nombre.
+        expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
+        expect(url.searchParams.get('prompt')).toBe('select_account consent');
+        expect(url.searchParams.get('scope')?.split(' ').sort()).toEqual([...REQUIRED_YOUTUBE_SCOPES].sort());
+    });
+
     it('no incluye el secreto de la aplicación y codifica el state', () => {
         const { client } = build();
 

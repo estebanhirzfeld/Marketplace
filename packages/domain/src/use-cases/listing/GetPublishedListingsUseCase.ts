@@ -32,10 +32,15 @@ export interface ListingSummaryView {
  * desbloqueo pertenece al detalle, que es donde el comprador se compromete.
  */
 export class GetPublishedListingsUseCase {
-    constructor(private readonly listingRepo: IListingRepository) {}
+    constructor(
+        private readonly listingRepo: IListingRepository,
+        /** El reloj se inyecta para que "listo para traspasar" sea determinista en los tests. */
+        private readonly now: () => Date = () => new Date(),
+    ) {}
 
     async execute(filtros?: ListingFilters): Promise<ListingSummaryView[]> {
         assertFiltrosCoherentes(filtros);
+        const ahora = this.now();
 
         // SQL resuelve lo que tiene columna: estado, tipo, moneda y rango de
         // precio. Lo que depende de `assetData` o de un cálculo se filtra y
@@ -44,9 +49,9 @@ export class GetPublishedListingsUseCase {
         // columnas antes que paginar sobre un filtrado en memoria.
         const listings = await this.listingRepo.findPublished(filtros);
 
-        const filtrados = listings.filter((l) => cumpleCriteriosDelActivo(l, filtros));
+        const filtrados = listings.filter((l) => cumpleCriteriosDelActivo(l, ahora, filtros));
 
-        return ordenar(filtrados, filtros).map((listing) => {
+        return ordenar(filtrados, ahora, filtros).map((listing) => {
             const { id, createdAt, props } = listing.toSnapshot();
             const data = listing.assetDataFor(false);
 
@@ -64,7 +69,7 @@ export class GetPublishedListingsUseCase {
                 },
                     assetData: data.assetData,
                 hiddenFields: data.hiddenFields,
-                transferable: listing.isReadyToTransfer(),
+                transferable: listing.isReadyToTransfer(ahora),
                 transferableFrom: listing.transferableFrom(),
                 createdAt,
                 publishedAt: props.publishedAt,
@@ -108,7 +113,7 @@ function assertFiltrosCoherentes(filtros?: ListingFilters): void {
  * entregando solo lo que `assetDataFor` deja pasar, así que filtrar por un
  * número no revela nada de un listing confidencial.
  */
-function cumpleCriteriosDelActivo(listing: Listing, filtros?: ListingFilters): boolean {
+function cumpleCriteriosDelActivo(listing: Listing, ahora: Date, filtros?: ListingFilters): boolean {
     if (!filtros) return true;
 
     const { assetData } = listing.toSnapshot().props.assetStrategy.toJSON();
@@ -131,13 +136,33 @@ function cumpleCriteriosDelActivo(listing: Listing, filtros?: ListingFilters): b
 
     // No sale de `assetData` sino de un cálculo sobre la constancia de acceso,
     // pero se resuelve en el mismo paso porque tampoco tiene columna.
-    if (filtros.onlyTransferable && !listing.isReadyToTransfer()) return false;
+    if (filtros.onlyTransferable && !listing.isReadyToTransfer(ahora)) return false;
 
     return true;
 }
 
-function ordenar(listings: Listing[], filtros?: ListingFilters): Listing[] {
-    const criterio = filtros?.sort ?? 'published';
+function ordenar(listings: Listing[], ahora: Date, filtros?: ListingFilters): Listing[] {
+    const criterio = filtros?.sort ?? 'relevance';
+
+    // Relevancia: lo listo para traspasar primero (el comprador puede cerrar
+    // ya), y dentro de cada grupo lo publicado más recientemente. La dirección
+    // no aplica: no hay un "menos relevante primero" que alguien pida. El id
+    // desempata para que el orden no dependa del plan de Postgres.
+    if (criterio === 'relevance') {
+        const publicada = (l: Listing) => {
+            const { createdAt, props } = l.toSnapshot();
+            return (props.publishedAt ?? createdAt).getTime();
+        };
+        return [...listings].sort((a, b) => {
+            const listoA = a.isReadyToTransfer(ahora) ? 1 : 0;
+            const listoB = b.isReadyToTransfer(ahora) ? 1 : 0;
+            if (listoA !== listoB) return listoB - listoA;
+            const porFecha = publicada(b) - publicada(a);
+            if (porFecha !== 0) return porFecha;
+            return a.toSnapshot().id.localeCompare(b.toSnapshot().id);
+        });
+    }
+
     // Lo más nuevo y lo más caro primero es lo que se espera por defecto.
     const signo = (filtros?.direction ?? 'desc') === 'asc' ? 1 : -1;
 

@@ -50,6 +50,9 @@ export class YouTubeConnectionOAuthClient implements IYouTubeConnectionOAuthClie
         // porque el canal puede estar bajo una Cuenta de Marca distinta de la
         // sesión abierta en el navegador.
         url.searchParams.set('prompt', 'select_account consent');
+        // El selector viejo lista cuentas (y el vendedor elige la personal, sin
+        // canal); el nuevo lista los canales por nombre.
+        url.searchParams.set('enable_yt_permissions', 'true');
         return url.toString();
     }
 

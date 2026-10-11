@@ -18,6 +18,7 @@ import {
     RegisterPlatformAccessRequest,
     CounterOfferRequest,
     CreateListingRequest,
+    EditListingRequest,
     EstimateListingRequest,
     EstimatedPriceDto,
     PlatformDashboardDto,
@@ -222,6 +223,25 @@ export class MarketplaceClient {
         return this.request('POST', `/listings/${encodeURIComponent(id)}/submit`);
     }
 
+    /** Publica sin revisión; solo si la titularidad está comprobada. */
+    publishListing(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/publish`);
+    }
+
+    /** Avisa que ya invitó a la plataforma; el activo queda «verificando» hasta que un admin lo confirme. */
+    requestPlatformAccess(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/acceso-solicitado`);
+    }
+
+    editListing(id: string, body: EditListingRequest): Promise<void> {
+        return this.request('PATCH', `/listings/${encodeURIComponent(id)}`, { body });
+    }
+
+    /** Elimina un borrador o rechazado. */
+    deleteListing(id: string): Promise<void> {
+        return this.request('DELETE', `/listings/${encodeURIComponent(id)}`);
+    }
+
     approveListing(id: string): Promise<void> {
         return this.request('POST', `/listings/${encodeURIComponent(id)}/approve`);
     }
@@ -299,6 +319,30 @@ export class MarketplaceClient {
         return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso`, {
             body,
         });
+    }
+
+    /** Activos cuyo vendedor avisó que invitó a la plataforma y esperan nuestra confirmación. Solo admin. */
+    listingsConAccesoPendiente(): Promise<MyListingDto[]> {
+        return this.request('GET', '/admin/listings/acceso-pendiente');
+    }
+
+    /** Dónde ingresa el admin con la cuenta de custodia para verificar el acceso. Solo admin. */
+    platformAccessAuthorization(listingId: string, state: string): Promise<AuthorizationUrlDto> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/autorizacion`, {
+            body: { state },
+        });
+    }
+
+    /** Completa la verificación con el código de Google: registra el acceso si la cuenta administra el canal. Solo admin. */
+    verifyPlatformAccess(listingId: string, code: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/verificar`, {
+            body: { code },
+        });
+    }
+
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. Solo admin. */
+    rejectPlatformAccessRequest(listingId: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/rechazar`);
     }
 
     /** Borra la constancia cuando la plataforma perdió el acceso. Solo admin. */

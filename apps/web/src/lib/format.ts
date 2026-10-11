@@ -68,6 +68,20 @@ export function fechaLarga(iso: string): string {
 }
 
 /**
+ * «18 de octubre»: la fecha larga sin el año cuando es el actual, que es lo
+ * que se dice en voz alta. Con otro año lo conserva para no ser ambigua.
+ */
+export function fechaSinAnioActual(iso: string, now: Date = new Date()): string {
+    const fecha = new Date(iso);
+    const mismoAnio = fecha.getFullYear() === now.getFullYear();
+    return fecha.toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        ...(mismoAnio ? {} : { year: 'numeric' }),
+    });
+}
+
+/**
  * El rubro viaja como código en inglés y se muestra en castellano. La lista es
  * cerrada, así que el mapa la cubre entera; el respaldo es para una publicación
  * vieja con un valor que ya no existe.

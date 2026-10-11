@@ -1,4 +1,4 @@
-import { IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
+import { IListingDeleter, IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
 import { Listing, ListingStatus } from "@marketplace/domain/src/entities/Listing";
 import { ListingMapper } from "../mappers/ListingMapper";
 import { prisma, PrismaLike } from "../client";
@@ -33,7 +33,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
         : undefined;
 }
 
-export class PrismaListingRepository implements IListingRepository {
+export class PrismaListingRepository implements IListingRepository, IListingDeleter {
     /**
      * El cliente se inyecta para que el Unit of Work pueda pasar el cliente
      * transaccional. Por defecto usa el singleton, que es lo correcto para
@@ -100,6 +100,17 @@ export class PrismaListingRepository implements IListingRepository {
             orderBy: { createdAt: "asc" },
         });
         return rows.map(ListingMapper.toDomain);
+    }
+
+    /**
+     * Borra solo si sigue en borrador o rechazado: el estado se vuelve a
+     * condicionar en la propia consulta, así un publicado nunca se pierde por
+     * un pedido que leyó el estado viejo. Un id inexistente no es un error.
+     */
+    async delete(id: string): Promise<void> {
+        await this.db.listing.deleteMany({
+            where: { id, status: { in: ["draft", "rejected"] } },
+        });
     }
 
     async save(listing: Listing): Promise<void> {
