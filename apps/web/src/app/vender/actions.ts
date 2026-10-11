@@ -15,6 +15,7 @@ import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
+import { isMissingMercadoPagoLink } from '@/lib/publishErrors';
 import {
     YOUTUBE_STATE_COOKIE,
     YOUTUBE_STATE_COOKIE_OPTIONS,
@@ -29,16 +30,6 @@ export type ActionState = {
     /** Un camino hacia donde se resuelve el error, cuando existe uno. */
     next?: { href: string; label: string };
 };
-
-/**
- * La API rechaza publicar sin cuenta de Mercado Pago vinculada con un
- * `INVALID_STATE` genérico: no hay un código propio, así que se reconoce por
- * el mensaje, que ya habla de Mercado Pago. Se acota a este caso para no
- * mandar a vincular una cuenta cuando lo que falta es otra cosa.
- */
-function isMissingMercadoPagoLink(e: ApiError): boolean {
-    return e.code === 'INVALID_STATE' && /Mercado Pago/.test(e.message);
-}
 
 /**
  * Publicar un activo. El assetData se arma según el tipo: su forma la valida

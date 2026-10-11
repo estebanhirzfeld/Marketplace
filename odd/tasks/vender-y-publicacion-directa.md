@@ -30,7 +30,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - [x] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
 - [x] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
 - [x] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
-- [ ] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
+- [x] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
 ## Criterios de aceptación
@@ -131,6 +131,27 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
     - `tsc` limpio;
     - `lint`: solo los 2 errores previos.
 
+- **Revisión T5** (`review-09033ece032324e0`): consentimiento `granted`, aprobada y reconocida. El límite revisado avanza a `886bba9`.
+  - Hallazgos informativos:
+    - `R3-type-pick-ignores-oauth-success-return`: lo revisé y el callback exitoso vuelve con `?canal=`, así que no aparece la portada. Queda como sugerencia de test.
+    - `R3-price-input-hardcoded-dom-id`: el id del input es fijo; conviene `useId`.
+    - `R3-other-currency-label-hardcoded-usd`.
+    - Faltan tests de las ramas de las tarjetas y del texto base.
+
+- **T6** (ruta: delegado).
+  - Borrador: `DraftPanel` (listo, sin verificar o rechazado), `SellMoreAside`, `EditListingDialog` y `DiscardDraftButton` (borrado en dos pasos, sin `confirm()`).
+  - Acceso: `AccessPanel` (solo la fase `listing`), `AccessStatusPanel` y `AccessInstructionsDialog` con `GoogleMock` y `WhyPopover`; el paso 1 se guarda en `localStorage` con try/catch.
+  - Verificaciones: `SellerLevelGauge` y `VerificationCards`; Mercado Pago sale de `paymentAccountStatus()`.
+  - Se suman `CheckIcon` y `CheckLine` a `ui.tsx`, y `/sistema` queda actualizado.
+  - RED: `sellerLevel`, `accessCountdown`, `accessProgress` y `listingEdit` sin módulo.
+  - GREEN:
+    - web: 295/295;
+    - `tsc` limpio;
+    - `lint`: solo los 2 errores previos;
+    - control del orquestador: 13/13.
+  - Los tests de componentes se escribieron después del componente (no hay DOM en los tests del web).
+  - Sin verificar en el navegador.
+
 ## Siguiente paso
 
-T6.
+Revisión de T6, luego prueba local de punta a punta (requiere aplicar la migración a `marketplace_dev`), y T7 con autorización.
