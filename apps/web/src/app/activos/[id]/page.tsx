@@ -22,7 +22,7 @@ import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { currentProfile } from '@/lib/profile';
-import { isAccessRegistered, sellerLevel } from '@/lib/sellerLevel';
+import { isAccessRegistered, sellerLevel, type MercadoPagoState } from '@/lib/sellerLevel';
 import { channelIdFromUrl } from '@/lib/youtubeChannel';
 import { findOwnershipResult } from '@/lib/ownershipResults';
 import {
@@ -106,15 +106,16 @@ export default async function DetalleDeActivo(props: {
     }
 
     // Mercado Pago: solo lo necesitan el borrador (tarjeta lateral) y la pestaña
-    // de verificaciones. Si la consulta falla se trata como no vinculado: es
-    // un dato para sugerir, no para bloquear nada.
-    let mercadoPagoLinked = false;
+    // de verificaciones. Si la consulta falla o la API dice 503 se trata como
+    // no disponible: no se ofrece vincular algo que no se puede vincular.
+    let mercadoPago: MercadoPagoState = 'unavailable';
     const draftish = mio.status === 'draft' || mio.status === 'rejected';
     if (pestana === 'verificaciones' || (pestana === 'estado' && draftish)) {
         try {
-            mercadoPagoLinked = (await api().paymentAccountStatus()).linked;
+            const account = await api().paymentAccountStatus();
+            mercadoPago = account.linked ? 'linked' : 'not_linked';
         } catch {
-            mercadoPagoLinked = false;
+            mercadoPago = 'unavailable';
         }
     }
     const kycVerified = (await currentProfile())?.isKycVerified ?? false;
@@ -138,7 +139,7 @@ export default async function DetalleDeActivo(props: {
     const level = sellerLevel({
         ownershipVerified: !!mio.ownership,
         accessRegistered,
-        mercadoPagoLinked,
+        mercadoPago,
     });
     const sourceLabel = listing.descriptor.ownershipSource === 'adsense' ? 'AdSense' : 'YouTube';
     const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
@@ -368,7 +369,7 @@ export default async function DetalleDeActivo(props: {
                                 </div>
                             </div>
                         )}
-                        <SellerLevelGauge level={level} />
+                        <SellerLevelGauge level={level} mercadoPago={mercadoPago} />
                     </div>
 
                     <div className="mt-4 flex flex-col gap-4">
@@ -379,7 +380,7 @@ export default async function DetalleDeActivo(props: {
                                 verifiedAt: mio.ownership?.verifiedAt,
                             }}
                             access={{ done: accessRegistered }}
-                            mercadoPago={{ done: mercadoPagoLinked }}
+                            mercadoPago={{ done: mercadoPago === 'linked', unavailable: mercadoPago === 'unavailable' }}
                             ownershipSource={sourceLabel}
                             kycVerified={kycVerified}
                             verifyAction={verifyAction}
@@ -473,7 +474,7 @@ export default async function DetalleDeActivo(props: {
                                 <SellMoreAside
                                     accessHref={accessHref}
                                     showAccess={mio.platformAccessStatus === 'pending'}
-                                    showMercadoPago={!mercadoPagoLinked}
+                                    showMercadoPago={mercadoPago === 'not_linked'}
                                 />
                             )}
                         </div>

@@ -860,13 +860,14 @@ export default function Sistema() {
 
                 <Section
                     title="Nivel de vendedor"
-                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4. La identidad verificada es requisito para publicar y no suma. Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un tilde."
+                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un tilde."
                 >
                     <div className="flex flex-col gap-8">
                         <div className="flex flex-wrap gap-4">
                             {[0, 1, 3, 4].map((n) => (
                                 <div key={n} className="w-[220px]"><SellerLevelGauge level={n} /></div>
                             ))}
+                            <div className="w-[220px]"><SellerLevelGauge level={3} mercadoPago="unavailable" /></div>
                         </div>
                         <VerificationCards
                             ownership={{ done: true, sourceLabel: 'YouTube', verifiedAt: AHORA_DE_MUESTRA }}

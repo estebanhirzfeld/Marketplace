@@ -19,7 +19,7 @@ export function VerificationCards({
 }: {
     ownership: { done: boolean; sourceLabel: string; verifiedAt?: string };
     access: { done: boolean };
-    mercadoPago: { done: boolean };
+    mercadoPago: { done: boolean; unavailable?: boolean };
     ownershipSource: string;
     kycVerified: boolean;
     verifyAction: () => Promise<void>;
@@ -54,7 +54,7 @@ export function VerificationCards({
                         </ButtonLink>
                     </Card>
                 )}
-                {!mercadoPago.done && (
+                {!mercadoPago.done && !mercadoPago.unavailable && (
                     <Card
                         icon={
                             // eslint-disable-next-line @next/next/no-img-element
