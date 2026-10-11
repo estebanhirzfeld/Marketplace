@@ -168,7 +168,7 @@ export function AccessPanel({
                                     <span className="font-mono text-[13px] text-[var(--color-acento)]">TRANSFERENCIA INMEDIATA</span>
                                 </span>
                                 <span className="text-[13px] text-[var(--color-tenue)]">
-                                    7 días después de invitarnos tu canal aparece primero en el mercado.
+                                    7 días después de invitarnos tu canal gana más visibilidad en el mercado.
                                 </span>
                             </div>
                         </div>

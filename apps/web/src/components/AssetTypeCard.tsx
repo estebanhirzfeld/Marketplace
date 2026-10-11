@@ -55,9 +55,9 @@ export function AssetTypeCard({
 }
 
 /** El logo de YouTube, como en la marca: rectángulo rojo con el triángulo blanco. */
-export function YouTubeLogo() {
+export function YouTubeLogo({ width = 72 }: { width?: number }) {
     return (
-        <svg width="72" height="52" viewBox="0 0 72 52" role="img" aria-label="YouTube">
+        <svg width={width} height={Math.round((width * 52) / 72)} viewBox="0 0 72 52" role="img" aria-label="YouTube">
             <rect width="72" height="52" rx="13" fill="#ff0000" />
             <path d="M29 15v22l19-11z" fill="#ffffff" />
         </svg>

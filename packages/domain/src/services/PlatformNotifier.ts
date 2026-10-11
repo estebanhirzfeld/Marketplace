@@ -49,6 +49,11 @@ export class PlatformNotifier {
         });
     }
 
+    /** Un vendedor tocó «Ya los invité»: falta verificar el acceso. */
+    async platformAccessRequested(listing: Listing): Promise<void> {
+        await this.avisar('acceso_solicitado', { listingId: listing.id });
+    }
+
     /** El vendedor cedió el activo: hay que verificarlo y declarar la custodia. */
     async custodyNeeded(operation: Operation): Promise<void> {
         const { props } = operation.toSnapshot();

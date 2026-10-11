@@ -565,6 +565,8 @@ export interface MyListingDto {
     platformAccessStatus: PlatformAccessStatusDto;
     /** Cuándo avisó. La cola del admin ordena por esta fecha. */
     platformAccessRequestedAt?: string;
+    /** Quién vende el activo. Solo viaja en la bandeja de accesos del admin. */
+    sellerName?: string;
     /** Lo que este tipo de activo sabe de sí mismo. */
     descriptor: AssetTypeDescriptorDto;
     createdAt: string;
@@ -1048,7 +1050,9 @@ export type NotificationTypeDto =
     | 'custodia_pendiente'
     | 'liquidacion_pendiente'
     /** Al vendedor: el admin no encontró su invitación a la plataforma. */
-    | 'acceso_no_encontrado';
+    | 'acceso_no_encontrado'
+    /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
+    | 'acceso_solicitado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

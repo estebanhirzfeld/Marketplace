@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { WhyPopover } from '@/components/WhyPopover';
 import { AccessStatusPanel } from '@/components/AccessStatusPanel';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
+import { ACCESS_DIALOG_LINES } from '@/components/AccessInstructionsDialog';
 import { DraftPanel } from '@/components/DraftPanel';
 
 function texto(html: string): string {
@@ -44,6 +45,16 @@ describe('AccessStatusPanel', () => {
         expect(texto(html)).toContain('4 días para la transferencia inmediata');
         expect(html).toContain('3 de 7 días cumplidos');
         expect((html.match(/h-2 rounded/g) ?? []).length).toBe(7);
+    });
+
+    it('promete más visibilidad, no el primer lugar', () => {
+        const from = '2026-10-17T12:00:00.000Z';
+        const espera = texto(renderToStaticMarkup(<AccessStatusPanel status="waiting" transferableFrom={from} now={now} />));
+        const inmediata = texto(renderToStaticMarkup(<AccessStatusPanel status="immediate" now={now} />));
+
+        expect(espera).toContain('tu activo gana más visibilidad en el mercado');
+        expect(inmediata).toContain('más visibilidad en el mercado');
+        expect(espera + inmediata).not.toMatch(/primero/i);
     });
 
     it('inmediata: muestra la etiqueta', () => {
@@ -95,5 +106,13 @@ describe('DraftPanel', () => {
         expect(t).toContain('Faltan datos');
         expect(t).toContain('Enviar a revisión');
         expect(t).not.toContain('Comprobar con');
+    });
+});
+
+describe('AccessInstructionsDialog', () => {
+    it('el segundo paso aclara que la cuenta de marca puede tener otro nombre', () => {
+        expect(ACCESS_DIALOG_LINES[1][0]).toBe(
+            'Elegí la cuenta de marca de tu canal (puede tener otro nombre) y tocá «Administrar permisos».',
+        );
     });
 });

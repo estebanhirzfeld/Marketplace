@@ -22,3 +22,18 @@ describe('aviso de acceso no encontrado', () => {
         expect(linkFor(aviso)).toBe('/activos/l1');
     });
 });
+
+describe('aviso de acceso solicitado', () => {
+    const solicitado: NotificationDto = { ...aviso, type: 'acceso_solicitado' };
+
+    it('le dice a la plataforma que un vendedor avisó que ya la invitó', () => {
+        const { title, cuerpo } = textFor(solicitado);
+
+        expect(title).toBe('Un vendedor ya nos invitó');
+        expect(cuerpo).toBe('Avisó que ya nos invitó a su canal. Falta verificar el acceso.');
+    });
+
+    it('lleva a la bandeja de accesos del panel', () => {
+        expect(linkFor(solicitado)).toBe('/admin?bandeja=accesos');
+    });
+});

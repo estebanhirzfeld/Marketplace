@@ -31,7 +31,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - [x] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
 - [x] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
 - [x] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
-- [ ] T6.1 · Antes de T7, observado en la prueba local del 11/10:
+- [x] T6.1 · Antes de T7, observado en la prueba local del 11/10:
   - (a) Avisar al admin cuando un vendedor toca «Ya los invité»: hoy solo aparece en el panel.
   - (b) Rediseñar el panel «Esperan verificación de acceso»: pasa desapercibido y no escala con muchos pendientes.
   - (c) Cubrir el caso del vendedor que tocó «Ya los invité» sin invitar: hoy su botón desaparece y queda «verificando» para siempre. Que el admin pueda marcar «no encontramos la invitación», con aviso al vendedor y vuelta a pendiente.
@@ -83,6 +83,19 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
   - «Vender» con borrador: como el tablero.
   - Verificaciones: la M (los ingresos pasan a la tarjeta del canal y los datos publicados ocupan todo el ancho), pero el panel grande «7 días para la transferencia inmediata» queda como está. Su texto deja de decir «aparecés primero» y dice «más visibilidad en el mercado»; ese cambio de texto vale en toda la app. La dirección del canal es un enlace.
   - Logos cuadrados en `apps/web/public/brand/` (SVG y PNG de 512 y 120 px). El usuario los carga en Mercado Pago y en Google.
+- **T6.1b** (ruta: delegado). Implementados el aviso público (A con el calendario), la bandeja del admin con contador en el menú y el aviso `acceso_solicitado` a los admins (migración `20261011150000_add_access_requested_notification`), `DraftChoice`, Verificaciones M con `PublishedData` y el enlace al canal, el texto «más visibilidad» y el paso 1 del modal.
+  - RED observado en la mayoría; sin RED previo en `DraftChoice`, `PublishedData`, `adminInbox` y los tests de api/db del aviso.
+  - GREEN:
+    - dominio: 993;
+    - db: 120;
+    - api: 411;
+    - web: 351;
+    - `tsc` limpio;
+    - control del orquestador: transferability y adminInbox en verde.
+  - Brechas:
+    - El aviso al admin es genérico («Un vendedor ya nos invitó»): para nombrar al vendedor y al canal hacen falta campos y una migración.
+    - La pestaña de reclamos solo muestra el conteo, porque no hay listado de reclamos del admin en la API.
+    - Las migraciones de T6.1a y T6.1b siguen pendientes en `marketplace_dev`.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 

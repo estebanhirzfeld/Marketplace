@@ -11,10 +11,16 @@ import { requireAdmin } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingReview } from '@/components/ListingReview';
 import { Panel, Heading, EmptyState, OperationStatusBadge, Alert } from '@/components/ui';
-import { SubmitButton } from '@/components/SubmitButton';
 import { accessResultAlert, parseAccessResult } from '@/lib/platformAccessVerification';
 import { money } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
+import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
+import {
+    adminPendingTotal,
+    chooseInboxTab,
+    pendingHeadline,
+    type InboxCounts,
+} from '@/lib/adminInbox';
 import {
     approveListing,
     rejectListing,
@@ -114,7 +120,7 @@ function FilaDeEspera({ p }: { p: PendingOperationDto }) {
  */
 export default async function Admin(props: {
     // En Next 16 `searchParams` es una promesa: el acceso sincrónico se eliminó.
-    searchParams: Promise<{ acceso?: string; activo?: string; detalle?: string }>;
+    searchParams: Promise<{ acceso?: string; activo?: string; detalle?: string; bandeja?: string }>;
 }) {
     await requireAdmin();
     const params = await props.searchParams;
@@ -144,12 +150,19 @@ export default async function Admin(props: {
     }
     if (tableroResult.status === 'fulfilled') tablero = tableroResult.value;
 
+    const counts: InboxCounts = {
+        accesos: awaitingAccess.length,
+        revision: queue.length,
+        reclamos: tablero?.openReports ?? 0,
+    };
+    // Volver de Google trae el resultado de una verificación: se ve en su bandeja.
+    const tab = chooseInboxTab(params.bandeja ?? (accessResult ? 'accesos' : undefined), counts);
+    const now = new Date();
+
     return (
         <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
             <Reveal>
-                <Heading sub="El estado del mercado y lo que está esperando un movimiento nuestro.">
-                    Panel de la plataforma
-                </Heading>
+                <Heading sub={pendingHeadline(adminPendingTotal(counts))}>Panel de la plataforma</Heading>
             </Reveal>
 
             {accessAlert && (
@@ -160,14 +173,93 @@ export default async function Admin(props: {
                 </div>
             )}
 
+            <InboxTabs active={tab} counts={counts} />
+
+            <div className="mt-6">
+                {tab === 'accesos' && <AccessInbox
+                        listings={awaitingAccess}
+                        now={now}
+                        verifyAction={startPlatformAccessVerification}
+                        rejectAction={rejectPlatformAccessRequest}
+                    />}
+
+                {tab === 'revision' && (
+                    <div className="flex flex-col gap-6">
+                        <p className="max-w-[600px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                            Aprobar publica el activo en el mercado; rechazar exige un motivo que el
+                            vendedor va a leer.
+                        </p>
+                        {error ? (
+                            <EmptyState title="No pudimos cargar la cola" text={error} />
+                        ) : queue.length === 0 ? (
+                            <EmptyState
+                                title="No hay nada para revisar"
+                                text="Cuando un vendedor envíe un activo a revisión va a aparecer acá."
+                            />
+                        ) : (
+                            queue.map((l, i) => (
+                                <Reveal key={l.id} delay={Math.min(i, 6) * 80}>
+                                    <Panel title={nombreDeTipo(l.assetType)}>
+                                        <div className="flex flex-col gap-5">
+                                            <div className="flex flex-wrap items-baseline justify-between gap-4">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <span className="font-mono text-[24px] font-bold text-[var(--color-acento)]">
+                                                        {money(l.askingPrice)}
+                                                    </span>
+                                                    <span className="text-[13px] text-[var(--color-tenue)]">
+                                                        Nuestra valuación estimada:{' '}
+                                                        <span className="font-mono">{money(l.estimatedPrice)}</span>
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <Link
+                                                        href={`/listings/${l.id}`}
+                                                        className="text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"
+                                                    >
+                                                        Ver la publicación →
+                                                    </Link>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-[var(--color-borde)] pt-5">
+                                                <ListingReview
+                                                    approveListing={approveListing.bind(null, l.id)}
+                                                    rejectListing={rejectListing.bind(null, l.id)}
+                                                />
+                                            </div>
+                                        </div>
+                                    </Panel>
+                                </Reveal>
+                            ))
+                        )}
+                    </div>
+                )}
+
+                {tab === 'reclamos' &&
+                    (counts.reclamos === 0 ? (
+                        <EmptyState
+                            title="No hay reclamos abiertos"
+                            text="Cuando una de las partes abra un reclamo sobre una operación va a aparecer acá."
+                        />
+                    ) : (
+                        <Panel title="RECLAMOS ABIERTOS">
+                            <div className="flex flex-col gap-2">
+                                <span className="font-mono text-[28px] font-bold text-[var(--color-alerta)]">
+                                    {counts.reclamos}
+                                </span>
+                                <p className="max-w-[560px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                    Cada reclamo se atiende desde la operación involucrada: entrá a la que figura
+                                    abajo en «Esperando a la plataforma», o desde el aviso que recibiste.
+                                </p>
+                            </div>
+                        </Panel>
+                    ))}
+            </div>
+
             {tablero && (
                 <>
-                    <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        <Metrica
-                            valor={tablero.listingsToReview}
-                            etiqueta="Activos esperando revisión"
-                            alerta={tablero.listingsToReview > 0}
-                        />
+                    <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <Metrica valor={tablero.publishedListings} etiqueta="Publicados en el mercado" />
                         <Metrica valor={tablero.operationsInProgress} etiqueta="Con contrato en marcha" />
                         <Metrica
@@ -175,20 +267,14 @@ export default async function Admin(props: {
                             etiqueta="Reclamos abiertos"
                             alerta={tablero.openReports > 0}
                         />
-                    </div>
-
-                    <div className="mt-4">
-                        <Panel title="COMISIONES COBRADAS">
-                            <div className="flex items-baseline justify-between gap-4">
-                                <span className="font-mono text-[28px] font-bold text-[var(--color-acento)]">
-                                    {money(tablero.earned)}
-                                </span>
-                                <span className="max-w-[420px] text-right text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                                    El 5 % de cada parte, solo de las operaciones ya completadas.
-                                    Lo comprometido en operaciones abiertas no se cuenta.
-                                </span>
-                            </div>
-                        </Panel>
+                        <div className="flex flex-col gap-1.5 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-5">
+                            <span className="font-mono text-[28px] font-bold text-[var(--color-acento)]">
+                                {money(tablero.earned)}
+                            </span>
+                            <span className="text-[12px] leading-relaxed text-[var(--color-tenue)]">
+                                Comisiones cobradas: el 5 % de cada parte, solo de las operaciones ya completadas.
+                            </span>
+                        </div>
                     </div>
 
                     {/* Lo que efectivamente hay que hacer. Antes había que
@@ -222,108 +308,6 @@ export default async function Admin(props: {
                     )}
                 </>
             )}
-
-            {awaitingAccess.length > 0 && (
-                <div className="mt-10">
-                    <Panel title="ESPERAN VERIFICACIÓN DE ACCESO">
-                        <p className="mb-2 max-w-[600px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                            El vendedor avisó que ya invitó a la plataforma. Ingresá con la cuenta de custodia y
-                            elegí el canal: si lo administra, el acceso queda registrado.
-                        </p>
-                        <div className="flex flex-col">
-                            {awaitingAccess.map((l) => (
-                                <div
-                                    key={l.id}
-                                    className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-borde)] py-3 last:border-0"
-                                >
-                                    <div className="flex flex-col gap-1">
-                                        <Link
-                                            href={`/listings/${l.id}`}
-                                            className="text-[14px] font-medium text-[var(--color-tinta)] transition-colors hover:text-[var(--color-acento)]"
-                                        >
-                                            {l.assetName ?? 'Activo sin nombre'}
-                                        </Link>
-                                        <span className="text-[12px] text-[var(--color-apagado)]">
-                                            {nombreDeTipo(l.assetType)}
-                                            {l.platformAccessRequestedAt &&
-                                                ` · avisó el ${new Date(l.platformAccessRequestedAt).toLocaleDateString('es-AR')}`}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <form action={startPlatformAccessVerification.bind(null, l.id)}>
-                                            <SubmitButton pendingText="Abriendo Google…" variant="secundario">
-                                                Verificar acceso
-                                            </SubmitButton>
-                                        </form>
-                                        <form action={rejectPlatformAccessRequest.bind(null, l.id)}>
-                                            <SubmitButton pendingText="Avisando…" variant="secundario">
-                                                No encontramos la invitación
-                                            </SubmitButton>
-                                        </form>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </Panel>
-                </div>
-            )}
-
-            <div className="mt-10 flex flex-col gap-3">
-                <h2 className="font-mono text-[13px] font-medium tracking-[0.1em] text-[var(--color-tenue)]">
-                    COLA DE REVISIÓN
-                </h2>
-                <p className="max-w-[600px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                    Aprobar publica el activo en el mercado; rechazar exige un motivo que el
-                    vendedor va a leer.
-                </p>
-            </div>
-
-            <div className="mt-6 flex flex-col gap-6">
-                {error ? (
-                    <EmptyState title="No pudimos cargar la cola" text={error} />
-                ) : queue.length === 0 ? (
-                    <EmptyState
-                        title="No hay nada para revisar"
-                        text="Cuando un vendedor envíe un activo a revisión va a aparecer acá."
-                    />
-                ) : (
-                    queue.map((l, i) => (
-                        <Reveal key={l.id} delay={Math.min(i, 6) * 80}>
-                            <Panel title={nombreDeTipo(l.assetType)}>
-                                <div className="flex flex-col gap-5">
-                                    <div className="flex flex-wrap items-baseline justify-between gap-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <span className="font-mono text-[24px] font-bold text-[var(--color-acento)]">
-                                                {money(l.askingPrice)}
-                                            </span>
-                                            <span className="text-[13px] text-[var(--color-tenue)]">
-                                                Nuestra valuación estimada:{' '}
-                                                <span className="font-mono">{money(l.estimatedPrice)}</span>
-                                            </span>
-                                        </div>
-
-                                        <div className="flex flex-col items-end gap-1.5">
-                                            <Link
-                                                href={`/listings/${l.id}`}
-                                                className="text-[13px] text-[var(--color-tenue)] transition-colors hover:text-[var(--color-tinta)]"
-                                            >
-                                                Ver la publicación →
-                                            </Link>
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-[var(--color-borde)] pt-5">
-                                        <ListingReview
-                                            approveListing={approveListing.bind(null, l.id)}
-                                            rejectListing={rejectListing.bind(null, l.id)}
-                                        />
-                                    </div>
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    ))
-                )}
-            </div>
         </div>
     );
 }

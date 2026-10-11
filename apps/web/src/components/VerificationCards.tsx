@@ -47,7 +47,7 @@ export function VerificationCards({
                         icon={<ShimmerBolt size={36} />}
                         title="Acceso de administración"
                         points="+2 NIVELES"
-                        text="A los 7 días tu canal pasa a TRANSFERENCIA INMEDIATA y aparece primero en el mercado."
+                        text="A los 7 días tu canal pasa a TRANSFERENCIA INMEDIATA y gana más visibilidad en el mercado."
                     >
                         <ButtonLink href={accessHref} className="px-[18px] py-3">
                             Darnos acceso

@@ -17,9 +17,12 @@ import { VerificationSeal } from './VerificationSeal';
 export function VerifiedChannelCard({
     channel,
     avatarShape,
+    children,
 }: {
     channel: YouTubeConnectionDto;
     avatarShape?: ChannelAvatarShape;
+    /** Un pie opcional, por ejemplo el ingreso mensual que sostiene la valuación. */
+    children?: React.ReactNode;
 }) {
     const hasRevenue = channel.revenue12MonthsCents > 0;
 
@@ -63,6 +66,12 @@ export function VerifiedChannelCard({
                 <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
                     Si tu canal es nuevo: YouTube tarda hasta 3 días en informar las estadísticas.
                 </p>
+            )}
+
+            {children && (
+                <div className="border-t border-[var(--color-borde)] pt-4 text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                    {children}
+                </div>
             )}
         </div>
     );

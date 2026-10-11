@@ -3021,6 +3021,16 @@ describe('Publicar un activo rechazado y pedir la verificación del acceso', () 
             expect(admin.statusCode).toBe(200);
             const enCola = admin.json().find((l: { id: string }) => l.id === listing.id.toString());
             expect(enCola.platformAccessStatus).toBe('pending');
+
+            // Le avisa a la plataforma, y solo la primera vez.
+            await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            const avisos = await prisma.notification.findMany({ where: { type: 'acceso_solicitado' } });
+            expect(avisos).toHaveLength(1);
+            expect(avisos[0].listingId).toBe(publicado.id.toString());
         });
 
         it('403 si no es el dueño', async () => {
@@ -3153,9 +3163,10 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
 
         const res = await server.inject({ method: 'GET', url: '/admin/listings/acceso-pendiente', headers: await asAdmin() });
         expect(res.statusCode).toBe(200);
-        const body: { id: string; platformAccessStatus: string }[] = res.json();
+        const body: { id: string; platformAccessStatus: string; sellerName?: string }[] = res.json();
         expect(body.map((l) => l.id)).toEqual([id]);
         expect(body[0].platformAccessStatus).toBe('verifying');
+        expect(body[0].sellerName).toEqual(expect.any(String));
 
         const asSeller = await server.inject({
             method: 'GET',

@@ -1,4 +1,4 @@
-import { ICustodyAccountRepository, IListingRepository } from '../../ports/Repositories';
+import { ICustodyAccountRepository, IListingRepository, IUserRepository } from '../../ports/Repositories';
 import { GoogleAuthorizer, IYouTubeCustodyAccessReader, OwnedYouTubeChannel } from '../../ports/IOwnershipReaders';
 import { IYouTubeChannelReader } from '../../ports/IYouTubeChannelReader';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
@@ -54,13 +54,30 @@ async function findCustodyAccount(repo: ICustodyAccountRepository): Promise<Cust
 
 /** Los activos que esperan que un admin confirme el acceso. */
 export class ListListingsAwaitingAccessUseCase {
-    constructor(private readonly listingRepo: IListingRepository) {}
+    constructor(
+        private readonly listingRepo: IListingRepository,
+        private readonly userRepo?: IUserRepository,
+    ) {}
 
     async execute(actor: Actor): Promise<Listing[]> {
         assertIsAdmin(actor);
 
         const groups = await Promise.all(STATUSES_WITH_ACCESS_REQUEST.map((s) => this.listingRepo.findByStatus(s)));
         return groups.flat().filter((l) => l.platformAccessStatus() === 'verifying');
+    }
+
+    /**
+     * Lo mismo con el nombre del vendedor, para la bandeja del admin. Un
+     * vendedor que no se encuentra deja el nombre vacío: no tumba la lista.
+     */
+    async executeWithSellerNames(actor: Actor): Promise<{ listing: Listing; sellerName?: string }[]> {
+        const listings = await this.execute(actor);
+        return Promise.all(
+            listings.map(async (listing) => {
+                const seller = await this.userRepo?.findById(listing.sellerId.toString());
+                return { listing, sellerName: seller?.toSnapshot().props.fullName };
+            }),
+        );
     }
 }
 

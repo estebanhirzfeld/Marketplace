@@ -36,7 +36,9 @@ export type NotificationType =
     | 'custodia_pendiente'
     | 'liquidacion_pendiente'
     /** Al vendedor: el admin no encontró su invitación a la plataforma. */
-    | 'acceso_no_encontrado';
+    | 'acceso_no_encontrado'
+    /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
+    | 'acceso_solicitado';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

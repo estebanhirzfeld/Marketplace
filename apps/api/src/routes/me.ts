@@ -296,8 +296,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         '/admin/listings/acceso-pendiente',
         { preHandler: [authenticate] },
         async (request, reply) => {
-            const listings = await c.listAwaitingAccess.execute(actorOf(request));
-            return reply.send(listings.map((l) => aMyListingDto(l)));
+            const listings = await c.listAwaitingAccess.executeWithSellerNames(actorOf(request));
+            return reply.send(listings.map(({ listing, sellerName }) => ({ ...aMyListingDto(listing), sellerName })));
         },
     );
 

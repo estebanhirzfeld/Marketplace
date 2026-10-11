@@ -22,12 +22,14 @@ export function channelIdOf(channelUrl: string | undefined): string | undefined 
 interface Channel {
     channelId: string;
     channelTitle: string;
+    thumbnailUrl?: string;
 }
 
 interface SellerListing {
     id: string;
     status: string;
     channelUrl?: string;
+    askingPrice?: { cents: number };
 }
 
 export type YouTubeSellPlan<C extends Channel> =
@@ -37,6 +39,9 @@ export type YouTubeSellPlan<C extends Channel> =
           kind: 'draft-choice';
           draftListingId: string;
           channelTitle: string;
+          thumbnailUrl?: string;
+          /** Un borrador sin precio no se puede publicar: la tarjeta lo dice. */
+          draftHasPrice: boolean;
           /** Los canales conectados que todavía no tienen activo. */
           offerable: C[];
       };
@@ -46,7 +51,7 @@ export function planYouTubeSell<C extends Channel>(connections: C[], listings: S
         listings.filter((l) => channelIdOf(l.channelUrl) === channelId);
 
     const offerable: C[] = [];
-    let draft: { id: string; channelTitle: string } | undefined;
+    let draft: { id: string; channelTitle: string; thumbnailUrl?: string; hasPrice: boolean } | undefined;
 
     for (const channel of connections) {
         const own = statusesOf(channel.channelId);
@@ -54,14 +59,26 @@ export function planYouTubeSell<C extends Channel>(connections: C[], listings: S
 
         const retakable = own.find((l) => DRAFT_LIKE.includes(l.status));
         if (retakable) {
-            draft ??= { id: retakable.id, channelTitle: channel.channelTitle };
+            draft ??= {
+                id: retakable.id,
+                channelTitle: channel.channelTitle,
+                thumbnailUrl: channel.thumbnailUrl,
+                hasPrice: (retakable.askingPrice?.cents ?? 0) > 0,
+            };
             continue;
         }
         offerable.push(channel);
     }
 
     if (draft) {
-        return { kind: 'draft-choice', draftListingId: draft.id, channelTitle: draft.channelTitle, offerable };
+        return {
+            kind: 'draft-choice',
+            draftListingId: draft.id,
+            channelTitle: draft.channelTitle,
+            thumbnailUrl: draft.thumbnailUrl,
+            draftHasPrice: draft.hasPrice,
+            offerable,
+        };
     }
     return offerable.length > 0 ? { kind: 'offer', channels: offerable } : { kind: 'connect' };
 }

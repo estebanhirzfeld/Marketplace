@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
-import { channelIdFromUrl, thumbnailsByChannelId } from '@/lib/youtubeChannel';
+import { channelIdFromUrl, isWebAddress, shortenChannelUrl, thumbnailsByChannelId } from '@/lib/youtubeChannel';
 
 describe('channelIdFromUrl', () => {
     it('saca el identificador de la dirección que arma la plataforma', () => {
@@ -59,5 +59,30 @@ describe('thumbnailsByChannelId', () => {
 
     it('un canal sin foto no entra al mapa', () => {
         expect(thumbnailsByChannelId([{ ...CONEXION, thumbnailUrl: undefined }]).has('UC1')).toBe(false);
+    });
+});
+
+describe('shortenChannelUrl', () => {
+    it('quita el protocolo y el www, y abrevia el identificador largo', () => {
+        expect(shortenChannelUrl('https://www.youtube.com/channel/UCkHabcdefghijklmnopUvGQ')).toBe(
+            'youtube.com/channel/UCkH…UvGQ',
+        );
+    });
+
+    it('deja un handle tal cual, sin protocolo', () => {
+        expect(shortenChannelUrl('https://www.youtube.com/@pclover')).toBe('youtube.com/@pclover');
+    });
+
+    it('un texto que no es una dirección se devuelve igual', () => {
+        expect(shortenChannelUrl('Pc Lover')).toBe('Pc Lover');
+    });
+});
+
+describe('isWebAddress', () => {
+    it('solo acepta http y https', () => {
+        expect(isWebAddress('https://youtube.com/@x')).toBe(true);
+        expect(isWebAddress('http://youtube.com/@x')).toBe(true);
+        expect(isWebAddress('javascript:alert(1)')).toBe(false);
+        expect(isWebAddress(42)).toBe(false);
     });
 });

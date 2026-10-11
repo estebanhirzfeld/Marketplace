@@ -8,6 +8,19 @@ import { CopyEmailButton } from './CopyEmailButton';
 import { WhyPopover } from './WhyPopover';
 
 /**
+ * Las líneas de cada paso. El nombre de la cuenta de marca puede no ser el del
+ * canal, y «Abrir en Google» cae en la lista de cuentas: por eso el paso 2 lo
+ * aclara antes de pedir los permisos.
+ */
+export const ACCESS_DIALOG_LINES: readonly [readonly string[], readonly string[]] = [
+    ['Tocá «Mover canal a una cuenta de marca».', 'Creá una cuenta de marca nueva y confirmá.'],
+    [
+        'Elegí la cuenta de marca de tu canal (puede tener otro nombre) y tocá «Administrar permisos».',
+        'Invitá a esta dirección con el rol Administrador.',
+    ],
+];
+
+/**
  * Los dos pasos para darnos acceso, en un diálogo con una maqueta animada de
  * Google al costado. Es YouTube a propósito: la maqueta y los textos son de ese
  * flujo, así que lo monta solo quien tiene los dos pasos guiados.
@@ -106,16 +119,7 @@ export function AccessInstructionsDialog({
                             {step?.title ?? 'Danos acceso'}
                         </h3>
                         <ol className="flex flex-col gap-3 text-[15px] leading-relaxed text-[#c4c8cd]">
-                            {(index === 0
-                                ? [
-                                      'Tocá «Mover canal a una cuenta de marca».',
-                                      'Creá una cuenta de marca nueva y confirmá.',
-                                  ]
-                                : [
-                                      'En tu cuenta de marca, tocá «Administrar permisos».',
-                                      'Invitá a esta dirección con el rol Administrador.',
-                                  ]
-                            ).map((text, i) => (
+                            {ACCESS_DIALOG_LINES[index].map((text, i) => (
                                 <li key={text} className="flex gap-3">
                                     <span className="font-mono text-[13px] text-[var(--color-apagado)]">{i + 1}.</span>
                                     {text}

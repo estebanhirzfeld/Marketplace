@@ -109,6 +109,17 @@ describe('PlatformNotifier', () => {
         expect(enviadas[0].type).toBe('acceso_pendiente');
     });
 
+    it('avisa a los administradores que un vendedor dice haber invitado a la plataforma', async () => {
+        const listing = unActivo();
+        const { avisos, enviadas } = armar(admin('uno@traspaso.com'), admin('dos@traspaso.com'));
+
+        await avisos.platformAccessRequested(listing);
+
+        expect(enviadas).toHaveLength(2);
+        expect(enviadas[0].type).toBe('acceso_solicitado');
+        expect(enviadas[0].toSnapshot().props.listingId?.toString()).toBe(listing.id.toString());
+    });
+
     it('lleva el monto que hay que liquidarle al vendedor', async () => {
         const operation = unaOperacion();
         operation.acceptCurrentOffer('seller');

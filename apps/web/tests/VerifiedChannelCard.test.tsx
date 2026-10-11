@@ -105,6 +105,16 @@ describe('VerifiedChannelCard', () => {
         expect(html).toMatch(/referrerPolicy="no-referrer"/i);
     });
 
+    it('puede llevar un pie con el ingreso mensual comprobado', () => {
+        const t = texto(
+            renderToStaticMarkup(
+                <VerifiedChannelCard channel={CANAL}>Ingreso mensual comprobado: US$ 288</VerifiedChannelCard>,
+            ),
+        );
+
+        expect(t).toContain('Ingreso mensual comprobado: US$ 288');
+    });
+
     it('es de solo lectura: no tiene campos', () => {
         const html = renderToStaticMarkup(<VerifiedChannelCard channel={CANAL} />);
 

@@ -8,7 +8,7 @@ import { ImmediateBadge } from './ShimmerBolt';
  * Tres momentos, con el mismo marco:
  * - `verifying`: un admin todavía no lo confirmó;
  * - `waiting`: confirmado, falta el plazo de Google (cuenta regresiva de 7);
- * - `immediate`: cumplido; el activo aparece primero en el mercado.
+ * - `immediate`: cumplido; el activo gana más visibilidad en el mercado.
  *
  * Es presentacional y recibe la hora de afuera, así no depende del reloj.
  */
@@ -52,7 +52,7 @@ export function AccessStatusPanel({
                 <div className="flex flex-col gap-3 px-5 py-6">
                     <ImmediateBadge />
                     <span className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                        Tu activo aparece primero en el mercado, y quien compre hoy no espera ningún plazo: el
+                        Tu activo gana más visibilidad en el mercado, y quien compre hoy no espera ningún plazo: el
                         contrato se puede firmar el mismo día.
                     </span>
                 </div>
@@ -74,7 +74,7 @@ function Waiting({ from, now }: { from: string; now: string }) {
                         {daysLeft === 1 ? 'día' : 'días'} para la transferencia inmediata
                     </span>
                     <span className="text-[14px] text-[var(--color-tenue)]">
-                        El {fechaLarga(from)} tu activo pasa a aparecer primero en el mercado.
+                        El {fechaLarga(from)} tu activo gana más visibilidad en el mercado.
                     </span>
                 </div>
             </div>

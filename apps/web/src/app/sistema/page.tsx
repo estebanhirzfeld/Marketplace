@@ -32,6 +32,10 @@ import { ImmediateBadge, ShimmerBolt } from '@/components/ShimmerBolt';
 import { CheckLine } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { noop, noopEstimate, noopVoid } from './actions';
+import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
+import { DraftChoice } from '@/components/DraftChoice';
+import { PublishedData } from '@/components/PublishedData';
+import { PendingBadge } from '@/components/Navbar';
 import {
     Alert,
     Button,
@@ -124,6 +128,17 @@ const PASOS_DE_ACCESO: HandoverStepDto[] = [
         links: [{ label: 'Administrar permisos', href: 'https://myaccount.google.com/brandaccounts' }],
     },
 ];
+
+/** Dos canales esperando que verifiquemos el acceso, uno de hoy y otro de ayer. */
+const ACCESOS_DE_MUESTRA = [
+    { id: 'a1', assetName: 'Pc Lover', sellerName: 'Esteban Vendedor', hace: 2 * 60 * 60 * 1000 },
+    { id: 'a2', assetName: 'Lovi en Reddit', sellerName: 'Esteban Vendedor', hace: 26 * 60 * 60 * 1000 },
+].map(({ id, assetName, sellerName, hace }) => ({
+    id,
+    assetName,
+    sellerName,
+    platformAccessRequestedAt: new Date(Date.now() - hace).toISOString(),
+}));
 
 const AHORA_DE_MUESTRA = '2026-10-13T12:00:00.000Z';
 
@@ -227,6 +242,14 @@ const PAGO_EN_DOLARES: PaymentOptionsDto = {
 
 /** Avisos de muestra, ya redactados como los redacta el servidor. */
 const AVISOS_DE_MUESTRA = [
+    {
+        id: '0',
+        title: 'Un vendedor ya nos invitó',
+        body: 'Avisó que ya nos invitó a su canal. Falta verificar el acceso.',
+        href: '/admin?bandeja=accesos',
+        when: 'hace 2 min',
+        read: false,
+    },
     {
         id: '1',
         title: 'Te contraofertaron',
@@ -362,7 +385,7 @@ export default function Sistema() {
 
                 <Section
                     title="Transferibilidad del activo"
-                    note="Los tres estados posibles de un activo respecto de la custodia. Ninguno afirma nada que la plataforma no pueda respaldar: la API de YouTube no expone quiénes son los propietarios de un canal, así que un “listo para transferir” permanente estaría mintiendo. Por eso el estado intermedio muestra una fecha calculada y no una promesa, y el tercero admite abiertamente que el acceso no está cedido."
+                    note="Lo que lee el comprador, en una línea: desde cuándo se cierra y que puede ofertar hoy. Con fecha lleva el calendario; cuando ya es inmediata, el rayo del acento. No explica la custodia ni los plazos del tipo de activo, y tampoco nombra a administradores ni dueños: eso es cosa de la plataforma y del vendedor."
                 >
                     <div className="grid gap-6 lg:grid-cols-3">
                         <div className="flex flex-col gap-3">
@@ -371,20 +394,15 @@ export default function Sistema() {
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PERÍODO DE ESPERA</div>
-                            {/* El motivo de la espera lo escribe el tipo de activo:
-                                acá se pasa uno de ejemplo porque el catálogo no
-                                está a mano en la página del sistema. */}
                             <TransferStatus
                                 transferable={false}
                                 transferableFrom={EN_CINCO_DIAS}
-                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
                             />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN ACCESO CEDIDO</div>
                             <TransferStatus
                                 transferable={false}
-                                waitingNotice="YouTube exige haber sido propietario del canal durante siete días antes de permitir el cambio de propietario principal."
                             />
                         </div>
                     </div>
@@ -406,13 +424,80 @@ export default function Sistema() {
                 </Section>
 
                 <Section
+                    title="Bandeja del panel de la plataforma"
+                    note="Lo que espera un movimiento de la plataforma, en pestañas con contador: accesos por verificar, activos por revisar y reclamos. La pestaña abierta es la primera con pendientes, y cada pestaña es un enlace, así que se comparte. Los accesos son una tabla con las dos acciones de siempre; la antigüedad del aviso se pinta en ámbar durante el primer día. Las acciones son de muestra."
+                >
+                    <div className="flex flex-col gap-8">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PESTAÑAS — ACCESOS ABIERTA</div>
+                            <InboxTabs active="accesos" counts={{ accesos: 2, revision: 1, reclamos: 0 }} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ACCESOS POR VERIFICAR</div>
+                            <AccessInbox
+                                listings={ACCESOS_DE_MUESTRA}
+                                now={new Date()}
+                                verifyAction={noopVoid}
+                                rejectAction={noopVoid}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONTADOR EN EL MENÚ</div>
+                            <span className="font-mono text-[12px] tracking-wider text-[var(--color-alerta)]">
+                                ADMIN
+                                <PendingBadge count={3} />
+                            </span>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Vender con un borrador"
+                    note="Cuando el canal que el vendedor conectó ya tiene un borrador, dos tarjetas del mismo peso: seguir con ese o traer otro canal desde YouTube. La del borrador lleva el acento y dice lo que le falta —si no tiene precio, no promete «solo falta publicarlo»."
+                >
+                    <div className="flex flex-col gap-8">
+                        <DraftChoice channelTitle="Lovi en Reddit" hasPrice draftHref="/sistema" connectAction={noopVoid} />
+                        <DraftChoice channelTitle="Pc Lover" hasPrice={false} draftHref="/sistema" connectAction={noopVoid} />
+                    </div>
+                </Section>
+
+                <Section
+                    title="Verificaciones: canal y datos publicados"
+                    note="La tarjeta del canal lleva al pie el ingreso mensual comprobado, el dato que sostiene la valuación. Los datos publicados ocupan todo el ancho en dos columnas, y la dirección del canal es un enlace real, abreviado a la vista."
+                >
+                    <div className="flex flex-col gap-6">
+                        <VerifiedChannelCard channel={CANAL_CON_DATOS}>
+                            Ingreso mensual comprobado:{' '}
+                            <span className="font-mono text-[var(--color-listo)]">US$ 288</span>. Lo informa Google, no
+                            vos: es el dato que sostiene la valuación.
+                        </VerifiedChannelCard>
+                        <PublishedData
+                            fields={[
+                                { key: 'niche', label: 'Rubro', kind: 'niche' },
+                                { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean' },
+                                { key: 'isMonetized', label: 'Monetizado', kind: 'boolean' },
+                                { key: 'name', label: 'Nombre del canal', kind: 'text' },
+                                { key: 'channelUrl', label: 'Canal', kind: 'text' },
+                            ]}
+                            data={{
+                                niche: 'finance',
+                                hasNoFaceContent: true,
+                                isMonetized: false,
+                                name: 'Pc Lover',
+                                channelUrl: 'https://www.youtube.com/channel/UCkHabcdefghijklmnopUvGQ',
+                            }}
+                        />
+                    </div>
+                </Section>
+
+                <Section
                     title="Avisos"
                     note="La campana del navbar. Abre un desplegable con las novedades recientes y un enlace a la bandeja completa: un aviso suele leerse de un vistazo —te toca responder, se firmó el contrato— y mandar a otra pantalla para leer una línea es más fricción de la que el contenido justifica. Hacé clic para verlo abierto."
                 >
                     <div className="flex flex-wrap items-start gap-16">
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CON AVISOS SIN LEER</div>
-                            <NotificationDropdown items={AVISOS_DE_MUESTRA} unread={2} />
+                            <NotificationDropdown items={AVISOS_DE_MUESTRA} unread={3} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TODO LEÍDO</div>

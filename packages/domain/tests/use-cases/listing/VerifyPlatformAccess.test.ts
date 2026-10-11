@@ -360,4 +360,37 @@ describe('ListListingsAwaitingAccessUseCase', () => {
             ForbiddenError,
         );
     });
+
+    it('con los nombres: cada activo trae el de su vendedor, para la bandeja del admin', async () => {
+        const verificando = conSolicitud(canal());
+        const repo = listingRepo(null, { published: [verificando], under_review: [], in_operation: [] });
+        const userRepo = {
+            findById: vi.fn().mockResolvedValue({ toSnapshot: () => ({ props: { fullName: 'Esteban Vendedor' } }) }),
+            findByEmail: vi.fn(),
+            findByRole: vi.fn(),
+            save: vi.fn(),
+        };
+
+        const result = await new ListListingsAwaitingAccessUseCase(repo, userRepo as never).executeWithSellerNames(ADMIN);
+
+        expect(result).toHaveLength(1);
+        expect(result[0].listing.id.toString()).toBe(verificando.id.toString());
+        expect(result[0].sellerName).toBe('Esteban Vendedor');
+    });
+
+    it('con los nombres, un vendedor que no se encuentra no tumba la lista', async () => {
+        const verificando = conSolicitud(canal());
+        const repo = listingRepo(null, { published: [verificando], under_review: [], in_operation: [] });
+        const userRepo = { findById: vi.fn().mockResolvedValue(null), findByEmail: vi.fn(), findByRole: vi.fn(), save: vi.fn() };
+
+        const result = await new ListListingsAwaitingAccessUseCase(repo, userRepo as never).executeWithSellerNames(ADMIN);
+
+        expect(result[0].sellerName).toBeUndefined();
+    });
+
+    it('con los nombres también es exclusivo del admin', async () => {
+        await expect(
+            new ListListingsAwaitingAccessUseCase(listingRepo(null)).executeWithSellerNames(SELLER),
+        ).rejects.toThrow(ForbiddenError);
+    });
 });

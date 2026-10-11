@@ -434,7 +434,7 @@ export function createContainer(
             requireMpLink ? paymentAccountRepo : undefined,
         ),
         editListing: new EditListingUseCase(listingRepo),
-        requestPlatformAccess: new RequestPlatformAccessUseCase(listingRepo),
+        requestPlatformAccess: new RequestPlatformAccessUseCase(listingRepo, avisosDePlataforma),
         deleteDraftListing: new DeleteDraftListingUseCase(listingRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
@@ -457,7 +457,7 @@ export function createContainer(
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
             : undefined,
         registerPlatformAccess,
-        listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo),
+        listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo, userRepo),
         // Con las mismas credenciales de Google que la verificación de titularidad.
         startPlatformAccessVerification: googleOAuth
             ? new StartPlatformAccessVerificationUseCase(listingRepo, custodyRepo)

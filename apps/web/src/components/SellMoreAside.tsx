@@ -30,7 +30,7 @@ export function SellMoreAside({
                     </div>
                     <ImmediateBadge />
                     <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                        A los 7 días tu canal la muestra y aparece primero en el mercado.
+                        A los 7 días tu canal la muestra y gana más visibilidad en el mercado.
                     </span>
                     <ButtonLink href={accessHref} className="self-start px-4 py-2.5">
                         Empezar

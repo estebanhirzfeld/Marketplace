@@ -10,6 +10,8 @@
  * sitio web que se transfiere de inmediato y no tiene ninguna espera.
  */
 
+import { fechaSinAnioActual } from '@/lib/format';
+
 const FORMATO: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
 
 export function fechaCorta(iso: string): string {
@@ -43,67 +45,92 @@ export function TransferableBadge({
     );
 }
 
-/** Versión explicada, para el detalle del activo. */
+/**
+ * Versión para el detalle del activo.
+ *
+ * La lee un comprador, a veces sin sesión: una línea con lo que le importa
+ * (desde cuándo se cierra y que puede ofertar ya). Las reglas de la
+ * custodia y los plazos del tipo de activo son cosa de la plataforma y del
+ * vendedor, y no se explican acá.
+ */
 export function TransferStatus({
     transferable,
     transferableFrom,
-    waitingNotice,
+    now,
 }: {
     transferable: boolean;
     transferableFrom?: string;
-    /** Por qué hay que esperar, en las palabras del propio tipo de activo. */
-    waitingNotice?: string;
+    /** La hora de afuera, para que el año de la fecha no dependa del reloj. */
+    now?: string;
 }) {
     if (transferable) {
         return (
-            <Block listo title="Transferencia inmediata">
-                La plataforma ya tiene el acceso que necesita para tomar la custodia de este
-                activo. Si cerrás la compra hoy, la entrega no queda esperando ningún plazo.
-            </Block>
-        );
-    }
-
-    if (transferableFrom) {
-        return (
-            <Block title={`Transferible desde el ${fechaCorta(transferableFrom)}`}>
-                El vendedor ya cedió el acceso.{waitingNotice ? ` ${waitingNotice}` : ''} Podés
-                ofertar y negociar desde ahora: el contrato se firma cuando se cumple ese plazo.
+            <Block
+                icon={
+                    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M11 2h7l-4 7h5L8 22l2.5-9H6z" fill="var(--color-acento)" />
+                    </svg>
+                }
+                title="TRANSFERENCIA INMEDIATA"
+                accent
+            >
+                Si cerrás hoy, el traspaso empieza hoy.
             </Block>
         );
     }
 
     return (
-        <Block title="El acceso todavía no está cedido">
-            El vendedor todavía no le dio acceso al activo a la plataforma. Podés ofertar y
-            negociar, pero el contrato no se va a poder firmar hasta que lo haga
-            {waitingNotice ? ' y se cumpla el plazo de espera' : ''}.
+        <Block icon={<CalendarIcon />} title={transferableFrom ? `Se transfiere desde el ${fechaSinAnioActual(transferableFrom, now ? new Date(now) : undefined)}` : 'Transferencia a coordinar'}>
+            Podés ofertar desde hoy.
         </Block>
     );
 }
 
+function CalendarIcon() {
+    return (
+        <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-tenue)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>
+    );
+}
+
 function Block({
+    icon,
     title,
     children,
-    listo = false,
+    accent = false,
 }: {
+    icon: React.ReactNode;
     title: string;
     children: React.ReactNode;
-    listo?: boolean;
+    accent?: boolean;
 }) {
     return (
-        <div
-            className={`flex flex-col gap-1.5 rounded-[var(--radius-chico)] border p-4 ${
-                listo
-                    ? 'border-[var(--color-listo)]/40 bg-[var(--color-listo)]/[0.04]'
-                    : 'border-[var(--color-borde)]'
-            }`}
-        >
-            <span
-                className={`text-[13px] font-medium ${listo ? 'text-[var(--color-listo)]' : ''}`}
-            >
-                {title}
-            </span>
-            <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">{children}</p>
+        <div className="flex items-center gap-3.5 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] px-5 py-4">
+            {icon}
+            <div className="flex flex-col gap-0.5">
+                <span
+                    className={
+                        accent
+                            ? 'font-mono text-[13px] tracking-[0.04em] text-[var(--color-acento)]'
+                            : 'text-[16px] font-medium'
+                    }
+                >
+                    {title}
+                </span>
+                <span className="text-[14px] text-[var(--color-tenue)]">{children}</span>
+            </div>
         </div>
     );
 }

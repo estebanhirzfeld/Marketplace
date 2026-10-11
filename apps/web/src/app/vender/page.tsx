@@ -8,9 +8,9 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
 import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
-import { SubmitButton } from '@/components/SubmitButton';
+import { DraftChoice } from '@/components/DraftChoice';
 import { SellSteps } from '@/components/SellSteps';
-import { ButtonLink, Panel, Heading } from '@/components/ui';
+import { Panel, Heading } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
 import { planYouTubeSell } from '@/lib/sellChannels';
 import {
@@ -160,6 +160,35 @@ export default async function Publicar(props: {
         );
     }
 
+    // Un canal con borrador: seguir con ese o traer otro. Mantiene el
+    // indicador de pasos y la salida a «Cambiar tipo» de los demás recorridos.
+    if (plan.kind === 'draft-choice' && !selected && !failure && !manual && !wantsWeb) {
+        return (
+            <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
+                <Reveal>
+                    <div className="mb-8 flex max-w-[720px] flex-col gap-5">
+                        <div className="flex items-center justify-between">
+                            <Link href="/vender" className="text-[14px] text-[var(--color-tenue)] hover:text-[var(--color-tinta)]">
+                                ← Cambiar tipo
+                            </Link>
+                            <span className="text-[14px] text-[var(--color-tenue)]">Canal de YouTube</span>
+                        </div>
+                        <SellSteps labels={['1 · CONECTAR', '2 · COMPLETAR', '3 · PRECIO']} current={0} />
+                    </div>
+                </Reveal>
+                <Reveal delay={80}>
+                    <DraftChoice
+                        channelTitle={plan.channelTitle}
+                        thumbnailUrl={plan.thumbnailUrl}
+                        hasPrice={plan.draftHasPrice}
+                        draftHref={`/activos/${plan.draftListingId}`}
+                        connectAction={startYouTubeConnection}
+                    />
+                </Reveal>
+            </div>
+        );
+    }
+
     // Los pasos solo existen donde el flujo es de un tipo; la carga manual
     // ofrece los dos y no tiene un recorrido propio.
     const steps = wantsWeb
@@ -229,25 +258,6 @@ export default async function Publicar(props: {
                             )}
                         </Reveal>
                     </>
-                ) : plan.kind === 'draft-choice' && !selected && !failure ? (
-                    <Reveal delay={80}>
-                        {/* Vista provisoria: el diseño final llega con la ronda de lienzo. */}
-                        <Panel title="YA TENÉS UN BORRADOR">
-                            <p className="mb-5 text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                Tu canal «{plan.channelTitle}» ya tiene un activo sin publicar.
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <ButtonLink href={`/activos/${plan.draftListingId}`}>
-                                    Continuar con el borrador de {plan.channelTitle}
-                                </ButtonLink>
-                                <form action={startYouTubeConnection}>
-                                    <SubmitButton pendingText="Abriendo Google…" variant="secundario">
-                                        Publicar otro canal
-                                    </SubmitButton>
-                                </form>
-                            </div>
-                        </Panel>
-                    </Reveal>
                 ) : selected ? (
                     <>
                         <Reveal delay={80}>

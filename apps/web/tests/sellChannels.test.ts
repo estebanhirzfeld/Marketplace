@@ -11,10 +11,11 @@ const B = 'UCbbbbbbbbbbbbbbbbbbbbbb';
 const C = 'UCcccccccccccccccccccccc';
 
 const canal = (channelId: string, channelTitle = `Canal ${channelId.slice(2, 4)}`) => ({ channelId, channelTitle });
-const activo = (id: string, channelId: string | undefined, status: string) => ({
+const activo = (id: string, channelId: string | undefined, status: string, cents = 150_000) => ({
     id,
     status,
     channelUrl: channelId ? `https://www.youtube.com/channel/${channelId}` : undefined,
+    askingPrice: { cents, currency: 'USD' },
 });
 
 describe('channelIdOf', () => {
@@ -56,7 +57,7 @@ describe('planYouTubeSell', () => {
     it.each(['draft', 'rejected'])('un canal con un activo en %s lleva a elegir entre continuarlo o publicar otro', (status) => {
         const plan = planYouTubeSell([canal(A, 'Pc Lover')], [activo('l1', A, status)]);
 
-        expect(plan).toEqual({ kind: 'draft-choice', draftListingId: 'l1', channelTitle: 'Pc Lover', offerable: [] });
+        expect(plan).toEqual({ kind: 'draft-choice', draftListingId: 'l1', channelTitle: 'Pc Lover', draftHasPrice: true, offerable: [] });
     });
 
     it('con un borrador y otro canal libre, el borrador manda y el libre queda como ofrecible', () => {
@@ -66,8 +67,24 @@ describe('planYouTubeSell', () => {
             kind: 'draft-choice',
             draftListingId: 'l1',
             channelTitle: 'Pc Lover',
+            draftHasPrice: true,
             offerable: [canal(B)],
         });
+    });
+
+    it('un borrador sin precio lo avisa, para decir «te falta ponerle precio»', () => {
+        const plan = planYouTubeSell([canal(A, 'Pc Lover')], [activo('l1', A, 'draft', 0)]);
+
+        expect(plan).toMatchObject({ kind: 'draft-choice', draftHasPrice: false });
+    });
+
+    it('lleva la foto del canal para mostrarla en la tarjeta del borrador', () => {
+        const plan = planYouTubeSell(
+            [{ ...canal(A, 'Pc Lover'), thumbnailUrl: 'https://yt3.ggpht.com/x' }],
+            [activo('l1', A, 'draft')],
+        );
+
+        expect(plan).toMatchObject({ kind: 'draft-choice', thumbnailUrl: 'https://yt3.ggpht.com/x' });
     });
 
     it('si un canal tiene un borrador y uno publicado, no se ofrece ni se retoma el borrador', () => {

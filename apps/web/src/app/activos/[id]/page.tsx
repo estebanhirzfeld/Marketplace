@@ -21,15 +21,12 @@ import { DiscardDraftButton } from '@/components/DiscardDraftButton';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
+import { PublishedData } from '@/components/PublishedData';
 import { currentProfile } from '@/lib/profile';
 import { isAccessRegistered, sellerLevel, type MercadoPagoState } from '@/lib/sellerLevel';
 import { channelIdFromUrl } from '@/lib/youtubeChannel';
 import { findOwnershipResult } from '@/lib/ownershipResults';
-import {
-    money,
-    nicheLabel,
-    fieldValue,
-} from '@/lib/format';
+import { money, nicheLabel } from '@/lib/format';
 import { startVerification, submitForReview } from '../../vender/actions';
 import { discardDraft, editListing, publishDraft, requestAccess } from './actions';
 
@@ -119,6 +116,21 @@ export default async function DetalleDeActivo(props: {
         }
     }
     const kycVerified = (await currentProfile())?.isKycVerified ?? false;
+
+    // El ingreso mensual que sostiene la valuación: antes tenía un panel propio
+    // y ahora es el pie de la tarjeta del canal.
+    const ingresoMensual =
+        mio.ownership?.monthlyRevenueCents !== undefined ? (
+            <>
+                Ingreso mensual comprobado:{' '}
+                <span className="font-mono text-[var(--color-listo)]">
+                    {money({ cents: mio.ownership.monthlyRevenueCents, currency: 'USD' })}
+                </span>
+                . Lo informa Google, no vos: es el dato que sostiene la valuación.
+            </>
+        ) : (
+            listing.descriptor.revenueNotice
+        );
 
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
@@ -357,7 +369,9 @@ export default async function DetalleDeActivo(props: {
                     )}
                     <div className="mt-6 grid gap-4 lg:grid-cols-[5fr_2fr]">
                         {canal ? (
-                            <VerifiedChannelCard channel={canal} avatarShape="square" />
+                            <VerifiedChannelCard channel={canal} avatarShape="square">
+                                {ingresoMensual}
+                            </VerifiedChannelCard>
                         ) : (
                             <div className="flex items-center gap-4 rounded-[var(--radius-grande)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-6">
                                 <ChannelAvatar name={nombre} shape="square" />
@@ -365,6 +379,9 @@ export default async function DetalleDeActivo(props: {
                                     <span className="truncate text-[20px] font-bold">{nombre}</span>
                                     <span className="text-[13px] text-[var(--color-apagado)]">
                                         {listing.descriptor.label}
+                                    </span>
+                                    <span className="mt-1 text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                                        {ingresoMensual}
                                     </span>
                                 </div>
                             </div>
@@ -407,47 +424,8 @@ export default async function DetalleDeActivo(props: {
                         )}
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <Panel title="INGRESO MENSUAL">
-                            {mio.ownership?.monthlyRevenueCents !== undefined ? (
-                                <div className="flex flex-col gap-2">
-                                    <span className="font-mono text-[15px] text-[var(--color-listo)]">
-                                        {money({
-                                            cents: mio.ownership.monthlyRevenueCents,
-                                            currency: 'USD',
-                                        })}{' '}
-                                        comprobados
-                                    </span>
-                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Lo informa Google, no vos. Es el dato que sostiene la valuación.
-                                    </span>
-                                </div>
-                            ) : (
-                                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                    {listing.descriptor.revenueNotice}
-                                </p>
-                            )}
-                        </Panel>
-
-                        <Panel title="LOS DATOS PUBLICADOS">
-                            <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                                {/*
-                                    El orden y las etiquetas los declara el tipo de activo. La
-                                    pantalla no sabe qué campos existen ni cómo se llaman: solo
-                                    los dibuja en el orden en que se los dan.
-                                */}
-                                {listing.descriptor.fields
-                                    .filter((f) => f.key in listing.assetData && !f.internal)
-                                    .map((f) => (
-                                        <div key={f.key} className="flex justify-between gap-4 py-2.5 text-[14px]">
-                                            <span className="text-[var(--color-tenue)]">{f.label}</span>
-                                            <span className="font-mono">
-                                                {fieldValue(f.kind, listing.assetData[f.key])}
-                                            </span>
-                                        </div>
-                                    ))}
-                            </div>
-                        </Panel>
+                    <div className="mt-4">
+                        <PublishedData fields={listing.descriptor.fields} data={listing.assetData} />
                     </div>
                 </Reveal>
             )}
