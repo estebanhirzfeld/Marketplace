@@ -77,6 +77,12 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
       - `R3-reject-save-then-notify-not-atomic`: si falla la notificación después de guardar, el vendedor no se entera.
       - `R3-vender-plan-wiring-untested`.
       - `R3-copy-email-stateful-path-untested`.
+- **Decisiones de diseño de T6.1b** (11/10, lienzo, séptima vuelta):
+  - Aviso público: variante A («Se transfiere desde el 18 de octubre» y «Podés ofertar desde hoy») con el ícono de calendario de B.
+  - Admin: la bandeja de A (pestañas con contador y tabla con acciones) más los avisos de B (contador en «ADMIN» del menú y aviso en la campana cuando un vendedor toca «Ya los invité»).
+  - «Vender» con borrador: como el tablero.
+  - Verificaciones: la M (los ingresos pasan a la tarjeta del canal y los datos publicados ocupan todo el ancho), pero el panel grande «7 días para la transferencia inmediata» queda como está. Su texto deja de decir «aparecés primero» y dice «más visibilidad en el mercado»; ese cambio de texto vale en toda la app. La dirección del canal es un enlace.
+  - Logos cuadrados en `apps/web/public/brand/` (SVG y PNG de 512 y 120 px). El usuario los carga en Mercado Pago y en Google.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
