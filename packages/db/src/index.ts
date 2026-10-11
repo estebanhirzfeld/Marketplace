@@ -10,6 +10,7 @@ export { ContractMapper } from "./mappers/ContractMapper";
 export { NotificationMapper } from "./mappers/NotificationMapper";
 export { CustodyAccountMapper } from "./mappers/CustodyAccountMapper";
 export { SellerPaymentAccountMapper } from "./mappers/SellerPaymentAccountMapper";
+export { YouTubeConnectionMapper } from "./mappers/YouTubeConnectionMapper";
 
 // Repositories
 export { PrismaUserRepository } from "./repositories/PrismaUserRepository";
@@ -19,6 +20,8 @@ export { PrismaContractRepository } from "./repositories/PrismaContractRepositor
 export { PrismaNotificationRepository } from "./repositories/PrismaNotificationRepository";
 export { PrismaCustodyAccountRepository } from "./repositories/PrismaCustodyAccountRepository";
 export { PrismaSellerPaymentAccountRepository } from "./repositories/PrismaSellerPaymentAccountRepository";
+export { PrismaYouTubeConnectionRepository } from "./repositories/PrismaYouTubeConnectionRepository";
+export { PrismaYouTubeChannelListingFinder } from "./repositories/PrismaYouTubeChannelListingFinder";
 
 // Unit of Work
 export { PrismaUnitOfWork } from "./PrismaUnitOfWork";

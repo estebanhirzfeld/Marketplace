@@ -11,6 +11,8 @@ export class ApiError extends Error {
         public readonly code: ApiErrorCode,
         message: string,
         public readonly status: number,
+        /** Solo en el 409 de un canal ya publicado por el propio vendedor. */
+        public readonly listingId?: string,
     ) {
         super(message);
         this.name = 'ApiError';
@@ -19,7 +21,7 @@ export class ApiError extends Error {
 
     static fromResponse(status: number, body: unknown): ApiError {
         if (esApiErrorDto(body)) {
-            return new ApiError(body.code, body.message, status);
+            return new ApiError(body.code, body.message, status, body.listingId);
         }
         return new ApiError('INTERNAL', `La API respondió ${status}.`, status);
     }

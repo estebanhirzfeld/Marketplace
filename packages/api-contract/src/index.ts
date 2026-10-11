@@ -58,11 +58,17 @@ export type ApiErrorCode =
     | 'INVALID_STATE'
     | 'VALIDATION'
     | 'UNAUTHORIZED'
+    | 'SERVICE_UNAVAILABLE'
     | 'INTERNAL';
 
 export interface ApiErrorDto {
     code: ApiErrorCode;
     message: string;
+    /**
+     * Solo en el 409 de publicar un canal ya publicado por el propio vendedor:
+     * el activo existente, para poder enlazarlo. Nunca se revela el de otro.
+     */
+    listingId?: string;
 }
 
 // ── Autenticación ────────────────────────────────────────
@@ -351,6 +357,58 @@ export interface LinkMercadoPagoRequest {
     codeVerifier: string;
 }
 
+// ── Conexión del vendedor con un canal de YouTube ────────
+
+/**
+ * Pedido de la dirección de autorización. El `state` lo genera el cliente y lo
+ * ata a su navegador (cookie): al volver de Google compara el que trae la
+ * dirección con el de la cookie, igual que en Mercado Pago.
+ */
+export interface YouTubeAuthorizationRequest {
+    state: string;
+}
+
+/** Completa la conexión con el código que trajo el navegador al volver. */
+export interface ConnectYouTubeChannelRequest {
+    code: string;
+}
+
+/**
+ * Un canal conectado, con la última lectura de Google. Nunca incluye el token
+ * ni los permisos: solo lo que el vendedor necesita ver. El dinero va en
+ * centavos de dólar.
+ */
+export interface YouTubeConnectionDto {
+    connectionId: string;
+    channelId: string;
+    channelTitle: string;
+    thumbnailUrl?: string;
+    subscribers: number;
+    views12Months: number;
+    revenue12MonthsCents: number;
+    /** Promedio de los últimos 3 meses completos: el que usa la valuación. */
+    monthlyRevenueCents: number;
+    isMonetized: boolean;
+    /** Ausente si Google no informó ningún país (canal sin vistas). */
+    topCountry?: string;
+    periodStart: string;
+    periodEnd: string;
+    readAt: string;
+}
+
+/** Lo que Google no sabe y el vendedor completa al publicar su canal. */
+export interface CreateListingFromYouTubeRequest {
+    niche: string;
+    hasNoFaceContent: boolean;
+    askingPrice: { cents: number; currency: 'ARS' | 'USD' };
+}
+
+export interface CreatedYouTubeListingDto {
+    listingId: string;
+    /** Valuación sobre los datos verificados, en centavos de dólar. */
+    estimatedPriceCents: number;
+}
+
 export interface ChannelMetricsReportDto {
     channelId: string;
     title: string;
@@ -456,6 +514,11 @@ export interface MyListingDto {
     custodyAccountIdentifier?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
+    /**
+     * Dirección del canal, solo en un activo de YouTube. Es de su dueño: de ahí
+     * se saca el identificador para mostrarle la foto de su canal conectado.
+     */
+    channelUrl?: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
     rejectionReason?: string;
@@ -490,7 +553,7 @@ export interface MyListingDto {
  * no presentación — el formato de los números y los colores siguen siendo de
  * la vista.
  */
-export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche' | 'date';
 
 export interface AssetFieldDto {
     key: string;
@@ -515,6 +578,12 @@ export interface AssetTypeDescriptorDto {
     revenueNotice: string;
 }
 
+/** Un enlace directo a la pantalla donde se hace un paso. */
+export interface HandoverStepLinkDto {
+    label: string;
+    href: string;
+}
+
 /** Un paso de la cesión del activo a la plataforma. */
 export interface HandoverStepDto {
     id: string;
@@ -522,6 +591,12 @@ export interface HandoverStepDto {
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */
     instruction?: string;
+    /** Título corto, para el carrusel de instrucciones. */
+    title?: string;
+    /** El detalle del paso en viñetas cortas. */
+    details?: string[];
+    /** Enlaces directos a las pantallas donde se hace el paso. */
+    links?: HandoverStepLinkDto[];
     /**
      * Si le toca después de que la plataforma entre en escena. Separa lo que
      * el vendedor puede hacer ya de lo que se le va a pedir con el contrato

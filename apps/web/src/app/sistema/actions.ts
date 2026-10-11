@@ -17,3 +17,8 @@ export async function noop(): Promise<State> {
 
 /** Para los formularios cuya acción no devuelve un estado (los que redirigen). */
 export async function noopVoid(): Promise<void> {}
+
+/** La valuación de muestra del formulario de un canal conectado. */
+export async function noopEstimate(): Promise<{ cents: number; currency: string }> {
+    return { cents: 1_250_000, currency: 'USD' };
+}

@@ -261,3 +261,72 @@ describe('MarketplaceClient — cuenta de Mercado Pago del vendedor', () => {
         expect(llamadas[0][1]?.method).toBe('DELETE');
     });
 });
+
+describe('MarketplaceClient — conexión de canal de YouTube', () => {
+    it('pide la dirección de autorización con el state', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { url: 'https://accounts.google.com/x' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const response = await client.youTubeAuthorizationUrl({ state: 's' });
+
+        expect(response.url).toBe('https://accounts.google.com/x');
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/authorization');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ state: 's' });
+    });
+
+    it('conecta el canal con el código y devuelve el summary', async () => {
+        const summary = { connectionId: 'c1', channelId: 'UC1', channelTitle: 'Canal' };
+        const { impl, llamadas } = fetchQueDevuelve(200, summary);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const connection = await client.connectYouTubeChannel({ code: 'cod' });
+
+        expect(connection).toEqual(summary);
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connect');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ code: 'cod' });
+    });
+
+    it('lista las conexiones', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, []);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.youTubeConnections()).resolves.toEqual([]);
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connections');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('crea el activo desde una conexión, codificando el id del canal en la ruta', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(201, { listingId: 'l1', estimatedPriceCents: 500 });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+        const body = { niche: 'gaming', hasNoFaceContent: false, askingPrice: { cents: 100, currency: 'USD' as const } };
+
+        const created = await client.createListingFromYouTubeConnection('UC/raro', body);
+
+        expect(created).toEqual({ listingId: 'l1', estimatedPriceCents: 500 });
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connections/UC%2Fraro/listing');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual(body);
+    });
+
+    it('un 503 conserva el code y el id del activo existente llega en un 409', async () => {
+        const unavailable = fetchQueDevuelve(503, { code: 'SERVICE_UNAVAILABLE', message: 'Probá más tarde.' });
+        const down = (await new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: unavailable.impl })
+            .connectYouTubeChannel({ code: 'c' })
+            .catch((e: unknown) => e)) as ApiError;
+        expect(down.code).toBe('SERVICE_UNAVAILABLE');
+        expect(down.status).toBe(503);
+
+        const conflict = fetchQueDevuelve(409, { code: 'INVALID_STATE', message: 'Ese canal ya está publicado.', listingId: 'l9' });
+        const dup = (await new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: conflict.impl })
+            .createListingFromYouTubeConnection('UC1', {
+                niche: 'gaming',
+                hasNoFaceContent: false,
+                askingPrice: { cents: 100, currency: 'USD' },
+            })
+            .catch((e: unknown) => e)) as ApiError;
+        expect(dup.listingId).toBe('l9');
+    });
+});

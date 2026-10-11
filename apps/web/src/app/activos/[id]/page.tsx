@@ -1,14 +1,23 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
-import type { ListingDetailDto, MyListingDto, OfferSummaryDto } from '@marketplace/api-contract';
+import type {
+    ListingDetailDto,
+    MyListingDto,
+    OfferSummaryDto,
+    YouTubeConnectionDto,
+} from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
-import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
+import { Alert, OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import { OperationAction } from '@/components/OperationAction';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
+import { InstructionsModal } from '@/components/InstructionsModal';
+import { channelIdFromUrl } from '@/lib/youtubeChannel';
+import { findOwnershipResult } from '@/lib/ownershipResults';
 import {
     fechaLarga,
     money,
@@ -46,6 +55,7 @@ export default async function DetalleDeActivo(props: {
     await requireCounterparty();
     const { id } = await props.params;
     const query = await props.searchParams;
+    const resultado = findOwnershipResult(query.verificacion);
     const pestana = esPestana(query.ver) ? query.ver : 'estado';
 
     // El catálogo propio dice el estado real y el motivo de rechazo; el detalle
@@ -71,6 +81,23 @@ export default async function DetalleDeActivo(props: {
         offers = [];
     }
 
+    /*
+     * La foto y el nombre del canal verificado, solo para el dueño: identifican
+     * el canal, así que no viajan en `assetData` ni en nada público. Salen de la
+     * conexión del vendedor, buscada por el identificador de la dirección. Si no
+     * hay conexión (un activo cargado a mano, o desconectada) simplemente no se
+     * muestra.
+     */
+    let canal: YouTubeConnectionDto | undefined;
+    const channelId = channelIdFromUrl(listing.assetData.channelUrl);
+    if (pestana === 'verificaciones' && channelId) {
+        try {
+            canal = (await api().youTubeConnections()).find((c) => c.channelId === channelId);
+        } catch {
+            canal = undefined;
+        }
+    }
+
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
 
@@ -89,6 +116,9 @@ export default async function DetalleDeActivo(props: {
      */
     const ahora = mio.handoverSteps.filter((p) => !p.afterPlatformStarts);
     const despues = mio.handoverSteps.filter((p) => p.afterPlatformStarts);
+    // Con detalle, los pasos se leen en el modal; sin él (un sitio web) se
+    // listan como siempre.
+    const conDetalle = ahora.some((p) => p.details && p.details.length > 0);
     const cuentaDeCustodia = mio.custodyAccountIdentifier;
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
@@ -271,13 +301,32 @@ export default async function DetalleDeActivo(props: {
                         publicar, que ya no muestra este aviso, así que el clic
                         parecía no hacer nada.
                     */}
+                    {/* La vuelta de Google trae el resultado en la dirección. */}
+                    {query.verificacion !== 'no-configurada' && resultado && (
+                        <div className="mt-6">
+                            <Alert tono={resultado.ok ? 'listo' : 'alerta'}>
+                                {resultado.text}
+                            </Alert>
+                        </div>
+                    )}
                     {query.verificacion === 'no-configurada' && (
                         <div className="mt-6 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[14px] leading-relaxed text-[var(--color-alerta)]">
                             La verificación con Google todavía no está configurada en este entorno,
                             así que no pudimos empezarla.
                         </div>
                     )}
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    {canal && (
+                        <div className="mt-6 flex items-center gap-4 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-4">
+                            <ChannelAvatar src={canal.thumbnailUrl} name={canal.channelTitle} />
+                            <div className="flex min-w-0 flex-col gap-0.5">
+                                <span className="truncate text-[16px] font-bold">{canal.channelTitle}</span>
+                                <span className="text-[13px] text-[var(--color-apagado)]">
+                                    Canal conectado con YouTube
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
                         <Panel title="TITULARIDAD">
                             {mio.ownership ? (
                                 <div className="flex flex-col gap-2">
@@ -385,10 +434,9 @@ export default async function DetalleDeActivo(props: {
                             ) : (
                                 <div className="flex flex-col gap-4">
                                     <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Todavía no nos diste acceso, así que el contrato de venta no
-                                        se va a poder firmar. Hacelo ahora y no cuando aparezca un
-                                        comprador: el plazo de espera corre igual mientras el activo
-                                        está publicado.
+                                        Necesitamos acceso de administrador para poder firmar el
+                                        contrato de venta. Hacelo ahora: el plazo de espera corre
+                                        mientras el activo está publicado.
                                     </p>
 
                                     {/*
@@ -443,19 +491,23 @@ export default async function DetalleDeActivo(props: {
                                         </span>
                                     </div>
 
-                                    {ahora.length > 0 && (
-                                        <ol className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
-                                            {ahora.map((paso, i) => (
-                                                <li key={paso.id} className="flex gap-3 text-[13px]">
-                                                    <span className="font-mono text-[12px] text-[var(--color-acento)]">
-                                                        {i + 1}
-                                                    </span>
-                                                    <span className="leading-relaxed text-[var(--color-tenue)]">
-                                                        {paso.instruction ?? paso.description}
-                                                    </span>
-                                                </li>
-                                            ))}
-                                        </ol>
+                                    {conDetalle ? (
+                                        <InstructionsModal steps={ahora} />
+                                    ) : (
+                                        ahora.length > 0 && (
+                                            <ol className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
+                                                {ahora.map((paso, i) => (
+                                                    <li key={paso.id} className="flex gap-3 text-[13px]">
+                                                        <span className="font-mono text-[12px] text-[var(--color-acento)]">
+                                                            {i + 1}
+                                                        </span>
+                                                        <span className="leading-relaxed text-[var(--color-tenue)]">
+                                                            {paso.instruction ?? paso.description}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        )
                                     )}
 
                                     <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
@@ -486,6 +538,10 @@ export default async function DetalleDeActivo(props: {
                                             {paso.instruction ?? paso.description}
                                         </span>
                                     ))}
+                                    <InstructionsModal
+                                        steps={despues}
+                                        title="Cómo cedernos el control"
+                                    />
                                 </div>
                             )}
                             </>

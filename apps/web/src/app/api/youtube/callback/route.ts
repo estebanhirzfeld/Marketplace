@@ -1,31 +1,83 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ApiError } from '@marketplace/api-client';
 import type { VerificationSourceDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
+import { readSession } from '@/lib/session';
+import { publicBaseUrl, statesMatch } from '@/lib/mercadopagoLink';
+import { YOUTUBE_STATE_COOKIE, classifyConnectionError } from '@/lib/youtubeConnection';
 
 /**
  * Vuelta del consentimiento de Google.
  *
- * Google manda acá con un código de un solo uso y con el `state` que le dimos,
- * que lleva la fuente y el listing. El código se pasa a la API, que lo canja,
- * hace una llamada y lo descarta: en ningún momento se guarda un token.
+ * La misma dirección registrada en Google sirve a dos flujos, y el `state` dice
+ * cuál es:
  *
- * Esta ruta no muestra nada: resuelve y redirige, con el resultado en la barra
- * de direcciones para que la pantalla del vendedor pueda contarlo.
+ * - **Conexión del vendedor**: el `state` es aleatorio y coincide con el de una
+ *   cookie httpOnly. Se comprueba ANTES de tocar la API: es la defensa contra
+ *   que alguien nos mande a la víctima con un código ajeno y deje un canal
+ *   ajeno conectado a su cuenta. La cookie se borra en todos los caminos de este modo.
+ * - **Titularidad de un activo**: el `state` es `fuente:listingId`. No lleva
+ *   cookie y vuelve al activo del que salió.
+ *
+ * El código se pasa a la API, que lo canjea; en ningún momento se registra ni
+ * el código ni el `state`. Esta ruta no muestra nada: resuelve y redirige, con
+ * el resultado en la dirección para que la pantalla pueda contarlo.
  */
 export async function GET(request: Request): Promise<NextResponse> {
     const params = new URL(request.url).searchParams;
 
-    const code = params.get('code');
+    const store = await cookies();
     const state = params.get('state') ?? '';
-    const [source, listingId] = state.split(':');
+    const code = params.get('code');
+
+    // Los `state` de titularidad llevan dos puntos y los de conexión nunca. La
+    // cookie no es de este modo: borrarla cortaría un intento de conexión en
+    // curso en otra pestaña.
+    if (state.includes(':')) {
+        return verifyOwnership(request, state, code, params.get('error'));
+    }
+
+    const attemptState = store.get(YOUTUBE_STATE_COOKIE)?.value;
+    store.delete({ name: YOUTUBE_STATE_COOKIE, path: '/api/youtube' });
+
+    if (!statesMatch(state, attemptState)) {
+        return redirectTo(request, '/vender?conexion=invalida');
+    }
+
+    if (!(await readSession())) return redirectTo(request, '/ingresar');
 
     // El vendedor puede cancelar en la pantalla de Google.
     if (params.get('error') || !code) {
-        return redirigir(listingId, 'cancelada');
+        return redirectTo(request, '/vender?conexion=cancelada');
+    }
+
+    try {
+        const channel = await api().connectYouTubeChannel({ code });
+        return redirectTo(request, `/vender?${new URLSearchParams({ canal: channel.channelId })}`);
+    } catch (e) {
+        const { reason, detail } = classifyConnectionError(e);
+        const query = new URLSearchParams({ conexion: reason });
+        if (detail) query.set('detalle', detail);
+        return redirectTo(request, `/vender?${query}`);
+    }
+}
+
+/** Verificación de titularidad: vuelve al activo, en su pestaña de verificaciones. */
+async function verifyOwnership(
+    request: Request,
+    state: string,
+    code: string | null,
+    error: string | null,
+): Promise<NextResponse> {
+    const [source, listingId] = state.split(':');
+
+    // El vendedor puede cancelar en la pantalla de Google.
+    if (error || !code) {
+        return backToListing(request, listingId, 'cancelada');
     }
     if (!listingId || (source !== 'youtube' && source !== 'adsense')) {
-        return redirigir(undefined, 'invalida');
+        return backToListing(request, undefined, 'invalida');
     }
 
     try {
@@ -33,17 +85,24 @@ export async function GET(request: Request): Promise<NextResponse> {
     } catch (e) {
         // El motivo real lo explica la API; acá solo se distingue el rechazo
         // esperable —no controla el activo— de una falla cualquiera.
-        const rechazo = e instanceof ApiError && e.code === 'FORBIDDEN';
-        return redirigir(listingId, rechazo ? 'sin-control' : 'error');
+        const rejected = e instanceof ApiError && e.code === 'FORBIDDEN';
+        return backToListing(request, listingId, rejected ? 'sin-control' : 'error');
     }
 
-    return redirigir(listingId, 'ok');
+    return backToListing(request, listingId, 'ok');
 }
 
-function redirigir(listingId: string | undefined, resultado: string): NextResponse {
-    const destino = new URL('/activos', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000');
-    destino.searchParams.set('verificacion', resultado);
-    if (listingId) destino.searchParams.set('listing', listingId);
+/**
+ * Al activo cuando se sabe cuál era; si no, al listado. Volver al listado a
+ * secas obligaba al vendedor a buscar el activo que estaba verificando.
+ */
+function backToListing(request: Request, listingId: string | undefined, result: string): NextResponse {
+    if (!listingId) return redirectTo(request, `/activos?${new URLSearchParams({ verificacion: result })}`);
 
-    return NextResponse.redirect(destino);
+    const query = new URLSearchParams({ ver: 'verificaciones', verificacion: result });
+    return redirectTo(request, `/activos/${encodeURIComponent(listingId)}?${query}`);
+}
+
+function redirectTo(request: Request, path: string): NextResponse {
+    return NextResponse.redirect(new URL(path, publicBaseUrl(request, process.env.NEXT_PUBLIC_APP_URL)));
 }

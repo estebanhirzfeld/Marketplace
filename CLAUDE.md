@@ -80,7 +80,7 @@ It touches four places and will fail at runtime if you miss the mapper:
 
 ## Conventions
 
-- TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; `packages/db/tests/integration.test.ts` hits a real database — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
+- TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; the `packages/db` integration tests (and the API's HTTP tests) hit a real database, but never the development one: they wipe whole tables, so a `globalSetup` (`packages/db/test-support/`) points them at `marketplace_test` (derived from `DATABASE_URL`, or `TEST_DATABASE_URL` if set), creates and migrates it with `prisma migrate deploy`, and aborts the suite if the database name does not end in `_test` — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
 - **Identifiers are English; prose is Spanish.** Every name the compiler sees — functions, methods, classes, interfaces, type aliases, object and DTO properties, variables, React components, server actions, file names — is in English. Comments, error messages, UI copy and the `docs/` write-ups are in Spanish. Match the surrounding file.
 - Conventional commits. Never add `Co-Authored-By` or AI attribution.
 - Each completed phase gets a write-up in `docs/fase-*.md`.

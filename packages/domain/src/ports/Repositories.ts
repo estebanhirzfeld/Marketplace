@@ -5,6 +5,7 @@ import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
 import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
+import { YouTubeConnection } from '../entities/YouTubeConnection';
 import { ListingStatus } from '../entities/Listing';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
@@ -163,4 +164,16 @@ export interface ISellerPaymentAccountRepository {
     /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
     save(account: SellerPaymentAccount): Promise<void>;
     deleteByUserId(userId: string): Promise<void>;
+}
+
+/**
+ * Las conexiones de los vendedores con sus canales de YouTube. Una por
+ * vendedor y canal. El token de actualización ya llega cifrado desde el caso
+ * de uso: el repositorio lo guarda tal cual.
+ */
+export interface IYouTubeConnectionRepository {
+    findBySellerAndChannel(sellerId: string, channelId: string): Promise<YouTubeConnection | null>;
+    findBySeller(sellerId: string): Promise<YouTubeConnection[]>;
+    /** Alta o actualización de la conexión de ese vendedor con ese canal. */
+    save(connection: YouTubeConnection): Promise<void>;
 }

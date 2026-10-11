@@ -126,7 +126,14 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
-                handoverSteps: view.handoverSteps.map(({ id, description, instruction }) => ({ id, description, instruction })),
+                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links }) => ({
+                    id,
+                    description,
+                    instruction,
+                    title,
+                    details,
+                    links,
+                })),
                 descriptor: view.descriptor,
                 createdAt: view.createdAt.toISOString(),
             };

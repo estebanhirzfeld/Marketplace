@@ -12,7 +12,13 @@ import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm'
 import { MercadoPagoPanel } from '@/components/MercadoPagoPanel';
 import { UnlinkMercadoPagoButton } from '@/components/UnlinkMercadoPagoButton';
 import { ActionFailure } from '@/components/OperationAction';
-import { noop, noopVoid } from './actions';
+import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
+import { VerificationSeal } from '@/components/VerificationSeal';
+import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
+import { YouTubeListingForm } from '@/components/YouTubeListingForm';
+import { InstructionsModal } from '@/components/InstructionsModal';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
+import { noop, noopEstimate, noopVoid } from './actions';
 import {
     Alert,
     Button,
@@ -24,7 +30,13 @@ import {
     EmptyState,
 } from '@/components/ui';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
-import type { OperationStatusDto, PaymentOptionsDto } from '@marketplace/api-contract';
+import type {
+    HandoverStepDto,
+    OperationStatusDto,
+    PaymentOptionsDto,
+    YouTubeConnectionDto,
+} from '@marketplace/api-contract';
+import type { ConnectionReason } from '@/lib/youtubeConnection';
 
 /**
  * Sistema de diseño.
@@ -77,6 +89,88 @@ const CUENTA_VINCULADA = {
 };
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
+
+/** Un canal conectado de muestra, con la forma que devuelve la API. */
+/** Pasos de muestra para el modal: los mismos que escribe el dominio para un canal. */
+const PASOS_DE_MUESTRA: HandoverStepDto[] = [
+    {
+        id: '1',
+        description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
+        title: 'Convertí el canal a Cuenta de Marca',
+        instruction: 'Convertí el canal a Cuenta de Marca si todavía no lo es: este paso va antes de invitar a la plataforma.',
+        details: [
+            'Creá la cuenta de marca con "Crear un canal nuevo". Puede llamarse distinto: el canal conserva su nombre.',
+            'Después, en Configuración avanzada, elegí "Transferir canal".',
+            'YouTube avisa que borra el canal vacío que se creó junto con la cuenta ("Reemplazar"): es lo esperado.',
+        ],
+        links: [
+            { label: 'Crear la cuenta de marca', href: 'https://www.youtube.com/channel_switcher' },
+            { label: 'Transferir el canal', href: 'https://www.youtube.com/account_advanced' },
+        ],
+    },
+    {
+        id: '2',
+        description: 'El vendedor sale de los permisos de canal en YouTube Studio',
+        title: 'Salí de los permisos de canal',
+        instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
+        details: [
+            'Entrá a YouTube Studio → Configuración → Permisos.',
+            'Quitá tu acceso de nivel de canal.',
+        ],
+        links: [{ label: 'Abrir YouTube Studio', href: 'https://studio.youtube.com' }],
+    },
+    {
+        id: '3',
+        description: 'El vendedor promueve a la plataforma a propietario principal',
+        title: 'Promovenos a propietario principal',
+        instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+        details: [
+            'Recién en este momento cedés el control, con el precio acordado.',
+            'Google rechaza la promoción con un aviso breve hasta que pasen los 7 días.',
+        ],
+        links: [{ label: 'Promover a propietario principal', href: 'https://myaccount.google.com/brandaccounts' }],
+        afterPlatformStarts: true,
+    },
+];
+
+const CANAL_CON_DATOS: YouTubeConnectionDto = {
+    connectionId: 'muestra-1',
+    channelId: 'UCmuestra',
+    channelTitle: 'Nivel Completo',
+    subscribers: 12_400,
+    views12Months: 1_250_000,
+    revenue12MonthsCents: 345_600,
+    monthlyRevenueCents: 28_800,
+    isMonetized: true,
+    topCountry: 'AR',
+    periodStart: '2025-10-01T00:00:00.000Z',
+    periodEnd: '2026-09-30T00:00:00.000Z',
+    readAt: AYER,
+};
+const CANAL_EN_CERO: YouTubeConnectionDto = {
+    ...CANAL_CON_DATOS,
+    connectionId: 'muestra-2',
+    channelId: 'UCcero',
+    channelTitle: 'Canal nuevo',
+    subscribers: 0,
+    views12Months: 0,
+    revenue12MonthsCents: 0,
+    monthlyRevenueCents: 0,
+    isMonetized: false,
+    topCountry: undefined,
+};
+const MOTIVOS_DE_CONEXION: { reason: ConnectionReason; titulo: string; detail?: string }[] = [
+    { reason: 'cancelada', titulo: 'CANCELÓ EN GOOGLE' },
+    {
+        reason: 'permisos',
+        titulo: 'FALTAN PERMISOS',
+        detail:
+            'Para publicar tu canal necesitamos que nos dejes las estadísticas de ingresos. Volvé a conectar y dejá todos los permisos tildados: solo leemos, no podemos publicar ni borrar nada.',
+    },
+    { reason: 'sin-canal', titulo: 'LA CUENTA NO TIENE UN CANAL' },
+    { reason: 'no-disponible', titulo: 'GOOGLE NO RESPONDIÓ' },
+    { reason: 'invalida', titulo: 'LA CONEXIÓN NO SE PUDO VALIDAR' },
+];
 
 /** Opciones de pago de muestra, con la forma que devuelve la API. */
 const PAGO_AMBAS: PaymentOptionsDto = {
@@ -350,7 +444,9 @@ export default function Sistema() {
                                         {
                                             id: '1',
                                             description: 'El vendedor promueve a custodia-yt-01@traspaso.com de administrador a propietario principal',
-                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada. Google te va a mostrar lo que cedés: agregar y borrar propietarios y administradores, cambiar permisos y borrar la cuenta por completo.',
+                                            instruction: 'Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca.',
+                                            details: PASOS_DE_MUESTRA[2].details,
+                                            links: PASOS_DE_MUESTRA[2].links,
                                             afterPlatformStarts: true,
                                         },
                                     ]}
@@ -437,6 +533,86 @@ export default function Sistema() {
                                 error="Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas."
                                 next={{ href: '/perfil#mercadopago', label: 'Vincular Mercado Pago' }}
                             />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Publicar un canal conectado"
+                    note="El vendedor autoriza YouTube y los números los lee Google: no se tipean. La tarjeta es de solo lectura, con el sello de verificación y la fecha de la lectura; todo número lleva su unidad y su período, y un cero se muestra como cero. Debajo, el vendedor completa solo lo que Google no sabe. Las acciones son de muestra: no salen a Google ni crean nada."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SELLO DE VERIFICACIÓN</div>
+                            <VerificationSeal source="YouTube" at={AYER} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PRIMER PASO — CONECTAR</div>
+                            <Panel title="CONECTÁ TU CANAL">
+                                <YouTubeConnectStep startAction={noopVoid} />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL CANAL — CON DATOS</div>
+                            <VerifiedChannelCard channel={CANAL_CON_DATOS} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL CANAL — EN CERO, SIN FOTO NI PAÍS</div>
+                            <VerifiedChannelCard channel={CANAL_EN_CERO} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CON UN CANAL YA CONECTADO — OFRECE SUMAR OTRO</div>
+                            <Panel title="ELEGÍ UN CANAL">
+                                <YouTubeConnectStep startAction={noopVoid} hasConnections />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LO QUE FALTA — RUBRO, ROSTRO, PRECIO Y VALUACIÓN</div>
+                            <Panel>
+                                <YouTubeListingForm
+                                    action={noop}
+                                    estimate={noopEstimate}
+                                    verifiedData={{ subscribers: CANAL_CON_DATOS.subscribers }}
+                                />
+                            </Panel>
+                        </div>
+                        {MOTIVOS_DE_CONEXION.map(({ reason, titulo, detail }) => (
+                            <div key={reason} className="flex flex-col gap-3">
+                                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ERROR AL CONECTAR — {titulo}</div>
+                                <Panel title="CONECTÁ TU CANAL">
+                                    <YouTubeConnectStep startAction={noopVoid} failure={{ reason, detail }} />
+                                </Panel>
+                            </div>
+                        ))}
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ESE CANAL YA ESTÁ PUBLICADO</div>
+                            <ActionFailure
+                                error="Ese canal ya lo publicaste."
+                                next={{ href: '/activos', label: 'Ver el activo' }}
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Instrucciones paso a paso"
+                    note="Un modal con carrusel para lo que antes era una pared de texto: un paso por pantalla, con título, viñetas cortas y botones con enlaces directos a Google o YouTube, que abren en una pestaña nueva. Es un elemento nativo dialog: atrapa el foco, cierra con Esc o con el botón y devuelve el foco al botón que lo abrió. El contenido sale del dominio. La foto del canal se pide sin referrer y, si no carga, se cae a la inicial."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">BOTÓN Y MODAL — TRES PASOS</div>
+                            <Panel title="ACCESO DE LA PLATAFORMA">
+                                <InstructionsModal steps={PASOS_DE_MUESTRA} />
+                            </Panel>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">FOTO DEL CANAL — REDONDA EN LA FICHA, CUADRADA EN EL LISTADO, CON CAÍDA A LA INICIAL</div>
+                            <div className="flex items-center gap-4">
+                                <ChannelAvatar src="data:image/png;base64,AAAA" name="Nivel Completo" />
+                                <ChannelAvatar name="Canal nuevo" />
+                                <ChannelAvatar src="data:image/png;base64,AAAA" name="Nivel Completo" shape="square" />
+                                <ChannelAvatar name="Canal nuevo" shape="square" />
+                            </div>
                         </div>
                     </div>
                 </Section>

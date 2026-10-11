@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import type { HandoverStepDto } from '@marketplace/api-contract';
 import { Alert, Button } from './ui';
+import { InstructionsModal } from './InstructionsModal';
 
 type State = { error?: string };
 
@@ -62,6 +63,9 @@ export function TransferInitiationForm({
                     ))}
                 </ol>
             )}
+
+            {/* La instrucción es una oración; los avisos viven en el modal. */}
+            <InstructionsModal steps={steps} title="Cómo cedernos el control" />
 
             <label className="flex cursor-pointer gap-3 rounded-lg border border-[var(--color-borde)] p-3.5 transition-colors hover:border-[var(--color-tenue)]">
                 <input

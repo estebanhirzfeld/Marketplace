@@ -71,7 +71,7 @@ describe('Listing.handoverSteps', () => {
         expect(invitacion.description).not.toMatch(/como propietari/i);
         // La promesa va en negativo: el vendedor la puede verificar en la
         // interfaz de Google en vez de tener que creernos.
-        expect(invitacion.instruction).toMatch(/no puede/i);
+        expect(`${invitacion.instruction} ${(invitacion.details ?? []).join(' ')}`).toMatch(/no puede/i);
     });
 
     it('reenvía el contexto a la estrategia: el paso de invitación nombra la cuenta de custodia', () => {

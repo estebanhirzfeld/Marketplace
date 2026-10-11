@@ -100,7 +100,7 @@ export default async function Perfil({
                         <Reveal delay={160}>
                             <Panel title="TU ACTIVIDAD">
                                 <div className="flex flex-wrap gap-3">
-                                    <Atajo href="/vender" text="Mis activos" />
+                                    <Atajo href="/activos" text="Mis activos" />
                                     <Atajo href="/operaciones" text="Mis operaciones" />
                                     <Atajo href="/denuncias" text="Mis reclamos" />
                                     <Atajo href="/avisos" text="Mis avisos" />

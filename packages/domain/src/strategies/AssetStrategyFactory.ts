@@ -53,18 +53,24 @@ const MUESTRA: Record<AssetType, AssetData> = {
 
 export function createAssetStrategy(assetType: string, assetData: AssetData): IAssetStrategy {
     switch (assetType) {
-        case AssetType.YOUTUBE:
+        case AssetType.YOUTUBE: {
+            const verifiedFromYouTubeAt = optionalDate(assetData, 'verifiedFromYouTubeAt');
             return new YouTubeStrategy({
                 monthlyRevenueUsd: dinero(assetData, 'monthlyRevenueUsdCents'),
                 subscribers: entero(assetData, 'subscribers'),
                 isMonetized: readBoolean(assetData, 'isMonetized'),
                 growthFactor: numeroOpcional(assetData, 'growthFactor', 1.0),
-                audienceTopCountry: textoOpcional(assetData, 'audienceTopCountry', 'AR'),
+                // Verificado y sin país: Google no informó ninguno y no se inventa uno.
+                audienceTopCountry: verifiedFromYouTubeAt
+                    ? textoOpcionalONada(assetData, 'audienceTopCountry')
+                    : textoOpcional(assetData, 'audienceTopCountry', 'AR'),
                 hasNoFaceContent: booleanoOpcional(assetData, 'hasNoFaceContent', false),
                 channelUrl: textoOpcional(assetData, 'channelUrl', ''),
                 name: textoOpcional(assetData, 'name', ''),
                 niche: rubro(assetData),
+                verifiedFromYouTubeAt,
             });
+        }
 
         case AssetType.WEB:
             return new WebStrategy(
@@ -127,6 +133,41 @@ function textoOpcional(data: AssetData, field: string, porDefecto: string): stri
         throw new ValidationError(`El campo "${field}" debe ser texto.`);
     }
     return value;
+}
+
+function textoOpcionalONada(data: AssetData, field: string): string | undefined {
+    const value = data[field];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string') {
+        throw new ValidationError(`El campo "${field}" debe ser texto.`);
+    }
+    return value;
+}
+
+/**
+ * ISO 8601 completo: fecha, hora y zona (`Z` o `±hh:mm`). `new Date()` aceptaría
+ * hasta "2026" o "October 9", y esas formas dependen de la zona del servidor.
+ */
+const FULL_ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Una fecha opcional; ausente queda `undefined`, no una fecha inventada. Acepta
+ * una instancia de `Date` válida o un texto ISO 8601 completo.
+ */
+function optionalDate(data: AssetData, field: string): Date | undefined {
+    const value = data[field];
+    if (value === undefined || value === null || value === '') return undefined;
+
+    const parsed =
+        value instanceof Date
+            ? value
+            : typeof value === 'string' && FULL_ISO_8601.test(value)
+              ? new Date(value)
+              : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) {
+        throw new ValidationError(`El campo "${field}" debe ser una fecha válida.`);
+    }
+    return parsed;
 }
 
 /**

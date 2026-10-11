@@ -4,6 +4,12 @@ import { AssetType } from '@marketplace/shared-types';
 
 export type MetricKey = 'followers' | 'revenue' | 'domainAuthority' | 'sessions' | 'subscribers' | 'engagement';
 
+/** Un enlace directo a la pantalla donde se hace el paso. */
+export interface TransferStepLink {
+    label: string;
+    href: string;
+}
+
 export interface TransferStep {
     id: string;
     /** Qué pasa en este paso, contado en tercera persona. */
@@ -18,6 +24,16 @@ export interface TransferStep {
      * a mano un texto ajeno sale mal.
      */
     instruction?: string;
+    /** Título corto del paso, para el carrusel de instrucciones. */
+    title?: string;
+    /**
+     * El detalle de `instruction` en viñetas cortas, de a una idea. Existe para
+     * que el paso no sea una pared de texto: `instruction` queda en una oración
+     * y todo lo demás —avisos incluidos— viaja acá.
+     */
+    details?: string[];
+    /** Enlaces directos a las pantallas de la plataforma del activo. */
+    links?: TransferStepLink[];
     requiredActor: 'seller' | 'buyer' | 'platform';
     automated: boolean;
 }
@@ -38,7 +54,7 @@ export interface TransferContext {
 }
 
 /** Cómo hay que interpretar el valor de un campo. El formato lo pone la vista. */
-export type AssetFieldKind = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+export type AssetFieldKind = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche' | 'date';
 
 export interface AssetFieldDescriptor {
     /** La clave tal como sale en `assetData`. */
