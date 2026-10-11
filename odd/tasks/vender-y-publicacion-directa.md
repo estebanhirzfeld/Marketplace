@@ -25,8 +25,8 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 
 ## Tareas
 
-- [ ] T1 · Dominio y API: `publish()` con titularidad comprobada, `editDraft()`, `changePrice()` y `discard()`; casos de uso y rutas `POST /listings/:id/publish`, `PATCH /listings/:id` y `DELETE /listings/:id`. Ruta: delegado (2+ archivos no triviales).
-- [ ] T2 · Dominio: pasos por fase en `getTransferSteps`; `requestPlatformAccess()` con `platformAccessRequestedAt` (migración y mapper); ruta de acceso solicitado; estado del acceso en el DTO. Ruta: delegado.
+- [x] T1 · Dominio y API: `publish()` con titularidad comprobada, `editDraft()`, `changePrice()` y `discard()`; casos de uso y rutas `POST /listings/:id/publish`, `PATCH /listings/:id` y `DELETE /listings/:id`. Ruta: delegado (2+ archivos no triviales).
+- [x] T2 · Dominio: pasos por fase en `getTransferSteps`; `requestPlatformAccess()` con `platformAccessRequestedAt` (migración y mapper); ruta de acceso solicitado; estado del acceso en el DTO. Ruta: delegado.
 - [ ] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
 - [ ] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
 - [ ] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
@@ -47,8 +47,37 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
 
 ## Progreso y evidencia
 
-(sin tareas cerradas)
+- **T1** (`d1c98e8`, ruta: delegado).
+  - Agrega `publish()`, `editDraft()`, `changePrice()` y `assertCanBeDiscarded()`, el guarda compartido `PublishingRequirements`, el puerto `IListingDeleter` y las rutas `POST /listings/:id/publish`, `PATCH /listings/:id` y `DELETE /listings/:id`.
+  - RED: `ListingDirectPublish` (27 fallaron), integración «eliminación» (4 fallaron), http «Publicación directa» (12 fallaron).
+  - GREEN:
+    - dominio: 925/925;
+    - db: 114/114;
+    - api: 382/382;
+    - `tsc` limpio;
+    - control del orquestador: 41/41.
+  - RDD: riesgo medio, `slice_budget_reached`. Consentimiento `granted`; revisión `review-2d19bab0e36df110` aprobada y reconocida (autoridad consumida). El límite revisado avanza a `d1c98e8`.
+  - Hallazgos informativos, como trabajo aparte:
+    - `R3-publish-bypasses-rejection`: un activo rechazado por el admin se podía publicar directo. Se corrige en T2: rechazado vuelve a revisión.
+    - `R3-edit-published-lost-update`: dos ediciones concurrentes de un publicado, la última gana. Se acepta por ahora.
+    - `R3-delete-silent-noop`: el borrado de un activo que ya no es borrador no avisa. El caso de uso valida antes, así que solo queda la carrera.
+
+- **T2** (ruta: delegado).
+  - Agrega `TransferStep.phase` (`listing` / `operation`). Antes de la venta solo quedan la cuenta de marca y la invitación como administrador; los pasos de la operación aparecen recién con el contrato firmado y los 7 días cumplidos.
+  - Suma `requestPlatformAccess()` (conserva la primera fecha), `platformAccessStatus()` (pending, verifying, waiting o immediate), la migración `20261011120000_add_platform_access_requested_at`, `POST /listings/:id/acceso-solicitado` y el DTO.
+  - `publish()` queda solo para borradores: un rechazado vuelve a revisión.
+  - RED:
+    - dominio: 27 fallaron;
+    - db: 1 falló;
+    - api: 4 fallaron.
+  - GREEN:
+    - dominio: 951/951;
+    - db: 117/117;
+    - api: 388/388;
+    - `tsc` limpio en 6 paquetes;
+    - control del orquestador: 42/42.
+  - Pendiente: aplicar la migración a `marketplace_dev` con `migrate deploy` (aditiva) antes de probar en local.
 
 ## Siguiente paso
 
-T1.
+T3 y T4.

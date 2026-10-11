@@ -228,6 +228,11 @@ export class MarketplaceClient {
         return this.request('POST', `/listings/${encodeURIComponent(id)}/publish`);
     }
 
+    /** Avisa que ya invitó a la plataforma; el activo queda «verificando» hasta que un admin lo confirme. */
+    requestPlatformAccess(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/acceso-solicitado`);
+    }
+
     editListing(id: string, body: EditListingRequest): Promise<void> {
         return this.request('PATCH', `/listings/${encodeURIComponent(id)}`, { body });
     }

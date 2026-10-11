@@ -127,13 +127,14 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
-                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links }) => ({
+                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links, phase }) => ({
                     id,
                     description,
                     instruction,
                     title,
                     details,
                     links,
+                    phase,
                 })),
                 descriptor: view.descriptor,
                 createdAt: view.createdAt.toISOString(),
@@ -295,6 +296,19 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         { preHandler: [authenticate] },
         async (request, reply) => {
             await c.publishListing.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * El vendedor avisa que ya invitó a la plataforma. No registra el acceso:
+     * deja el activo en «verificando» hasta que un admin lo confirme.
+     */
+    app.post<{ Params: IdParams }>(
+        '/listings/:id/acceso-solicitado',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.requestPlatformAccess.execute(request.params.id, actorOf(request));
             return reply.code(204).send();
         },
     );

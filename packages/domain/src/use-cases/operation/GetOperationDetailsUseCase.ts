@@ -210,13 +210,22 @@ export class GetOperationDetailsUseCase {
             };
         }
 
-        // Filtrado en el use case, no en la pantalla: acá solo el tramo
-        // posterior a la firma significa algo. `undefined` sin `custodyRepo`
+        // Filtrado en el use case, no en la pantalla: acá solo la fase de
+        // operación significa algo. `undefined` sin `custodyRepo`
         // — no hay forma de resolver el identificador de la cuenta.
         let handoverSteps: HandoverStep[] | undefined;
         if (this.custodyRepo && listing) {
             const contexto = await this.resolveContext(operation, listing);
-            handoverSteps = listing.handoverSteps(contexto).filter((p) => p.afterPlatformStarts);
+            // Quitar el acceso directo y ceder la titularidad solo se piden con
+            // la venta firmada y la espera de la plataforma ya cumplida: antes
+            // Google rechazaría el cambio y el vendedor cedería control para nada.
+            const firmada = !['offer_sent', 'negotiating', 'contract_pending', 'cancelled'].includes(
+                operation.status,
+            );
+            handoverSteps =
+                firmada && listing.isReadyToTransfer()
+                    ? listing.handoverSteps(contexto, 'operation')
+                    : [];
         }
 
         let custodyAccountNames: { declared?: string; verified?: string } | undefined;

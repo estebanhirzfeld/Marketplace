@@ -292,6 +292,82 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
         expect(vista.handoverSteps!.every((p) => p.afterPlatformStarts)).toBe(true);
     });
 
+    it('los pasos de la operación son quitar el acceso directo y hacernos propietarios', async () => {
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia YT',
+            identifier: 'custodia-yt@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const listing = unListingDe(SELLER_ID);
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuenta.id,
+            heldRole: 'manager',
+        });
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps!.map((p) => p.title)).toEqual([
+            'Quitá tu acceso directo al canal',
+            'Hacenos propietario principal',
+        ]);
+    });
+
+    it('sin contrato firmado todavía no hay pasos de operación', async () => {
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia YT',
+            identifier: 'custodia-yt@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const listing = unListingDe(SELLER_ID);
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuenta.id,
+            heldRole: 'manager',
+        });
+        const op = unaOperacion();
+        op.acceptCurrentOffer('seller');
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps).toEqual([]);
+    });
+
+    it('con el contrato firmado pero los 7 días sin cumplirse todavía no hay pasos de operación', async () => {
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia YT',
+            identifier: 'custodia-yt@traspaso.com',
+            assetType: AssetType.YOUTUBE,
+        });
+        const listing = unListingDe(SELLER_ID);
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuenta.id,
+            heldRole: 'manager',
+        });
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps).toEqual([]);
+    });
+
     /*
      * La pantalla mostraba el identificador interno de la cuenta —un UUID— donde
      * tenía que decir el correo que el vendedor efectivamente invitó.
@@ -391,7 +467,7 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
             actorDe(SELLER_ID, UserRole.SELLER),
         );
 
-        const promocion = vista.handoverSteps!.find((p) => p.description.includes('propietario principal'));
+        const promocion = vista.handoverSteps!.find((p) => /promueve a/.test(p.description));
         expect(promocion?.description).toContain('declarada@traspaso.com');
         expect(promocion?.description).not.toContain('vigente@traspaso.com');
     });
@@ -432,7 +508,7 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
             actorDe(SELLER_ID, UserRole.SELLER),
         );
 
-        const promocion = vista.handoverSteps!.find((p) => p.description.includes('propietario principal'));
+        const promocion = vista.handoverSteps!.find((p) => /promueve a/.test(p.description));
         expect(promocion?.description).toContain('activa@traspaso.com');
     });
 

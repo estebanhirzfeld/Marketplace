@@ -468,6 +468,44 @@ describe("PrismaListingRepository — constancia de titularidad", () => {
     });
 });
 
+describe("PrismaListingRepository — solicitud de acceso de la plataforma", () => {
+    it("debería persistir la fecha de la solicitud y devolverla", async () => {
+        const seller = await createPersistedUser({ email: "seller-req@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        const pedida = new Date(Date.now() - 60_000);
+        listing.requestPlatformAccess(pedida);
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.platformAccessRequestedAt).toEqual(pedida);
+        expect(guardado!.platformAccessStatus()).toBe("verifying");
+    });
+
+    it("debería dejarla vacía cuando nadie la pidió", async () => {
+        const seller = await createPersistedUser({ email: "seller-noreq@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.platformAccessRequestedAt).toBeUndefined();
+        expect(guardado!.platformAccessStatus()).toBe("pending");
+    });
+
+    it("debería borrarla en la base al revocar el acceso", async () => {
+        const seller = await createPersistedUser({ email: "seller-rev@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.requestPlatformAccess(new Date(Date.now() - 60_000));
+        await listingRepo.save(listing);
+
+        listing.revokePlatformAccess();
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+        expect(guardado!.platformAccessRequestedAt).toBeUndefined();
+    });
+});
+
 describe("PrismaListingRepository — eliminación", () => {
     it("debería borrar un borrador", async () => {
         const seller = await createPersistedUser({ email: "seller-del@test.com", role: UserRole.SELLER });

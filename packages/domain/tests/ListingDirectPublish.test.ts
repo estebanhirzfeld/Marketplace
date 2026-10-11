@@ -60,15 +60,14 @@ describe('Listing.publish', () => {
         expect(listing.toSnapshot().props.publishedAt).toBeInstanceOf(Date);
     });
 
-    it('un rechazado con la titularidad comprobada también puede publicarse', () => {
+    it('un rechazado no puede saltarse la revisión: vuelve a pasar por submitForReview', () => {
         const listing = conTitularidad(unCanal());
         listing.submitForReview();
         listing.reject('Faltan datos');
 
-        listing.publish();
-
-        expect(listing.status).toBe('published');
-        expect(listing.toSnapshot().props.rejectionReason).toBeUndefined();
+        expect(() => listing.publish()).toThrow(InvalidStateError);
+        expect(listing.status).toBe('rejected');
+        expect(listing.toSnapshot().props.rejectionReason).toBe('Faltan datos');
     });
 
     it('se niega si la titularidad no está comprobada', () => {

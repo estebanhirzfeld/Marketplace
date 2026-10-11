@@ -20,6 +20,7 @@ import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/
 import { EstimateListingPriceUseCase } from '@marketplace/domain/src/use-cases/listing/EstimateListingPriceUseCase';
 import { GetPlatformDashboardUseCase } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { PublishListingUseCase } from '@marketplace/domain/src/use-cases/listing/PublishListingUseCase';
+import { RequestPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RequestPlatformAccessUseCase';
 import { EditListingUseCase } from '@marketplace/domain/src/use-cases/listing/EditListingUseCase';
 import { DeleteDraftListingUseCase } from '@marketplace/domain/src/use-cases/listing/DeleteDraftListingUseCase';
 import { SubmitListingForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/SubmitListingForReviewUseCase';
@@ -155,6 +156,7 @@ export interface Container {
     estimateListingPrice: EstimateListingPriceUseCase;
     submitListing: SubmitListingForReviewUseCase;
     publishListing: PublishListingUseCase;
+    requestPlatformAccess: RequestPlatformAccessUseCase;
     editListing: EditListingUseCase;
     deleteDraftListing: DeleteDraftListingUseCase;
     approveListing: ApproveListingUseCase;
@@ -419,6 +421,7 @@ export function createContainer(
             requireMpLink ? paymentAccountRepo : undefined,
         ),
         editListing: new EditListingUseCase(listingRepo),
+        requestPlatformAccess: new RequestPlatformAccessUseCase(listingRepo),
         deleteDraftListing: new DeleteDraftListingUseCase(listingRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),

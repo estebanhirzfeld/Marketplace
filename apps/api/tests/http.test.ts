@@ -2924,3 +2924,141 @@ describe('Publicación directa, edición y borrado de un listing', () => {
         });
     });
 });
+
+describe('Publicar un activo rechazado y pedir la verificación del acceso', () => {
+    async function crearCanal(sellerId: UniqueEntityID): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        listing.registerOwnershipVerification({
+            verifiedBy: sellerId,
+            assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+            source: 'youtube',
+        });
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    it('POST /listings/:id/publish responde 409 a un rechazado: tiene que volver a revisión', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        const listing = await crearCanal(seller.id);
+        listing.submitForReview();
+        listing.reject('Faltan datos');
+        await listingRepo.save(listing);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/publish`,
+            headers: await headersDe('seller@test.com'),
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('rejected');
+    });
+
+    describe('POST /listings/:id/acceso-solicitado', () => {
+        it('204 y el activo pasa a «verificando» en el listado del vendedor y en el del admin', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('admin@test.com', UserRole.ADMIN);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+            const publicado = await crearCanal(seller.id);
+            publicado.publish();
+            await listingRepo.save(publicado);
+
+            const antes = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const propio = (id: string, cuerpo: { id: string }[]) => cuerpo.find((l) => l.id === id) as {
+                platformAccessStatus: string;
+                platformAccessRequestedAt?: string;
+            };
+            expect(propio(publicado.id.toString(), antes.json()).platformAccessStatus).toBe('pending');
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            expect(res.statusCode).toBe(204);
+
+            const despues = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const dto = propio(publicado.id.toString(), despues.json());
+            expect(dto.platformAccessStatus).toBe('verifying');
+            expect(typeof dto.platformAccessRequestedAt).toBe('string');
+
+            const admin = await app.inject({
+                method: 'GET',
+                url: '/admin/listings',
+                headers: await headersDe('admin@test.com'),
+            });
+            expect(admin.statusCode).toBe(200);
+            const enCola = admin.json().find((l: { id: string }) => l.id === listing.id.toString());
+            expect(enCola.platformAccessStatus).toBe('pending');
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect((await listingRepo.findById(listing.id.toString()))!.platformAccessRequestedAt).toBeUndefined();
+        });
+
+        it('409 en un activo en revisión', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${new UniqueEntityID().toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/acceso-solicitado' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+});

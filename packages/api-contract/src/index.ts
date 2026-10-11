@@ -551,6 +551,10 @@ export interface MyListingDto {
      * se cede con su código de autorización.
      */
     handoverSteps: HandoverStepDto[];
+    /** Si el vendedor avisó que invitó a la plataforma y si un admin ya lo confirmó. */
+    platformAccessStatus: PlatformAccessStatusDto;
+    /** Cuándo avisó. La cola del admin ordena por esta fecha. */
+    platformAccessRequestedAt?: string;
     /** Lo que este tipo de activo sabe de sí mismo. */
     descriptor: AssetTypeDescriptorDto;
     createdAt: string;
@@ -596,8 +600,16 @@ export interface HandoverStepLinkDto {
 }
 
 /** Un paso de la cesión del activo a la plataforma. */
+/** Cuándo le toca el paso al vendedor: publicado, o con una venta en curso. */
+export type TransferPhaseDto = 'listing' | 'operation';
+
+/** Dónde está el acceso de la plataforma al activo, visto desde el vendedor. */
+export type PlatformAccessStatusDto = 'pending' | 'verifying' | 'waiting' | 'immediate';
+
 export interface HandoverStepDto {
     id: string;
+    /** Cuándo se le pide. Los pasos de la fase `operation` aparecen recién con la venta firmada. */
+    phase?: TransferPhaseDto;
     /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */

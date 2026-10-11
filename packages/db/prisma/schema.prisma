@@ -119,6 +119,9 @@ model Listing {
   // asignada, a propósito y sin backfill.
   custodyAccountId String?
   ownershipCheck  Json?
+  // Cuándo el vendedor declaró que ya invitó a la plataforma. Declaración, no
+  // constancia: la constancia es `platformAccess`.
+  platformAccessRequestedAt DateTime?
   createdAt       DateTime      @default(now())
 
   seller        User           @relation(fields: [sellerId], references: [id])
