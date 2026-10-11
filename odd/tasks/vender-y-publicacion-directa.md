@@ -163,6 +163,11 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
     - `R3-access-panel-step-gating-untested`.
     - `R3-server-actions-untested`.
 
+- **Revisión de los arreglos** (`edd9003` Mercado Pago no disponible, `06ad2ad` identidad de custodia; `review-b8f13fed3635f36c`): consentimiento `granted`, aprobada y reconocida. El límite revisado avanza a `06ad2ad`.
+  - Hallazgos informativos:
+    - `R3-callback-classifies-403-by-message-prefix`: la web distingue «otra cuenta» por el texto del error; conviene un código propio en la API.
+    - `R3-mercadopago-default-unavailable-when-not-queried`: en las vistas que no consultan Mercado Pago el estado por defecto es «no disponible». Hoy no se usa ahí, pero conviene un valor neutro.
+
 ## Siguiente paso
 
 Prueba local de punta a punta (requiere aplicar la migración a `marketplace_dev`), y T7 con autorización.
