@@ -101,6 +101,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
       - `R3-notify-after-save-lost`: si falla el aviso al admin después de guardar, el admin no se entera; el panel igual lo muestra.
       - `R3-seller-lookup-failure`.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
+- [ ] Idea para más adelante (usuario, 11/10): gráficos de la serie mensual de YouTube en Verificaciones y en las tarjetas del mercado, y usar esos datos para ordenar y rankear el mercado.
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
 ## Criterios de aceptación
