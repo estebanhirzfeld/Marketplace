@@ -152,6 +152,13 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
   - Los tests de componentes se escribieron después del componente (no hay DOM en los tests del web).
   - Sin verificar en el navegador.
 
+- **Revisión T6** (`review-43873794f8510b5f`): consentimiento `granted`, aprobada y reconocida. El límite revisado avanza a `aa0da9f`.
+  - Hallazgos informativos:
+    - `R3-listing-edit-subcent-price-passes-validation`: un precio de 0,004 se redondea a 0 centavos; la API lo rechaza con 400, pero el mensaje no es claro.
+    - `R3-waiting-without-date-renders-empty`.
+    - `R3-access-panel-step-gating-untested`.
+    - `R3-server-actions-untested`.
+
 ## Siguiente paso
 
-Revisión de T6, luego prueba local de punta a punta (requiere aplicar la migración a `marketplace_dev`), y T7 con autorización.
+Prueba local de punta a punta (requiere aplicar la migración a `marketplace_dev`), y T7 con autorización.
