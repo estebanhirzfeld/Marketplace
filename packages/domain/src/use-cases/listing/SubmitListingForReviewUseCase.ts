@@ -5,7 +5,8 @@ import {
 } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
-import { InvalidStateError, NotFoundError } from '../../errors/DomainError';
+import { PublishingRequirements } from '../../services/PublishingRequirements';
+import { NotFoundError } from '../../errors/DomainError';
 
 /**
  * Publicar es un acto con valor legal: expone el activo de una persona real al
@@ -15,17 +16,17 @@ import { InvalidStateError, NotFoundError } from '../../errors/DomainError';
  * antes de la verificación cargaría el flag desactualizado.
  */
 export class SubmitListingForReviewUseCase {
+    private readonly requirements: PublishingRequirements;
+
     constructor(
         private readonly listingRepo: IListingRepository,
-        private readonly userRepo: IUserRepository,
+        userRepo: IUserRepository,
         private readonly avisosDePlataforma?: PlatformNotifier,
-        /**
-         * Si se provee, publicar exige haber vinculado Mercado Pago. Es
-         * opcional porque la exigencia se enciende por configuración: sin la
-         * pantalla de vinculación un vendedor no tendría cómo cumplirla.
-         */
-        private readonly paymentAccounts?: ISellerPaymentAccountRepository,
-    ) {}
+        /** Si se provee, publicar exige Mercado Pago vinculado. Ver `PublishingRequirements`. */
+        paymentAccounts?: ISellerPaymentAccountRepository,
+    ) {
+        this.requirements = new PublishingRequirements(userRepo, paymentAccounts);
+    }
 
     async execute(listingId: string, actor: Actor): Promise<void> {
         const listing = await this.listingRepo.findById(listingId);
@@ -35,25 +36,7 @@ export class SubmitListingForReviewUseCase {
 
         listing.assertOwnedBy(actor.id);
 
-        const user = await this.userRepo.findById(actor.id);
-        if (!user) {
-            throw new NotFoundError('Usuario no encontrado');
-        }
-        user.assertCanSign();
-
-        // Cualquier cuenta vinculada alcanza, aunque su token esté vencido:
-        // solo la ausencia bloquea. El refresco es asunto del cobro. Se
-        // pregunta por la existencia, sin descifrar los tokens: con la clave
-        // rotada o una fila corrupta, leer la cuenta lanzaría un error
-        // genérico en lugar de dejar publicar a un vendedor vinculado.
-        if (this.paymentAccounts) {
-            const vinculada = await this.paymentAccounts.existsByUserId(actor.id);
-            if (!vinculada) {
-                throw new InvalidStateError(
-                    'Para publicar tenés que vincular tu cuenta de Mercado Pago: ahí recibís el cobro de tus ventas.',
-                );
-            }
-        }
+        await this.requirements.assertMetBy(actor);
 
         // La validación de estado vive en la entidad (Tell, Don't Ask)
         listing.submitForReview();

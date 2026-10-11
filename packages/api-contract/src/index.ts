@@ -441,6 +441,17 @@ export interface CreatedListingDto {
     estimatedPrice: MoneyDto;
 }
 
+/**
+ * Cambios del vendedor sobre su listing. Todo es opcional pero tiene que haber
+ * al menos un campo. En borrador o rechazado admite los tres; publicado, solo
+ * `askingPrice`.
+ */
+export interface EditListingRequest {
+    niche?: string;
+    hasNoFaceContent?: boolean;
+    askingPrice?: MoneyDto;
+}
+
 export interface RejectListingRequest {
     reason: string;
 }

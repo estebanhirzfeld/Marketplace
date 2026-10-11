@@ -19,6 +19,9 @@ import { GetMyProfileUseCase } from '@marketplace/domain/src/use-cases/auth/GetM
 import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/CreateListingUseCase';
 import { EstimateListingPriceUseCase } from '@marketplace/domain/src/use-cases/listing/EstimateListingPriceUseCase';
 import { GetPlatformDashboardUseCase } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
+import { PublishListingUseCase } from '@marketplace/domain/src/use-cases/listing/PublishListingUseCase';
+import { EditListingUseCase } from '@marketplace/domain/src/use-cases/listing/EditListingUseCase';
+import { DeleteDraftListingUseCase } from '@marketplace/domain/src/use-cases/listing/DeleteDraftListingUseCase';
 import { SubmitListingForReviewUseCase } from '@marketplace/domain/src/use-cases/listing/SubmitListingForReviewUseCase';
 import {
     RegisterPlatformAccessUseCase,
@@ -151,6 +154,9 @@ export interface Container {
     createListing: CreateListingUseCase;
     estimateListingPrice: EstimateListingPriceUseCase;
     submitListing: SubmitListingForReviewUseCase;
+    publishListing: PublishListingUseCase;
+    editListing: EditListingUseCase;
+    deleteDraftListing: DeleteDraftListingUseCase;
     approveListing: ApproveListingUseCase;
     rejectListing: RejectListingUseCase;
     /**
@@ -407,6 +413,13 @@ export function createContainer(
             avisosDePlataforma,
             requireMpLink ? paymentAccountRepo : undefined,
         ),
+        publishListing: new PublishListingUseCase(
+            listingRepo,
+            userRepo,
+            requireMpLink ? paymentAccountRepo : undefined,
+        ),
+        editListing: new EditListingUseCase(listingRepo),
+        deleteDraftListing: new DeleteDraftListingUseCase(listingRepo),
         approveListing: new ApproveListingUseCase(listingRepo, avisos),
         rejectListing: new RejectListingUseCase(listingRepo, avisos),
         verifyChannelMetrics: youtubeApiKey

@@ -18,6 +18,7 @@ import {
     RegisterPlatformAccessRequest,
     CounterOfferRequest,
     CreateListingRequest,
+    EditListingRequest,
     EstimateListingRequest,
     EstimatedPriceDto,
     PlatformDashboardDto,
@@ -220,6 +221,20 @@ export class MarketplaceClient {
 
     submitListing(id: string): Promise<void> {
         return this.request('POST', `/listings/${encodeURIComponent(id)}/submit`);
+    }
+
+    /** Publica sin revisión; solo si la titularidad está comprobada. */
+    publishListing(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/publish`);
+    }
+
+    editListing(id: string, body: EditListingRequest): Promise<void> {
+        return this.request('PATCH', `/listings/${encodeURIComponent(id)}`, { body });
+    }
+
+    /** Elimina un borrador o rechazado. */
+    deleteListing(id: string): Promise<void> {
+        return this.request('DELETE', `/listings/${encodeURIComponent(id)}`);
     }
 
     approveListing(id: string): Promise<void> {

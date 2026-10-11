@@ -2709,3 +2709,218 @@ describe('ABM de cuentas de custodia — solo admin', () => {
         expect(lista.json()[0].heldAssets).toBe(0);
     });
 });
+
+describe('Publicación directa, edición y borrado de un listing', () => {
+    async function crearBorrador(sellerId: UniqueEntityID, conTitularidad: boolean): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        if (conTitularidad) {
+            listing.registerOwnershipVerification({
+                verifiedBy: sellerId,
+                assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+                source: 'youtube',
+            });
+        }
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('POST /listings/:id/publish', () => {
+        it('204 y queda publicado sin pasar por revisión cuando la titularidad está comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('published');
+        });
+
+        it('409 sin titularidad comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('draft');
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/publish' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+
+    describe('PATCH /listings/:id', () => {
+        it('204 edita rubro, sin rostro y precio de un borrador', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: {
+                    niche: 'gaming',
+                    hasNoFaceContent: true,
+                    askingPrice: { cents: 2000000, currency: 'ARS' },
+                },
+            });
+
+            expect(res.statusCode).toBe(204);
+            const guardado = (await listingRepo.findById(listing.id.toString()))!;
+            expect(guardado.askingPrice.getCents()).toBe(2000000);
+            expect(guardado.askingPrice.getCurrency()).toBe('ARS');
+            expect(guardado.assetDataFor(true).assetData.niche).toBe('gaming');
+        });
+
+        it('204 cambia el precio de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { askingPrice: { cents: 999000, currency: 'USD' } },
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.askingPrice.getCents()).toBe(999000);
+        });
+
+        it('409 al editar el rubro de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('400 con un rubro desconocido', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'inventado' },
+            });
+
+            expect(res.statusCode).toBe(400);
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+    });
+
+    describe('DELETE /listings/:id', () => {
+        it('204 borra un borrador del dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+        });
+
+        it('409 y no borra un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${new UniqueEntityID().toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+    });
+});

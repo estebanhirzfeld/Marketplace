@@ -468,6 +468,45 @@ describe("PrismaListingRepository — constancia de titularidad", () => {
     });
 });
 
+describe("PrismaListingRepository — eliminación", () => {
+    it("debería borrar un borrador", async () => {
+        const seller = await createPersistedUser({ email: "seller-del@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+    });
+
+    it("debería borrar un rechazado", async () => {
+        const seller = await createPersistedUser({ email: "seller-rej@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.submitForReview();
+        listing.reject("No cierra");
+        await listingRepo.save(listing);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+    });
+
+    it("no debería borrar un activo que ya salió de borrador, aunque se lo pidan", async () => {
+        const seller = await createPersistedUser({ email: "seller-pub@test.com", role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        listing.submitForReview();
+        listing.approve();
+        await listingRepo.save(listing);
+
+        await listingRepo.delete(listing.id.toString());
+
+        expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+    });
+
+    it("debería ignorar un id que no existe", async () => {
+        await expect(listingRepo.delete(new UniqueEntityID().toString())).resolves.toBeUndefined();
+    });
+});
+
 describe("PrismaContractRepository", () => {
     it("debería persistir un Contract con sus firmas y recuperar el estado correcto", async () => {
         const user = await createPersistedUser({

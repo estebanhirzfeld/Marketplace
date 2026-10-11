@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
+import { createAssetStrategy } from '../strategies/AssetStrategyFactory';
 import { AssetTypeDescriptor, IAssetStrategy, TransferContext, TransferStep } from '../strategies/IAssetStrategy';
 
 /**
@@ -398,6 +399,100 @@ export class Listing extends Entity<ListingProps> {
             throw new InvalidStateError("Solo un activo en borrador o rechazado puede enviarse a revisión.");
         }
         this.props.status = 'under_review';
+    }
+
+    /**
+     * Publica sin pasar por la revisión de un admin.
+     *
+     * Solo cuando la fuente ya demostró que el vendedor controla el activo: la
+     * revisión existe para dudar de lo que dijo una persona, y acá no hay nada
+     * que dudar. Sin esa constancia el único camino sigue siendo `submitForReview`.
+     */
+    public publish(): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
+            throw new InvalidStateError('Solo un activo en borrador o rechazado puede publicarse.');
+        }
+        if (!this.isOwnershipVerified()) {
+            throw new InvalidStateError(
+                'Para publicar sin revisión hay que comprobar la titularidad del activo: sin eso, enviá el activo a revisión.',
+            );
+        }
+        this.props.status = 'published';
+        this.props.publishedAt = new Date();
+        this.props.rejectionReason = undefined;
+    }
+
+    /**
+     * Edita lo que el vendedor tipeó: rubro, contenido sin rostro y precio.
+     *
+     * Las métricas (suscriptores, ingreso, país) no se pueden tocar a
+     * propósito: cuando las leyó YouTube son una constancia, y cuando las
+     * declaró el vendedor cambiarlas después de crear el borrador permitiría
+     * reescribir el activo entero. Solo en borrador o rechazado, porque lo
+     * publicado es lo que un comprador ya vio.
+     */
+    public editDraft(changes: {
+        niche?: string;
+        hasNoFaceContent?: boolean;
+        askingPrice?: Money;
+    }): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
+            throw new InvalidStateError('Solo un activo en borrador o rechazado puede editarse.');
+        }
+        const { niche, hasNoFaceContent, askingPrice } = changes;
+        if (niche === undefined && hasNoFaceContent === undefined && askingPrice === undefined) {
+            throw new ValidationError('No hay ningún cambio para guardar.');
+        }
+        if (askingPrice) this.assertValidAskingPrice(askingPrice);
+
+        let strategy = this.props.assetStrategy;
+        if (niche !== undefined || hasNoFaceContent !== undefined) {
+            const { assetType, assetData } = strategy.toJSON();
+            if (hasNoFaceContent !== undefined && !('hasNoFaceContent' in assetData)) {
+                throw new ValidationError('Este tipo de activo no tiene contenido sin rostro.');
+            }
+            // Se reconstruye por la fábrica: es quien valida el rubro y la
+            // misma ruta por la que entra todo activo, así que no hay un
+            // segundo camino con otro rigor.
+            strategy = createAssetStrategy(assetType, {
+                ...assetData,
+                ...(niche !== undefined ? { niche } : {}),
+                ...(hasNoFaceContent !== undefined ? { hasNoFaceContent } : {}),
+            });
+        }
+
+        this.props.assetStrategy = strategy;
+        if (askingPrice) this.props.askingPrice = askingPrice;
+    }
+
+    /**
+     * Cambia el precio pedido.
+     *
+     * Se permite también publicado: es lo único que el vendedor ajusta con el
+     * activo en el mercado. En revisión no, porque el admin está evaluando lo
+     * que se le mandó; en operación y vendido el precio ya lo fija la
+     * negociación, no el pedido.
+     */
+    public changePrice(price: Money): void {
+        const permitidos: ListingStatus[] = ['draft', 'rejected', 'published'];
+        if (!permitidos.includes(this.props.status)) {
+            throw new InvalidStateError('El precio solo puede cambiarse en un activo en borrador, rechazado o publicado.');
+        }
+        this.assertValidAskingPrice(price);
+        this.props.askingPrice = price;
+    }
+
+    private assertValidAskingPrice(price: Money): void {
+        if (price.getCents() <= 0) {
+            throw new ValidationError('El precio pedido tiene que ser mayor a cero.');
+        }
+    }
+
+    /** Solo un borrador o un rechazado puede eliminarse: nadie lo vio ni negoció sobre él. */
+    public assertCanBeDiscarded(): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
+            throw new InvalidStateError('Solo un activo en borrador o rechazado puede eliminarse.');
+        }
     }
 
     public approve(): void {

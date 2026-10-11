@@ -97,6 +97,18 @@ export interface IListingRepository {
 }
 
 /**
+ * Eliminar un listing. Va en un puerto aparte para que quien solo lee o guarda
+ * no cargue con una operación destructiva.
+ *
+ * Solo borra un borrador o un rechazado: la condición se vuelve a comprobar
+ * en la consulta, para que dos pedidos simultáneos no borren un activo que
+ * mientras tanto se publicó.
+ */
+export interface IListingDeleter {
+    delete(id: string): Promise<void>;
+}
+
+/**
  * La identidad que sostiene activos en custodia.
  *
  * La consulta inversa —qué activos sostiene una cuenta— vive en
