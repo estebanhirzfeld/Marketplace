@@ -24,8 +24,9 @@ export function AccessStatusPanel({
     return (
         <section className="overflow-hidden rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
             <header className="flex items-center justify-between border-b border-[var(--color-borde)] px-5 py-4">
-                <h2 className="font-mono text-[12px] font-medium tracking-[0.14em] text-[var(--color-tenue)]">
+                <h2 className="flex items-center gap-3 font-mono text-[12px] font-medium tracking-[0.14em] text-[var(--color-tenue)]">
                     ACCESO DE LA PLATAFORMA
+                    {status === 'verifying' && <span className="text-[var(--color-acento)]">+2 NIVELES</span>}
                 </h2>
                 {status === 'verifying' ? (
                     <span className="flex items-center gap-2 font-mono text-[12px] text-[var(--color-alerta)]">

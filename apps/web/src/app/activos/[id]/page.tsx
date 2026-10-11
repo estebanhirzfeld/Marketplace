@@ -22,6 +22,7 @@ import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { PublishedData } from '@/components/PublishedData';
+import { YOUTUBE_CARD_FIELD_KEYS } from '@/lib/publishedFields';
 import { currentProfile } from '@/lib/profile';
 import { isAccessRegistered, sellerLevel, type MercadoPagoState } from '@/lib/sellerLevel';
 import { channelIdFromUrl } from '@/lib/youtubeChannel';
@@ -154,9 +155,9 @@ export default async function DetalleDeActivo(props: {
         mercadoPago,
     });
     const sourceLabel = listing.descriptor.ownershipSource === 'adsense' ? 'AdSense' : 'YouTube';
+    const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
     const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
     const verifyAction = startVerification.bind(null, id, listing.descriptor.ownershipSource);
-    const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
     const now = new Date().toISOString();
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
@@ -369,9 +370,7 @@ export default async function DetalleDeActivo(props: {
                     )}
                     <div className="mt-6 grid gap-4 lg:grid-cols-[5fr_2fr]">
                         {canal ? (
-                            <VerifiedChannelCard channel={canal} avatarShape="square">
-                                {ingresoMensual}
-                            </VerifiedChannelCard>
+                            <VerifiedChannelCard channel={canal} avatarShape="square" />
                         ) : (
                             <div className="flex items-center gap-4 rounded-[var(--radius-grande)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-6">
                                 <ChannelAvatar name={nombre} shape="square" />
@@ -401,7 +400,6 @@ export default async function DetalleDeActivo(props: {
                             ownershipSource={sourceLabel}
                             kycVerified={kycVerified}
                             verifyAction={verifyAction}
-                            accessHref={accessHref}
                         />
 
                         {/*
@@ -425,7 +423,11 @@ export default async function DetalleDeActivo(props: {
                     </div>
 
                     <div className="mt-4">
-                        <PublishedData fields={listing.descriptor.fields} data={listing.assetData} />
+                        <PublishedData
+                            fields={listing.descriptor.fields}
+                            data={listing.assetData}
+                            exclude={mio.assetType === 'youtube' ? YOUTUBE_CARD_FIELD_KEYS : undefined}
+                        />
                     </div>
                 </Reveal>
             )}
@@ -450,8 +452,8 @@ export default async function DetalleDeActivo(props: {
                             />
                             {mio.status === 'draft' && (
                                 <SellMoreAside
-                                    accessHref={accessHref}
-                                    showAccess={mio.platformAccessStatus === 'pending'}
+                                            accessHref={accessHref}
+                                            showAccess={mio.platformAccessStatus === 'pending'}
                                     showMercadoPago={mercadoPago === 'not_linked'}
                                 />
                             )}

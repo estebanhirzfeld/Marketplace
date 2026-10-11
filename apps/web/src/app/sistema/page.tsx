@@ -35,6 +35,7 @@ import { noop, noopEstimate, noopVoid } from './actions';
 import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
 import { DraftChoice } from '@/components/DraftChoice';
 import { PublishedData } from '@/components/PublishedData';
+import { YOUTUBE_CARD_FIELD_KEYS } from '@/lib/publishedFields';
 import { PendingBadge } from '@/components/Navbar';
 import {
     Alert,
@@ -463,14 +464,10 @@ export default function Sistema() {
 
                 <Section
                     title="Verificaciones: canal y datos publicados"
-                    note="La tarjeta del canal lleva al pie el ingreso mensual comprobado, el dato que sostiene la valuación. Los datos publicados ocupan todo el ancho en dos columnas, y la dirección del canal es un enlace real, abreviado a la vista."
+                    note="La tarjeta del canal ya trae suscriptores, ingresos, audiencia y nombre, así que los datos publicados de un canal de YouTube no los repiten: muestran solo lo que falta. Ocupan todo el ancho en dos columnas, y la dirección del canal es un enlace real, abreviado a la vista."
                 >
                     <div className="flex flex-col gap-6">
-                        <VerifiedChannelCard channel={CANAL_CON_DATOS}>
-                            Ingreso mensual comprobado:{' '}
-                            <span className="font-mono text-[var(--color-listo)]">US$ 288</span>. Lo informa Google, no
-                            vos: es el dato que sostiene la valuación.
-                        </VerifiedChannelCard>
+                        <VerifiedChannelCard channel={CANAL_CON_DATOS} />
                         <PublishedData
                             fields={[
                                 { key: 'niche', label: 'Rubro', kind: 'niche' },
@@ -479,6 +476,7 @@ export default function Sistema() {
                                 { key: 'name', label: 'Nombre del canal', kind: 'text' },
                                 { key: 'channelUrl', label: 'Canal', kind: 'text' },
                             ]}
+                            exclude={YOUTUBE_CARD_FIELD_KEYS}
                             data={{
                                 niche: 'finance',
                                 hasNoFaceContent: true,
@@ -961,7 +959,6 @@ export default function Sistema() {
                             ownershipSource="YouTube"
                             kycVerified
                             verifyAction={noopVoid}
-                            accessHref="#"
                         />
                     </div>
                 </Section>

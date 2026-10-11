@@ -1,12 +1,12 @@
 import { ButtonLink, CheckIcon } from './ui';
-import { ShimmerBolt } from './ShimmerBolt';
 import { SubmitButton } from './SubmitButton';
 
 /**
  * Lo que le falta sumar al vendedor, y lo que ya sumó.
  *
  * Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un
- * tilde chico, sin caja: un logro no necesita ocupar lugar.
+ * tilde chico, sin caja: un logro no necesita ocupar lugar. El acceso de
+ * administración no tiene tarjeta: mientras falta, lo pide el panel de acceso.
  */
 export function VerificationCards({
     ownership,
@@ -15,7 +15,6 @@ export function VerificationCards({
     ownershipSource,
     kycVerified,
     verifyAction,
-    accessHref,
 }: {
     ownership: { done: boolean; sourceLabel: string; verifiedAt?: string };
     access: { done: boolean };
@@ -23,7 +22,6 @@ export function VerificationCards({
     ownershipSource: string;
     kycVerified: boolean;
     verifyAction: () => Promise<void>;
-    accessHref: string;
 }) {
     return (
         <>
@@ -40,18 +38,6 @@ export function VerificationCards({
                                 Comprobar con {ownershipSource}
                             </SubmitButton>
                         </form>
-                    </Card>
-                )}
-                {!access.done && (
-                    <Card
-                        icon={<ShimmerBolt size={36} />}
-                        title="Acceso de administración"
-                        points="+2 NIVELES"
-                        text="A los 7 días tu canal pasa a TRANSFERENCIA INMEDIATA y gana más visibilidad en el mercado."
-                    >
-                        <ButtonLink href={accessHref} className="px-[18px] py-3">
-                            Darnos acceso
-                        </ButtonLink>
                     </Card>
                 )}
                 {!mercadoPago.done && !mercadoPago.unavailable && (

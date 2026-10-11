@@ -1,5 +1,6 @@
 import type { AssetFieldKindDto } from '@marketplace/api-contract';
 import { fieldValue } from '@/lib/format';
+import { visibleFields } from '@/lib/publishedFields';
 import { isWebAddress, shortenChannelUrl } from '@/lib/youtubeChannel';
 
 interface Field {
@@ -17,8 +18,17 @@ interface Field {
  * que es una dirección web se muestra como enlace (abreviado a la vista) para
  * que el vendedor pueda abrir su propio canal y comprobar que es el correcto.
  */
-export function PublishedData({ fields, data }: { fields: readonly Field[]; data: Record<string, unknown> }) {
-    const visibles = fields.filter((f) => f.key in data && !f.internal);
+export function PublishedData({
+    fields,
+    data,
+    exclude,
+}: {
+    fields: readonly Field[];
+    data: Record<string, unknown>;
+    /** Claves que otra tarjeta de la pantalla ya muestra. */
+    exclude?: readonly string[];
+}) {
+    const visibles = visibleFields(fields, data, exclude);
 
     return (
         <section className="overflow-hidden rounded-[var(--radius-grande)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
