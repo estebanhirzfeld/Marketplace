@@ -47,7 +47,11 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
   - (k) En el modal, el mail de custodia se copia al portapapeles con un clic, con la confirmación «Copiado».
   - (l) «Abrir en Google» cae en la lista de cuentas de marca. El paso 1 del modal debe decir «Elegí la cuenta de marca de tu canal y tocá "Administrar permisos"», y aclarar que el nombre de la cuenta puede no ser el del canal.
   - (m) Si el canal no coincide, el mensaje tiene que nombrar qué canal se eligió y cuál es el del activo.
+  - (n) Aunque se pida `consent`, Google reutiliza la elección de canal de un permiso anterior y no muestra el selector. Se resuelve quitando el acceso de Traspaso en myaccount.google.com/connections. El mensaje de canal no coincidente tiene que explicar ese paso.
 - Arreglo en la prueba local: la verificación usaba `prompt=select_account` y Google recordaba el canal elegido antes («Forza Labs», sin canal), así que no volvía a mostrar el selector. Pasa a `select_account consent`. RED: el test de la URL falló; GREEN: api 408/408 y `tsc` limpio.
+- **Caso feliz verificado en local el 11/10:** Pc Lover conectado, publicado sin revisión, «Ya los invité», admin «Verificar acceso» con `contacto.forzalabs@gmail.com` eligiendo el canal en el selector nuevo. Resultado: «Acceso verificado».
+  - Constancia guardada: notas «Verificado por OAuth de la cuenta de custodia contacto.forzalabs@gmail.com (sub 110426901773510589068)», `heldRole` manager, `accessSince` igual al momento de la verificación.
+  - (o) `accessSince` se registra como «ahora», aunque la cuenta es administradora desde antes. Es conservador: los 7 días cuentan desde la verificación. La constancia no guarda `custodyAccountId`; conviene enlazarlo.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
