@@ -31,7 +31,7 @@ function aOpcion<T extends string>(
 
 const TIPOS = ['youtube', 'web'] as const;
 const MONEDAS = ['ARS', 'USD'] as const;
-const ORDENES = ['price', 'created', 'published', 'estimated'] as const;
+const ORDENES = ['relevance', 'price', 'created', 'published', 'estimated'] as const;
 const DIRECCIONES = ['asc', 'desc'] as const;
 
 /**
@@ -53,6 +53,9 @@ function leerFiltros(params: Record<string, string | string[] | undefined>): {
     const maxPrice = aEntero(params.maxPrice);
     const hayRango = minPrice !== undefined || maxPrice !== undefined;
 
+    const orden = aOpcion(params.sort, ORDENES);
+    const ordenExplicito = orden === 'relevance' ? undefined : orden;
+
     const busqueda: FiltrosDeBusqueda = {
         assetType,
         // El rubro y la transferibilidad no son propios de un tipo: se leen
@@ -66,8 +69,10 @@ function leerFiltros(params: Record<string, string | string[] | undefined>): {
         minSubscribers: assetType === 'youtube' ? aEntero(params.minSubscribers) : undefined,
         onlyMonetized: assetType === 'youtube' && params.onlyMonetized === 'true' ? true : undefined,
         minDomainAuthority: assetType === 'web' ? aEntero(params.minDomainAuthority) : undefined,
-        sort: aOpcion(params.sort, ORDENES),
-        direction: aOpcion(params.direction, DIRECCIONES),
+        // La relevancia es el orden por defecto: no viaja en la URL ni a la
+        // API, y la dirección no le aplica.
+        sort: ordenExplicito,
+        direction: ordenExplicito ? aOpcion(params.direction, DIRECCIONES) : undefined,
     };
 
     return {

@@ -201,7 +201,7 @@ export type ListingCurrencyDto = 'ARS' | 'USD';
  * porque un activo puede pasar días en borrador o en revisión. `estimated` es
  * la proyección que calcula la plataforma, no un dato declarado.
  */
-export type ListingSortDto = 'price' | 'created' | 'published' | 'estimated';
+export type ListingSortDto = 'relevance' | 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirectionDto = 'asc' | 'desc';
 

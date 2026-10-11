@@ -10,6 +10,7 @@ import type { FiltrosDeBusqueda } from './MarketFilters';
  */
 
 const CRITERIOS = [
+    { value: 'relevance', text: 'Relevancia', Icono: IconoEstrella },
     { value: 'published', text: 'Publicación', Icono: IconoReloj },
     { value: 'created', text: 'Antigüedad', Icono: IconoCalendario },
     { value: 'price', text: 'Precio', Icono: IconoEtiqueta },
@@ -39,10 +40,15 @@ function href(actuales: FiltrosDeBusqueda, sort: Criterio, direction: 'asc' | 'd
     poner('minSubscribers', actuales.minSubscribers);
     poner('onlyMonetized', actuales.onlyMonetized);
     poner('minDomainAuthority', actuales.minDomainAuthority);
-    q.set('sort', sort);
-    q.set('direction', direction);
+    // La relevancia es el orden por defecto: la URL queda limpia y no tiene
+    // dirección que invertir.
+    if (sort !== 'relevance') {
+        q.set('sort', sort);
+        q.set('direction', direction);
+    }
 
-    return `/listings?${q.toString()}`;
+    const consulta = q.toString();
+    return consulta ? `/listings?${consulta}` : '/listings';
 }
 
 export function MarketSort({
@@ -52,7 +58,7 @@ export function MarketSort({
     actuales: FiltrosDeBusqueda;
     cantidad: number;
 }) {
-    const activo = actuales.sort ?? 'published';
+    const activo = actuales.sort ?? 'relevance';
     const direccion = actuales.direction ?? 'desc';
 
     return (
@@ -74,7 +80,7 @@ export function MarketSort({
                             href={href(actuales, value, proxima)}
                             aria-current={esActivo ? 'true' : undefined}
                             title={
-                                esActivo
+                                esActivo && value !== 'relevance'
                                     ? `${text} — tocá para invertir el orden`
                                     : `Ordenar por ${text.toLowerCase()}`
                             }
@@ -86,7 +92,7 @@ export function MarketSort({
                         >
                             <Icono color={esActivo ? 'var(--color-acento)' : 'currentColor'} />
                             {text}
-                            {esActivo && <IconoDireccion hacia={direccion} />}
+                            {esActivo && value !== 'relevance' && <IconoDireccion hacia={direccion} />}
                         </Link>
                     );
                 })}
@@ -124,6 +130,10 @@ function svg(hijos: React.ReactNode, { tamano = 13, color = 'currentColor' }: Pr
             {hijos}
         </svg>
     );
+}
+
+function IconoEstrella(props: PropsDeIcono) {
+    return svg(<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" />, props);
 }
 
 function IconoReloj(props: PropsDeIcono) {

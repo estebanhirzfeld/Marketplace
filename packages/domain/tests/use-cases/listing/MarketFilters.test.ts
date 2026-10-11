@@ -239,6 +239,85 @@ describe('Ordenamiento', () => {
         expect(vistas[0].askingPrice.cents).toBe(2);
     });
 
+    describe('relevancia', () => {
+        const ADMIN = new UniqueEntityID();
+        const CUSTODIA = new UniqueEntityID();
+
+        function conAcceso(listing: Listing, dias: number): Listing {
+            listing.registerPlatformAccess({
+                verifiedBy: ADMIN,
+                heldRole: 'manager',
+                custodyAccountId: CUSTODIA,
+                accessSince: new Date(Date.now() - dias * 24 * 60 * 60 * 1000),
+            });
+            return listing;
+        }
+
+        it('pone primero lo listo para traspasar, aunque sea más viejo', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-08-01T10:00:00Z'));
+            const listoViejo = unCanal({ precio: 1 });
+            vi.setSystemTime(new Date('2026-08-20T10:00:00Z'));
+            const nuevoSinAcceso = unCanal({ precio: 2 });
+            vi.useRealTimers();
+            conAcceso(listoViejo, 8);
+
+            const vistas = await armar([nuevoSinAcceso, listoViejo]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([1, 2]);
+        });
+
+        it('dentro de cada grupo, lo publicado más recientemente primero', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+
+            const vistas = await armar([viejo, nuevo]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([2, 1]);
+        });
+
+        it('ignora la dirección', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+
+            const vistas = await armar([viejo, nuevo]).execute({ sort: 'relevance', direction: 'asc' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([2, 1]);
+        });
+
+        it('desempata por id de forma estable', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-08-01T10:00:00Z'));
+            const a = unCanal({ precio: 1 });
+            const b = unCanal({ precio: 2 });
+            vi.useRealTimers();
+            const esperado = [a, b]
+                .sort((x, y) => x.toSnapshot().id.localeCompare(y.toSnapshot().id))
+                .map((l) => l.toSnapshot().id);
+
+            const vistas = await armar([b, a]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.id)).toEqual(esperado);
+        });
+
+        it('es el orden por defecto', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+            conAcceso(viejo, 8);
+
+            const vistas = await armar([nuevo, viejo]).execute();
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([1, 2]);
+        });
+
+        it('usa el reloj inyectado para decidir qué está listo', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+            conAcceso(nuevo, 1);
+            const enUnMes = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+            const vistas = await new GetPublishedListingsUseCase(unRepo([viejo, nuevo]), enUnMes).execute();
+
+            expect(vistas[0].transferable).toBe(true);
+        });
+    });
+
     it('expone la fecha de publicación además de la de creación', async () => {
         const vistas = await armar([unCanal()]).execute();
 

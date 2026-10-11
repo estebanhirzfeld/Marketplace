@@ -60,7 +60,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                         minSubscribers: { type: 'integer', minimum: 0 },
                         onlyMonetized: { type: 'boolean' },
                         minDomainAuthority: { type: 'integer', minimum: 0, maximum: 100 },
-                        sort: { type: 'string', enum: ['price', 'created', 'published', 'estimated'] },
+                        sort: { type: 'string', enum: ['relevance', 'price', 'created', 'published', 'estimated'] },
                         direction: { type: 'string', enum: ['asc', 'desc'] },
                     },
                 },

@@ -28,7 +28,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - [x] T1 · Dominio y API: `publish()` con titularidad comprobada, `editDraft()`, `changePrice()` y `discard()`; casos de uso y rutas `POST /listings/:id/publish`, `PATCH /listings/:id` y `DELETE /listings/:id`. Ruta: delegado (2+ archivos no triviales).
 - [x] T2 · Dominio: pasos por fase en `getTransferSteps`; `requestPlatformAccess()` con `platformAccessRequestedAt` (migración y mapper); ruta de acceso solicitado; estado del acceso en el DTO. Ruta: delegado.
 - [x] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
-- [ ] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
+- [x] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
 - [ ] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
 - [ ] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
@@ -100,6 +100,19 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
     - control del orquestador: 16/16.
   - `lint` del web: 2 errores previos en `error.tsx` y `global-error.tsx`, que no se tocaron.
 
+- **T4** (ruta: delegado).
+  - El orden por defecto pasa a ser `relevance`: primero lo que está listo para transferir, después lo publicado más reciente, con un desempate estable por id.
+  - El reloj se inyecta en `GetPublishedListingsUseCase`.
+  - «Relevancia» es la primera opción de `MarketSort` y no ensucia la URL.
+  - RED: 4 de 30 fallaron.
+  - GREEN:
+    - dominio: 973/973;
+    - api: 398/398;
+    - web: 251/251;
+    - `tsc` limpio;
+    - control del orquestador: 30/30.
+  - `lint`: solo los 2 errores previos.
+
 ## Siguiente paso
 
-T4.
+T5.
