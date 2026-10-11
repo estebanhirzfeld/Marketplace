@@ -3183,7 +3183,9 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
             );
             expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
             expect(url.searchParams.get('login_hint')).toBe(CUSTODY_IDENTIFIER);
-            expect(url.searchParams.get('prompt')).toBe('select_account');
+            // Con `consent` Google vuelve a mostrar el selector de canal en cada
+            // intento: sin él, recuerda el canal elegido la vez anterior.
+            expect(url.searchParams.get('prompt')).toBe('select_account consent');
             expect(url.searchParams.get('access_type')).toBe('online');
             expect(url.searchParams.get('state')).toBe(`acceso:${id}:abc`);
         });

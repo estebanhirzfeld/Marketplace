@@ -334,7 +334,9 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
             return reply.send({
                 url: c.googleOAuth.authorizationUrl(`${SCOPE_YOUTUBE} ${SCOPE_OPENID_EMAIL}`, request.body.state, {
                     loginHint: custodyAccountIdentifier,
-                    prompt: 'select_account',
+                    // `consent` fuerza el selector de canal en cada intento: sin él
+                    // Google recuerda el canal elegido antes y lo reusa en silencio.
+                    prompt: 'select_account consent',
                     enableYoutubePermissions: true,
                 }),
             });
