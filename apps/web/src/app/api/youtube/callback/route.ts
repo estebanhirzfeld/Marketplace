@@ -9,6 +9,7 @@ import { YOUTUBE_STATE_COOKIE, classifyConnectionError } from '@/lib/youtubeConn
 import {
     ACCESS_STATE_COOKIE,
     isAccessVerificationState,
+    isOtherAccountMessage,
     listingIdFromAccessState,
 } from '@/lib/platformAccessVerification';
 import { UserRole } from '@marketplace/shared-types';
@@ -107,7 +108,12 @@ async function verifyPlatformAccess(
     try {
         await api().verifyPlatformAccess(listingId, code);
     } catch (e) {
-        if (e instanceof ApiError && e.code === 'FORBIDDEN') return back('sin-acceso');
+        if (e instanceof ApiError && e.code === 'FORBIDDEN') {
+            if (isOtherAccountMessage(e.message)) return back('otra-cuenta', e.message);
+            // Google no dijo quién inició sesión: no es un problema de acceso al canal.
+            if (e.message.startsWith('Google no informó')) return back('error', e.message);
+            return back('sin-acceso');
+        }
         return back('error', e instanceof ApiError ? e.message : undefined);
     }
     return back('ok');

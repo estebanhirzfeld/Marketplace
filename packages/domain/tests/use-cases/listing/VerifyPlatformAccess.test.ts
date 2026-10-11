@@ -13,7 +13,11 @@ import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { Actor } from '../../../src/ports/Actor';
 import { ICustodyAccountRepository, IListingRepository } from '../../../src/ports/Repositories';
-import { IYouTubeOwnershipReader, OwnedYouTubeChannel } from '../../../src/ports/IOwnershipReaders';
+import {
+    GoogleAuthorizer,
+    IYouTubeCustodyAccessReader,
+    OwnedYouTubeChannel,
+} from '../../../src/ports/IOwnershipReaders';
 import { IYouTubeChannelReader } from '../../../src/ports/IYouTubeChannelReader';
 import { ForbiddenError, InvalidStateError, NotFoundError } from '../../../src/errors/DomainError';
 import { AssetType, UserRole } from '@marketplace/shared-types';
@@ -72,9 +76,11 @@ function custodyRepo(accounts: CustodyAccount[]) {
     return repo;
 }
 
-function ownershipReader(channelIds: string[]): IYouTubeOwnershipReader {
+const AUTORIZADOR: GoogleAuthorizer = { email: 'custodia-yt@traspaso.com', emailVerified: true, subject: 'sub-123' };
+
+function ownershipReader(channelIds: string[], authorizer: GoogleAuthorizer | null = AUTORIZADOR): IYouTubeCustodyAccessReader {
     const channels: OwnedYouTubeChannel[] = channelIds.map((channelId) => ({ channelId, title: 'Canal' }));
-    return { channelsOf: vi.fn().mockResolvedValue(channels) };
+    return { authorizedChannelsOf: vi.fn().mockResolvedValue({ authorizer, channels }) };
 }
 
 function channelReader(channelId: string | null): IYouTubeChannelReader {
@@ -85,10 +91,16 @@ function channelReader(channelId: string | null): IYouTubeChannelReader {
     };
 }
 
-function armar(listing: Listing | null, accounts: CustodyAccount[], owned: string[], resolved: string | null = CANAL_ID) {
+function armar(
+    listing: Listing | null,
+    accounts: CustodyAccount[],
+    owned: string[],
+    resolved: string | null = CANAL_ID,
+    authorizer: GoogleAuthorizer | null = AUTORIZADOR,
+) {
     const listings = listingRepo(listing);
     const custody = custodyRepo(accounts);
-    const reader = ownershipReader(owned);
+    const reader = ownershipReader(owned, authorizer);
     const channels = channelReader(resolved);
     const register = new RegisterPlatformAccessUseCase(listings, custody);
     const useCase = new VerifyPlatformAccessUseCase(listings, custody, reader, channels, register);
@@ -103,13 +115,64 @@ describe('VerifyPlatformAccessUseCase', () => {
 
         await useCase.execute(listing.id.toString(), GRANT, ADMIN);
 
-        expect(reader.channelsOf).toHaveBeenCalledWith(GRANT);
+        expect(reader.authorizedChannelsOf).toHaveBeenCalledWith(GRANT);
         expect(listing.platformAccess?.custodyAccountId?.toString()).toBe(account.id.toString());
         expect(listing.platformAccess?.verifiedBy.toString()).toBe(ADMIN.id);
         expect(listing.platformAccess?.heldRole).toBe('manager');
-        expect(listing.platformAccess?.notes).toBe('Verificado por OAuth de la cuenta de custodia');
+        expect(listing.platformAccess?.notes).toBe(
+            'Verificado por OAuth de la cuenta de custodia custodia-yt@traspaso.com (sub sub-123)',
+        );
         expect(listing.platformAccessStatus()).not.toBe('verifying');
         expect(listings.save).toHaveBeenCalledOnce();
+    });
+
+    it('compara el correo sin distinguir mayúsculas ni espacios', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase } = armar(listing, [cuenta()], [CANAL_ID], CANAL_ID, {
+            ...AUTORIZADOR,
+            email: '  Custodia-YT@Traspaso.com ',
+        });
+
+        await useCase.execute(listing.id.toString(), GRANT, ADMIN);
+
+        expect(listing.platformAccess).toBeDefined();
+    });
+
+    it('si ingresó con otra cuenta de Google, rechaza aunque administre el canal y no registra nada', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase, listings } = armar(listing, [cuenta()], [CANAL_ID], CANAL_ID, {
+            ...AUTORIZADOR,
+            email: 'otra@gmail.com',
+        });
+
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(
+            'Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (custodia-yt@traspaso.com).',
+        );
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(ForbiddenError);
+        expect(listing.platformAccess).toBeUndefined();
+        expect(listings.save).not.toHaveBeenCalled();
+    });
+
+    it('si el correo no está verificado, rechaza como otra cuenta', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase, listings } = armar(listing, [cuenta()], [CANAL_ID], CANAL_ID, {
+            ...AUTORIZADOR,
+            emailVerified: false,
+        });
+
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(ForbiddenError);
+        expect(listings.save).not.toHaveBeenCalled();
+    });
+
+    it('si Google no informa quién inició sesión, rechaza y no registra nada', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase, listings } = armar(listing, [cuenta()], [CANAL_ID], CANAL_ID, null);
+
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(
+            'Google no informó quién inició sesión; volvé a intentarlo.',
+        );
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(ForbiddenError);
+        expect(listings.save).not.toHaveBeenCalled();
     });
 
     it('con varios canales devueltos alcanza con que uno sea el publicado', async () => {
@@ -155,7 +218,7 @@ describe('VerifyPlatformAccessUseCase', () => {
         const { useCase, reader } = armar(listing, [cuenta()], [CANAL_ID]);
 
         await expect(useCase.execute(listing.id.toString(), GRANT, SELLER)).rejects.toThrow(ForbiddenError);
-        expect(reader.channelsOf).not.toHaveBeenCalled();
+        expect(reader.authorizedChannelsOf).not.toHaveBeenCalled();
     });
 
     it('sin solicitud del vendedor no hay nada que verificar', async () => {
@@ -163,7 +226,7 @@ describe('VerifyPlatformAccessUseCase', () => {
         const { useCase, reader } = armar(listing, [cuenta()], [CANAL_ID]);
 
         await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(InvalidStateError);
-        expect(reader.channelsOf).not.toHaveBeenCalled();
+        expect(reader.authorizedChannelsOf).not.toHaveBeenCalled();
     });
 
     it('si el acceso ya está registrado, no lo registra de nuevo', async () => {
@@ -200,7 +263,7 @@ describe('VerifyPlatformAccessUseCase', () => {
         const { useCase, reader } = armar(listing, [], [CANAL_ID]);
 
         await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(InvalidStateError);
-        expect(reader.channelsOf).not.toHaveBeenCalled();
+        expect(reader.authorizedChannelsOf).not.toHaveBeenCalled();
     });
 
     it('si el canal publicado ya no existe en YouTube, es NotFoundError', async () => {

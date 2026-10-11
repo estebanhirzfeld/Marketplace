@@ -20,6 +20,29 @@ export interface IYouTubeOwnershipReader {
     channelsOf(grant: string): Promise<OwnedYouTubeChannel[]>;
 }
 
+/** Quién inició sesión en Google, tal como lo informa el propio Google. */
+export interface GoogleAuthorizer {
+    email: string;
+    emailVerified: boolean;
+    /** Identificador estable de la cuenta de Google (no cambia aunque cambie el correo). */
+    subject: string;
+}
+
+export interface AuthorizedYouTubeChannels {
+    /** `null` cuando Google no informó la identidad de quien autorizó. */
+    authorizer: GoogleAuthorizer | null;
+    channels: OwnedYouTubeChannel[];
+}
+
+/**
+ * Lo que necesita la verificación del acceso de la plataforma: además de los
+ * canales, quién es la persona que inició sesión, para comprobar que usó la
+ * cuenta de custodia y no otra que casualmente administre el canal.
+ */
+export interface IYouTubeCustodyAccessReader {
+    authorizedChannelsOf(grant: string): Promise<AuthorizedYouTubeChannels>;
+}
+
 export interface AdSenseEarnings {
     /** Ingreso de los últimos 30 días atribuido al dominio, en centavos. */
     earningsCents: number;

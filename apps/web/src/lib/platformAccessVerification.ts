@@ -43,9 +43,9 @@ export function listingIdFromAccessState(state: string): string | undefined {
 }
 
 /** Cómo terminó la verificación, tal como viaja en `?acceso=`. */
-export type AccessResult = 'ok' | 'sin-acceso' | 'cancelada' | 'invalida' | 'no-configurado' | 'error';
+export type AccessResult = 'ok' | 'sin-acceso' | 'otra-cuenta' | 'cancelada' | 'invalida' | 'no-configurado' | 'error';
 
-const RESULTS: readonly AccessResult[] = ['ok', 'sin-acceso', 'cancelada', 'invalida', 'no-configurado', 'error'];
+const RESULTS: readonly AccessResult[] = ['ok', 'sin-acceso', 'otra-cuenta', 'cancelada', 'invalida', 'no-configurado', 'error'];
 
 export function parseAccessResult(value: string | undefined): AccessResult | undefined {
     return RESULTS.find((r) => r === value);
@@ -54,6 +54,15 @@ export function parseAccessResult(value: string | undefined): AccessResult | und
 export interface AccessResultAlert {
     tone: 'ok' | 'warning' | 'error';
     text: string;
+}
+
+/**
+ * El 403 de la API por haber ingresado con otra cuenta de Google. Comparte el
+ * `code` `FORBIDDEN` con el resto de los rechazos, así que se distingue por el
+ * comienzo del mensaje del dominio.
+ */
+export function isOtherAccountMessage(message: string): boolean {
+    return message.startsWith('Ingresaste con otra cuenta de Google');
 }
 
 /** El aviso del panel. `detail` es el mensaje de la API, solo para `error`. */
@@ -67,6 +76,11 @@ export function accessResultAlert(result: AccessResult, detail?: string): Access
                 text:
                     'La cuenta elegida no administra este canal. Ingresá con la cuenta de custodia y elegí la ' +
                     'Cuenta de Marca del canal; si el vendedor todavía no nos invitó, esperá la invitación.',
+            };
+        case 'otra-cuenta':
+            return {
+                tone: 'error',
+                text: detail ?? 'Ingresaste con otra cuenta de Google. Usá la cuenta de custodia.',
             };
         case 'cancelada':
             return { tone: 'warning', text: 'Cancelaste el ingreso con Google. No se registró nada.' };

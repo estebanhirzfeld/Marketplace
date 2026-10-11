@@ -38,7 +38,7 @@ import { YouTubeStrategy } from '@marketplace/domain/src/strategies/YouTubeStrat
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { AssetType } from '@marketplace/shared-types';
 import { GoogleOAuthClient } from '../src/adapters/GoogleOAuthClient';
-import { IYouTubeOwnershipReader } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { GoogleAuthorizer, IYouTubeCustodyAccessReader } from '@marketplace/domain/src/ports/IOwnershipReaders';
 import { IYouTubeChannelReader } from '@marketplace/domain/src/ports/IYouTubeChannelReader';
 import { RegisterPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RegisterPlatformAccessUseCase';
 import {
@@ -3108,11 +3108,20 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
         return { id: listing.id.toString(), seller };
     }
 
-    function buildTestApp(options: { configured?: boolean; channels?: string[] } = {}) {
+    function buildTestApp(
+        options: { configured?: boolean; channels?: string[]; authorizer?: GoogleAuthorizer | null } = {},
+    ) {
         const base = createContainer(fakeHasher);
         const custodyRepo = new PrismaCustodyAccountRepository();
-        const reader: IYouTubeOwnershipReader = {
-            channelsOf: vi.fn(async () => (options.channels ?? [CHANNEL_ID]).map((channelId) => ({ channelId, title: 'Canal' }))),
+        const authorizer: GoogleAuthorizer | null =
+            options.authorizer === undefined
+                ? { email: CUSTODY_IDENTIFIER, emailVerified: true, subject: 'sub-custodia' }
+                : options.authorizer;
+        const reader: IYouTubeCustodyAccessReader = {
+            authorizedChannelsOf: vi.fn(async () => ({
+                authorizer,
+                channels: (options.channels ?? [CHANNEL_ID]).map((channelId) => ({ channelId, title: 'Canal' })),
+            })),
         };
         const channelReader: IYouTubeChannelReader = { read: vi.fn(async () => null) };
         const container: Container =
@@ -3156,7 +3165,7 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
     });
 
     describe('POST /admin/listings/:id/acceso/autorizacion', () => {
-        it('devuelve la dirección de Google con solo youtube.readonly, la cuenta de custodia sugerida y sin acceso offline', async () => {
+        it('devuelve la dirección de Google con youtube.readonly e identidad (openid email), el selector de canales, la cuenta de custodia sugerida y sin acceso offline', async () => {
             const { id } = await seedVerifyingChannel();
             const server = await buildTestApp().server;
 
@@ -3169,7 +3178,10 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
 
             expect(res.statusCode).toBe(200);
             const url = new URL(res.json().url);
-            expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.readonly');
+            expect(url.searchParams.get('scope')).toBe(
+                'https://www.googleapis.com/auth/youtube.readonly openid email',
+            );
+            expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
             expect(url.searchParams.get('login_hint')).toBe(CUSTODY_IDENTIFIER);
             expect(url.searchParams.get('prompt')).toBe('select_account');
             expect(url.searchParams.get('access_type')).toBe('online');
@@ -3228,9 +3240,11 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
             });
 
             expect(res.statusCode).toBe(204);
-            expect(reader.channelsOf).toHaveBeenCalledWith('codigo-de-google');
+            expect(reader.authorizedChannelsOf).toHaveBeenCalledWith('codigo-de-google');
             const listing = (await listingRepo.findById(id))!;
-            expect(listing.platformAccess?.notes).toBe('Verificado por OAuth de la cuenta de custodia');
+            expect(listing.platformAccess?.notes).toBe(
+                `Verificado por OAuth de la cuenta de custodia ${CUSTODY_IDENTIFIER} (sub sub-custodia)`,
+            );
             expect(listing.platformAccessStatus()).not.toBe('verifying');
         });
 
@@ -3247,6 +3261,42 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
 
             expect(res.statusCode).toBe(403);
             expect(res.json().message).toContain('La cuenta elegida no administra este canal');
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 con otra cuenta de Google y no registra nada, aunque administre el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({
+                authorizer: { email: 'otra@gmail.com', emailVerified: true, subject: 'sub-otra' },
+            });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toBe(
+                `Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (${CUSTODY_IDENTIFIER}).`,
+            );
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 si Google no informa quién inició sesión', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({ authorizer: null });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toContain('Google no informó quién inició sesión');
             expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
         });
 

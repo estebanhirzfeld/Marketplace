@@ -116,7 +116,11 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
 - **Revisión T3+T4** (`review-ee61b5e3a84403eb`).
   - El commit de T4 movió el candidato de T3, así que se rearmó como uno solo: T3 y T4, 22 archivos y 1478 líneas. Consentimiento `granted`, revisión aprobada y reconocida. El límite revisado avanza a `d9c7c27`.
   - Hallazgos informativos:
-    - `R3-oauth-verify-does-not-prove-custody-identity` (WARNING): la verificación prueba que la cuenta elegida administra el canal, pero no que sea la cuenta de custodia. Si el operador entra con otra cuenta que también administra el canal, se registraría el acceso igual. Pendiente de decisión.
+    - `R3-oauth-verify-does-not-prove-custody-identity` (WARNING): la verificación probaba que la cuenta elegida administra el canal, pero no que fuera la cuenta de custodia. **Cerrado** con `enable_yt_permissions=true` más `openid email`: probado con Pc Lover el 11/10, el ID token trae el mail real de quien entra y `channels.list` trae el canal elegido.
+      - Nuevo puerto `IYouTubeCustodyAccessReader.authorizedChannelsOf`. Se exige el mail verificado igual a la cuenta de custodia y después el canal. La nota de la constancia guarda el mail y el `sub`.
+      - La web muestra `acceso=otra-cuenta`.
+      - RED: dominio 10 fallaron, adaptador 8, http 1, web 4.
+      - GREEN: dominio 977, api 408, web 301, `tsc` limpio.
     - `R3-first-active-custody-account-arbitrary`: con varias cuentas de custodia activas se usa la primera.
     - `R3-google-error-reported-as-cancelled`: un error de Google se informa como «cancelada».
     - `R3-awaiting-access-failure-silent`: si falla la lista de pendientes, el panel no se muestra y no avisa.

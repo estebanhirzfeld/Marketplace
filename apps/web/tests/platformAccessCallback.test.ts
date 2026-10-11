@@ -93,6 +93,24 @@ describe('callback de Google en modo acceso de la plataforma', () => {
         expect(destino(res)).toBe('/admin?acceso=sin-acceso&activo=l1');
     });
 
+    it('si ingresó con otra cuenta de Google (403) vuelve con «otra-cuenta» y el mensaje', async () => {
+        const mensaje = 'Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (c@t.com).';
+        verifyPlatformAccess.mockRejectedValue(new ApiError('FORBIDDEN', mensaje, 403));
+
+        const res = await llamar(`?code=abc&state=${encodeURIComponent(STATE)}`);
+
+        expect(destino(res)).toBe(`/admin?acceso=otra-cuenta&activo=l1&${new URLSearchParams({ detalle: mensaje })}`);
+    });
+
+    it('si Google no informa quién inició sesión (403) vuelve con «error» y el mensaje', async () => {
+        const mensaje = 'Google no informó quién inició sesión; volvé a intentarlo.';
+        verifyPlatformAccess.mockRejectedValue(new ApiError('FORBIDDEN', mensaje, 403));
+
+        const res = await llamar(`?code=abc&state=${encodeURIComponent(STATE)}`);
+
+        expect(destino(res)).toBe(`/admin?acceso=error&activo=l1&${new URLSearchParams({ detalle: mensaje })}`);
+    });
+
     it('cualquier otra falla vuelve con «error» y el mensaje de la API', async () => {
         verifyPlatformAccess.mockRejectedValue(new ApiError('INVALID_STATE', 'El acceso ya está registrado.', 409));
 

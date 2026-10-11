@@ -1,5 +1,5 @@
 import { ICustodyAccountRepository, IListingRepository } from '../../ports/Repositories';
-import { IYouTubeOwnershipReader } from '../../ports/IOwnershipReaders';
+import { GoogleAuthorizer, IYouTubeCustodyAccessReader } from '../../ports/IOwnershipReaders';
 import { IYouTubeChannelReader } from '../../ports/IYouTubeChannelReader';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { Listing } from '../../entities/Listing';
@@ -18,7 +18,9 @@ import { AssetType } from '@marketplace/shared-types';
 const STATUSES_WITH_ACCESS_REQUEST = ['under_review', 'published', 'in_operation'] as const;
 
 /** Lo que queda escrito en la constancia cuando la verificación la hizo Google. */
-const OAUTH_NOTE = 'Verificado por OAuth de la cuenta de custodia';
+function oauthNote(authorizer: GoogleAuthorizer): string {
+    return `Verificado por OAuth de la cuenta de custodia ${authorizer.email} (sub ${authorizer.subject})`;
+}
 
 async function loadVerifiableListing(repo: IListingRepository, listingId: string): Promise<Listing> {
     const listing = await repo.findById(listingId);
@@ -85,15 +87,17 @@ export class StartPlatformAccessVerificationUseCase {
  * vez de que un admin lo tipee a mano.
  *
  * El admin ingresa con la cuenta de custodia y elige la Cuenta de Marca en el
- * selector de Google; `channelsOf` devuelve los canales de esa sesión y se
- * busca el publicado entre ellos. Si está, se registra el acceso por el mismo
- * camino que la constancia manual. Si no, no se escribe nada.
+ * selector de Google. Primero se exige que quien inició sesión sea la cuenta de
+ * custodia (correo verificado e igual al sugerido): que otra cuenta administre
+ * el canal no prueba que la plataforma tenga acceso. Después se buscan, entre
+ * los canales de esa sesión, el publicado. Si está, se registra el acceso por
+ * el mismo camino que la constancia manual. Si no, no se escribe nada.
  */
 export class VerifyPlatformAccessUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly custodyRepo: ICustodyAccountRepository,
-        private readonly ownershipReader: IYouTubeOwnershipReader,
+        private readonly ownershipReader: IYouTubeCustodyAccessReader,
         private readonly channelReader: IYouTubeChannelReader,
         private readonly registerAccess: RegisterPlatformAccessUseCase,
         private readonly now: () => Date = () => new Date(),
@@ -105,7 +109,8 @@ export class VerifyPlatformAccessUseCase {
         const account = await findCustodyAccount(this.custodyRepo);
 
         const publishedChannelId = await this.publishedChannelId(listing);
-        const managed = await this.ownershipReader.channelsOf(grant);
+        const { authorizer, channels: managed } = await this.ownershipReader.authorizedChannelsOf(grant);
+        const signedIn = this.assertCustodyAccount(authorizer, account);
         if (!managed.some((c) => c.channelId === publishedChannelId)) {
             throw new ForbiddenError(
                 'La cuenta elegida no administra este canal. Ingresá con la cuenta de custodia y ' +
@@ -118,10 +123,24 @@ export class VerifyPlatformAccessUseCase {
             {
                 accessSince: this.now().toISOString(),
                 custodyAccountId: account.id.toString(),
-                notes: OAUTH_NOTE,
+                notes: oauthNote(signedIn),
             },
             actor,
         );
+    }
+
+    /** Quien inició sesión tiene que ser la cuenta de custodia, con el correo verificado por Google. */
+    private assertCustodyAccount(authorizer: GoogleAuthorizer | null, account: CustodyAccount): GoogleAuthorizer {
+        if (!authorizer) {
+            throw new ForbiddenError('Google no informó quién inició sesión; volvé a intentarlo.');
+        }
+        const normalize = (value: string) => value.trim().toLowerCase();
+        if (!authorizer.emailVerified || normalize(authorizer.email) !== normalize(account.identifier)) {
+            throw new ForbiddenError(
+                `Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (${account.identifier}).`,
+            );
+        }
+        return authorizer;
     }
 
     /** Un handle se puede cambiar y el ID no: se compara siempre por ID. */

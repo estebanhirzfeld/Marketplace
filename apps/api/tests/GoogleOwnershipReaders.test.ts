@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { GoogleOAuthClient } from '../src/adapters/GoogleOAuthClient';
 import {
     AdSenseApiReader,
+    YouTubeOAuthCustodyAccessReader,
     YouTubeOAuthOwnershipReader,
 } from '../src/adapters/GoogleOwnershipReaders';
 
@@ -69,11 +70,38 @@ describe('GoogleOAuthClient', () => {
         expect(url.searchParams.get('access_type')).toBe('online');
     });
 
-    it('sin opciones no agrega login_hint y conserva el prompt de siempre', () => {
+    it('puede pedir el selector de canales de YouTube (enable_yt_permissions)', () => {
+        const url = new URL(
+            new GoogleOAuthClient(CONFIG).authorizationUrl('un.scope openid email', 'e', {
+                enableYoutubePermissions: true,
+            }),
+        );
+
+        expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
+        expect(url.searchParams.get('scope')).toBe('un.scope openid email');
+    });
+
+    it('sin opciones no agrega login_hint ni enable_yt_permissions y conserva el prompt de siempre', () => {
         const url = new URL(new GoogleOAuthClient(CONFIG).authorizationUrl('un.scope', 'e'));
 
         expect(url.searchParams.has('login_hint')).toBe(false);
         expect(url.searchParams.get('prompt')).toBe('select_account consent');
+    });
+
+    it('el canje con identidad devuelve también el id_token si Google lo manda', async () => {
+        const impl = fetchQueDevuelve(json({ access_token: 'tok', id_token: 'a.b.c' }));
+
+        const canje = await new GoogleOAuthClient(CONFIG, impl).exchangeWithIdentity('codigo');
+
+        expect(canje).toEqual({ accessToken: 'tok', idToken: 'a.b.c' });
+    });
+
+    it('el canje con identidad no exige id_token', async () => {
+        const impl = fetchQueDevuelve(json({ access_token: 'tok' }));
+
+        const canje = await new GoogleOAuthClient(CONFIG, impl).exchangeWithIdentity('codigo');
+
+        expect(canje).toEqual({ accessToken: 'tok', idToken: undefined });
     });
 
     it('devuelve el token del canje', async () => {
@@ -146,6 +174,60 @@ describe('YouTubeOAuthOwnershipReader', () => {
         const { lector } = armar(json({ error: 'token-de-un-solo-uso inválido' }, 401));
 
         await expect(lector.channelsOf('codigo')).rejects.not.toThrow(/token-de-un-solo-uso/);
+    });
+});
+
+/** Un id_token con la forma de Google: solo importa el payload. */
+function idToken(payload: Record<string, unknown>): string {
+    const parte = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    return `${parte({ alg: 'RS256' })}.${parte(payload)}.firma`;
+}
+
+describe('YouTubeOAuthCustodyAccessReader', () => {
+    function armar(token: Record<string, unknown> | string | undefined, ...respuestas: Response[]) {
+        const jwt = typeof token === 'string' ? token : token ? idToken(token) : undefined;
+        const impl = fetchQueDevuelve(
+            json(jwt ? { access_token: 'token-de-un-solo-uso', id_token: jwt } : { access_token: 'token-de-un-solo-uso' }),
+            ...respuestas,
+        );
+        return new YouTubeOAuthCustodyAccessReader(new GoogleOAuthClient(CONFIG, impl), impl);
+    }
+
+    const CANALES = () => json({ items: [{ id: 'UCq-Fj5jknLsUf-MWSy4_brA', snippet: { title: 'Canal uno' } }] });
+
+    it('devuelve quién autorizó junto con los canales', async () => {
+        const lector = armar({ email: 'custodia@traspaso.com', email_verified: true, sub: '1234' }, CANALES());
+
+        const r = await lector.authorizedChannelsOf('codigo');
+
+        expect(r.authorizer).toEqual({ email: 'custodia@traspaso.com', emailVerified: true, subject: '1234' });
+        expect(r.channels).toEqual([{ channelId: 'UCq-Fj5jknLsUf-MWSy4_brA', title: 'Canal uno' }]);
+    });
+
+    it('sin id_token no hay identidad', async () => {
+        const r = await armar(undefined, CANALES()).authorizedChannelsOf('codigo');
+
+        expect(r.authorizer).toBeNull();
+        expect(r.channels).toHaveLength(1);
+    });
+
+    it('un id_token ilegible o sin correo o sin sub no cuenta como identidad', async () => {
+        for (const token of ['no-es-un-jwt', 'a.%%%.c', idToken({ sub: '1' }), idToken({ email: 'a@b.com' })]) {
+            const r = await armar(token, CANALES()).authorizedChannelsOf('codigo');
+            expect(r.authorizer).toBeNull();
+        }
+    });
+
+    it('email_verified distinto de true es no verificado', async () => {
+        const r = await armar({ email: 'a@b.com', email_verified: 'true', sub: '1' }, CANALES()).authorizedChannelsOf('c');
+
+        expect(r.authorizer?.emailVerified).toBe(false);
+    });
+
+    it('no filtra el token cuando la API falla', async () => {
+        const lector = armar({ email: 'a@b.com', email_verified: true, sub: '1' }, json({ error: 'x' }, 401));
+
+        await expect(lector.authorizedChannelsOf('codigo')).rejects.not.toThrow(/token-de-un-solo-uso/);
     });
 });
 

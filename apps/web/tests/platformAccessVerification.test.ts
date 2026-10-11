@@ -6,6 +6,7 @@ import {
     listingIdFromAccessState,
     parseAccessResult,
     accessResultAlert,
+    isOtherAccountMessage,
 } from '@/lib/platformAccessVerification';
 
 /**
@@ -75,6 +76,19 @@ describe('resultado de la verificación', () => {
         expect(accessResultAlert('sin-acceso').text).toContain('no administra este canal');
         expect(accessResultAlert('sin-acceso').tone).toBe('error');
         expect(accessResultAlert('error').tone).toBe('error');
+    });
+
+    it('«otra-cuenta» es un error que usa el mensaje de la API y tiene uno propio si falta', () => {
+        expect(parseAccessResult('otra-cuenta')).toBe('otra-cuenta');
+        const alert = accessResultAlert('otra-cuenta', 'Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (c@t.com).');
+        expect(alert.tone).toBe('error');
+        expect(alert.text).toContain('(c@t.com)');
+        expect(accessResultAlert('otra-cuenta').text).toContain('otra cuenta de Google');
+    });
+
+    it('distingue por el mensaje de la API cuándo el 403 es por otra cuenta', () => {
+        expect(isOtherAccountMessage('Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (c@t.com).')).toBe(true);
+        expect(isOtherAccountMessage('La cuenta elegida no administra este canal.')).toBe(false);
     });
 });
 

@@ -42,6 +42,7 @@ import {
 } from './adapters/GoogleOAuthClient';
 import {
     AdSenseApiReader,
+    YouTubeOAuthCustodyAccessReader,
     YouTubeOAuthOwnershipReader,
 } from './adapters/GoogleOwnershipReaders';
 import {
@@ -464,7 +465,7 @@ export function createContainer(
                 ? new VerifyPlatformAccessUseCase(
                       listingRepo,
                       custodyRepo,
-                      new YouTubeOAuthOwnershipReader(googleOAuth),
+                      new YouTubeOAuthCustodyAccessReader(googleOAuth),
                       new YouTubeApiChannelReader(youtubeApiKey),
                       registerPlatformAccess,
                   )

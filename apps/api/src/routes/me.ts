@@ -20,7 +20,7 @@ import type {
 } from '@marketplace/api-contract';
 import { PendingOperation } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
-import { SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
+import { SCOPE_OPENID_EMAIL, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { HandoverStep } from '@marketplace/domain/src/entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
@@ -303,8 +303,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
 
     /**
      * Paso uno de la verificación por OAuth: la dirección de Google con la cuenta
-     * de custodia sugerida. Solo `youtube.readonly` y en línea: no queda ningún
-     * token guardado.
+     * de custodia sugerida. `youtube.readonly` más `openid email` (para saber quién
+     * inició sesión) y en línea: no queda ningún token guardado.
      */
     app.post<{ Params: IdParams; Body: PlatformAccessAuthorizationRequest; Reply: AuthorizationUrlDto }>(
         '/admin/listings/:id/acceso/autorizacion',
@@ -332,9 +332,10 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 actorOf(request),
             );
             return reply.send({
-                url: c.googleOAuth.authorizationUrl(SCOPE_YOUTUBE, request.body.state, {
+                url: c.googleOAuth.authorizationUrl(`${SCOPE_YOUTUBE} ${SCOPE_OPENID_EMAIL}`, request.body.state, {
                     loginHint: custodyAccountIdentifier,
                     prompt: 'select_account',
+                    enableYoutubePermissions: true,
                 }),
             });
         },
