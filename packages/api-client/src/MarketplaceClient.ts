@@ -321,6 +321,25 @@ export class MarketplaceClient {
         });
     }
 
+    /** Activos cuyo vendedor avisó que invitó a la plataforma y esperan nuestra confirmación. Solo admin. */
+    listingsConAccesoPendiente(): Promise<MyListingDto[]> {
+        return this.request('GET', '/admin/listings/acceso-pendiente');
+    }
+
+    /** Dónde ingresa el admin con la cuenta de custodia para verificar el acceso. Solo admin. */
+    platformAccessAuthorization(listingId: string, state: string): Promise<AuthorizationUrlDto> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/autorizacion`, {
+            body: { state },
+        });
+    }
+
+    /** Completa la verificación con el código de Google: registra el acceso si la cuenta administra el canal. Solo admin. */
+    verifyPlatformAccess(listingId: string, code: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/verificar`, {
+            body: { code },
+        });
+    }
+
     /** Borra la constancia cuando la plataforma perdió el acceso. Solo admin. */
     revokePlatformAccess(listingId: string): Promise<void> {
         return this.request('DELETE', `/admin/listings/${encodeURIComponent(listingId)}/acceso`);

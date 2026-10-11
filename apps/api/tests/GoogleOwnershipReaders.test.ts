@@ -51,6 +51,31 @@ describe('GoogleOAuthClient', () => {
         expect(url.searchParams.get('prompt')).toContain('select_account');
     });
 
+    /**
+     * Verificación del acceso de la plataforma: el admin ingresa con la cuenta
+     * de custodia. Se la sugiere a Google y se lo deja elegir la Cuenta de
+     * Marca, pero sin `consent`: no hace falta volver a pedir permiso cada vez.
+     */
+    it('puede sugerir la cuenta (login_hint) y pedir solo el selector de cuentas', () => {
+        const url = new URL(
+            new GoogleOAuthClient(CONFIG).authorizationUrl('un.scope', 'e', {
+                loginHint: 'custodia@traspaso.com',
+                prompt: 'select_account',
+            }),
+        );
+
+        expect(url.searchParams.get('login_hint')).toBe('custodia@traspaso.com');
+        expect(url.searchParams.get('prompt')).toBe('select_account');
+        expect(url.searchParams.get('access_type')).toBe('online');
+    });
+
+    it('sin opciones no agrega login_hint y conserva el prompt de siempre', () => {
+        const url = new URL(new GoogleOAuthClient(CONFIG).authorizationUrl('un.scope', 'e'));
+
+        expect(url.searchParams.has('login_hint')).toBe(false);
+        expect(url.searchParams.get('prompt')).toBe('select_account consent');
+    });
+
     it('devuelve el token del canje', async () => {
         const impl = fetchQueDevuelve(TOKEN());
 

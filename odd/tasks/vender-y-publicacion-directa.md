@@ -27,7 +27,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 
 - [x] T1 · Dominio y API: `publish()` con titularidad comprobada, `editDraft()`, `changePrice()` y `discard()`; casos de uso y rutas `POST /listings/:id/publish`, `PATCH /listings/:id` y `DELETE /listings/:id`. Ruta: delegado (2+ archivos no triviales).
 - [x] T2 · Dominio: pasos por fase en `getTransferSteps`; `requestPlatformAccess()` con `platformAccessRequestedAt` (migración y mapper); ruta de acceso solicitado; estado del acceso en el DTO. Ruta: delegado.
-- [ ] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
+- [x] T3 · Verificación del acceso con OAuth de la cuenta de custodia y botón en `/admin`. Ruta: delegado.
 - [ ] T4 · Mercado: `sort=relevance` por defecto (transferibles primero). Ruta: delegado.
 - [ ] T5 · Web `/vender`: tarjetas por tipo con indicador de pasos, precio primero con la referencia al costado, redirección al borrador. Ruta: delegado.
 - [ ] T6 · Web: borrador (publicar, editar, borrar), panel de acceso de 2 pasos, modal H, Verificaciones L con nivel, isotipo de Mercado Pago, `/sistema`. Ruta: delegado.
@@ -76,8 +76,30 @@ Forecast: unas 2500 líneas en total. Estrategia: ask-on-risk → **feature-bran
     - api: 388/388;
     - `tsc` limpio en 6 paquetes;
     - control del orquestador: 42/42.
+  - RDD: riesgo medio, `slice_budget_reached`. Consentimiento `granted`; revisión `review-cb49087334296cba` aprobada y reconocida. El límite revisado avanza a `ddc69e5`.
+  - Hallazgos informativos:
+    - `R3-request-access-overwrites-admin-constancia`: si el vendedor guarda su aviso al mismo tiempo que el admin registra el acceso, puede pisarse la constancia (carrera de escritura). Mitigar con un update parcial de la columna en T3 o después.
+    - `R3-operation-signed-denylist`: la condición de «contrato firmado» se expresa como lista de exclusión de estados; conviene una lista de inclusión.
   - Pendiente: aplicar la migración a `marketplace_dev` con `migrate deploy` (aditiva) antes de probar en local.
+
+- **T3** (ruta: delegado).
+  - Reusa `IYouTubeOwnershipReader.channelsOf` (OAuth `online` con `login_hint` de la cuenta de custodia, sin token guardado).
+  - Agrega `VerifyPlatformAccessUseCases` (lista, inicio y verificación) y tres rutas admin en `me.ts`.
+  - El estado `acceso:<id>:<hex>` queda atado a la cookie `traspaso_acceso_verif`; la misma URL de callback, sin registrar una nueva en Google.
+  - Suma el panel «Esperan verificación de acceso» en `/admin`.
+  - RED:
+    - dominio: no cargaba el módulo;
+    - adaptador: 1 falló;
+    - http: 8 fallaron;
+    - web: falta el módulo.
+  - GREEN:
+    - dominio: 967/967;
+    - api: 398/398;
+    - web: 251/251;
+    - `tsc` limpio;
+    - control del orquestador: 16/16.
+  - `lint` del web: 2 errores previos en `error.tsx` y `global-error.tsx`, que no se tocaron.
 
 ## Siguiente paso
 
-T3 y T4.
+T4.

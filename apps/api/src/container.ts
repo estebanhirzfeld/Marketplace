@@ -28,6 +28,11 @@ import {
     RegisterPlatformAccessUseCase,
     RevokePlatformAccessUseCase,
 } from '@marketplace/domain/src/use-cases/listing/RegisterPlatformAccessUseCase';
+import {
+    ListListingsAwaitingAccessUseCase,
+    StartPlatformAccessVerificationUseCase,
+    VerifyPlatformAccessUseCase,
+} from '@marketplace/domain/src/use-cases/listing/VerifyPlatformAccessUseCases';
 import { VerifyChannelMetricsUseCase } from '@marketplace/domain/src/use-cases/listing/VerifyChannelMetricsUseCase';
 import { YouTubeApiChannelReader } from './adapters/YouTubeApiChannelReader';
 import {
@@ -176,6 +181,10 @@ export interface Container {
      */
     googleOAuth?: GoogleOAuthClient;
     verifyChannelOwnership?: VerifyChannelOwnershipUseCase;
+    /** Verificación del acceso de la plataforma con OAuth de la cuenta de custodia. */
+    listAwaitingAccess: ListListingsAwaitingAccessUseCase;
+    startPlatformAccessVerification?: StartPlatformAccessVerificationUseCase;
+    verifyPlatformAccess?: VerifyPlatformAccessUseCase;
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
@@ -353,6 +362,7 @@ export function createContainer(
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
     const custodyRepo = new PrismaCustodyAccountRepository();
+    const registerPlatformAccess = new RegisterPlatformAccessUseCase(listingRepo, custodyRepo);
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
@@ -443,7 +453,22 @@ export function createContainer(
         verifyWebsiteRevenue: googleOAuth
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
             : undefined,
-        registerPlatformAccess: new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
+        registerPlatformAccess,
+        listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo),
+        // Con las mismas credenciales de Google que la verificación de titularidad.
+        startPlatformAccessVerification: googleOAuth
+            ? new StartPlatformAccessVerificationUseCase(listingRepo, custodyRepo)
+            : undefined,
+        verifyPlatformAccess:
+            googleOAuth && youtubeApiKey
+                ? new VerifyPlatformAccessUseCase(
+                      listingRepo,
+                      custodyRepo,
+                      new YouTubeOAuthOwnershipReader(googleOAuth),
+                      new YouTubeApiChannelReader(youtubeApiKey),
+                      registerPlatformAccess,
+                  )
+                : undefined,
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo, custodyRepo),

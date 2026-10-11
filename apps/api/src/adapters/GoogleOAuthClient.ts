@@ -30,7 +30,11 @@ export class GoogleOAuthClient {
      * `state` viaja de ida y vuelta sin que Google lo toque: sirve para saber,
      * al volver, de qué listing se trataba y que el pedido salió de nosotros.
      */
-    authorizationUrl(scope: string, state: string): string {
+    authorizationUrl(
+        scope: string,
+        state: string,
+        options: { loginHint?: string; prompt?: string } = {},
+    ): string {
         const url = new URL(AUTH_ENDPOINT);
         url.searchParams.set('client_id', this.config.clientId);
         url.searchParams.set('redirect_uri', this.config.redirectUri);
@@ -41,7 +45,10 @@ export class GoogleOAuthClient {
         url.searchParams.set('access_type', 'online');
         // Que la cuenta se elija siempre: un canal puede estar bajo una Cuenta
         // de Marca distinta de la sesión abierta en el navegador.
-        url.searchParams.set('prompt', 'select_account consent');
+        url.searchParams.set('prompt', options.prompt ?? 'select_account consent');
+        // Sugiere con qué cuenta ingresar (la de custodia, en la verificación del
+        // acceso); Google igual deja elegir otra.
+        if (options.loginHint) url.searchParams.set('login_hint', options.loginHint);
         return url.toString();
     }
 

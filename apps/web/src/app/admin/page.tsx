@@ -10,10 +10,12 @@ import { api } from '@/lib/api';
 import { requireAdmin } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingReview } from '@/components/ListingReview';
-import { Panel, Heading, EmptyState, OperationStatusBadge } from '@/components/ui';
+import { Panel, Heading, EmptyState, OperationStatusBadge, Alert } from '@/components/ui';
+import { SubmitButton } from '@/components/SubmitButton';
+import { accessResultAlert, parseAccessResult } from '@/lib/platformAccessVerification';
 import { money } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
-import { approveListing, rejectListing } from './actions';
+import { approveListing, rejectListing, startPlatformAccessVerification } from './actions';
 
 export const metadata = { title: 'Panel · Traspaso' };
 
@@ -105,20 +107,29 @@ function FilaDeEspera({ p }: { p: PendingOperationDto }) {
  * para no mostrarle a un usuario común una pantalla que solo le va a devolver
  * errores.
  */
-export default async function Admin() {
+export default async function Admin(props: {
+    // En Next 16 `searchParams` es una promesa: el acceso sincrónico se eliminó.
+    searchParams: Promise<{ acceso?: string; activo?: string; detalle?: string }>;
+}) {
     await requireAdmin();
+    const params = await props.searchParams;
+    const accessResult = parseAccessResult(params.acceso);
+    const accessAlert = accessResult ? accessResultAlert(accessResult, params.detalle) : undefined;
     const nombreDeTipo = await assetTypeLabeller();
 
     let queue: MyListingDto[] = [];
+    let awaitingAccess: MyListingDto[] = [];
     let tablero: PlatformDashboardDto | undefined;
     let error: string | undefined;
 
     // Las dos lecturas son independientes: si una falla, la otra se muestra
     // igual. Un tablero caído no debería dejar sin revisar la cola.
-    const [colaResult, tableroResult] = await Promise.allSettled([
+    const [colaResult, tableroResult, accesoResult] = await Promise.allSettled([
         api().listingsParaRevisar(),
         api().platformDashboard(),
+        api().listingsConAccesoPendiente(),
     ]);
+    if (accesoResult.status === 'fulfilled') awaitingAccess = accesoResult.value;
 
     if (colaResult.status === 'fulfilled') {
         queue = colaResult.value;
@@ -135,6 +146,14 @@ export default async function Admin() {
                     Panel de la plataforma
                 </Heading>
             </Reveal>
+
+            {accessAlert && (
+                <div className="mt-8">
+                    <Alert tono={accessAlert.tone === 'ok' ? 'listo' : accessAlert.tone === 'warning' ? 'alerta' : 'error'}>
+                        {accessAlert.text}
+                    </Alert>
+                </div>
+            )}
 
             {tablero && (
                 <>
@@ -197,6 +216,44 @@ export default async function Admin() {
                         </div>
                     )}
                 </>
+            )}
+
+            {awaitingAccess.length > 0 && (
+                <div className="mt-10">
+                    <Panel title="ESPERAN VERIFICACIÓN DE ACCESO">
+                        <p className="mb-2 max-w-[600px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                            El vendedor avisó que ya invitó a la plataforma. Ingresá con la cuenta de custodia y
+                            elegí la Cuenta de Marca del canal: si la administra, el acceso queda registrado.
+                        </p>
+                        <div className="flex flex-col">
+                            {awaitingAccess.map((l) => (
+                                <div
+                                    key={l.id}
+                                    className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-borde)] py-3 last:border-0"
+                                >
+                                    <div className="flex flex-col gap-1">
+                                        <Link
+                                            href={`/listings/${l.id}`}
+                                            className="text-[14px] font-medium text-[var(--color-tinta)] transition-colors hover:text-[var(--color-acento)]"
+                                        >
+                                            {l.assetName ?? 'Activo sin nombre'}
+                                        </Link>
+                                        <span className="text-[12px] text-[var(--color-apagado)]">
+                                            {nombreDeTipo(l.assetType)}
+                                            {l.platformAccessRequestedAt &&
+                                                ` · avisó el ${new Date(l.platformAccessRequestedAt).toLocaleDateString('es-AR')}`}
+                                        </span>
+                                    </div>
+                                    <form action={startPlatformAccessVerification.bind(null, l.id)}>
+                                        <SubmitButton pendingText="Abriendo Google…" variant="secundario">
+                                            Verificar acceso
+                                        </SubmitButton>
+                                    </form>
+                                </div>
+                            ))}
+                        </div>
+                    </Panel>
+                </div>
             )}
 
             <div className="mt-10 flex flex-col gap-3">

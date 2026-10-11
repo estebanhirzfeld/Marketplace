@@ -246,6 +246,16 @@ export interface ListingFiltersQuery {
  * Un admin registra que la plataforma obtuvo acceso al activo. Es manual
  * porque la API de YouTube no expone quiénes son los propietarios de un canal.
  */
+export interface PlatformAccessAuthorizationRequest {
+    /** Ata la vuelta de Google al navegador del admin y al activo; lo valida la capa web. */
+    state: string;
+}
+
+/** El código que Google devolvió tras elegir la cuenta de custodia. */
+export interface VerifyPlatformAccessRequest {
+    code: string;
+}
+
 export interface RegisterPlatformAccessRequest {
     /** Desde cuándo hay acceso, en ISO. No puede ser futura. */
     accessSince: string;
