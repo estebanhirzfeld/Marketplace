@@ -72,6 +72,11 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
     - `tsc` limpio;
     - control del orquestador: 18/18.
   - Pendiente: aplicar la migración nueva a `marketplace_dev`.
+  - Revisión `review-57f2a1f2acb377ca`: consentimiento `granted`, aprobada y reconocida. El límite revisado avanza a `de7b9d4`.
+    - Hallazgos informativos:
+      - `R3-reject-save-then-notify-not-atomic`: si falla la notificación después de guardar, el vendedor no se entera.
+      - `R3-vender-plan-wiring-untested`.
+      - `R3-copy-email-stateful-path-untested`.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
