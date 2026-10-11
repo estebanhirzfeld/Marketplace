@@ -86,11 +86,12 @@ describe('callback de Google en modo acceso de la plataforma', () => {
     });
 
     it('si la cuenta elegida no administra el canal (403) vuelve con «sin-acceso»', async () => {
-        verifyPlatformAccess.mockRejectedValue(new ApiError('FORBIDDEN', 'La cuenta elegida no administra este canal.', 403));
+        const mensaje = 'Elegiste «Forza Labs» y el activo es «Pc Lover». Volvé a intentar y elegí ese canal.';
+        verifyPlatformAccess.mockRejectedValue(new ApiError('FORBIDDEN', mensaje, 403));
 
         const res = await llamar(`?code=abc&state=${encodeURIComponent(STATE)}`);
 
-        expect(destino(res)).toBe('/admin?acceso=sin-acceso&activo=l1');
+        expect(destino(res)).toBe(`/admin?${new URLSearchParams({ acceso: 'sin-acceso', activo: 'l1', detalle: mensaje })}`);
     });
 
     it('si ingresó con otra cuenta de Google (403) vuelve con «otra-cuenta» y el mensaje', async () => {

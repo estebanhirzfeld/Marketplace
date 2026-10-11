@@ -340,6 +340,11 @@ export class MarketplaceClient {
         });
     }
 
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. Solo admin. */
+    rejectPlatformAccessRequest(listingId: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/rechazar`);
+    }
+
     /** Borra la constancia cuando la plataforma perdió el acceso. Solo admin. */
     revokePlatformAccess(listingId: string): Promise<void> {
         return this.request('DELETE', `/admin/listings/${encodeURIComponent(listingId)}/acceso`);

@@ -152,4 +152,30 @@ describe('Listing.platformAccessStatus', () => {
 
         expect(listing.platformAccessStatus(AHORA)).toBe('immediate');
     });
+
+    describe('rejectPlatformAccessRequest', () => {
+        it('vuelve a pending y permite pedirlo de nuevo', () => {
+            const listing = canal();
+            listing.requestPlatformAccess(AHORA);
+
+            listing.rejectPlatformAccessRequest();
+
+            expect(listing.platformAccessRequestedAt).toBeUndefined();
+            expect(listing.platformAccessStatus(AHORA)).toBe('pending');
+            listing.requestPlatformAccess(AHORA);
+            expect(listing.platformAccessStatus(AHORA)).toBe('verifying');
+        });
+
+        it('sin solicitud no hay nada que rechazar', () => {
+            expect(() => canal().rejectPlatformAccessRequest()).toThrow(InvalidStateError);
+        });
+
+        it('con la constancia ya registrada no se puede rechazar', () => {
+            const listing = canal();
+            listing.requestPlatformAccess(AHORA);
+            conAcceso(listing, AHORA);
+
+            expect(() => listing.rejectPlatformAccessRequest()).toThrow(InvalidStateError);
+        });
+    });
 });

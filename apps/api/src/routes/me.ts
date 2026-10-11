@@ -516,6 +516,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         },
     );
 
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. */
+    app.post<{ Params: IdParams }>(
+        '/admin/listings/:id/acceso/rechazar',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.rejectPlatformAccessRequest.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
     /** Cuando el vendedor expulsó a la plataforma. Ninguna API nos lo avisa. */
     app.delete<{ Params: IdParams }>(
         '/admin/listings/:id/acceso',

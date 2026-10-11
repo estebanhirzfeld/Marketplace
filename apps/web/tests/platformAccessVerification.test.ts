@@ -16,6 +16,7 @@ import {
  */
 
 const platformAccessAuthorization = vi.fn();
+const rejectPlatformAccessRequestApi = vi.fn();
 const cookieSet = vi.fn();
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ set: cookieSet }) }));
@@ -25,9 +26,12 @@ vi.mock('next/navigation', () => ({
     },
 }));
 vi.mock('@/lib/guards', () => ({ requireAdmin: async () => ({ id: 'admin-1' }) }));
-vi.mock('@/lib/api', () => ({ api: () => ({ platformAccessAuthorization }) }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/lib/api', () => ({
+    api: () => ({ platformAccessAuthorization, rejectPlatformAccessRequest: rejectPlatformAccessRequestApi }),
+}));
 
-import { startPlatformAccessVerification } from '@/app/admin/actions';
+import { rejectPlatformAccessRequest, startPlatformAccessVerification } from '@/app/admin/actions';
 
 async function redirigeA(promesa: Promise<unknown>): Promise<string> {
     try {
@@ -73,7 +77,9 @@ describe('resultado de la verificación', () => {
 
     it('cada resultado tiene un aviso en español, y solo el ok es de éxito', () => {
         expect(accessResultAlert('ok').tone).toBe('ok');
-        expect(accessResultAlert('sin-acceso').text).toContain('no administra este canal');
+        expect(accessResultAlert('sin-acceso').text).toContain('elegí el canal');
+        expect(accessResultAlert('sin-acceso').text).not.toContain('Cuenta de Marca');
+        expect(accessResultAlert('sin-acceso', 'Elegiste «A» y el activo es «B».').text).toBe('Elegiste «A» y el activo es «B».');
         expect(accessResultAlert('sin-acceso').tone).toBe('error');
         expect(accessResultAlert('error').tone).toBe('error');
     });
@@ -88,7 +94,7 @@ describe('resultado de la verificación', () => {
 
     it('distingue por el mensaje de la API cuándo el 403 es por otra cuenta', () => {
         expect(isOtherAccountMessage('Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (c@t.com).')).toBe(true);
-        expect(isOtherAccountMessage('La cuenta elegida no administra este canal.')).toBe(false);
+        expect(isOtherAccountMessage('Elegiste «A» y el activo es «B».')).toBe(false);
     });
 });
 
@@ -126,5 +132,30 @@ describe('startPlatformAccessVerification', () => {
         const destino = await redirigeA(startPlatformAccessVerification('l1'));
 
         expect(destino).toBe('/admin?acceso=no-configurado&activo=l1');
+    });
+});
+
+describe('rejectPlatformAccessRequest', () => {
+    it('avisa a la API y vuelve al panel con el resultado «rechazado»', async () => {
+        rejectPlatformAccessRequestApi.mockResolvedValue(undefined);
+
+        const destino = await redirigeA(rejectPlatformAccessRequest('l1'));
+
+        expect(rejectPlatformAccessRequestApi).toHaveBeenCalledWith('l1');
+        expect(destino).toBe('/admin?acceso=rechazado&activo=l1');
+        expect(parseAccessResult('rechazado')).toBe('rechazado');
+        expect(accessResultAlert('rechazado').text).toContain('vendedor');
+    });
+
+    it('si la API rechaza, vuelve al panel con el motivo', async () => {
+        rejectPlatformAccessRequestApi.mockRejectedValue(
+            new ApiError('INVALID_STATE', 'Este activo no está esperando la verificación del acceso.', 409),
+        );
+
+        const destino = await redirigeA(rejectPlatformAccessRequest('l1'));
+
+        expect(destino).toBe(
+            `/admin?acceso=error&activo=l1&${new URLSearchParams({ detalle: 'Este activo no está esperando la verificación del acceso.' })}`,
+        );
     });
 });

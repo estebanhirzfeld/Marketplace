@@ -78,8 +78,15 @@ function custodyRepo(accounts: CustodyAccount[]) {
 
 const AUTORIZADOR: GoogleAuthorizer = { email: 'custodia-yt@traspaso.com', emailVerified: true, subject: 'sub-123' };
 
-function ownershipReader(channelIds: string[], authorizer: GoogleAuthorizer | null = AUTORIZADOR): IYouTubeCustodyAccessReader {
-    const channels: OwnedYouTubeChannel[] = channelIds.map((channelId) => ({ channelId, title: 'Canal' }));
+function ownershipReader(
+    channelIds: string[],
+    authorizer: GoogleAuthorizer | null = AUTORIZADOR,
+    titles: Record<string, string> = {},
+): IYouTubeCustodyAccessReader {
+    const channels: OwnedYouTubeChannel[] = channelIds.map((channelId) => ({
+        channelId,
+        title: titles[channelId] ?? 'Canal',
+    }));
     return { authorizedChannelsOf: vi.fn().mockResolvedValue({ authorizer, channels }) };
 }
 
@@ -97,10 +104,11 @@ function armar(
     owned: string[],
     resolved: string | null = CANAL_ID,
     authorizer: GoogleAuthorizer | null = AUTORIZADOR,
+    titles: Record<string, string> = {},
 ) {
     const listings = listingRepo(listing);
     const custody = custodyRepo(accounts);
-    const reader = ownershipReader(owned, authorizer);
+    const reader = ownershipReader(owned, authorizer, titles);
     const channels = channelReader(resolved);
     const register = new RegisterPlatformAccessUseCase(listings, custody);
     const useCase = new VerifyPlatformAccessUseCase(listings, custody, reader, channels, register);
@@ -199,11 +207,32 @@ describe('VerifyPlatformAccessUseCase', () => {
         const { useCase, listings } = armar(listing, [cuenta()], [OTRO_ID]);
 
         await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(
-            'La cuenta elegida no administra este canal',
+            'Elegiste «Canal» y el activo es «Canal»',
         );
         await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow(ForbiddenError);
         expect(listing.platformAccess).toBeUndefined();
         expect(listings.save).not.toHaveBeenCalled();
+    });
+
+    it('el rechazo nombra el canal elegido y el del activo, y explica cómo volver a elegir', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase } = armar(listing, [cuenta()], [OTRO_ID], CANAL_ID, AUTORIZADOR, { [OTRO_ID]: 'Forza Labs' });
+
+        const error = await useCase.execute(listing.id.toString(), GRANT, ADMIN).catch((e: Error) => e);
+
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect((error as Error).message).toBe(
+            'Elegiste «Forza Labs» y el activo es «Canal». Volvé a intentar y elegí ese canal. ' +
+                'Si Google no te deja elegir, quitá el acceso de Traspaso en myaccount.google.com/connections y probá de nuevo.',
+        );
+        expect((error as Error).message).not.toContain('Cuenta de Marca');
+    });
+
+    it('si la cuenta no administra ningún canal, el rechazo dice «una cuenta sin canal»', async () => {
+        const listing = conSolicitud(canal());
+        const { useCase } = armar(listing, [cuenta()], []);
+
+        await expect(useCase.execute(listing.id.toString(), GRANT, ADMIN)).rejects.toThrow('Elegiste «una cuenta sin canal»');
     });
 
     it('si la cuenta no administra ningún canal, también rechaza', async () => {

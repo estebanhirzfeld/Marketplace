@@ -67,6 +67,8 @@ enum NotificationType {
   acceso_pendiente
   custodia_pendiente
   liquidacion_pendiente
+  // Al vendedor: el admin no encontró su invitación a la plataforma.
+  acceso_no_encontrado
 }
 
 enum ContractType {

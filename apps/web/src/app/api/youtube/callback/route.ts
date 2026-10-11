@@ -112,7 +112,7 @@ async function verifyPlatformAccess(
             if (isOtherAccountMessage(e.message)) return back('otra-cuenta', e.message);
             // Google no dijo quién inició sesión: no es un problema de acceso al canal.
             if (e.message.startsWith('Google no informó')) return back('error', e.message);
-            return back('sin-acceso');
+            return back('sin-acceso', e.message);
         }
         return back('error', e instanceof ApiError ? e.message : undefined);
     }

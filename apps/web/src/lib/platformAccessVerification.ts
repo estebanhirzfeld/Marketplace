@@ -43,9 +43,9 @@ export function listingIdFromAccessState(state: string): string | undefined {
 }
 
 /** Cómo terminó la verificación, tal como viaja en `?acceso=`. */
-export type AccessResult = 'ok' | 'sin-acceso' | 'otra-cuenta' | 'cancelada' | 'invalida' | 'no-configurado' | 'error';
+export type AccessResult = 'ok' | 'sin-acceso' | 'otra-cuenta' | 'cancelada' | 'invalida' | 'no-configurado' | 'rechazado' | 'error';
 
-const RESULTS: readonly AccessResult[] = ['ok', 'sin-acceso', 'otra-cuenta', 'cancelada', 'invalida', 'no-configurado', 'error'];
+const RESULTS: readonly AccessResult[] = ['ok', 'sin-acceso', 'otra-cuenta', 'cancelada', 'invalida', 'no-configurado', 'rechazado', 'error'];
 
 export function parseAccessResult(value: string | undefined): AccessResult | undefined {
     return RESULTS.find((r) => r === value);
@@ -65,7 +65,7 @@ export function isOtherAccountMessage(message: string): boolean {
     return message.startsWith('Ingresaste con otra cuenta de Google');
 }
 
-/** El aviso del panel. `detail` es el mensaje de la API, solo para `error`. */
+/** El aviso del panel. `detail` es el mensaje de la API, para los resultados de error. */
 export function accessResultAlert(result: AccessResult, detail?: string): AccessResultAlert {
     switch (result) {
         case 'ok':
@@ -74,8 +74,9 @@ export function accessResultAlert(result: AccessResult, detail?: string): Access
             return {
                 tone: 'error',
                 text:
-                    'La cuenta elegida no administra este canal. Ingresá con la cuenta de custodia y elegí la ' +
-                    'Cuenta de Marca del canal; si el vendedor todavía no nos invitó, esperá la invitación.',
+                    detail ??
+                    'La cuenta elegida no administra este canal. Ingresá con la cuenta de custodia y elegí el ' +
+                    'canal; si el vendedor todavía no nos invitó, esperá la invitación.',
             };
         case 'otra-cuenta':
             return {
@@ -88,6 +89,8 @@ export function accessResultAlert(result: AccessResult, detail?: string): Access
             return { tone: 'error', text: 'La vuelta de Google no corresponde a esta sesión. Volvé a empezar la verificación.' };
         case 'no-configurado':
             return { tone: 'error', text: 'La verificación con Google todavía no está configurada. Podés registrar el acceso a mano.' };
+        case 'rechazado':
+            return { tone: 'warning', text: 'Le avisamos al vendedor que no encontramos su invitación. El activo vuelve a pendiente.' };
         case 'error':
             return { tone: 'error', text: detail ?? 'No pudimos verificar el acceso. Probá de nuevo o registralo a mano.' };
     }

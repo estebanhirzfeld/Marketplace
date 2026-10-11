@@ -146,8 +146,8 @@ export function YouTubeListingFormView({
             </Button>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión, y
-                eso requiere tener la identidad verificada.
+                Nace como borrador. Como tu canal está verificado, lo publicás sin revisión.
+                Necesitás tener la identidad verificada.
             </p>
         </form>
     );

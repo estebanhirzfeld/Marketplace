@@ -82,6 +82,8 @@ export interface AssetFieldDescriptor {
     kind: AssetFieldKind;
     /** Si identifica al activo y por lo tanto queda detrás del NDA. */
     confidential: boolean;
+    /** Dato de la valuación que las vistas no muestran a vendedores ni compradores. */
+    internal?: boolean;
 }
 
 /**

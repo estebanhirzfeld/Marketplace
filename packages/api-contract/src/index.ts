@@ -585,6 +585,8 @@ export interface AssetFieldDto {
     label: string;
     kind: AssetFieldKindDto;
     confidential: boolean;
+    /** Dato interno de la valuación: las vistas no lo muestran. */
+    internal?: boolean;
 }
 
 export interface AssetTypeDescriptorDto {
@@ -1044,7 +1046,9 @@ export type NotificationTypeDto =
     | 'revision_pendiente'
     | 'acceso_pendiente'
     | 'custodia_pendiente'
-    | 'liquidacion_pendiente';
+    | 'liquidacion_pendiente'
+    /** Al vendedor: el admin no encontró su invitación a la plataforma. */
+    | 'acceso_no_encontrado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

@@ -40,6 +40,16 @@ describe('IAssetStrategy.describe', () => {
         expect(d.fields.length).toBeGreaterThan(0);
     });
 
+    it('el factor de crecimiento es un dato interno de la valuación: se describe pero no se muestra', () => {
+        const [, youtube] = estrategias[0];
+        const growth = youtube.describe().fields.find((f) => f.key === 'growthFactor');
+
+        expect(growth?.internal).toBe(true);
+        const shown = youtube.describe().fields.filter((f) => !f.internal);
+        expect(shown.map((f) => f.key)).not.toContain('growthFactor');
+        expect(shown.length).toBeGreaterThan(0);
+    });
+
     it.each(estrategias)('%s declara sus días de espera sin que nadie los adivine', (_, strategy) => {
         expect(strategy.describe().transferWaitingDays).toBe(strategy.transferWaitingDays());
     });

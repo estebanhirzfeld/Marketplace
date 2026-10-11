@@ -437,7 +437,7 @@ export default async function DetalleDeActivo(props: {
                                     los dibuja en el orden en que se los dan.
                                 */}
                                 {listing.descriptor.fields
-                                    .filter((f) => f.key in listing.assetData)
+                                    .filter((f) => f.key in listing.assetData && !f.internal)
                                     .map((f) => (
                                         <div key={f.key} className="flex justify-between gap-4 py-2.5 text-[14px]">
                                             <span className="text-[var(--color-tenue)]">{f.label}</span>

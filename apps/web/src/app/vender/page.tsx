@@ -8,9 +8,11 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
 import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
+import { SubmitButton } from '@/components/SubmitButton';
 import { SellSteps } from '@/components/SellSteps';
-import { Panel, Heading } from '@/components/ui';
+import { ButtonLink, Panel, Heading } from '@/components/ui';
 import { formatNumber } from '@/lib/format';
+import { planYouTubeSell } from '@/lib/sellChannels';
 import {
     chooseSellView,
     connectionsFromReadError,
@@ -44,6 +46,15 @@ async function loadConnections(): Promise<Connections> {
         return await api().youTubeConnections();
     } catch (e) {
         return connectionsFromReadError(e);
+    }
+}
+
+/** Los activos del vendedor, para saber qué canales ya tienen uno. Sin ellos, no se filtra nada. */
+async function loadMyListings() {
+    try {
+        return await api().misListings();
+    } catch {
+        return [];
     }
 }
 
@@ -83,8 +94,13 @@ export default async function Publicar(props: {
     const reason = parseConnectionReason(params.conexion);
     const failure: ConnectionFailure | undefined = reason ? { reason, detail: params.detalle } : undefined;
 
+    const myListings = connections && connections.length > 0 ? await loadMyListings() : [];
+    const plan = planYouTubeSell(connections ?? [], myListings);
+    // Los canales con un activo (publicado o en borrador) no se ofrecen como nuevos.
+    const offerable = plan.kind === 'offer' ? plan.channels : plan.kind === 'draft-choice' ? plan.offerable : [];
+
     const view = chooseSellView({
-        connections,
+        connections: connections === null ? null : offerable,
         canal: params.canal,
         failed: failure !== undefined,
         web: wantsWeb,
@@ -98,13 +114,13 @@ export default async function Publicar(props: {
         notConfigured: params.conexion === 'no-configurada',
         configured: connections !== null,
     });
-    const channels = view.kind === 'list' ? view.channels : (connections ?? []);
+    const channels = view.kind === 'list' ? view.channels : offerable;
     const selected = view.kind === 'selected' ? view.channel : undefined;
 
     if (picking) {
         // Con canales ya conectados se elige entre ellos; sin ninguno, la
         // tarjeta abre Google directamente.
-        const hasConnections = (connections ?? []).length > 0;
+        const hasConnections = plan.kind !== 'connect';
         return (
             <div className="mx-auto max-w-[1100px] px-6 py-16 sm:px-12">
                 <Reveal>
@@ -213,6 +229,25 @@ export default async function Publicar(props: {
                             )}
                         </Reveal>
                     </>
+                ) : plan.kind === 'draft-choice' && !selected && !failure ? (
+                    <Reveal delay={80}>
+                        {/* Vista provisoria: el diseño final llega con la ronda de lienzo. */}
+                        <Panel title="YA TENÉS UN BORRADOR">
+                            <p className="mb-5 text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                                Tu canal «{plan.channelTitle}» ya tiene un activo sin publicar.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <ButtonLink href={`/activos/${plan.draftListingId}`}>
+                                    Continuar con el borrador de {plan.channelTitle}
+                                </ButtonLink>
+                                <form action={startYouTubeConnection}>
+                                    <SubmitButton pendingText="Abriendo Google…" variant="secundario">
+                                        Publicar otro canal
+                                    </SubmitButton>
+                                </form>
+                            </div>
+                        </Panel>
+                    </Reveal>
                 ) : selected ? (
                     <>
                         <Reveal delay={80}>

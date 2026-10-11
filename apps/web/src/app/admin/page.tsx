@@ -15,7 +15,12 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { accessResultAlert, parseAccessResult } from '@/lib/platformAccessVerification';
 import { money } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
-import { approveListing, rejectListing, startPlatformAccessVerification } from './actions';
+import {
+    approveListing,
+    rejectListing,
+    rejectPlatformAccessRequest,
+    startPlatformAccessVerification,
+} from './actions';
 
 export const metadata = { title: 'Panel · Traspaso' };
 
@@ -223,7 +228,7 @@ export default async function Admin(props: {
                     <Panel title="ESPERAN VERIFICACIÓN DE ACCESO">
                         <p className="mb-2 max-w-[600px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
                             El vendedor avisó que ya invitó a la plataforma. Ingresá con la cuenta de custodia y
-                            elegí la Cuenta de Marca del canal: si la administra, el acceso queda registrado.
+                            elegí el canal: si lo administra, el acceso queda registrado.
                         </p>
                         <div className="flex flex-col">
                             {awaitingAccess.map((l) => (
@@ -244,11 +249,18 @@ export default async function Admin(props: {
                                                 ` · avisó el ${new Date(l.platformAccessRequestedAt).toLocaleDateString('es-AR')}`}
                                         </span>
                                     </div>
-                                    <form action={startPlatformAccessVerification.bind(null, l.id)}>
-                                        <SubmitButton pendingText="Abriendo Google…" variant="secundario">
-                                            Verificar acceso
-                                        </SubmitButton>
-                                    </form>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <form action={startPlatformAccessVerification.bind(null, l.id)}>
+                                            <SubmitButton pendingText="Abriendo Google…" variant="secundario">
+                                                Verificar acceso
+                                            </SubmitButton>
+                                        </form>
+                                        <form action={rejectPlatformAccessRequest.bind(null, l.id)}>
+                                            <SubmitButton pendingText="Avisando…" variant="secundario">
+                                                No encontramos la invitación
+                                            </SubmitButton>
+                                        </form>
+                                    </div>
                                 </div>
                             ))}
                         </div>

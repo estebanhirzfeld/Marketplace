@@ -1,7 +1,9 @@
 import { ICustodyAccountRepository } from "@marketplace/domain/src/ports/Repositories";
 import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
 import { AssetType } from "@marketplace/shared-types";
+import { InvalidStateError } from "@marketplace/domain/src/errors/DomainError";
 import { prisma } from "../client";
+import { Prisma } from "../../generated/prisma/client";
 import { CustodyAccountMapper } from "../mappers/CustodyAccountMapper";
 
 export class PrismaCustodyAccountRepository implements ICustodyAccountRepository {
@@ -31,10 +33,19 @@ export class PrismaCustodyAccountRepository implements ICustodyAccountRepository
     async save(account: CustodyAccount): Promise<void> {
         const data = CustodyAccountMapper.toPersistence(account);
 
-        await this.db.custodyAccount.upsert({
-            where: { id: data.id },
-            create: data,
-            update: data,
-        });
+        try {
+            await this.db.custodyAccount.upsert({
+                where: { id: data.id },
+                create: data,
+                update: data,
+            });
+        } catch (error) {
+            // `identifier` es único: se traduce a un error del dominio (409) en
+            // vez de dejar que salga como un 500 sin explicación.
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+                throw new InvalidStateError("Ya existe una cuenta de custodia con ese identificador.");
+            }
+            throw error;
+        }
     }
 }

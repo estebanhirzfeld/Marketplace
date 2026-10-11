@@ -140,3 +140,22 @@ export async function startPlatformAccessVerification(listingId: string): Promis
 
     redirect(url);
 }
+
+/**
+ * El admin no encontró la invitación del vendedor: el activo vuelve a
+ * pendiente y el vendedor recibe un aviso. Vuelve al panel con el resultado.
+ */
+export async function rejectPlatformAccessRequest(listingId: string): Promise<void> {
+    await requireAdmin();
+
+    try {
+        await api().rejectPlatformAccessRequest(listingId);
+    } catch (e) {
+        const query = new URLSearchParams({ acceso: 'error', activo: listingId });
+        if (e instanceof ApiError) query.set('detalle', e.message);
+        redirect(`/admin?${query}`);
+    }
+
+    revalidatePath('/admin');
+    redirect(`/admin?${new URLSearchParams({ acceso: 'rechazado', activo: listingId })}`);
+}

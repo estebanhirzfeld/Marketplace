@@ -20,6 +20,7 @@ import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/
 import { EstimateListingPriceUseCase } from '@marketplace/domain/src/use-cases/listing/EstimateListingPriceUseCase';
 import { GetPlatformDashboardUseCase } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { PublishListingUseCase } from '@marketplace/domain/src/use-cases/listing/PublishListingUseCase';
+import { RejectPlatformAccessRequestUseCase } from '@marketplace/domain/src/use-cases/listing/RejectPlatformAccessRequestUseCase';
 import { RequestPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RequestPlatformAccessUseCase';
 import { EditListingUseCase } from '@marketplace/domain/src/use-cases/listing/EditListingUseCase';
 import { DeleteDraftListingUseCase } from '@marketplace/domain/src/use-cases/listing/DeleteDraftListingUseCase';
@@ -189,6 +190,7 @@ export interface Container {
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
+    rejectPlatformAccessRequest: RejectPlatformAccessRequestUseCase;
     listadoPublico: GetPublishedListingsUseCase;
     getListingDetails: GetListingDetailsUseCase;
     misListings: GetMyListingsUseCase;
@@ -471,6 +473,7 @@ export function createContainer(
                   )
                 : undefined,
         revokePlatformAccess: new RevokePlatformAccessUseCase(listingRepo),
+        rejectPlatformAccessRequest: new RejectPlatformAccessRequestUseCase(listingRepo, avisos),
         listadoPublico: new GetPublishedListingsUseCase(listingRepo),
         getListingDetails: new GetListingDetailsUseCase(listingRepo, contractRepo, custodyRepo),
         misListings: new GetMyListingsUseCase(listingRepo, custodyRepo),

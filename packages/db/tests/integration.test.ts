@@ -23,7 +23,7 @@ import {
     PrismaSellerPaymentAccountRepository,
     isMpUserIdConflict,
 } from "../src/repositories/PrismaSellerPaymentAccountRepository";
-import { ValidationError } from "@marketplace/domain/src/errors/DomainError";
+import { InvalidStateError, ValidationError } from "@marketplace/domain/src/errors/DomainError";
 import { AssetType } from "@marketplace/shared-types";
 import { prisma } from "../src/client";
 import { Prisma } from "../generated/prisma/client";
@@ -345,7 +345,28 @@ describe("PrismaCustodyAccountRepository", () => {
             custodyRepo.save(
                 CustodyAccount.create({ label: "B", identifier, assetType: AssetType.WEB }),
             ),
-        ).rejects.toThrow();
+        ).rejects.toThrow(InvalidStateError);
+    });
+
+    it("un identifier duplicado dice qué pasó, tanto al crear como al editar", async () => {
+        const identifier = `dup-msg-${Date.now()}@test.com`;
+        await custodyRepo.save(
+            CustodyAccount.create({ label: "A", identifier, assetType: AssetType.YOUTUBE }),
+        );
+        const otra = await createPersistedCustodyAccount();
+
+        await expect(
+            custodyRepo.save(CustodyAccount.create({ label: "B", identifier, assetType: AssetType.WEB })),
+        ).rejects.toThrow("Ya existe una cuenta de custodia con ese identificador.");
+
+        const reconstituida = CustodyAccount.reconstitute(
+            { ...otra.toSnapshot().props, identifier },
+            otra.id,
+            otra.createdAt,
+        );
+        await expect(custodyRepo.save(reconstituida)).rejects.toThrow(
+            "Ya existe una cuenta de custodia con ese identificador.",
+        );
     });
 
     it("findActive filtra por isActive y opcionalmente por assetType", async () => {

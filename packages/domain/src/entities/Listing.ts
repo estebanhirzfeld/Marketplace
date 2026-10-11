@@ -296,6 +296,18 @@ export class Listing extends Entity<ListingProps> {
         this.props.platformAccessRequestedAt = at;
     }
 
+    /**
+     * El admin no encontró la invitación del vendedor: la solicitud cae y el
+     * activo vuelve a «pending», para que el vendedor invite de nuevo y
+     * vuelva a avisar. Solo tiene sentido mientras se espera la verificación.
+     */
+    public rejectPlatformAccessRequest(): void {
+        if (this.props.platformAccess || !this.props.platformAccessRequestedAt) {
+            throw new InvalidStateError('Este activo no está esperando la verificación del acceso.');
+        }
+        this.props.platformAccessRequestedAt = undefined;
+    }
+
     public platformAccessStatus(ahora: Date = new Date()): PlatformAccessStatus {
         if (this.props.platformAccess) {
             return this.isReadyToTransfer(ahora) ? 'immediate' : 'waiting';

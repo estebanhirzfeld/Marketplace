@@ -1,5 +1,5 @@
 import { ICustodyAccountRepository, IListingRepository } from '../../ports/Repositories';
-import { GoogleAuthorizer, IYouTubeCustodyAccessReader } from '../../ports/IOwnershipReaders';
+import { GoogleAuthorizer, IYouTubeCustodyAccessReader, OwnedYouTubeChannel } from '../../ports/IOwnershipReaders';
 import { IYouTubeChannelReader } from '../../ports/IYouTubeChannelReader';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { Listing } from '../../entities/Listing';
@@ -86,7 +86,7 @@ export class StartPlatformAccessVerificationUseCase {
  * Comprueba contra Google que la cuenta de custodia administra el canal, en
  * vez de que un admin lo tipee a mano.
  *
- * El admin ingresa con la cuenta de custodia y elige la Cuenta de Marca en el
+ * El admin ingresa con la cuenta de custodia y elige el canal en el
  * selector de Google. Primero se exige que quien inició sesión sea la cuenta de
  * custodia (correo verificado e igual al sugerido): que otra cuenta administre
  * el canal no prueba que la plataforma tenga acceso. Después se buscan, entre
@@ -112,10 +112,7 @@ export class VerifyPlatformAccessUseCase {
         const { authorizer, channels: managed } = await this.ownershipReader.authorizedChannelsOf(grant);
         const signedIn = this.assertCustodyAccount(authorizer, account);
         if (!managed.some((c) => c.channelId === publishedChannelId)) {
-            throw new ForbiddenError(
-                'La cuenta elegida no administra este canal. Ingresá con la cuenta de custodia y ' +
-                    'elegí la Cuenta de Marca del canal; si el vendedor todavía no nos invitó, esperá la invitación.',
-            );
+            throw new ForbiddenError(await this.channelMismatchMessage(managed, publishedChannelId, listing));
         }
 
         await this.registerAccess.execute(
@@ -127,6 +124,35 @@ export class VerifyPlatformAccessUseCase {
             },
             actor,
         );
+    }
+
+    /**
+     * Dice qué canal(es) devolvió Google y cuál es el del activo. Google
+     * reutiliza la elección de un permiso anterior y puede no mostrar el
+     * selector: por eso el mensaje explica cómo quitar ese permiso.
+     */
+    private async channelMismatchMessage(
+        managed: OwnedYouTubeChannel[],
+        publishedChannelId: string,
+        listing: Listing,
+    ): Promise<string> {
+        const chosen = managed.length > 0 ? managed.map((c) => c.title).join(', ') : 'una cuenta sin canal';
+        const publishedTitle = await this.publishedChannelTitle(listing, publishedChannelId);
+        return (
+            `Elegiste «${chosen}» y el activo es «${publishedTitle}». Volvé a intentar y elegí ese canal. ` +
+            'Si Google no te deja elegir, quitá el acceso de Traspaso en myaccount.google.com/connections y probá de nuevo.'
+        );
+    }
+
+    /** El título es solo para el mensaje: si no se puede leer, se muestra el ID. */
+    private async publishedChannelTitle(listing: Listing, channelId: string): Promise<string> {
+        try {
+            const ref = YouTubeChannelRef.parse(String(listing.assetDataFor(true).assetData.channelUrl));
+            const snapshot = await this.channelReader.read(ref);
+            return snapshot?.title ?? channelId;
+        } catch {
+            return channelId;
+        }
     }
 
     /** Quien inició sesión tiene que ser la cuenta de custodia, con el correo verificado por Google. */

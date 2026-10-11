@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
@@ -3164,6 +3165,54 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
         expect(asSeller.statusCode).toBe(403);
     });
 
+    describe('POST /admin/listings/:id/acceso/rechazar', () => {
+        it('204: vuelve a pending y avisa al vendedor', async () => {
+            const { id, seller } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+
+            expect(res.statusCode).toBe(204);
+            const listing = (await listingRepo.findById(id))!;
+            expect(listing.platformAccessStatus()).toBe('pending');
+            const avisos = await prisma.notification.findMany({ where: { userId: seller.id.toString() } });
+            expect(avisos.map((a) => a.type)).toEqual(['acceso_no_encontrado']);
+        });
+
+        it('403 para quien no es admin, 404 si no existe y 409 si no estaba verificando', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const asSeller = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+            });
+            expect(asSeller.statusCode).toBe(403);
+
+            const missing = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${randomUUID()}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(missing.statusCode).toBe(404);
+
+            const listing = (await listingRepo.findById(id))!;
+            listing.rejectPlatformAccessRequest();
+            await listingRepo.save(listing);
+            const again = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(again.statusCode).toBe(409);
+        });
+    });
+
     describe('POST /admin/listings/:id/acceso/autorizacion', () => {
         it('devuelve la dirección de Google con youtube.readonly e identidad (openid email), el selector de canales, la cuenta de custodia sugerida y sin acceso offline', async () => {
             const { id } = await seedVerifyingChannel();
@@ -3262,7 +3311,7 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
             });
 
             expect(res.statusCode).toBe(403);
-            expect(res.json().message).toContain('La cuenta elegida no administra este canal');
+            expect(res.json().message).toContain('Elegiste «Canal» y el activo es');
             expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
         });
 

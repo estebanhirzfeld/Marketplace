@@ -106,7 +106,7 @@ export class YouTubeStrategy implements IAssetStrategy {
         { key: 'subscribers', label: 'Suscriptores', kind: 'number', confidential: false },
         { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
         { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
-        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false },
+        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false, internal: true },
         { key: 'isMonetized', label: 'Monetizado', kind: 'boolean', confidential: false },
         { key: 'audienceTopCountry', label: 'País principal de la audiencia', kind: 'text', confidential: false },
         { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },

@@ -52,6 +52,26 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - **Caso feliz verificado en local el 11/10:** Pc Lover conectado, publicado sin revisión, «Ya los invité», admin «Verificar acceso» con `contacto.forzalabs@gmail.com` eligiendo el canal en el selector nuevo. Resultado: «Acceso verificado».
   - Constancia guardada: notas «Verificado por OAuth de la cuenta de custodia contacto.forzalabs@gmail.com (sub 110426901773510589068)», `heldRole` manager, `accessSince` igual al momento de la verificación.
   - (o) `accessSince` se registra como «ahora», aunque la cuenta es administradora desde antes. Es conservador: los 7 días cuentan desde la verificación. La constancia no guarda `custodyAccountId`; conviene enlazarlo.
+  - (p) En Verificaciones, «Ingreso mensual» ocupa toda la altura con una línea: mover el dato a la tarjeta del canal y dejar «Los datos publicados» a todo el ancho.
+  - (q) No mostrar «Factor de crecimiento»: es un valor interno de la valuación.
+  - (r) En la publicación pública, el aviso «Transferible desde…» es largo, explica la regla de los 7 días y la custodia (lógica del negocio) y le habla al vendedor aunque lo lea un comprador sin sesión. Tiene que ser una línea para el comprador.
+  - **División de T6.1** (decidida el 11/10):
+    - **T6.1a, sin diseño (hecho):** (c) dominio y API, (d), (e), (g) lógica, (h), (j), (k), (m), (n), (o), (q).
+    - **T6.1b, con una ronda de lienzo antes de codear:** (a) y (b) aviso y panel del admin, (c) pantalla del admin, (g) vista intermedia, (l) textos del modal, (p) Verificaciones, (r) aviso público.
+- **T6.1a** (ruta: delegado). Hechos (c), (d), (e), (g), (h), (j), (k), (m), (n), (o) y (q).
+  - Nuevo `RejectPlatformAccessRequestUseCase`, la notificación `acceso_no_encontrado` (migración `20261011130000_add_access_not_found_notification`) y `POST /admin/listings/:id/acceso/rechazar`.
+  - El duplicado de custodia da 409; el mensaje de canal no coincidente es explicativo.
+  - Se suma `planYouTubeSell` con un bloque provisorio de «borrador o publicar otro». La conexión del vendedor usa `enable_yt_permissions` y `select_account consent`.
+  - `CopyEmailButton`; `growthFactor` pasa a interno.
+  - RED observado por ítem.
+  - GREEN:
+    - dominio: 987;
+    - db: 119;
+    - api: 411;
+    - web: 324;
+    - `tsc` limpio;
+    - control del orquestador: 18/18.
+  - Pendiente: aplicar la migración nueva a `marketplace_dev`.
 - Prueba local del 11/10: con `contacto.forzalabs@gmail.com`, «Lovi en Reddit» dio «La cuenta elegida no administra este canal». Es el resultado correcto: ese vendedor nunca nos invitó, que es el caso (c).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
