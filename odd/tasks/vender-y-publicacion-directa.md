@@ -106,6 +106,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
   - Arreglo urgente A, decidido por el usuario: se saca el parámetro de la conexión del vendedor (queda solo en la verificación del admin) y se suma la ayuda «Si tu canal está en una cuenta de marca, elegí esa cuenta en Google: puede tener otro nombre».
   - RED: test de la URL y test del texto. GREEN: api 411, web 356.
 - [ ] Mejora B, pendiente: volver a usar el selector nuevo en la conexión del vendedor y, si faltan los permisos de Analytics, reintentar una vez sin el parámetro. Antes, comprobar si el permiso de una cuenta personal sigue sirviendo después de pasar el canal a cuenta de marca.
+- [ ] (t) En «Elegí un canal» de `/vender`, sumar la foto de cada canal (`ChannelAvatar`) y corregir «1 suscriptores» (singular).
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
 ## Criterios de aceptación
