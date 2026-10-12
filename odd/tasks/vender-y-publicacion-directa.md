@@ -122,6 +122,10 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
     - web: 372;
     - `tsc` limpio;
     - control del orquestador: los tres tests de web en verde.
+  - Revisión `review-ec32caced420be82`: consentimiento `granted`, aprobada y reconocida.
+    - Hallazgos informativos:
+      - `R3-occursAt-dto`: el campo `occursAt` del contrato no está documentado ni cubierto por un test de la API.
+      - `R3-revalidate-scope`: revalidar solo `/activos` puede dejar viejas otras vistas que muestran el estado del acceso (la publicación pública, la bandeja del admin) hasta que se recarguen.
 - [x] T7 · Producción, verificado de punta a punta el 12/10. Pc Lover se conecta (con el arreglo de #24), se publica sin revisión, «Ya los invité» queda guardado (salvo el modal, pendiente u) y el admin verifica el acceso con `contacto.forzalabs@gmail.com`: «Acceso verificado».
 - [ ] T7 · Producción (detalle original): habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
