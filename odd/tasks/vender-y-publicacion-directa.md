@@ -108,6 +108,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
 - [ ] Mejora B, pendiente: volver a usar el selector nuevo en la conexión del vendedor y, si faltan los permisos de Analytics, reintentar una vez sin el parámetro. Antes, comprobar si el permiso de una cuenta personal sigue sirviendo después de pasar el canal a cuenta de marca.
 - [ ] (t) En «Elegí un canal» de `/vender`, sumar la foto de cada canal (`ChannelAvatar`) y corregir «1 suscriptores» (singular).
 - [ ] (u) En producción, «Ya los invité» dentro del modal queda en «Un momento…» y no se cierra, aunque el aviso se guarda (al recargar aparece «Estamos revisando tu invitación»). Revisar si la acción del modal no cierra el `<dialog>` o no revalida la página al terminar, o si el aviso a los admins demora la respuesta.
+- [ ] (v) Cuando el admin confirma el acceso (por OAuth o a mano), el vendedor no recibe aviso. Sumar un aviso «Confirmamos tu acceso: el <fecha> tu canal pasa a transferencia inmediata», como ya se hace con `acceso_no_encontrado`.
 - [x] T7 · Producción, verificado de punta a punta el 12/10. Pc Lover se conecta (con el arreglo de #24), se publica sin revisión, «Ya los invité» queda guardado (salvo el modal, pendiente u) y el admin verifica el acceso con `contacto.forzalabs@gmail.com`: «Acceso verificado».
 - [ ] T7 · Producción (detalle original): habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
