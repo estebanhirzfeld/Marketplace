@@ -126,6 +126,11 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
     - Hallazgos informativos:
       - `R3-occursAt-dto`: el campo `occursAt` del contrato no está documentado ni cubierto por un test de la API.
       - `R3-revalidate-scope`: revalidar solo `/activos` puede dejar viejas otras vistas que muestran el estado del acceso (la publicación pública, la bandeja del admin) hasta que se recarguen.
+- [ ] (w) Pulir los pasos del traspaso (pedido del usuario, 12/10):
+  - menos pasos;
+  - comprobarlos con la API donde se pueda;
+  - menos texto;
+  - aclarar a las dos partes (vendedor y comprador) cuando el activo todavía no es traspasable porque no se cumplieron los 7 días.
 - [x] T7 · Producción, verificado de punta a punta el 12/10. Pc Lover se conecta (con el arreglo de #24), se publica sin revisión, «Ya los invité» queda guardado (salvo el modal, pendiente u) y el admin verifica el acceso con `contacto.forzalabs@gmail.com`: «Acceso verificado».
 - [ ] T7 · Producción (detalle original): habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
