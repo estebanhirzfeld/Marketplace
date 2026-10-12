@@ -11,7 +11,8 @@ import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard'
 import { DraftChoice } from '@/components/DraftChoice';
 import { SellSteps } from '@/components/SellSteps';
 import { Panel, Heading } from '@/components/ui';
-import { formatNumber } from '@/lib/format';
+import { subscribersLabel } from '@/lib/format';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { planYouTubeSell } from '@/lib/sellChannels';
 import {
     chooseSellView,
@@ -295,11 +296,12 @@ export default async function Publicar(props: {
                                             <li key={c.channelId}>
                                                 <Link
                                                     href={`/vender?canal=${encodeURIComponent(c.channelId)}`}
-                                                    className="flex items-baseline justify-between gap-4 rounded-[var(--radius-chico)] border border-[var(--color-borde)] px-4 py-3 transition-colors hover:border-[var(--color-borde-fuerte)]"
+                                                    className="flex items-center gap-4 rounded-[var(--radius-chico)] border border-[var(--color-borde)] px-4 py-3 transition-colors hover:border-[var(--color-borde-fuerte)]"
                                                 >
-                                                    <span className="truncate text-[15px] font-medium">{c.channelTitle}</span>
+                                                    <ChannelAvatar src={c.thumbnailUrl} name={c.channelTitle} />
+                                                    <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{c.channelTitle}</span>
                                                     <span className="shrink-0 text-[13px] text-[var(--color-apagado)]">
-                                                        {formatNumber(c.subscribers)} suscriptores
+                                                        {subscribersLabel(c.subscribers)}
                                                     </span>
                                                 </Link>
                                             </li>

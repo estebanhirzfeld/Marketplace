@@ -65,8 +65,29 @@ describe('AccessStatusPanel', () => {
 
 describe('SellerLevelGauge', () => {
     it('dice el nivel de 4', () => {
-        const html = renderToStaticMarkup(<SellerLevelGauge level={3} />);
+        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered />);
         expect(html).toContain('aria-label="Nivel 3 de 4"');
+    });
+
+    it('desglosa lo que suma cada logro, con el hecho marcado', () => {
+        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered={false} />);
+        const t = texto(html);
+        expect(t).toContain('Titularidad');
+        expect(t).toContain('+1');
+        expect(t).toContain('Acceso');
+        expect(t).toContain('+2');
+        expect(t).toContain('Mercado Pago');
+        expect(html).toContain('/logos/mercadopago.svg');
+        expect(html).toContain('M11 2h7l-4 7h5L8 22l2.5-9H6z');
+        expect(html).toContain('aria-label="YouTube"');
+        // Solo la titularidad está hecha: un único tilde.
+        expect((html.match(/M5 12\.5l4\.5 4\.5L19 7\.5/g) ?? []).length).toBe(1);
+    });
+
+    it('sin Mercado Pago disponible omite esa fila y el máximo es 3', () => {
+        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered mercadoPago="unavailable" />);
+        expect(html).not.toContain('/logos/mercadopago.svg');
+        expect(html).toContain('aria-label="Nivel 3 de 3"');
     });
 });
 

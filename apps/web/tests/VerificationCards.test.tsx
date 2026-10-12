@@ -16,8 +16,17 @@ describe('VerificationCards', () => {
         expect(html).not.toContain('Acceso de administración');
     });
 
-    it('con acceso registrado deja la línea de logro', () => {
+    it('lo ya logrado no repite líneas sueltas: lo cuenta el desglose del nivel', () => {
+        const html = renderToStaticMarkup(
+            <VerificationCards {...base} access={{ done: true }} mercadoPago={{ done: true }} />,
+        );
+        expect(html).not.toContain('Acceso de administración');
+        expect(html).not.toContain('Titularidad comprobada');
+        expect(html).not.toContain('Mercado Pago vinculado');
+    });
+
+    it('deja una sola línea para la identidad, que no puntúa', () => {
         const html = renderToStaticMarkup(<VerificationCards {...base} access={{ done: true }} />);
-        expect(html).toContain('Acceso de administración');
+        expect(html).toContain('Identidad verificada · requisito para publicar');
     });
 });

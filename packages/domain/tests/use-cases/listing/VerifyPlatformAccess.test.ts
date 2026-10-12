@@ -11,6 +11,8 @@ import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../../../src/strategies/WebStrategy';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
+import { NegotiationNotifier } from '../../../src/services/NegotiationNotifier';
+import { Notification } from '../../../src/entities/Notification';
 import { Actor } from '../../../src/ports/Actor';
 import { ICustodyAccountRepository, IListingRepository } from '../../../src/ports/Repositories';
 import {
@@ -105,12 +107,13 @@ function armar(
     resolved: string | null = CANAL_ID,
     authorizer: GoogleAuthorizer | null = AUTORIZADOR,
     titles: Record<string, string> = {},
+    avisos?: NegotiationNotifier,
 ) {
     const listings = listingRepo(listing);
     const custody = custodyRepo(accounts);
     const reader = ownershipReader(owned, authorizer, titles);
     const channels = channelReader(resolved);
-    const register = new RegisterPlatformAccessUseCase(listings, custody);
+    const register = new RegisterPlatformAccessUseCase(listings, custody, avisos);
     const useCase = new VerifyPlatformAccessUseCase(listings, custody, reader, channels, register);
     return { listings, custody, reader, channels, useCase };
 }
@@ -132,6 +135,20 @@ describe('VerifyPlatformAccessUseCase', () => {
         );
         expect(listing.platformAccessStatus()).not.toBe('verifying');
         expect(listings.save).toHaveBeenCalledOnce();
+    });
+
+    it('al verificar por OAuth le avisa al vendedor que su acceso quedó confirmado', async () => {
+        const listing = conSolicitud(canal());
+        const sent: Notification[] = [];
+        const avisos = new NegotiationNotifier({
+            notify: vi.fn().mockImplementation(async (n: Notification[]) => void sent.push(...n)),
+        });
+        const { useCase } = armar(listing, [cuenta()], [CANAL_ID], CANAL_ID, AUTORIZADOR, {}, avisos);
+
+        await useCase.execute(listing.id.toString(), GRANT, ADMIN);
+
+        expect(sent.map((n) => n.type)).toEqual(['acceso_confirmado']);
+        expect(sent[0].userId.toString()).toBe(listing.sellerId.toString());
     });
 
     it('compara el correo sin distinguir mayúsculas ni espacios', async () => {

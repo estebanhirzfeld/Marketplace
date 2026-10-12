@@ -4,20 +4,21 @@ import { SubmitButton } from './SubmitButton';
 /**
  * Lo que le falta sumar al vendedor, y lo que ya sumó.
  *
- * Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un
- * tilde chico, sin caja: un logro no necesita ocupar lugar. El acceso de
- * administración no tiene tarjeta: mientras falta, lo pide el panel de acceso.
+ * Lo que falta va en tarjetas con su botón. Lo que ya está suma en el desglose
+ * del anillo de nivel, así que acá solo queda la línea de la identidad, que es
+ * requisito para publicar y no puntúa. El acceso de administración no tiene
+ * tarjeta: mientras falta, lo pide el panel de acceso.
  */
 export function VerificationCards({
     ownership,
-    access,
     mercadoPago,
     ownershipSource,
     kycVerified,
     verifyAction,
 }: {
     ownership: { done: boolean; sourceLabel: string; verifiedAt?: string };
-    access: { done: boolean };
+    /** Se acepta por compatibilidad: ya no dibuja nada, lo cuenta el desglose del nivel. */
+    access?: { done: boolean };
     mercadoPago: { done: boolean; unavailable?: boolean };
     ownershipSource: string;
     kycVerified: boolean;
@@ -58,28 +59,6 @@ export function VerificationCards({
             </div>
 
             <ul className="flex flex-wrap gap-x-6 gap-y-2 pt-1 text-[14px] text-[var(--color-tenue)]">
-                {ownership.done && (
-                    <DoneLine>
-                        Titularidad comprobada contra {ownership.sourceLabel} ·{' '}
-                        <span className="font-mono text-[12px] text-[var(--color-tinta)]">+1</span>
-                        {ownership.verifiedAt && (
-                            <span className="text-[var(--color-apagado)]">
-                                {' '}
-                                · {new Date(ownership.verifiedAt).toLocaleDateString('es-AR')}
-                            </span>
-                        )}
-                    </DoneLine>
-                )}
-                {access.done && (
-                    <DoneLine>
-                        Acceso de administración · <span className="font-mono text-[12px] text-[var(--color-tinta)]">+2</span>
-                    </DoneLine>
-                )}
-                {mercadoPago.done && (
-                    <DoneLine>
-                        Mercado Pago vinculado · <span className="font-mono text-[12px] text-[var(--color-tinta)]">+1</span>
-                    </DoneLine>
-                )}
                 {kycVerified ? (
                     <DoneLine>Identidad verificada · requisito para publicar</DoneLine>
                 ) : (

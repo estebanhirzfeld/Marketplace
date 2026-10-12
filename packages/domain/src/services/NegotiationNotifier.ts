@@ -112,6 +112,20 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** Un admin confirmó el acceso: al vendedor le llega desde cuándo su activo es de transferencia inmediata. */
+    async platformAccessConfirmed(listing: Listing): Promise<void> {
+        const { props } = listing.toSnapshot();
+
+        await this.enviar([
+            Notification.create({
+                userId: props.sellerId,
+                type: 'acceso_confirmado',
+                listingId: listing.id,
+                occursAt: listing.transferableFrom(),
+            }),
+        ]);
+    }
+
     /**
      * El contrato quedó cerrado, pero no les toca lo mismo a las dos partes:
      * al comprador no le queda nada pendiente y conserva `contrato_firmado`;

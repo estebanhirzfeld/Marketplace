@@ -1052,7 +1052,8 @@ export type NotificationTypeDto =
     /** Al vendedor: el admin no encontró su invitación a la plataforma. */
     | 'acceso_no_encontrado'
     /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
-    | 'acceso_solicitado';
+    | 'acceso_solicitado'
+    | 'acceso_confirmado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia
@@ -1064,6 +1065,8 @@ export interface NotificationDto {
     operationId?: string;
     listingId?: string;
     amount?: MoneyDto;
+    /** Fecha a la que se refiere el aviso (ISO), cuando habla de una. */
+    occursAt?: string;
     read: boolean;
     createdAt: string;
 }

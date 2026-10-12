@@ -24,7 +24,7 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { PublishedData } from '@/components/PublishedData';
 import { YOUTUBE_CARD_FIELD_KEYS } from '@/lib/publishedFields';
 import { currentProfile } from '@/lib/profile';
-import { isAccessRegistered, sellerLevel, type MercadoPagoState } from '@/lib/sellerLevel';
+import { isAccessRegistered, type MercadoPagoState } from '@/lib/sellerLevel';
 import { channelIdFromUrl } from '@/lib/youtubeChannel';
 import { findOwnershipResult } from '@/lib/ownershipResults';
 import { money, nicheLabel } from '@/lib/format';
@@ -149,11 +149,6 @@ export default async function DetalleDeActivo(props: {
         listingSteps.length === 2 &&
         listingSteps.every((p) => p.details && p.details.length > 0);
     const accessRegistered = mio.transferable || isAccessRegistered(mio.platformAccessStatus);
-    const level = sellerLevel({
-        ownershipVerified: !!mio.ownership,
-        accessRegistered,
-        mercadoPago,
-    });
     const sourceLabel = listing.descriptor.ownershipSource === 'adsense' ? 'AdSense' : 'YouTube';
     const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
     const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
@@ -385,7 +380,7 @@ export default async function DetalleDeActivo(props: {
                                 </div>
                             </div>
                         )}
-                        <SellerLevelGauge level={level} mercadoPago={mercadoPago} />
+                        <SellerLevelGauge ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
                     </div>
 
                     <div className="mt-4 flex flex-col gap-4">

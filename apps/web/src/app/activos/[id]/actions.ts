@@ -47,7 +47,14 @@ export async function requestAccess(listingId: string, _state: ActionState): Pro
             error: e instanceof ApiError ? e.message : 'No pudimos registrar el aviso. Probá de nuevo.',
         };
     }
-    refresh(listingId);
+    /*
+     * No se revalida la pantalla del activo desde acá: `revalidatePath` sobre la
+     * ruta que se está viendo la vuelve a renderizar entera (cinco lecturas a la
+     * API) dentro de la respuesta de la acción, y mientras tanto el botón queda
+     * en «Un momento…» aunque el aviso ya esté guardado. La pantalla se refresca
+     * desde el cliente, después de cerrar el diálogo.
+     */
+    revalidatePath('/activos');
     return { ok: true };
 }
 

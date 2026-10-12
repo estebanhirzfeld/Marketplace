@@ -41,7 +41,7 @@ export function AccessInstructionsDialog({
     requestAction,
     pending,
     error,
-    requested,
+    closeRequested,
 }: {
     steps: HandoverStepDto[];
     email: string;
@@ -53,8 +53,8 @@ export function AccessInstructionsDialog({
     requestAction: () => void;
     pending: boolean;
     error?: string;
-    /** El aviso ya se mandó: se muestra «Estamos revisando tu invitación». */
-    requested: boolean;
+    /** El aviso ya se guardó: el diálogo se cierra y el panel pasa a «Verificando». */
+    closeRequested: boolean;
 }) {
     const dialogRef = useRef<HTMLDialogElement>(null);
     const titleId = useId();
@@ -69,9 +69,12 @@ export function AccessInstructionsDialog({
         dialog.showModal();
     }, [openAt]);
 
+    useEffect(() => {
+        if (closeRequested && dialogRef.current?.open) dialogRef.current.close();
+    }, [closeRequested]);
+
     const step = steps[index];
     const link = step?.links?.at(-1);
-    const checking = requested;
 
     return (
         <dialog
@@ -87,7 +90,7 @@ export function AccessInstructionsDialog({
                 <div className="flex items-center gap-4">
                     <span className="text-[15px] font-medium">Danos acceso de administrador</span>
                     <span className="font-mono text-[12px] text-[var(--color-apagado)]">
-                        {checking ? 'Listo' : `${index + 1} / 2`}
+                        {index + 1} / 2
                     </span>
                 </div>
                 <button
@@ -102,17 +105,6 @@ export function AccessInstructionsDialog({
                 </button>
             </header>
 
-            {checking ? (
-                <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 p-6 text-center">
-                    <svg className="girando" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-acento)" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                        <path d="M12 3a9 9 0 1 0 9 9" />
-                    </svg>
-                    <span id={titleId} className="text-[22px] font-bold">Estamos revisando tu invitación</span>
-                    <span className="max-w-[420px] text-[15px] leading-relaxed text-[var(--color-tenue)]">
-                        Suele llevar menos de un día. Te avisamos cuando quede confirmada.
-                    </span>
-                </div>
-            ) : (
                 <div className="grid min-h-[440px] md:grid-cols-[380px_minmax(0,1fr)]">
                     <div className="flex flex-col gap-4 px-6 py-7">
                         <h3 id={titleId} className="text-[24px] font-bold leading-tight">
@@ -151,28 +143,19 @@ export function AccessInstructionsDialog({
                         {index === 0 ? <BrandAccountMock /> : <InviteMock email={email} />}
                     </div>
                 </div>
-            )}
 
             <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-borde)] px-6 py-3.5">
-                {checking ? (
-                    <span />
-                ) : (
-                    <Button
-                        type="button"
-                        variant="secundario"
-                        disabled={index === 0}
-                        onClick={() => setIndex(0)}
-                    >
-                        ← Anterior
-                    </Button>
-                )}
+                <Button
+                    type="button"
+                    variant="secundario"
+                    disabled={index === 0}
+                    onClick={() => setIndex(0)}
+                >
+                    ← Anterior
+                </Button>
                 <div className="flex items-center gap-3">
                     {error && <span className="text-[13px] text-[var(--color-error)]">{error}</span>}
-                    {checking ? (
-                        <Button type="button" onClick={() => dialogRef.current?.close()}>
-                            Cerrar
-                        </Button>
-                    ) : index === 0 ? (
+                    {index === 0 ? (
                         <Button
                             type="button"
                             onClick={() => {

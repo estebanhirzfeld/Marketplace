@@ -365,11 +365,11 @@ export function createContainer(
     const contractRepo = new PrismaContractRepository();
     const notificationRepo = new PrismaNotificationRepository();
     const custodyRepo = new PrismaCustodyAccountRepository();
-    const registerPlatformAccess = new RegisterPlatformAccessUseCase(listingRepo, custodyRepo);
 
     // El repositorio también implementa INotifier: por ahora "avisar" es
     // guardar en la bandeja. Sumar email es componer otro adaptador acá.
     const avisos = new NegotiationNotifier(notificationRepo);
+    const registerPlatformAccess = new RegisterPlatformAccessUseCase(listingRepo, custodyRepo, avisos);
     // Los avisos dirigidos a la plataforma van aparte porque el destinatario
     // no sale de la operación: hay que buscar quiénes son los administradores.
     const avisosDePlataforma = new PlatformNotifier(notificationRepo, userRepo);

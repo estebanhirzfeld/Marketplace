@@ -1,8 +1,10 @@
 'use client';
 
-import { useActionState, useState, useSyncExternalStore } from 'react';
+import { useActionState, useEffect, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import type { HandoverStepDto, PlatformAccessStatusDto } from '@marketplace/api-contract';
 import type { ActionState } from '@/app/vender/actions';
+import { accessDialogShouldClose } from '@/lib/accessRequest';
 import { readBrandAccountDone, writeBrandAccountDone, type KeyValueStorage } from '@/lib/accessProgress';
 import { Alert, Button, CheckIcon } from './ui';
 import { AccessStatusPanel } from './AccessStatusPanel';
@@ -58,6 +60,7 @@ export function AccessPanel({
     requestAction: Action;
 }) {
     const [state, submit, pending] = useActionState(requestAction, {});
+    const router = useRouter();
     const [openAt, setOpenAt] = useState<0 | 1 | null>(null);
     const [doneHere, setDoneHere] = useState(false);
     const stored = useSyncExternalStore(
@@ -79,6 +82,14 @@ export function AccessPanel({
     const activeIsRequest = !hasLocalStep || brandDone;
     const activeStep = activeIsRequest ? steps[steps.length - 1] : steps[0];
     const requested = state.ok === true || status === 'verifying';
+    const closeDialog = accessDialogShouldClose(state, pending);
+
+    // El aviso ya está guardado: se cierra el diálogo y recién ahí se pide la
+    // pantalla actualizada, para que el botón no espere al render de la página.
+    useEffect(() => {
+        if (!closeDialog) return;
+        router.refresh();
+    }, [closeDialog, router]);
 
     return (
         <div id="acceso" className="scroll-mt-24">
@@ -193,7 +204,7 @@ export function AccessPanel({
                     requestAction={() => submit()}
                     pending={pending}
                     error={state.error}
-                    requested={requested}
+                    closeRequested={closeDialog}
                 />
             )}
         </div>
