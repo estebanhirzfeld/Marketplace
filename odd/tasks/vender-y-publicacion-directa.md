@@ -107,6 +107,7 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
   - RED: test de la URL y test del texto. GREEN: api 411, web 356.
 - [ ] Mejora B, pendiente: volver a usar el selector nuevo en la conexión del vendedor y, si faltan los permisos de Analytics, reintentar una vez sin el parámetro. Antes, comprobar si el permiso de una cuenta personal sigue sirviendo después de pasar el canal a cuenta de marca.
 - [ ] (t) En «Elegí un canal» de `/vender`, sumar la foto de cada canal (`ChannelAvatar`) y corregir «1 suscriptores» (singular).
+- [ ] (u) En producción, «Ya los invité» dentro del modal queda en «Un momento…» y no se cierra, aunque el aviso se guarda (al recargar aparece «Estamos revisando tu invitación»). Revisar si la acción del modal no cierra el `<dialog>` o no revalida la página al terminar, o si el aviso a los admins demora la respuesta.
 - [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
 ## Criterios de aceptación
