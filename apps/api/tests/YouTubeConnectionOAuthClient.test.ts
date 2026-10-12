@@ -72,13 +72,14 @@ describe('YouTubeConnectionOAuthClient.authorizationUrl', () => {
         expect(url.searchParams.get('prompt')?.split(' ')).toContain('select_account');
     });
 
-    it('pide el selector de canales de YouTube y conserva el selector de cuenta con consentimiento', () => {
+    it('no pide el selector de canales nuevo y conserva el selector de cuenta con consentimiento', () => {
         const { client } = build();
 
         const url = new URL(client.authorizationUrl({ state: 's' }));
 
-        // El selector viejo lista cuentas; el nuevo lista los canales por nombre.
-        expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
+        // Con `enable_yt_permissions`, un canal de Cuenta de Marca vuelve sin los
+        // permisos de YouTube Analytics (probado con Pc Lover el 12/10/2026).
+        expect(url.searchParams.has('enable_yt_permissions')).toBe(false);
         expect(url.searchParams.get('prompt')).toBe('select_account consent');
         expect(url.searchParams.get('scope')?.split(' ').sort()).toEqual([...REQUIRED_YOUTUBE_SCOPES].sort());
     });
