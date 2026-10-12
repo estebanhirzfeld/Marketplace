@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fieldValue } from '@/lib/format';
+import { fieldValue, subscribersLabel } from '@/lib/format';
 
 describe('fieldValue', () => {
     it('una fecha ISO se escribe como el resto de la app, no cruda', () => {
@@ -24,5 +24,17 @@ describe('fieldValue', () => {
 
     it('un país informado se muestra como siempre', () => {
         expect(fieldValue('text', 'US')).toBe('US');
+    });
+});
+
+describe('subscribersLabel', () => {
+    it('uno va en singular', () => {
+        expect(subscribersLabel(1)).toBe('1 suscriptor');
+    });
+
+    it('cero y varios van en plural, con separador de miles', () => {
+        expect(subscribersLabel(0)).toBe('0 suscriptores');
+        expect(subscribersLabel(2)).toBe('2 suscriptores');
+        expect(subscribersLabel(12400)).toBe('12.400 suscriptores');
     });
 });

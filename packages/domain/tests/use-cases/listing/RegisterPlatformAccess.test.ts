@@ -5,6 +5,8 @@ import { CustodyAccount } from '../../../src/entities/CustodyAccount';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
+import { NegotiationNotifier } from '../../../src/services/NegotiationNotifier';
+import { Notification } from '../../../src/entities/Notification';
 import { Actor } from '../../../src/ports/Actor';
 import {
     IListingRepository,
@@ -129,5 +131,59 @@ describe('RegisterPlatformAccessUseCase con cuenta de custodia', () => {
                 { id: 'seller-1', role: UserRole.SELLER },
             ),
         ).rejects.toThrow(ForbiddenError);
+    });
+});
+
+describe('RegisterPlatformAccessUseCase: aviso al vendedor', () => {
+    function conAvisos(listing: Listing, account: CustodyAccount) {
+        const sent: Notification[] = [];
+        const notify = vi.fn().mockImplementation(async (n: Notification[]) => {
+            sent.push(...n);
+        });
+        const { listingRepo, custodyRepo } = mocks(listing, account);
+        const useCase = new RegisterPlatformAccessUseCase(listingRepo, custodyRepo, new NegotiationNotifier({ notify }));
+        return { sent, notify, useCase };
+    }
+
+    it('al confirmar el acceso le avisa al vendedor, con la fecha de transferencia inmediata', async () => {
+        const listing = unCanal();
+        const account = cuentaYouTube();
+        const { sent, useCase } = conAvisos(listing, account);
+
+        await useCase.execute(listing.id.toString(), { accessSince: AYER, custodyAccountId: account.id.toString() }, ADMIN);
+
+        expect(sent).toHaveLength(1);
+        expect(sent[0].type).toBe('acceso_confirmado');
+        expect(sent[0].userId.toString()).toBe(listing.sellerId.toString());
+        expect(sent[0].toSnapshot().props.listingId?.toString()).toBe(listing.id.toString());
+        expect(sent[0].toSnapshot().props.occursAt).toEqual(listing.transferableFrom());
+    });
+
+    it('un fallo del aviso no tumba la constancia', async () => {
+        const listing = unCanal();
+        const account = cuentaYouTube();
+        const { listingRepo, custodyRepo } = mocks(listing, account);
+        const avisos = new NegotiationNotifier({ notify: vi.fn().mockRejectedValue(new Error('caído')) });
+
+        await expect(
+            new RegisterPlatformAccessUseCase(listingRepo, custodyRepo, avisos).execute(
+                listing.id.toString(),
+                { accessSince: AYER, custodyAccountId: account.id.toString() },
+                ADMIN,
+            ),
+        ).resolves.toBeUndefined();
+        expect(listingRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('si la constancia falla no avisa', async () => {
+        const listing = unCanal();
+        const account = cuentaYouTube();
+        account.deactivate(0);
+        const { sent, useCase } = conAvisos(listing, account);
+
+        await expect(
+            useCase.execute(listing.id.toString(), { accessSince: AYER, custodyAccountId: account.id.toString() }, ADMIN),
+        ).rejects.toThrow();
+        expect(sent).toHaveLength(0);
     });
 });

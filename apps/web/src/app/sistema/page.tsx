@@ -943,14 +943,14 @@ export default function Sistema() {
 
                 <Section
                     title="Nivel de vendedor"
-                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Lo que falta va en tarjetas con su botón; lo que ya está, en una línea con un tilde."
+                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Debajo del anillo, un desglose con el logo de cada logro: los que ya están llevan un tilde y sus puntos, los que faltan van apagados, y la fila de Mercado Pago no aparece cuando no está disponible. Lo que falta va en tarjetas con su botón; la identidad queda en una sola línea."
                 >
                     <div className="flex flex-col gap-8">
                         <div className="flex flex-wrap gap-4">
-                            {[0, 1, 3, 4].map((n) => (
-                                <div key={n} className="w-[220px]"><SellerLevelGauge level={n} /></div>
-                            ))}
-                            <div className="w-[220px]"><SellerLevelGauge level={3} mercadoPago="unavailable" /></div>
+                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified={false} accessRegistered={false} /></div>
+                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered={false} /></div>
+                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered mercadoPago="linked" /></div>
+                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered mercadoPago="unavailable" /></div>
                         </div>
                         <VerificationCards
                             ownership={{ done: true, sourceLabel: 'YouTube', verifiedAt: AHORA_DE_MUESTRA }}

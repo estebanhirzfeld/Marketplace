@@ -37,3 +37,36 @@ export function sellerLevel(input: {
         (input.mercadoPago === 'linked' ? POINTS.mercadoPago : 0)
     );
 }
+
+export type LevelRowKey = 'ownership' | 'access' | 'mercadoPago';
+
+export interface LevelRow {
+    key: LevelRowKey;
+    label: string;
+    points: number;
+    done: boolean;
+}
+
+/**
+ * Qué suma cada logro y cuáles ya están, para el desglose bajo el anillo. Sin
+ * Mercado Pago disponible la fila no se ofrece: tampoco suma al máximo.
+ */
+export function levelBreakdown(input: {
+    ownershipVerified: boolean;
+    accessRegistered: boolean;
+    mercadoPago: MercadoPagoState;
+}): LevelRow[] {
+    const rows: LevelRow[] = [
+        { key: 'ownership', label: 'Titularidad', points: POINTS.ownership, done: input.ownershipVerified },
+        { key: 'access', label: 'Acceso', points: POINTS.access, done: input.accessRegistered },
+    ];
+    if (input.mercadoPago !== 'unavailable') {
+        rows.push({
+            key: 'mercadoPago',
+            label: 'Mercado Pago',
+            points: POINTS.mercadoPago,
+            done: input.mercadoPago === 'linked',
+        });
+    }
+    return rows;
+}

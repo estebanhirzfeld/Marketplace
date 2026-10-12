@@ -106,7 +106,28 @@ Diseño cerrado en el lienzo https://claude.ai/artifact/Mr8uBXhWWn79eSDk6bB3XU (
   - Arreglo urgente A, decidido por el usuario: se saca el parámetro de la conexión del vendedor (queda solo en la verificación del admin) y se suma la ayuda «Si tu canal está en una cuenta de marca, elegí esa cuenta en Google: puede tener otro nombre».
   - RED: test de la URL y test del texto. GREEN: api 411, web 356.
 - [ ] Mejora B, pendiente: volver a usar el selector nuevo en la conexión del vendedor y, si faltan los permisos de Analytics, reintentar una vez sin el parámetro. Antes, comprobar si el permiso de una cuenta personal sigue sirviendo después de pasar el canal a cuenta de marca.
-- [ ] T7 · Producción: habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
+- [x] (t) En «Elegí un canal» de `/vender`, sumar la foto de cada canal (`ChannelAvatar`) y corregir «1 suscriptores» (singular).
+- [x] (u) En producción, «Ya los invité» dentro del modal queda en «Un momento…» y no se cierra, aunque el aviso se guarda (al recargar aparece «Estamos revisando tu invitación»). Revisar si la acción del modal no cierra el `<dialog>` o no revalida la página al terminar, o si el aviso a los admins demora la respuesta.
+- [x] (v) Cuando el admin confirma el acceso (por OAuth o a mano), el vendedor no recibe aviso. Sumar un aviso «Confirmamos tu acceso: el <fecha> tu canal pasa a transferencia inmediata», como ya se hace con `acceso_no_encontrado`.
+- **Pendientes (s, t, u y v)** (12/10, ruta: delegado):
+  - (u): `revalidatePath` de la misma página volvía a renderizar la pestaña completa dentro de la respuesta de la acción. Ahora el modal se cierra con `router.refresh()`.
+  - (v): aviso `acceso_confirmado` con la fecha en `occursAt` (migración `20261012120000_add_access_confirmed_notification`).
+  - (t): foto y «1 suscriptor».
+  - (s): `levelBreakdown` dentro de la tarjeta del nivel.
+  - RED observado en la mayoría.
+  - GREEN:
+    - dominio: 996;
+    - db: 121;
+    - api: 411;
+    - web: 372;
+    - `tsc` limpio;
+    - control del orquestador: los tres tests de web en verde.
+  - Revisión `review-ec32caced420be82`: consentimiento `granted`, aprobada y reconocida.
+    - Hallazgos informativos:
+      - `R3-occursAt-dto`: el campo `occursAt` del contrato no está documentado ni cubierto por un test de la API.
+      - `R3-revalidate-scope`: revalidar solo `/activos` puede dejar viejas otras vistas que muestran el estado del acceso (la publicación pública, la bandeja del admin) hasta que se recarguen.
+- [x] T7 · Producción, verificado de punta a punta el 12/10. Pc Lover se conecta (con el arreglo de #24), se publica sin revisión, «Ya los invité» queda guardado (salvo el modal, pendiente u) y el admin verifica el acceso con `contacto.forzalabs@gmail.com`: «Acceso verificado».
+- [ ] T7 · Producción (detalle original): habilitar `YOUTUBE_*` en la VM (requiere autorización explícita).
 
 ## Criterios de aceptación
 

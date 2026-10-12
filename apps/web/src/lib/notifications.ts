@@ -1,5 +1,5 @@
 import type { NotificationDto, NotificationTypeDto } from '@marketplace/api-contract';
-import { money } from './format';
+import { fechaLarga, money } from './format';
 
 /**
  * El texto de cada aviso se redacta acá y no se guarda en la base.
@@ -83,6 +83,13 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         title: 'Un vendedor ya nos invitó',
         cuerpo: () => 'Avisó que ya nos invitó a su canal. Falta verificar el acceso.',
     },
+    acceso_confirmado: {
+        title: 'Confirmamos tu acceso',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `El ${fechaLarga(n.occursAt)} tu canal pasa a transferencia inmediata.`
+                : 'Tu canal pasa a transferencia inmediata.',
+    },
     operacion_completada: {
         title: 'Operación cerrada',
         cuerpo: () => 'El activo cambió de manos y el dinero se liquidó.',
@@ -101,6 +108,7 @@ const AL_PANEL: NotificationTypeDto[] = ['revision_pendiente'];
 export function linkFor(n: NotificationDto): string {
     if (AL_PANEL.includes(n.type)) return '/admin';
     if (n.type === 'acceso_solicitado') return '/admin?bandeja=accesos';
+    if (n.type === 'acceso_confirmado' && n.listingId) return `/activos/${n.listingId}?ver=verificaciones`;
     if (n.type === 'acceso_no_encontrado' && n.listingId) return `/activos/${n.listingId}`;
     if (n.operationId) return `/operaciones/${n.operationId}`;
     if (n.listingId) return `/listings/${n.listingId}`;

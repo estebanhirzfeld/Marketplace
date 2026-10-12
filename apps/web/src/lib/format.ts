@@ -50,6 +50,11 @@ export function formatNumber(n: number): string {
     return new Intl.NumberFormat('es-AR').format(n);
 }
 
+/** «1 suscriptor» / «N suscriptores»: el singular solo con exactamente uno. */
+export function subscribersLabel(n: number): string {
+    return `${formatNumber(n)} ${n === 1 ? 'suscriptor' : 'suscriptores'}`;
+}
+
 export function percentage(n: number): string {
     return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)} %`;
 }

@@ -38,7 +38,9 @@ export type NotificationType =
     /** Al vendedor: el admin no encontró su invitación a la plataforma. */
     | 'acceso_no_encontrado'
     /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
-    | 'acceso_solicitado';
+    | 'acceso_solicitado'
+    /** Al vendedor: la plataforma confirmó su acceso; `occursAt` es cuándo pasa a transferencia inmediata. */
+    | 'acceso_confirmado';
 
 export interface NotificationProps {
     /** A quién se le avisa. */
@@ -50,6 +52,8 @@ export interface NotificationProps {
     /** Monto relevante en centavos, cuando el aviso habla de plata. */
     amountCents?: number;
     currency?: string;
+    /** Fecha a la que se refiere el aviso, cuando habla de una (p. ej. cuándo queda transferible). */
+    occursAt?: Date;
     readAt?: Date;
 }
 

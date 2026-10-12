@@ -5,6 +5,7 @@ import {
 import { PlatformHeldRole } from '../../entities/Listing';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError, ValidationError } from '../../errors/DomainError';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 
 export interface RegisterPlatformAccessInput {
@@ -40,6 +41,7 @@ export class RegisterPlatformAccessUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly custodyRepo: ICustodyAccountRepository,
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(listingId: string, input: RegisterPlatformAccessInput, actor: Actor): Promise<void> {
@@ -76,6 +78,8 @@ export class RegisterPlatformAccessUseCase {
         });
 
         await this.listingRepo.save(listing);
+        // Tanto la constancia manual como la de OAuth pasan por acá.
+        await this.avisos?.platformAccessConfirmed(listing);
     }
 }
 

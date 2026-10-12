@@ -71,6 +71,7 @@ enum NotificationType {
   acceso_no_encontrado
   // A los administradores: un vendedor avisó que ya invitó a la plataforma.
   acceso_solicitado
+  acceso_confirmado
 }
 
 enum ContractType {
@@ -265,6 +266,7 @@ model Notification {
   listingId   String?
   amountCents Int?
   currency    String?
+  occursAt    DateTime?
   readAt      DateTime?
   createdAt   DateTime         @default(now())
 
