@@ -142,6 +142,12 @@ describe('YouTubeConnectStep', () => {
         expect(t).toMatch(/no podemos publicar ni borrar nada/i);
     });
 
+    it('avisa que el canal puede estar en una cuenta de marca con otro nombre', () => {
+        const t = texto(renderToStaticMarkup(<YouTubeConnectStep startAction={start} />));
+
+        expect(t).toContain('Si tu canal está en una cuenta de marca, elegí esa cuenta en Google: puede tener otro nombre.');
+    });
+
     it('tras un fallo muestra el motivo y el botón que corresponde', () => {
         const t = texto(
             renderToStaticMarkup(<YouTubeConnectStep startAction={start} failure={{ reason: 'cancelada' }} />),

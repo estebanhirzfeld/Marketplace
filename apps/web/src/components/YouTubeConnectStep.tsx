@@ -39,6 +39,14 @@ export function YouTubeConnectStep({
                 </p>
             )}
 
+            {/* Google lista cuentas, no canales: el de una cuenta de marca
+                aparece con el nombre de la cuenta, que puede no ser el del canal. */}
+            {!described && (
+                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                    Si tu canal está en una cuenta de marca, elegí esa cuenta en Google: puede tener otro nombre.
+                </p>
+            )}
+
             <SubmitButton pendingText="Abriendo Google…" variant={hasConnections && !described ? 'secundario' : 'primario'} className="self-start">
                 {label}
             </SubmitButton>
