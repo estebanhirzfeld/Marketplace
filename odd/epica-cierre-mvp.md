@@ -40,6 +40,16 @@ La premisa del negocio: si el traspaso de la propiedad principal no funciona com
   - menos texto;
   - avisar a vendedor y comprador cuando todavía no es traspasable porque no pasaron los 7 días.
 
+## Etapa 1b · Sitios web
+
+El equivalente para sitios web de lo que ya se hizo con los canales de YouTube. Hasta ahora casi todo el trabajo se centró en YouTube. [usuario]
+
+- [ ] **Reglas reales del traspaso de un dominio, a verificar:** el bloqueo de ICANN de 60 días después de un cambio de titular (y si se puede pedir que no se aplique), y qué más se transfiere además del dominio: hosting, código, cuentas de analítica, plataforma de tienda. Define qué se le promete al comprador, como hicieron los 7 días en YouTube. [análisis]
+- [ ] **Titularidad por registro DNS:** un registro TXT en el dominio, verificado automáticamente. Es universal, no depende de Google y deja AdSense como opción y no como requisito. Search Console queda como alternativa. [análisis]
+- [ ] **Números verificados de un sitio:** hoy el tráfico y los ingresos son declarados. Evaluar Search Console (tráfico) o Analytics, como se hizo con YouTube Analytics. [análisis]
+- [ ] **Prueba real de publicar un sitio en producción**, después del rediseño de «Vender»: datos, precio, comprobar la titularidad y publicar o enviar a revisión. [análisis]
+- [ ] **Pasos del traspaso de un sitio, revisados con una prueba real**, como se hizo con Pc Lover. [análisis]
+
 ## Etapa 2 · Comunicación
 
 - [ ] **Centro de avisos:** el dominio emite un evento (oferta recibida, acceso confirmado, pago, reclamo) y el centro decide por qué canales sale (en la app, mail o push) según las preferencias del usuario. Va antes que el mail y el push, para no programar cada aviso tres veces. [análisis]
@@ -84,7 +94,6 @@ Requisito de la tesis. [usuario]
 ## Etapa 6 · Confianza
 
 - [ ] **Reputación o calificaciones** después de la operación. [análisis]
-- [ ] **Sitios web sin AdSense:** comprobación por Search Console o registro DNS. [análisis]
 - [ ] **Listado de reclamos para el admin.** Hoy solo ve el conteo. [revisión]
 - [ ] **Regla de silencio y consecuencias por manipular métricas.** Planning pendiente desde la integración con YouTube. [usuario]
 - [ ] **Verificación en dos pasos propia, con TOTP:** los códigos de una app como Google Authenticator (un secreto por usuario, un QR de alta y la validación). Empieza por el admin. Las llaves de acceso (passkeys) quedan como mejora posterior. [usuario]
