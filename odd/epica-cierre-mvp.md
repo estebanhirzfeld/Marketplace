@@ -1,0 +1,121 @@
+# Épica — Cierre del MVP de la tesis
+
+> **Estado**: 🚧 En curso · abierta el 13 de octubre de 2026
+
+Backlog único del que salen los planning hasta la defensa. Junta lo que quedó repartido entre los documentos de feature, los hallazgos de las revisiones, las pruebas en producción y las conversaciones con el usuario.
+
+## Objetivo
+
+Que el circuito completo se pueda demostrar y defender ante la comisión: publicar, negociar, firmar, custodia, cobro y entrega al comprador.
+
+## Definición de terminado
+
+El flujo completo corre en producción con canales reales, la app Android cubre seguimiento, avisos y respuesta a ofertas, y cada fase tiene su write-up en `docs/fase-*.md`.
+
+## Regla de trabajo
+
+- Todo planning nuevo empieza tomando un ítem de esta épica.
+- Lo que aparezca en el camino se agrega acá antes de trabajarlo.
+- Al planificar un ítem, se le agrega el enlace a su documento `odd/tasks/<feature>.md`. Al cerrarlo, se tilda y se enlaza su `docs/fase-*.md`.
+- Las etapas están ordenadas por dependencia y riesgo: lo que valida la premisa del negocio va antes que lo cosmético.
+
+Cada ítem lleva su origen entre corchetes: [usuario], [revisión], [producción] (la prueba de punta a punta) o [análisis].
+
+## Etapa 0 · Deuda de documentación
+
+- [ ] **Write-up de «Conectar un canal de YouTube» y de «Vender y publicación directa»**, más `docs/gant.json`. Hoy no tienen documento de fase y los PRs superaron las 400 líneas. [análisis]
+- [ ] **Cierre de la fase 15** (cobro con reparto): documentar la prueba en producción. [análisis]
+- [ ] **Estado final de `odd/tasks/vender-y-publicacion-directa.md`**: sacar la línea vieja de T7. [análisis]
+
+## Etapa 1 · Validación de la custodia
+
+La premisa del negocio: si el traspaso de la propiedad principal no funciona como se diseñó, cambia el flujo de la operación entera.
+
+- [ ] **Experimento del 16/10:** traspaso de propietario principal con Pc Lover, y registro del resultado. Si falla, ajustar el flujo antes de seguir. [análisis]
+- [ ] **Endurecimiento de la cuenta de custodia:** verificación en dos pasos con llave o app, códigos de recuperación guardados, uso exclusivo, y evaluar una cuenta de dominio propio. Es configuración del usuario, no código. Hoy es un punto único de falla para todos los activos. [análisis]
+- [ ] **Cierre del traspaso en la operación:** los pasos de la fase de operación (quitar el acceso directo, propietario principal) y la entrega al comprador, probados de punta a punta. [análisis]
+- [ ] **Pasos del traspaso más cortos:** [usuario]
+  - menos pasos;
+  - comprobarlos con la API donde se pueda;
+  - menos texto;
+  - avisar a vendedor y comprador cuando todavía no es traspasable porque no pasaron los 7 días.
+
+## Etapa 2 · Comunicación
+
+- [ ] **Centro de avisos:** el dominio emite un evento (oferta recibida, acceso confirmado, pago, reclamo) y el centro decide por qué canales sale (en la app, mail o push) según las preferencias del usuario. Va antes que el mail y el push, para no programar cada aviso tres veces. [análisis]
+- [ ] **Avisos por mail de las operaciones:** ofertas, «Confirmamos tu acceso», pagos y reclamos. Antes, investigar el costo del servicio de envío. [usuario]
+- [ ] **Resumen semanal de activos destacados:** es promocional, así que va con consentimiento y con forma de darse de baja (ley 25.326), separado de los avisos de las operaciones. [usuario]
+- [ ] **Recuperación de la contraseña.** Hoy no existe. [análisis]
+- [ ] **Aviso al admin con el nombre del vendedor y del canal.** Hoy dice «Un vendedor ya nos invitó». [revisión]
+
+## Etapa 3 · App móvil Android
+
+Requisito de la tesis. [usuario]
+
+- [ ] **Alcance justificado.** Una compra de alto valor, con NDA, contrato y pago, se hace en la computadora; el móvil sirve para estar atento. Incluye:
+  - ver el mercado y el detalle de un activo;
+  - seguir mis activos y operaciones, con la línea de tiempo de la custodia;
+  - notificaciones push;
+  - responder ofertas (contraofertar o aceptar), que es urgente y el caso móvil más claro.
+
+  Publicar, firmar y pagar quedan fuera: la app manda a continuar en la computadora.
+- [ ] **Base técnica:** React Native con Expo, reusando `packages/api-client` y `packages/api-contract`. Push con Expo Notifications (Firebase en Android), conectado al centro de avisos.
+- [ ] **Write-up** con la justificación del alcance, para la comisión.
+
+## Etapa 4 · Marca «Traspaso»
+
+- [ ] **«Traspaso inmediato» en lugar de «transferencia inmediata»** en todos los textos. Los identificadores del código, como `transferable`, no cambian. Además de ser marca, desambigua: «transferencia» ya nombra la transferencia bancaria como medio de pago. [usuario]
+- [ ] **«Traspaso» en los textos del producto**, sin exagerar. [usuario]
+
+## Etapa 5 · Robustez
+
+- [ ] **Prueba de navegador del flujo principal:** publicar, «Ya los invité» y verificar el acceso. Los errores del 11 y 12/10 aparecieron recién probando a mano. [producción]
+- [ ] **Hallazgos de las revisiones:** [revisión]
+  - avisos que se pierden si falla la notificación después de guardar;
+  - carrera entre «Ya los invité» y la confirmación del admin;
+  - código de error propio para «otra cuenta» (hoy se detecta por el texto);
+  - un error de Google informado como «cancelada»;
+  - con varias cuentas de custodia activas se usa la primera;
+  - precio con centavos de más;
+  - refresco parcial de otras vistas después de «Ya los invité»;
+  - `occursAt` sin documentar en el contrato.
+- [ ] **Verificación periódica de los canales y aviso de vencimiento.** Sin ella, los números verificados quedan congelados en el día de la publicación. [análisis]
+
+## Etapa 6 · Confianza
+
+- [ ] **Reputación o calificaciones** después de la operación. [análisis]
+- [ ] **Sitios web sin AdSense:** comprobación por Search Console o registro DNS. [análisis]
+- [ ] **Listado de reclamos para el admin.** Hoy solo ve el conteo. [revisión]
+- [ ] **Regla de silencio y consecuencias por manipular métricas.** Planning pendiente desde la integración con YouTube. [usuario]
+- [ ] **Verificación en dos pasos propia, con TOTP:** los códigos de una app como Google Authenticator (un secreto por usuario, un QR de alta y la validación). Empieza por el admin. Las llaves de acceso (passkeys) quedan como mejora posterior. [usuario]
+
+## Etapa 7 · Mejoras
+
+- [ ] **Sitios web con dos dimensiones,** cada una con su ícono y su filtro en el mercado: [usuario]
+  - modelo de negocio (e-commerce, contenido o afiliados, SaaS, servicios), que cambia la valuación;
+  - plataforma (WordPress, Shopify, desarrollo propio), que cambia los pasos del traspaso y los filtros.
+- [ ] **Historial de precios:** mostrar el precio anterior cuando baja. Requiere guardar el historial ahora que el vendedor puede cambiar el precio. [usuario]
+- [ ] **Banda de precio sugerido** (venta rápida, normal o lenta) alrededor de la valuación, aclarada como estimación. Se calibra cuando haya operaciones cerradas. [usuario]
+- [ ] **Selector de canales nuevo con reintento:** volver a `enable_yt_permissions` en la conexión del vendedor y, si faltan los permisos de Analytics, reintentar una vez sin el parámetro. Antes, comprobar qué pasa con el permiso después de mover el canal a una cuenta de marca. [producción]
+- [ ] **Gráficos de la serie mensual,** y orden y ranking del mercado con esos datos. [usuario]
+- [ ] **Valuación en pesos** (necesita un endpoint de cotización). [revisión]
+- [ ] **Favoritos.** [análisis]
+
+## Después del MVP
+
+- Activos promocionados pagos.
+- La capa de analítica que sostiene el seguimiento de precios, las ofertas y las promociones.
+
+## Fuera del alcance de la tesis
+
+- Redes sociales como tipo de activo.
+- KYC real.
+- Firma con validez legal.
+- Verificación de marca y de la app en Google para salir del modo prueba.
+
+## Riesgos conocidos
+
+- La custodia depende de las cuentas de marca, y Google está migrando a permisos de canal.
+- `enable_yt_permissions` no tiene documentación pública: la verificación del acceso depende de él.
+- La cuenta de custodia es un punto único de falla.
+- La app de Google está en modo prueba: solo conectan los usuarios de prueba.
