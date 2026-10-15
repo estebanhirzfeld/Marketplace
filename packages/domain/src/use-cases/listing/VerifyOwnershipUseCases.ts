@@ -117,17 +117,9 @@ export class VerifyWebsiteRevenueUseCase {
     async execute(listingId: string, grant: string, actor: Actor): Promise<OwnershipVerification> {
         const listing = await cargar(this.listingRepo, listingId, actor);
 
-        const { assetType, assetData } = listing.assetDataFor(true);
-        if (assetType !== AssetType.WEB) {
-            throw new ValidationError('Este activo no es un sitio web.');
-        }
+        const domain = siteDomain(listing).value;
 
-        const domain = assetData.domain;
-        if (typeof domain !== 'string' || domain.trim() === '') {
-            throw new ValidationError('Este activo no tiene cargado el dominio.');
-        }
-
-        const ingreso = await this.adsense.monthlyEarningsFor(grant, domain.trim());
+        const ingreso = await this.adsense.monthlyEarningsFor(grant, domain);
         if (!ingreso) {
             throw new ForbiddenError(
                 'Esa cuenta de AdSense no reporta ingresos para este dominio. ' +
@@ -137,7 +129,7 @@ export class VerifyWebsiteRevenueUseCase {
 
         listing.registerOwnershipVerification({
             verifiedBy: listing.sellerId,
-            assetId: domain.trim(),
+            assetId: domain,
             source: 'adsense',
             monthlyRevenueCents: ingreso.earningsCents,
         });
@@ -149,7 +141,7 @@ export class VerifyWebsiteRevenueUseCase {
 }
 
 /** El dominio publicado de un sitio, ya normalizado. Rechaza lo que no es un sitio. */
-function dominioDelSitio(listing: Listing): DomainName {
+function siteDomain(listing: Listing): DomainName {
     const { assetType, assetData } = listing.assetDataFor(true);
     if (assetType !== AssetType.WEB) {
         throw new ValidationError('Este activo no es un sitio web.');
@@ -165,8 +157,12 @@ function dominioDelSitio(listing: Listing): DomainName {
 
 export interface DomainOwnershipChallenge {
     domain: string;
-    /** Dónde se carga el registro: la raíz del dominio. */
-    host: '@';
+    /**
+     * Dónde se carga el registro: `@` si el dominio es la raíz de una zona
+     * (tiene servidores de nombres propios) o el nombre completo si es un
+     * subdominio, porque el TXT va justo en el nombre que se verifica.
+     */
+    host: string;
     /** El valor completo del registro TXT. */
     value: string;
     /** Servidores de nombres del dominio, para que la pantalla deduzca el proveedor. */
@@ -190,19 +186,21 @@ export class GetDomainOwnershipChallengeUseCase {
 
     async execute(listingId: string, actor: Actor): Promise<DomainOwnershipChallenge> {
         const listing = await cargar(this.listingRepo, listingId, actor);
-        const domain = dominioDelSitio(listing).value;
+        const domain = siteDomain(listing).value;
+        const nameservers = await this.resolver.nameserversOf(domain);
 
         return {
             domain,
-            host: '@',
+            // Sin servidores de nombres propios no es la raíz de una zona.
+            host: nameservers.length > 0 ? '@' : domain,
             value: this.issuer.tokenFor(listing.id.toString(), domain),
-            nameservers: await this.resolver.nameserversOf(domain),
+            nameservers,
         };
     }
 }
 
 /**
- * Comprueba que el registro TXT esperado ya está publicado en el DNS del
+ * Comprueba que el registro TXT expected ya está publicado en el DNS del
  * dominio del sitio.
  *
  * Que todavía no esté no es un error: el vendedor lo carga y la propagación
@@ -223,15 +221,15 @@ export class VerifyDomainOwnershipUseCase {
 
     async execute(listingId: string, actor: Actor): Promise<{ verified: boolean }> {
         const listing = await cargar(this.listingRepo, listingId, actor);
-        const domain = dominioDelSitio(listing).value;
+        const domain = siteDomain(listing).value;
 
-        if (yaComprobado(listing, domain)) {
+        if (isAlreadyVerified(listing, domain)) {
             return { verified: true };
         }
 
-        const esperado = this.issuer.tokenFor(listing.id.toString(), domain);
-        const publicados = await this.resolver.txtRecordsOf(domain);
-        if (!publicados.some((valor) => valor.trim() === esperado)) {
+        const expected = this.issuer.tokenFor(listing.id.toString(), domain);
+        const published = await this.resolver.txtRecordsOf(domain);
+        if (!published.some((record) => record.trim() === expected)) {
             return { verified: false };
         }
 
@@ -252,14 +250,14 @@ export class VerifyDomainOwnershipUseCase {
  * AdSense, no hay nada que comprobar. Pisar la de AdSense perdería los
  * ingresos verificados que trae.
  */
-function yaComprobado(listing: Listing, domain: string): boolean {
-    const previa = listing.ownershipVerification;
-    if (previa?.source !== 'dns' && previa?.source !== 'adsense') {
+function isAlreadyVerified(listing: Listing, domain: string): boolean {
+    const previous = listing.ownershipVerification;
+    if (previous?.source !== 'dns' && previous?.source !== 'adsense') {
         return false;
     }
 
     try {
-        return DomainName.parse(previa.assetId).value === domain;
+        return DomainName.parse(previous.assetId).value === domain;
     } catch {
         return false;
     }

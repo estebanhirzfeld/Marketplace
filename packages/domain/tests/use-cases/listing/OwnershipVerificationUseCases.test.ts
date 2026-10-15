@@ -233,6 +233,22 @@ describe('VerifyWebsiteRevenueUseCase', () => {
         expect(adsense.monthlyEarningsFor).toHaveBeenCalledWith(GRANT, 'otrodominio.com');
     });
 
+    it('normaliza el dominio publicado antes de consultar y de guardar', async () => {
+        const repo = createMockListingRepo(unSitio('https://www.Ejemplo.com/'));
+        const adsense = lectorAdSense(UN_INGRESO);
+
+        const constancia = await new VerifyWebsiteRevenueUseCase(repo, adsense).execute('l1', GRANT, SELLER);
+
+        expect(adsense.monthlyEarningsFor).toHaveBeenCalledWith(GRANT, 'ejemplo.com');
+        expect(constancia.assetId).toBe('ejemplo.com');
+    });
+
+    it('falla si el sitio no tiene dominio cargado', async () => {
+        const { uso } = armar(unSitio(''), UN_INGRESO);
+
+        await expect(uso.execute('l1', GRANT, SELLER)).rejects.toThrow(/dominio/);
+    });
+
     it('falla si el activo no es un sitio web', async () => {
         const { uso } = armar(unCanalPublicado(), UN_INGRESO);
 
@@ -277,6 +293,16 @@ describe('GetDomainOwnershipChallengeUseCase', () => {
             value: VALOR_TXT,
             nameservers: ['ns1.nsone.net'],
         });
+    });
+
+    it('indica el nombre completo como host cuando el dominio es un subdominio', async () => {
+        const { uso } = armar(unSitio('https://blog.ejemplo.com/'), resolvedor([], []));
+
+        const desafio = await uso.execute('l1', SELLER);
+
+        expect(desafio.host).toBe('blog.ejemplo.com');
+        expect(desafio.domain).toBe('blog.ejemplo.com');
+        expect(desafio.nameservers).toEqual([]);
     });
 
     it('deriva el valor del listing y del dominio normalizado', async () => {

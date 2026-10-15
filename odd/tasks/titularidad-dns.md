@@ -30,7 +30,12 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
 
 ## Tareas
 
-- [ ] T1 Dominio: value object `DomainName`; `'dns'` en `VerificationSource`; puertos `IOwnershipChallengeIssuer` e `IDnsResolver`; casos de uso `GetDomainOwnershipChallengeUseCase` y `VerifyDomainOwnershipUseCase`; `WebStrategy` con `ownershipSource: 'dns'` y textos revisados. Ruta: escritor delegado (más de 2 archivos no triviales).
+- [x] T1 Dominio: value object `DomainName`; `'dns'` en `VerificationSource`; puertos `IOwnershipChallengeIssuer` e `IDnsResolver`; casos de uso `GetDomainOwnershipChallengeUseCase` y `VerifyDomainOwnershipUseCase`; `WebStrategy` con `ownershipSource: 'dns'` y textos revisados. Ruta: escritor delegado (más de 2 archivos no triviales).
+  - Commit `ee256d3`. RED visto (módulos inexistentes y 2 tests corregidos por el padre), luego dominio 68 archivos / 1057 tests en verde y `tsc` sin errores. Corrección del padre: la constancia nombra al vendedor aunque la pida un admin, y una constancia previa de AdSense del mismo dominio se respeta (no se pisan los ingresos verificados).
+  - Revisión nativa: riesgo medio, `slice_budget_reached`, consentida. La captura del revisor falla con `invalid_request` en Gentle AI 3.4.0 (defecto de la herramienta, issue #5044, comentado). Por decisión del usuario se omitió solo para este cambio (`declined`) y se revisó con `judgment-day`.
+  - `judgment-day` sobre `ee256d3`: **APPROVED**, ronda 1, sin hallazgos críticos, 13 advertencias o sugerencias informativas.
+  - [x] T1b Arreglos de las advertencias, aceptados por el usuario: la comprobación por AdSense normaliza el dominio; `DomainName` acepta dominios con tildes o ñ (punycode); identificadores nuevos en inglés; en un subdominio la consigna usa el nombre completo en vez de `@`. Ruta: escritor delegado.
+  - Pendientes anotados, anteriores a este cambio: AdSense guarda el ingreso sin mirar la moneda; el ingreso verificado no cambia el precio estimado; los pasos 3 a 5 de `WebStrategy` no tienen fase; las comprobaciones de titularidad no miran el estado del activo; `registerOwnershipVerification` no valida `monthlyRevenueCents`.
 - [ ] T2 Infraestructura: `'dns'` en `ListingMapper`; adaptadores `HmacOwnershipChallengeIssuer` y `NodeDnsResolver`; `identifyDnsProvider`; rutas `GET /listings/:id/verificacion-dns` y `POST /listings/:id/verificar/dns`; contrato, cliente y contenedor. Ruta: escritor delegado.
 - [ ] T3 Web: `DnsVerificationDialog`, variante DNS de `VerificationCards`, consulta repetida, `CopyValueButton`, textos de `/vender` y de `activos/[id]`, `/sistema`. Ruta: escritor delegado.
 - [ ] T4 Prueba real con `deliaorrego.online` en local y en producción; write-up en `docs/fase-*.md`, `docs/gant.json` y el ítem tildado en la épica. Ruta: en línea.
@@ -54,8 +59,8 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
 
 ## Progreso
 
-Sin tareas cerradas todavía.
+T1 hecha (`ee256d3`).
 
 ## Siguiente paso
 
-T1.
+Resolver la revisión de T1 y seguir con T2.

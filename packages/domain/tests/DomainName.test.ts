@@ -41,6 +41,14 @@ describe('DomainName — normalización', () => {
         expect(DomainName.parse('mi-sitio.com.ar').value).toBe('mi-sitio.com.ar');
     });
 
+    it.each([
+        ['niño.com.ar', 'xn--nio-8ma.com.ar'],
+        ['Niño.com.ar', 'xn--nio-8ma.com.ar'],
+        ['https://www.Niño.com.ar/ruta', 'xn--nio-8ma.com.ar'],
+    ])('convierte el nombre internacionalizado %s a %s', (entrada, esperado) => {
+        expect(DomainName.parse(entrada).value).toBe(esperado);
+    });
+
     it('expone el valor también como texto', () => {
         expect(DomainName.parse('ejemplo.com').toString()).toBe('ejemplo.com');
     });
@@ -78,6 +86,14 @@ describe('DomainName — entradas inválidas', () => {
         const largo = `${['a'.repeat(63), 'b'.repeat(63), 'c'.repeat(63), 'd'.repeat(60)].join('.')}.com`;
         expect(largo.length).toBeGreaterThan(253);
         expect(() => DomainName.parse(largo)).toThrow(ValidationError);
+    });
+
+    it('rechaza un nombre internacionalizado con caracteres no permitidos', () => {
+        expect(() => DomainName.parse('ni ño.com')).toThrow(ValidationError);
+    });
+
+    it('orienta con un ejemplo del formato esperado', () => {
+        expect(() => DomainName.parse('ejem_plo.com')).toThrow(/ejemplo\.com/);
     });
 
     it('explica el problema en español', () => {

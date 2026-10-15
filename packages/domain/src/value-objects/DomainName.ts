@@ -6,9 +6,11 @@ const MAX_NAME_LENGTH = 253;
 /** Una etiqueta: letras, números y guiones, sin guion al principio ni al final. */
 const LABEL = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
-const AYUDA =
+const HELP =
     'Indicá solo el nombre del sitio, por ejemplo ejemplo.com. ' +
     'Podés copiarlo desde la barra de direcciones: ignoramos el https://, el www. y la ruta.';
+
+const INVALID_FORMAT = `Ese dominio no tiene un formato válido: tiene que ser algo como ejemplo.com. ${HELP}`;
 
 /**
  * Nombre de dominio de un sitio, reducido a lo que el DNS sabe consultar.
@@ -24,44 +26,64 @@ const AYUDA =
 export class DomainName {
     private constructor(public readonly value: string) {}
 
-    public static parse(entrada: string): DomainName {
-        let texto = (entrada ?? '').trim().toLowerCase();
-        if (texto === '') {
-            throw new ValidationError(`Falta el dominio del sitio. ${AYUDA}`);
+    public static parse(input: string): DomainName {
+        let text = (input ?? '').trim().toLowerCase();
+        if (text === '') {
+            throw new ValidationError(`Falta el dominio del sitio. ${HELP}`);
         }
 
-        texto = texto.replace(/^https?:\/\//, '');
+        text = text.replace(/^https?:\/\//, '');
         // Lo que sigue al nombre: ruta, consulta o ancla.
-        texto = texto.split(/[/?#]/)[0] ?? '';
-        texto = texto.replace(/:\d+$/, '');
-        texto = texto.replace(/\.$/, '');
-        texto = texto.replace(/^www\./, '');
+        text = text.split(/[/?#]/)[0] ?? '';
+        text = text.replace(/:\d+$/, '');
+        text = text.replace(/\.$/, '');
+        text = text.replace(/^www\./, '');
 
-        if (texto === '' || texto.length > MAX_NAME_LENGTH) {
-            throw new ValidationError(`Ese dominio no tiene un formato válido. ${AYUDA}`);
+        if (text === '') {
+            throw new ValidationError(INVALID_FORMAT);
         }
 
-        const etiquetas = texto.split('.');
-        if (etiquetas.length < 2) {
-            throw new ValidationError(`Ese dominio no tiene extensión (como .com). ${AYUDA}`);
+        text = DomainName.toAscii(text);
+
+        if (text.length > MAX_NAME_LENGTH) {
+            throw new ValidationError(INVALID_FORMAT);
         }
 
-        for (const etiqueta of etiquetas) {
-            if (etiqueta.length > MAX_LABEL_LENGTH || !LABEL.test(etiqueta)) {
-                throw new ValidationError(`Ese dominio no tiene un formato válido. ${AYUDA}`);
+        const labels = text.split('.');
+        if (labels.length < 2) {
+            throw new ValidationError(`Ese dominio no tiene extensión (como .com). ${HELP}`);
+        }
+
+        for (const label of labels) {
+            if (label.length > MAX_LABEL_LENGTH || !LABEL.test(label)) {
+                throw new ValidationError(INVALID_FORMAT);
             }
         }
 
         // Una extensión toda numérica es una dirección IP, no un dominio.
-        if (/^[0-9]+$/.test(etiquetas[etiquetas.length - 1]!)) {
-            throw new ValidationError(`Ese dominio no tiene un formato válido. ${AYUDA}`);
+        if (/^[0-9]+$/.test(labels[labels.length - 1]!)) {
+            throw new ValidationError(INVALID_FORMAT);
         }
 
-        return new DomainName(texto);
+        return new DomainName(text);
     }
 
-    public equals(otro: DomainName): boolean {
-        return this.value === otro.value;
+    /**
+     * Pasa un nombre internacionalizado (`niño.com.ar`) a su forma ASCII
+     * (`xn--nio-8ma.com.ar`), que es la que consulta el DNS. Si el nombre no se
+     * puede interpretar se devuelve tal cual y la validación de etiquetas lo
+     * rechaza.
+     */
+    private static toAscii(host: string): string {
+        try {
+            return new URL(`http://${host}`).hostname;
+        } catch {
+            return host;
+        }
+    }
+
+    public equals(other: DomainName): boolean {
+        return this.value === other.value;
     }
 
     public toString(): string {
