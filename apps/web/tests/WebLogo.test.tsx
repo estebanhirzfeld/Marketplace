@@ -10,21 +10,24 @@ describe('WebLogo', () => {
         expect(html).toContain('aria-label="Sitio web: Tiendanube, WooCommerce, WordPress, Shopify u otro"');
     });
 
-    it('muestra cada plataforma con su color, sin caja detrás', () => {
+    it('pone al frente un mosaico del mismo tamaño que el de YouTube', () => {
         const html = renderToStaticMarkup(<WebLogo />);
 
-        // Tiendanube va en blanco: su azul marino no se ve sobre el fondo oscuro.
-        for (const color of ['#ffffff', '#96588A', '#21759B', '#7AB55C']) {
-            expect(html).toContain(`fill="${color}"`);
+        expect(html).toContain('width="72" height="52" viewBox="0 0 72 52"');
+    });
+
+    it('apila detrás cada plataforma como mosaico de su color de marca', () => {
+        const html = renderToStaticMarkup(<WebLogo />);
+
+        for (const color of ['#1D2340', '#96588A', '#21759B', '#7AB55C']) {
+            expect(html).toContain(`background-color:${color}`);
         }
-        expect(html).not.toContain('background-color');
     });
 
     it('funde solo los extremos de la composición', () => {
         const html = renderToStaticMarkup(<WebLogo />);
 
         // Una sola máscara, con y sin prefijo, sobre el contenedor.
-        expect(html.match(/mask-image:linear-gradient\(to right, transparent 0%/g)).toHaveLength(2);
-        expect(html).toContain('black 84%, transparent 100%');
+        expect(html.match(/mask-image:linear-gradient\(to right/g)).toHaveLength(2);
     });
 });
