@@ -29,10 +29,11 @@ import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { WhyPopover } from '@/components/WhyPopover';
 import { DnsVerificationDialogView } from '@/components/DnsVerificationDialog';
+import { DnsVerificationTrigger } from '@/components/DnsVerificationTrigger';
 import { ImmediateBadge, ShimmerBolt } from '@/components/ShimmerBolt';
 import { CheckLine } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
-import { noop, noopEstimate, noopVoid } from './actions';
+import { noop, noopDnsChallenge, noopDnsCheck, noopEstimate, noopVoid } from './actions';
 import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
 import { DraftChoice } from '@/components/DraftChoice';
 import { PublishedData } from '@/components/PublishedData';
@@ -903,7 +904,11 @@ export default function Sistema() {
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDÉ MÁS RÁPIDO — SIN NIVELES NI PUNTOS</div>
-                            <SellMoreAside accessHref="#" showAccess showMercadoPago />
+                            <SellMoreAside accessHref="#" subject="canal" showAccess showMercadoPago />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDÉ MÁS RÁPIDO — SITIO</div>
+                            <SellMoreAside accessHref="#" subject="sitio" showAccess showMercadoPago={false} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EDITAR (DIÁLOGO) Y BORRAR (DOS PASOS)</div>
@@ -1010,7 +1015,14 @@ export default function Sistema() {
                                 ownershipSource="tu DNS"
                                 kycVerified
                                 verifyAction={noopVoid}
-                                dnsVerification={<Button type="button" className="px-[18px] py-3">Comprobar con tu DNS</Button>}
+                                dnsVerification={
+                                    <DnsVerificationTrigger
+                                        className="px-[18px] py-3"
+                                        getChallenge={noopDnsChallenge}
+                                        checkAction={noopDnsCheck}
+                                        adsenseAction={noopVoid}
+                                    />
+                                }
                             />
                         </div>
                         <div className="flex max-w-[640px] flex-col gap-3">
@@ -1024,7 +1036,14 @@ export default function Sistema() {
                                 publishAction={noop}
                                 reviewAction={noop}
                                 verifyAction={noopVoid}
-                                dnsVerification={<Button type="button" className="min-h-[52px] px-7 text-[16px]">Comprobar con tu DNS</Button>}
+                                dnsVerification={
+                                    <DnsVerificationTrigger
+                                        className="min-h-[52px] px-7 text-[16px]"
+                                        getChallenge={noopDnsChallenge}
+                                        checkAction={noopDnsCheck}
+                                        adsenseAction={noopVoid}
+                                    />
+                                }
                             />
                         </div>
                     </div>

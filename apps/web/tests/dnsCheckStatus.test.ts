@@ -4,6 +4,7 @@ import {
     DNS_POLL_INTERVAL_MS,
     DNS_POLL_MAX_ATTEMPTS,
     dnsCheckStatus,
+    shouldPoll,
 } from '@/lib/dnsCheckStatus';
 
 /**
@@ -40,5 +41,27 @@ describe('dnsCheckStatus', () => {
 
     it('un error de la comprobación se muestra como error', () => {
         expect(dnsCheckStatus({ ...idle, error: 'No disponible', attempts: 1 })).toBe('error');
+    });
+
+    it('una consulta en curso se muestra como búsqueda aunque la anterior haya fallado', () => {
+        expect(dnsCheckStatus({ ...idle, error: 'No disponible', attempts: 1, checking: true })).toBe('searching');
+    });
+});
+
+describe('shouldPoll', () => {
+    const polling = { open: true, hasChallenge: true, verified: false, attempts: 0 };
+
+    it('consulta mientras esté abierto, con registro, sin verificar y bajo el tope', () => {
+        expect(shouldPoll(polling)).toBe(true);
+    });
+
+    it.each([
+        ['cerrado', { open: false }],
+        ['sin registro todavía', { hasChallenge: false }],
+        ['ya verificado', { verified: true }],
+        ['en el tope de intentos', { attempts: DNS_POLL_MAX_ATTEMPTS }],
+        ['la última consulta dio error', { error: 'No disponible' }],
+    ])('no consulta si está %s', (_label, override) => {
+        expect(shouldPoll({ ...polling, ...override })).toBe(false);
     });
 });

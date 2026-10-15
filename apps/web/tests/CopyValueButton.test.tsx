@@ -37,7 +37,7 @@ describe('CopyValueButtonView', () => {
             <CopyValueButtonView value={TXT} label="Copiar el valor del registro" copied={false} onCopy={() => {}} />,
         );
 
-        expect(html).toContain('aria-label="Copiar el valor del registro"');
+        expect(html).toContain(`aria-label="Copiar el valor del registro: ${TXT}"`);
         expect(texto(html)).toContain(TXT);
     });
 });

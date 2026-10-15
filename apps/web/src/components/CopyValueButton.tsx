@@ -13,7 +13,7 @@ export function CopyValueButtonView({
     onCopy,
 }: {
     value: string;
-    /** Lo que lee el lector de pantalla. Sin él, «Copiar <valor>». */
+    /** Lo que lee el lector de pantalla, seguido del valor. Sin él, «Copiar <valor>». */
     label?: string;
     copied: boolean;
     onCopy: () => void;
@@ -21,7 +21,7 @@ export function CopyValueButtonView({
     return (
         <button
             type="button"
-            aria-label={label ?? `Copiar ${value}`}
+            aria-label={label ? `${label}: ${value}` : `Copiar ${value}`}
             onClick={onCopy}
             className="flex min-h-11 items-center gap-3 self-start break-all rounded-[var(--radius-chico)] bg-[var(--color-fondo)] px-3 py-2.5 text-left font-mono text-[14px] text-[var(--color-acento)] transition-colors hover:text-[var(--color-tinta)]"
         >

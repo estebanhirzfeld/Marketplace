@@ -24,9 +24,30 @@ export function dnsCheckStatus({
     checking: boolean;
 }): DnsCheckStatus {
     if (verified) return 'verified';
-    if (error) return 'error';
     if (checking) return 'searching';
+    if (error) return 'error';
     if (attempts >= DNS_POLL_MAX_ATTEMPTS) return 'stopped';
     if (attempts >= DNS_DELAYED_AFTER_ATTEMPTS) return 'delayed';
     return 'searching';
+}
+
+/**
+ * Si el diálogo debe seguir consultando solo. Un error de la última consulta
+ * lo corta: repetir lo mismo cada 10 segundos no arregla nada, y «Ya lo
+ * cargué» queda para reintentar a mano.
+ */
+export function shouldPoll({
+    open,
+    hasChallenge,
+    verified,
+    attempts,
+    error,
+}: {
+    open: boolean;
+    hasChallenge: boolean;
+    verified: boolean;
+    attempts: number;
+    error?: string;
+}): boolean {
+    return open && hasChallenge && !verified && !error && attempts < DNS_POLL_MAX_ATTEMPTS;
 }

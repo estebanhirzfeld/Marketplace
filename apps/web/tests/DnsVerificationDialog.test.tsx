@@ -46,19 +46,28 @@ describe('DnsVerificationDialogView: el registro', () => {
         expect(html).toContain('>TXT<');
         expect(texto(html)).toContain('Nombre');
         expect(html).toContain('>@<');
-        expect(html).toContain(`aria-label="Copiar el valor del registro"`);
+        expect(html).toContain(`aria-label="Copiar el valor del registro: ${HOSTINGER.value}"`);
         expect(texto(html)).toContain(HOSTINGER.value);
     });
 
     it('en la raíz del dominio no explica nada de subdominios', () => {
-        expect(texto(render())).not.toContain('solo la primera parte');
+        expect(texto(render())).not.toContain('Es el nombre completo');
     });
 
-    it('en un subdominio muestra el nombre completo y avisa que algunos paneles piden solo la primera parte', () => {
-        const html = render({ challenge: SUBDOMAIN });
+    it('en un subdominio muestra el nombre completo y avisa que algunos paneles agregan el dominio solo, sin calcular la parte', () => {
+        const html = render({ challenge: { ...SUBDOMAIN, host: 'shop.tienda.ejemplo.com' } });
 
-        expect(texto(html)).toContain('blog.ejemplo.com');
-        expect(texto(html)).toContain('en algunos paneles va solo la primera parte');
+        expect(texto(html)).toContain('shop.tienda.ejemplo.com');
+        expect(texto(html)).toContain(
+            'Es el nombre completo. Si tu panel agrega el dominio solo, poné solo la parte que va antes de él.',
+        );
+        expect(texto(html)).not.toContain('«shop»');
+    });
+
+    it('el paso de la zona nombra el dominio en la raíz y es genérico en un subdominio', () => {
+        expect(texto(render())).toContain('Abrí la zona DNS de deliaorrego.online');
+        expect(texto(render({ challenge: SUBDOMAIN }))).toContain('Abrí la zona DNS de tu dominio');
+        expect(texto(render({ challenge: SUBDOMAIN }))).not.toContain('Abrí la zona DNS de blog.ejemplo.com');
     });
 });
 
@@ -142,6 +151,18 @@ describe('DnsVerificationDialogView: sin el registro todavía', () => {
 
         expect(texto(html)).toContain('La comprobación por DNS todavía no está disponible.');
         expect(texto(html)).toContain('¿Tenés AdSense?');
+    });
+});
+
+describe('DnsVerificationDialogView: reintentar', () => {
+    it('si no se pudo pedir el registro, ofrece «Reintentar»', () => {
+        const html = render({ challenge: null, loadError: 'No pudimos consultar tu DNS. Probá de nuevo.', onRetryLoad: () => {} });
+
+        expect(texto(html)).toContain('Reintentar');
+    });
+
+    it('mientras se pide el registro no ofrece «Reintentar»', () => {
+        expect(texto(render({ challenge: null, onRetryLoad: () => {} }))).not.toContain('Reintentar');
     });
 });
 

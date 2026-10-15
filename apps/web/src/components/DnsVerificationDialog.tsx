@@ -10,8 +10,10 @@ import {
     DNS_POLL_INTERVAL_MS,
     DNS_POLL_MAX_ATTEMPTS,
     dnsCheckStatus,
+    shouldPoll,
     type DnsCheckStatus,
 } from '@/lib/dnsCheckStatus';
+import { safeChallenge, safeCheck, visibleCheckState, type ChallengeResult } from '@/lib/dnsDialogActions';
 import { Alert, Button, CheckIcon, ExternalButtonLink } from './ui';
 import { CopyValueButton } from './CopyValueButton';
 import { SubmitButton } from './SubmitButton';
@@ -33,6 +35,7 @@ export function DnsVerificationDialogView({
     error,
     checking,
     onCheckNow,
+    onRetryLoad,
     adsenseAction,
 }: {
     /** El registro a cargar, o `null` mientras se pide o si no se pudo pedir. */
@@ -43,6 +46,8 @@ export function DnsVerificationDialogView({
     error?: string;
     checking: boolean;
     onCheckNow?: () => void;
+    /** Vuelve a pedir el registro cuando no se pudo pedir. */
+    onRetryLoad?: () => void;
     adsenseAction: () => Promise<void>;
 }) {
     return (
@@ -54,7 +59,14 @@ export function DnsVerificationDialogView({
                     <StatusArea status={status} error={error} checking={checking} onCheckNow={onCheckNow} />
                 </>
             ) : loadError ? (
-                <Alert>{loadError}</Alert>
+                <div className="flex flex-col items-start gap-3">
+                    <Alert>{loadError}</Alert>
+                    {onRetryLoad && (
+                        <Button type="button" variant="secundario" onClick={onRetryLoad} className="px-4 py-2.5">
+                            Reintentar
+                        </Button>
+                    )}
+                </div>
             ) : (
                 <p role="status" className="text-[15px] text-[var(--color-tenue)]">
                     Preparando tu registro…
@@ -93,7 +105,7 @@ function RecordStep({ challenge }: { challenge: DomainOwnershipChallengeDto }) {
                     <span className="break-all font-mono text-[14px] text-[var(--color-tinta)]">{challenge.host}</span>
                     {isSubdomain && (
                         <span className="text-[13px] text-[var(--color-apagado)]">
-                            Es el nombre completo; en algunos paneles va solo la primera parte («{challenge.host.split('.')[0]}»).
+                            Es el nombre completo. Si tu panel agrega el dominio solo, poné solo la parte que va antes de él.
                         </span>
                     )}
                 </Row>
@@ -107,6 +119,8 @@ function RecordStep({ challenge }: { challenge: DomainOwnershipChallengeDto }) {
 
 function ProviderStep({ challenge }: { challenge: DomainOwnershipChallengeDto }) {
     const provider = challenge.provider ? DNS_PROVIDERS[challenge.provider] : null;
+    // En un subdominio la zona es la del dominio principal, que no sabemos nombrar.
+    const zone = challenge.host === '@' ? challenge.domain : 'tu dominio';
     return (
         <section className="flex flex-col gap-3">
             <StepTitle n={2}>{provider ? `Parece que tu DNS está en ${provider.name}` : 'Cargalo donde administrás tu dominio'}</StepTitle>
@@ -114,7 +128,7 @@ function ProviderStep({ challenge }: { challenge: DomainOwnershipChallengeDto })
                 {(provider
                     ? [
                           `Entrá a tu panel de ${provider.name}.`,
-                          `Abrí la zona DNS de ${challenge.domain} y agregá un registro nuevo de tipo TXT.`,
+                          `Abrí la zona DNS de ${zone} y agregá un registro nuevo de tipo TXT.`,
                           'Pegá el nombre y el valor de arriba, y guardá.',
                       ]
                     : [
@@ -229,16 +243,16 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     );
 }
 
-type ChallengeResult = { challenge?: DomainOwnershipChallengeDto; error?: string };
-
 /**
  * El diálogo con la consulta real. Es un `<dialog>` nativo con `showModal()`,
  * igual que el de acceso: atrapa el foco, cierra con Esc y devuelve el foco.
  *
- * El registro se pide al abrir. Mientras está abierto consulta cada 10
- * segundos, hasta 30 veces (unos 5 minutos): no hay tarea en segundo plano, así
- * que cerrar el diálogo corta la consulta. «Ya lo cargué» consulta ya y, si ya
- * había dejado de buscar, vuelve a empezar. Al verificarse pide la pantalla
+ * El registro se pide al abrir y, apenas llega, se consulta una primera vez.
+ * Mientras está abierto consulta cada 10 segundos, hasta 30 veces (unos 5
+ * minutos): no hay tarea en segundo plano, así que cerrar el diálogo corta la
+ * consulta. Un error de la consulta también la corta. «Ya lo cargué» consulta
+ * ya y, si había dejado de buscar, vuelve a empezar. Al cerrar se descartan el
+ * último resultado y el error de carga. Al verificarse pide la pantalla
  * actualizada, como el panel de acceso.
  */
 export function DnsVerificationDialog({
@@ -260,7 +274,14 @@ export function DnsVerificationDialog({
     const [challenge, setChallenge] = useState<DomainOwnershipChallengeDto | null>(null);
     const [loadError, setLoadError] = useState<string | undefined>();
     const [attempts, setAttempts] = useState(0);
-    const [state, check, checking] = useActionState(checkAction, {});
+    const [loadKey, setLoadKey] = useState(0);
+    const [session, setSession] = useState(0);
+    const sessionRef = useRef(0);
+    const [stamped, check, checking] = useActionState(
+        (previous: Parameters<typeof visibleCheckState>[0]) => safeCheck(checkAction, previous, sessionRef.current),
+        { session: 0 },
+    );
+    const state = visibleCheckState(stamped, session);
     const checkingRef = useRef(false);
 
     useEffect(() => {
@@ -273,7 +294,7 @@ export function DnsVerificationDialog({
     useEffect(() => {
         if (!open || challenge) return;
         let cancelled = false;
-        getChallenge().then((result) => {
+        void safeChallenge(getChallenge).then((result) => {
             if (cancelled) return;
             if (result.challenge) setChallenge(result.challenge);
             else setLoadError(result.error ?? 'No pudimos consultar tu DNS. Probá de nuevo.');
@@ -281,14 +302,22 @@ export function DnsVerificationDialog({
         return () => {
             cancelled = true;
         };
-    }, [open, challenge, getChallenge]);
+    }, [open, challenge, getChallenge, loadKey]);
 
     useEffect(() => {
         checkingRef.current = checking;
     }, [checking]);
 
     const verified = state.verified === true;
-    const polling = open && challenge !== null && !verified && attempts < DNS_POLL_MAX_ATTEMPTS;
+    const hasChallenge = challenge !== null;
+    const polling = shouldPoll({ open, hasChallenge, verified, attempts, error: state.error });
+
+    // La primera consulta no espera al primer intervalo: el registro puede
+    // estar cargado de antes. Corre al llegar el registro y al reabrir.
+    useEffect(() => {
+        if (!open || !hasChallenge) return;
+        startTransition(() => check());
+    }, [open, hasChallenge, check]);
 
     useEffect(() => {
         if (!polling) return;
@@ -304,6 +333,11 @@ export function DnsVerificationDialog({
         if (verified) router.refresh();
     }, [verified, router]);
 
+    function retryLoad() {
+        setLoadError(undefined);
+        setLoadKey((n) => n + 1);
+    }
+
     function checkNow() {
         setAttempts((n) => (n >= DNS_POLL_MAX_ATTEMPTS ? DNS_DELAYED_AFTER_ATTEMPTS : n + 1));
         startTransition(() => check());
@@ -315,6 +349,9 @@ export function DnsVerificationDialog({
             aria-labelledby={titleId}
             onClose={() => {
                 setAttempts(0);
+                setLoadError(undefined);
+                sessionRef.current += 1;
+                setSession(sessionRef.current);
                 onClose();
             }}
             onClick={(e) => {
@@ -323,9 +360,9 @@ export function DnsVerificationDialog({
             className="m-auto w-[min(640px,calc(100vw-2rem))] max-h-[92vh] overflow-y-auto rounded-[var(--radius-grande)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)] p-0 text-[var(--color-tinta)] backdrop:bg-black/70"
         >
             <header className="flex items-center justify-between border-b border-[var(--color-borde)] py-3 pl-6 pr-4">
-                <span id={titleId} className="text-[15px] font-medium">
+                <h2 id={titleId} className="text-[15px] font-medium">
                     Comprobá tu sitio con tu DNS
-                </span>
+                </h2>
                 <button
                     type="button"
                     aria-label="Cerrar"
@@ -344,6 +381,7 @@ export function DnsVerificationDialog({
                 error={state.error}
                 checking={checking}
                 onCheckNow={checkNow}
+                onRetryLoad={retryLoad}
                 adsenseAction={adsenseAction}
             />
         </dialog>

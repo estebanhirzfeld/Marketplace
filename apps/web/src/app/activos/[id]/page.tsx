@@ -469,6 +469,7 @@ export default async function DetalleDeActivo(props: {
                             {mio.status === 'draft' && (
                                 <SellMoreAside
                                             accessHref={accessHref}
+                                            subject={subject}
                                             showAccess={mio.platformAccessStatus === 'pending'}
                                     showMercadoPago={mercadoPago === 'not_linked'}
                                 />
