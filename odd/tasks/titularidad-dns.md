@@ -50,6 +50,7 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
   - Advertencias en las que coinciden los dos jueces: la consulta repetida sigue después de un error (por ejemplo el 503); la consigna inicial no maneja un rechazo y queda en «Preparando tu registro…»; una falla de red durante la consulta llega al límite de errores y reemplaza la página; el botón de copiar oculta el valor a los lectores de pantalla; `/sistema` muestra un botón de relleno en vez de `DnsVerificationTrigger`; el ciclo de la consulta repetida no tiene tests.
   - Prueba en la app (local, 16/10/2026): borrador `[TEST] Delia Orrego` con `deliaorrego.online`; el modal mostró `TXT`, `@`, el valor y «Parece que tu DNS está en Hostinger»; el usuario agregó el TXT nuevo, apareció en `dns1.p08.nsone.net` en ~5 s y el modal lo detectó solo: la página pasó a «Listo para publicar · Sos el titular del sitio» con el botón «Publicar», sin revisión. El borrador se borró después.
   - Hallazgo en la prueba: en un sitio aparece «Vendé más rápido… A los 7 días tu canal la muestra», texto de YouTube. Pendiente.
+  - [x] T3b Arreglos aceptados por el usuario: la consulta repetida se detiene ante un error y una consulta en curso se muestra como búsqueda; la consigna muestra un error con «Reintentar»; una falla de red durante la consulta queda como error en el modal; el estado se limpia al cerrar y la primera consulta corre apenas carga la consigna; el botón de copiar incluye el valor en su nombre accesible y el título del modal es `h2`; `/sistema` usa `DnsVerificationTrigger` real; pista de subdominio sin calcular la etiqueta; `SellMoreAside` dice «sitio» o «canal» según el activo. Ruta: escritor delegado. Commit `b6d90a6`: RED visto (13 tests), luego web 50 archivos / 438 tests en verde y `tsc` sin errores, verificado por el padre; comprobado en `/sistema` en la app.
 - [ ] T4 Prueba real con `deliaorrego.online` en local y en producción; write-up en `docs/fase-*.md`, `docs/gant.json` y el ítem tildado en la épica. Ruta: en línea.
 
 ## Criterios de aceptación
@@ -75,4 +76,4 @@ T1, T1b, T2 y T2b hechas (`ee256d3`, `0e80936`, `5f8fa08`, `5cc66d5`).
 
 ## Siguiente paso
 
-T3.
+T4: producción (`DNS_CHALLENGE_SECRET` en el VPS, PRs de las tres tandas, despliegue) y write-up.
