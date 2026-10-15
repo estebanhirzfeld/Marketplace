@@ -4,7 +4,7 @@ Rama: `feat/titularidad-dns` (desde `origin/fase-5-frontend-y-avisos`).
 TDD: activado (fuente: `CLAUDE.md` del proyecto, "TDD is expected"). Runners: `pnpm --filter @marketplace/domain exec vitest run`, `pnpm --filter @marketplace/api exec vitest run`, `pnpm --filter @marketplace/db exec vitest run` (contra `marketplace_test`), `pnpm --filter web exec vitest run`.
 Plan aprobado: `~/.claude/plans/si-dale-con-el-idempotent-otter.md`. Evidencia previa: Engram #292 a #294.
 Ítem de la épica: «Titularidad por registro DNS», etapa 1b de `odd/epica-cierre-mvp.md`.
-Entrega: estrategia `ask-on-risk`; al pasar las ~400 líneas se pregunta si se encadenan PRs hacia `fase-5-frontend-y-avisos`.
+Entrega: `stacked-to-main` (elegido por el usuario el 15/10/2026, como en `conectar-canal-youtube`): un PR por tanda hacia `fase-5-frontend-y-avisos`. Tanda 1, dominio: `ee256d3`, `0e80936`, `50d317e`. Tanda 2, infraestructura: T2. Tanda 3, web: T3.
 Revisión: el modo de revisión con recibos está activado (global); se evalúa el riesgo después de cada commit.
 
 ## Objetivo
