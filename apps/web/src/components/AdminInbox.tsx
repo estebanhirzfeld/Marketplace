@@ -2,8 +2,8 @@ import Link from 'next/link';
 import type { MyListingDto } from '@marketplace/api-contract';
 
 /** Lo único que la tabla necesita de cada activo. */
-export type AccessInboxRow = Pick<MyListingDto, 'id' | 'assetName' | 'sellerName' | 'platformAccessRequestedAt'>;
-import { YouTubeLogo } from './AssetTypeCard';
+export type AccessInboxRow = Pick<MyListingDto, 'id' | 'assetType' | 'assetName' | 'sellerName' | 'platformAccessRequestedAt'>;
+import { AssetMark } from './AssetTypeCard';
 import { SubmitButton } from './SubmitButton';
 import { EmptyState } from './ui';
 import { shortAgo, type InboxCounts, type InboxTab } from '@/lib/adminInbox';
@@ -50,7 +50,7 @@ export function InboxTabs({ active, counts }: { active: InboxTab; counts: InboxC
 }
 
 /**
- * La bandeja de accesos: una fila por canal que esperó nuestra verificación.
+ * La bandeja de accesos: una fila por activo que esperó nuestra verificación.
  * Las dos acciones son las de siempre; lo que cambia es que escalan en una
  * tabla en vez de apilarse en un panel.
  */
@@ -69,7 +69,7 @@ export function AccessInbox({
         return (
             <EmptyState
                 title="No hay accesos por verificar"
-                text="Cuando un vendedor avise que ya nos invitó a su canal va a aparecer acá."
+                text="Cuando un vendedor avise que ya nos dio acceso a su activo va a aparecer acá."
             />
         );
     }
@@ -77,11 +77,11 @@ export function AccessInbox({
     return (
         <div className="flex flex-col gap-4">
             <p className="text-[14px] text-[var(--color-tenue)]">
-                Entrá con la cuenta de custodia y elegí el canal del activo.
+                Entrá con la cuenta de custodia y verificá el acceso al activo.
             </p>
             <div className="overflow-hidden rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)]">
                 <div className="hidden grid-cols-[2fr_1.4fr_1fr_2.6fr] gap-3 border-b border-[var(--color-borde)] px-5 py-3 font-mono text-[11px] tracking-[0.1em] text-[var(--color-apagado)] md:grid">
-                    <span>CANAL</span>
+                    <span>ACTIVO</span>
                     <span>VENDEDOR</span>
                     <span>AVISÓ</span>
                     <span />
@@ -96,7 +96,7 @@ export function AccessInbox({
                             className="grid items-center gap-3 border-b border-[var(--color-borde)] px-5 py-4 last:border-0 md:grid-cols-[2fr_1.4fr_1fr_2.6fr]"
                         >
                             <span className="flex items-center gap-2.5">
-                                <YouTubeLogo width={22} />
+                                <AssetMark assetType={l.assetType} width={22} />
                                 <Link
                                     href={`/listings/${l.id}`}
                                     className="truncate text-[15px] transition-colors hover:text-[var(--color-acento)]"
@@ -114,7 +114,7 @@ export function AccessInbox({
                             </span>
                             <span className="flex flex-wrap gap-2 md:justify-end">
                                 <form action={verifyAction.bind(null, l.id)}>
-                                    <SubmitButton pendingText="Abriendo Google…" className="min-h-10 px-3.5 py-2 text-[14px]">
+                                    <SubmitButton pendingText="Verificando…" className="min-h-10 px-3.5 py-2 text-[14px]">
                                         Verificar acceso
                                     </SubmitButton>
                                 </form>

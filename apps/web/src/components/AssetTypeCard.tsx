@@ -65,6 +65,53 @@ export function YouTubeLogo({ width = 72 }: { width?: number }) {
 }
 
 /**
+ * El mosaico claro del sitio, con su ventana de navegador: el mismo del frente
+ * de `WebLogo`, suelto y a cualquier tamaño. Es el equivalente de `YouTubeLogo`
+ * para las filas y los desgloses donde la composición entera no entra.
+ */
+export function WebMark({
+    width = 72,
+    className,
+    style,
+    decorative = false,
+}: {
+    width?: number;
+    className?: string;
+    style?: React.CSSProperties;
+    /** Dentro de una composición que ya se nombra a sí misma. */
+    decorative?: boolean;
+}) {
+    return (
+        <svg
+            className={className}
+            style={style}
+            width={width}
+            height={Math.round((width * 52) / 72)}
+            viewBox="0 0 72 52"
+            {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Sitio web' })}
+        >
+            <rect width="72" height="52" rx="13" fill="#e8e9ea" />
+            <rect x="18" y="12" width="36" height="28" rx="5" fill="#141619" />
+            <circle cx="23.5" cy="17.5" r="1.6" fill="#e8e9ea" />
+            <circle cx="28.5" cy="17.5" r="1.6" fill="#e8e9ea" />
+            <circle cx="33.5" cy="17.5" r="1.6" fill="#e8e9ea" />
+            <rect x="22" y="24" width="28" height="12" rx="2" fill="#e8e9ea" opacity="0.18" />
+        </svg>
+    );
+}
+
+/**
+ * La marca del tipo de activo, chica. Todo lugar que dibuje un logo según el
+ * activo pasa por acá, así ninguno queda con el de YouTube fijo. Un tipo que
+ * no se conoce no dibuja nada antes que dibujar el de otro.
+ */
+export function AssetMark({ assetType, width = 22 }: { assetType: string; width?: number }) {
+    if (assetType === 'youtube') return <YouTubeLogo width={width} />;
+    if (assetType === 'web') return <WebMark width={width} />;
+    return null;
+}
+
+/**
  * Las plataformas de sitios más usadas en la Argentina, que asoman detrás del
  * mosaico del sitio. Cada una es un mosaico de su color de marca con el logo
  * en blanco, en el mismo idioma que el de YouTube. Tiendanube sale de su
@@ -145,20 +192,11 @@ export function WebLogo() {
             <PlatformTile platform="shopify" side="right" layer="back" />
             <PlatformTile platform="tiendanube" side="left" layer="middle" />
             <PlatformTile platform="woocommerce" side="right" layer="middle" />
-            <svg
+            <WebMark
+                decorative
                 className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-[13px]"
                 style={{ boxShadow: CUTOUT }}
-                width="72"
-                height="52"
-                viewBox="0 0 72 52"
-            >
-                <rect width="72" height="52" rx="13" fill="#e8e9ea" />
-                <rect x="18" y="12" width="36" height="28" rx="5" fill="#141619" />
-                <circle cx="23.5" cy="17.5" r="1.6" fill="#e8e9ea" />
-                <circle cx="28.5" cy="17.5" r="1.6" fill="#e8e9ea" />
-                <circle cx="33.5" cy="17.5" r="1.6" fill="#e8e9ea" />
-                <rect x="22" y="24" width="28" height="12" rx="2" fill="#e8e9ea" opacity="0.18" />
-            </svg>
+            />
         </span>
     );
 }

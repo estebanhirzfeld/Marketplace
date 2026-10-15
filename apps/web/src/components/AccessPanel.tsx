@@ -12,6 +12,16 @@ import { AccessInstructionsDialog } from './AccessInstructionsDialog';
 
 type Action = (state: ActionState) => Promise<ActionState>;
 
+/**
+ * Qué gana el vendedor al darnos acceso. El plazo sale del descriptor del
+ * activo: un tipo sin espera (un sitio) no promete días.
+ */
+export function accessBenefit(subject: 'canal' | 'sitio', waitingDays: number): string {
+    return waitingDays > 0
+        ? `${waitingDays} días después de invitarnos tu ${subject} gana más visibilidad en el mercado.`
+        : `Con acceso, el traspaso es inmediato y tu ${subject} gana más visibilidad en el mercado.`;
+}
+
 function storage(): KeyValueStorage | null {
     try {
         return window.localStorage;
@@ -42,6 +52,8 @@ function subscribe(cb: () => void) {
  */
 export function AccessPanel({
     listingId,
+    subject,
+    waitingDays,
     steps,
     email,
     status,
@@ -51,6 +63,10 @@ export function AccessPanel({
     requestAction,
 }: {
     listingId: string;
+    /** Lo que se vende, para nombrarlo en el texto. */
+    subject: 'canal' | 'sitio';
+    /** La espera del tipo de activo, tal como la informa su descriptor. */
+    waitingDays: number;
     steps: HandoverStepDto[];
     email?: string;
     status: PlatformAccessStatusDto;
@@ -180,7 +196,7 @@ export function AccessPanel({
                                     <span className="font-mono text-[13px] text-[var(--color-acento)]">TRANSFERENCIA INMEDIATA</span>
                                 </span>
                                 <span className="text-[13px] text-[var(--color-tenue)]">
-                                    7 días después de invitarnos tu canal gana más visibilidad en el mercado.
+                                    {accessBenefit(subject, waitingDays)}
                                 </span>
                             </div>
                         </div>

@@ -9,10 +9,12 @@ export function PriceSectionDemo({
     initialCurrency,
     initialPrice,
     estimated,
+    basis,
 }: {
     initialCurrency: string;
     initialPrice: string;
     estimated: MoneyDto | null;
+    basis: string;
 }) {
     const [currency, setCurrency] = useState(initialCurrency);
     const [price, setPrice] = useState(initialPrice);
@@ -24,6 +26,7 @@ export function PriceSectionDemo({
             price={price}
             onPriceChange={setPrice}
             estimated={estimated}
+            basis={basis}
         />
     );
 }

@@ -31,7 +31,7 @@ describe('aviso de acceso solicitado', () => {
         const { title, cuerpo } = textFor(solicitado);
 
         expect(title).toBe('Un vendedor ya nos invitó');
-        expect(cuerpo).toBe('Avisó que ya nos invitó a su canal. Falta verificar el acceso.');
+        expect(cuerpo).toBe('Avisó que ya nos dio acceso a su activo. Falta verificar el acceso.');
     });
 
     it('lleva a la bandeja de accesos del panel', () => {
@@ -43,15 +43,15 @@ describe('aviso de acceso confirmado', () => {
     const occursAt = '2026-10-19T15:00:00.000Z';
     const confirmado: NotificationDto = { ...aviso, type: 'acceso_confirmado', occursAt };
 
-    it('le dice al vendedor desde cuándo su canal es de transferencia inmediata', () => {
+    it('le dice al vendedor desde cuándo su activo es de transferencia inmediata', () => {
         const { title, cuerpo } = textFor(confirmado);
 
         expect(title).toBe('Confirmamos tu acceso');
-        expect(cuerpo).toBe(`El ${fechaLarga(occursAt)} tu canal pasa a transferencia inmediata.`);
+        expect(cuerpo).toBe(`El ${fechaLarga(occursAt)} tu activo pasa a transferencia inmediata.`);
     });
 
     it('sin fecha, no inventa una', () => {
-        expect(textFor({ ...confirmado, occursAt: undefined }).cuerpo).toBe('Tu canal pasa a transferencia inmediata.');
+        expect(textFor({ ...confirmado, occursAt: undefined }).cuerpo).toBe('Tu activo pasa a transferencia inmediata.');
     });
 
     it('lleva a las verificaciones del activo', () => {

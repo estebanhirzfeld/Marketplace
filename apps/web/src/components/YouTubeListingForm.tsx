@@ -137,6 +137,7 @@ export function YouTubeListingFormView({
                 price={price}
                 onPriceChange={onPriceChange}
                 estimated={estimated}
+                basis="los números verificados de tu canal"
             />
 
             {state.error && <ActionFailure error={state.error} next={state.next} />}

@@ -65,12 +65,12 @@ describe('AccessStatusPanel', () => {
 
 describe('SellerLevelGauge', () => {
     it('dice el nivel de 4', () => {
-        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered />);
+        const html = renderToStaticMarkup(<SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered />);
         expect(html).toContain('aria-label="Nivel 3 de 4"');
     });
 
     it('desglosa lo que suma cada logro, con el hecho marcado', () => {
-        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered={false} />);
+        const html = renderToStaticMarkup(<SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered={false} />);
         const t = texto(html);
         expect(t).toContain('Titularidad');
         expect(t).toContain('+1');
@@ -85,7 +85,7 @@ describe('SellerLevelGauge', () => {
     });
 
     it('sin Mercado Pago disponible omite esa fila y el máximo es 3', () => {
-        const html = renderToStaticMarkup(<SellerLevelGauge ownershipVerified accessRegistered mercadoPago="unavailable" />);
+        const html = renderToStaticMarkup(<SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered mercadoPago="unavailable" />);
         expect(html).not.toContain('/logos/mercadopago.svg');
         expect(html).toContain('aria-label="Nivel 3 de 3"');
     });

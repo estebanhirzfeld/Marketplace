@@ -18,6 +18,7 @@ import { DraftPanel } from '@/components/DraftPanel';
 import { SellMoreAside } from '@/components/SellMoreAside';
 import { EditListingDialog } from '@/components/EditListingDialog';
 import { DiscardDraftButton } from '@/components/DiscardDraftButton';
+import { AssetSummaryCard } from '@/components/AssetSummaryCard';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
@@ -386,20 +387,9 @@ export default async function DetalleDeActivo(props: {
                         {canal ? (
                             <VerifiedChannelCard channel={canal} avatarShape="square" />
                         ) : (
-                            <div className="flex items-center gap-4 rounded-[var(--radius-grande)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-6">
-                                <ChannelAvatar name={nombre} shape="square" />
-                                <div className="flex min-w-0 flex-col gap-0.5">
-                                    <span className="truncate text-[20px] font-bold">{nombre}</span>
-                                    <span className="text-[13px] text-[var(--color-apagado)]">
-                                        {listing.descriptor.label}
-                                    </span>
-                                    <span className="mt-1 text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        {ingresoMensual}
-                                    </span>
-                                </div>
-                            </div>
+                            <AssetSummaryCard name={nombre} assetLabel={listing.descriptor.label} note={ingresoMensual} />
                         )}
-                        <SellerLevelGauge ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
+                        <SellerLevelGauge assetType={mio.assetType} ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
                     </div>
 
                     <div className="mt-4 flex flex-col gap-4">
@@ -426,6 +416,8 @@ export default async function DetalleDeActivo(props: {
                         {listingSteps.length > 0 && (
                             <AccessPanel
                                 listingId={id}
+                                subject={subject}
+                                waitingDays={listing.descriptor.transferWaitingDays}
                                 steps={listingSteps}
                                 email={cuentaDeCustodia}
                                 status={mio.transferable ? 'immediate' : mio.platformAccessStatus}

@@ -81,14 +81,14 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
     },
     acceso_solicitado: {
         title: 'Un vendedor ya nos invitó',
-        cuerpo: () => 'Avisó que ya nos invitó a su canal. Falta verificar el acceso.',
+        cuerpo: () => 'Avisó que ya nos dio acceso a su activo. Falta verificar el acceso.',
     },
     acceso_confirmado: {
         title: 'Confirmamos tu acceso',
         cuerpo: (n) =>
             n.occursAt
-                ? `El ${fechaLarga(n.occursAt)} tu canal pasa a transferencia inmediata.`
-                : 'Tu canal pasa a transferencia inmediata.',
+                ? `El ${fechaLarga(n.occursAt)} tu activo pasa a transferencia inmediata.`
+                : 'Tu activo pasa a transferencia inmediata.',
     },
     operacion_completada: {
         title: 'Operación cerrada',
