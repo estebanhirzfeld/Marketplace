@@ -31,10 +31,10 @@ function unCanal(over: { subs?: number; monetizado?: boolean; precio?: number } 
     return l;
 }
 
-function unSitio(over: { da?: number; precio?: number } = {}): Listing {
+function unSitio(over: { precio?: number } = {}): Listing {
     const l = Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(Money.fromCents(80_000, 'USD'), over.da ?? 42, 'ejemplo.com'),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80_000, 'USD'), domain: 'ejemplo.com' }),
         askingPrice: Money.fromCents(over.precio ?? 900_000, 'USD'),
     });
     l.submitForReview();
@@ -101,18 +101,6 @@ describe('Filtros propios de un canal de YouTube', () => {
     });
 });
 
-describe('Filtros propios de un sitio web', () => {
-    it('filtra por autoridad de dominio', async () => {
-        const vistas = await armar([unSitio({ da: 55 }), unSitio({ da: 12 })]).execute({
-            ...web,
-            minDomainAuthority: 40,
-        });
-
-        expect(vistas).toHaveLength(1);
-        expect(vistas[0].assetData.domainAuthority).toBe(55);
-    });
-});
-
 describe('Filtros que no corresponden al tipo elegido', () => {
     /**
      * Ignorarlos en silencio devolvería una lista vacía sin explicar por qué,
@@ -121,12 +109,6 @@ describe('Filtros que no corresponden al tipo elegido', () => {
     it('rechaza filtrar por suscriptores sobre sitios web', async () => {
         await expect(
             armar([]).execute({ ...web, minSubscribers: 1000 }),
-        ).rejects.toThrow(ValidationError);
-    });
-
-    it('rechaza filtrar por autoridad de dominio sobre canales', async () => {
-        await expect(
-            armar([]).execute({ ...youtube, minDomainAuthority: 40 }),
         ).rejects.toThrow(ValidationError);
     });
 

@@ -191,7 +191,6 @@ export class MarketplaceClient {
             'maxPrice',
             'minSubscribers',
             'onlyMonetized',
-            'minDomainAuthority',
             'sort',
             'direction',
         ] as const) {

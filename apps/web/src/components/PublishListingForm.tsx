@@ -14,8 +14,8 @@ const CONTROL =
 type State = { error?: string; ok?: boolean };
 
 const TIPOS = [
-    { value: 'youtube', text: 'Canal de YouTube', metrica: 'Suscriptores' },
-    { value: 'web', text: 'Sitio web', metrica: 'Autoridad de dominio' },
+    { value: 'youtube', text: 'Canal de YouTube' },
+    { value: 'web', text: 'Sitio web' },
 ] as const;
 
 /**
@@ -63,7 +63,6 @@ export function PublishListingForm({
     const [monetizado, setMonetizado] = useState(true);
     const [estimado, setEstimado] = useState<{ cents: number; currency: string } | null>(null);
 
-    const actual = TIPOS.find((t) => t.value === type) ?? TIPOS[0];
     const identidad = IDENTIDAD[type as 'youtube' | 'web'] ?? IDENTIDAD.youtube;
 
     /**
@@ -80,8 +79,6 @@ export function PublishListingForm({
         if (type === 'youtube') {
             assetData.subscribers = Math.round(metrica || 0);
             assetData.isMonetized = monetizado;
-        } else {
-            assetData.domainAuthority = Math.round(metrica || 0);
         }
 
         // Al cambiar algo, el pedido anterior se cancela y su respuesta se descarta.
@@ -144,15 +141,17 @@ export function PublishListingForm({
                 required
             />
 
-            <Field
-                label={actual.metrica}
-                name="metrica"
-                type="number"
-                min={0}
-                required
-                value={metrica || ''}
-                onChange={(e) => setMetrica(Number(e.target.value))}
-            />
+            {type === 'youtube' && (
+                <Field
+                    label="Suscriptores"
+                    name="metrica"
+                    type="number"
+                    min={0}
+                    required
+                    value={metrica || ''}
+                    onChange={(e) => setMetrica(Number(e.target.value))}
+                />
+            )}
             <Field
                 label="Ingreso mensual (USD)"
                 name="ingreso"

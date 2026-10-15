@@ -110,7 +110,6 @@ const UN_ACTIVO = {
     assetData: {
         monthlyRevenueUsdCents: 50000,
         currency: 'USD',
-        domainAuthority: 30,
         domain: 'ejemplo.com',
     },
     askingPrice: { cents: 1500000, currency: 'USD' },

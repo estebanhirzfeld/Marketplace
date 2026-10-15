@@ -229,7 +229,7 @@ describe('DeclareRecipientIdentityUseCase', () => {
     function listingWeb(): Listing {
         return Listing.create({
             sellerId: SELLER,
-            assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com'),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(1000000, 'USD'),
         });
     }

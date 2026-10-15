@@ -41,7 +41,7 @@ function unCanal(): Listing {
 function unSitioWeb(): Listing {
     return Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 30),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80000, 'USD') }),
         askingPrice: Money.fromCents(900000, 'USD'),
     });
 }

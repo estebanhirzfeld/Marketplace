@@ -100,10 +100,6 @@ function assertFiltrosCoherentes(filtros?: ListingFilters): void {
     if (deYouTube && assetType !== AssetType.YOUTUBE) {
         throw new ValidationError('Los filtros de suscriptores y monetización son de los canales de YouTube.');
     }
-
-    if (filtros.minDomainAuthority !== undefined && assetType !== AssetType.WEB) {
-        throw new ValidationError('El filtro de autoridad de dominio es de los sitios web.');
-    }
 }
 
 /**
@@ -126,11 +122,6 @@ function cumpleCriteriosDelActivo(listing: Listing, ahora: Date, filtros?: Listi
     }
 
     if (filtros.onlyMonetized && assetData.isMonetized !== true) return false;
-
-    if (filtros.minDomainAuthority !== undefined) {
-        const da = numero('domainAuthority');
-        if (da === undefined || da < filtros.minDomainAuthority) return false;
-    }
 
     if (filtros.niche !== undefined && assetData.niche !== filtros.niche) return false;
 

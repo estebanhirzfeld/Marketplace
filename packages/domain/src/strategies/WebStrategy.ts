@@ -13,24 +13,33 @@ import { ValidationError } from '../errors/DomainError';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
+export interface WebStrategyProps {
+    monthlyRevenueUsd: Money;
+    /** El dominio identifica al activo, así que es reservado. */
+    domain?: string;
+    /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
+    niche?: string;
+    /** Cómo se llama el sitio. Reservado por el mismo motivo que el dominio. */
+    name?: string;
+}
+
+/*
+ * Los datos van nombrados y no posicionales: con `niche` y `name` ambos de
+ * tipo texto, un argumento corrido de lugar compilaba igual y el rubro de un
+ * sitio terminó siendo su nombre. Con un objeto, ese error no se puede escribir.
+ */
 export class WebStrategy implements IAssetStrategy {
-    constructor(
-        private readonly monthlyRevenueUsd: Money,
-        private readonly domainAuthority: number,
-        /** El dominio identifica al activo, así que es reservado. */
-        private readonly domain: string = '',
-        /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
-        private readonly niche: string = AssetNiche.OTHER,
-        /**
-         * Cómo se llama el sitio. Reservado por el mismo motivo que el
-         * dominio: con el nombre se lo encuentra buscándolo.
-         *
-         * Va último porque los argumentos son posicionales: insertarlo en el
-         * medio corría en silencio todos los que venían después, y así fue
-         * como el rubro de un sitio pasó a ser su nombre.
-         */
-        private readonly name: string = ''
-    ) { }
+    private readonly monthlyRevenueUsd: Money;
+    private readonly domain: string;
+    private readonly niche: string;
+    private readonly name: string;
+
+    constructor(props: WebStrategyProps) {
+        this.monthlyRevenueUsd = props.monthlyRevenueUsd;
+        this.domain = props.domain ?? '';
+        this.niche = props.niche ?? AssetNiche.OTHER;
+        this.name = props.name ?? '';
+    }
 
     public describe(): AssetTypeDescriptor {
         const domain: AssetFieldDescriptor = {
@@ -48,11 +57,10 @@ export class WebStrategy implements IAssetStrategy {
                 { key: 'niche', label: 'Rubro', kind: 'niche', confidential: false },
                 { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
                 { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
-                { key: 'domainAuthority', label: 'Autoridad de dominio', kind: 'number', confidential: false },
                 { key: 'name', label: 'Nombre del sitio', kind: 'text', confidential: true },
                 domain,
             ],
-            summaryMetricKeys: ['domainAuthority', 'monthlyRevenueUsdCents'],
+            summaryMetricKeys: ['monthlyRevenueUsdCents'],
             ownershipSource: 'dns',
             transferWaitingDays: this.transferWaitingDays(),
             handoverNotice:
@@ -77,14 +85,8 @@ export class WebStrategy implements IAssetStrategy {
     public calculateEstimatedPrice(): Money {
         // Múltiplo estándar para webs es 24-36 meses.
         const multiple = 30;
-        let price = this.monthlyRevenueUsd.multiply(multiple);
 
-        // Bonus por Domain Authority (si DA > 40)
-        if (this.domainAuthority >= 40) {
-            price = price.addPercentage(10);
-        }
-
-        return price;
+        return this.monthlyRevenueUsd.multiply(multiple);
     }
 
     public getVerifiableMetrics(): MetricKey[] {
@@ -134,7 +136,7 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['niche', 'monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
+        return ['niche', 'monthlyRevenueUsdCents', 'currency'];
     }
 
     /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
@@ -179,7 +181,6 @@ export class WebStrategy implements IAssetStrategy {
                 niche: this.niche,
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
-                domainAuthority: this.domainAuthority,
                 name: this.name,
                 domain: this.domain,
             }

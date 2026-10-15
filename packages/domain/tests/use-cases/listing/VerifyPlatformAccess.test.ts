@@ -295,7 +295,7 @@ describe('VerifyPlatformAccessUseCase', () => {
     it('un sitio web no se verifica por acá', async () => {
         const sitio = Listing.create({
             sellerId: new UniqueEntityID(),
-            assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com'),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(6_800_000, 'USD'),
         });
         sitio.requestPlatformAccess(new Date());

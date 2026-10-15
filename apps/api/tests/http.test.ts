@@ -1431,7 +1431,7 @@ describe('Titularidad de un sitio por DNS', () => {
         const seller = await crearUsuario(email, UserRole.SELLER);
         const listing = Listing.create({
             sellerId: seller.id,
-            assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'https://www.Ejemplo.com/inicio'),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'https://www.Ejemplo.com/inicio' }),
             askingPrice: Money.fromCents(6_800_000, 'USD'),
         });
         await listingRepo.save(listing);

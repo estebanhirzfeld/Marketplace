@@ -76,7 +76,6 @@ export async function publishListing(
         assetData.audienceTopCountry = String(form.get('pais') || 'AR');
         assetData.channelUrl = identidad;
     } else {
-        assetData.domainAuthority = Number(form.get('metrica') || 0);
         assetData.domain = identidad;
     }
 

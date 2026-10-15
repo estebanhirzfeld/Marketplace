@@ -114,12 +114,11 @@ describe('GetMyOperationsUseCase — identidad del activo', () => {
         const sitio = Listing.reconstitute(
             {
                 sellerId: SELLER_ID,
-                assetStrategy: new WebStrategy(
-                    Money.fromCents(210000, 'USD'),
-                    52,
-                    'reservado.com',
-                    AssetNiche.TECHNOLOGY,
-                ),
+                assetStrategy: new WebStrategy({
+                    monthlyRevenueUsd: Money.fromCents(210000, 'USD'),
+                    domain: 'reservado.com',
+                    niche: AssetNiche.TECHNOLOGY,
+                }),
                 askingPrice: Money.fromCents(6800000, 'USD'),
                 status: 'published',
                 publishedAt: new Date(),

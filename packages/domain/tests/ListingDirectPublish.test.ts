@@ -36,7 +36,7 @@ function unCanal(): Listing {
 function unSitio(): Listing {
     return Listing.create({
         sellerId: SELLER,
-        assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 40, 'sitio.com', AssetNiche.OTHER, 'Sitio'),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80000, 'USD'), domain: 'sitio.com', niche: AssetNiche.OTHER, name: 'Sitio' }),
         askingPrice: Money.fromCents(900_000, 'USD'),
     });
 }

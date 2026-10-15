@@ -368,12 +368,12 @@ async function main() {
         publishedDaysAgo: 2,
     });
 
-    // Web con buena autoridad de dominio. Un sitio no tiene plazo de espera
+    // Web con ingreso alto. Un sitio no tiene plazo de espera
     // —cambiar registrador y hosting es inmediato—, así que con la constancia
     // de acceso ya queda transferible.
     const saasBlog = seedListing({
         sellerId: seller.id,
-        assetStrategy: new WebStrategy(Money.fromCents(210000, "USD"), 52, "herramientas-saas.com", AssetNiche.TECHNOLOGY, "Herramientas SaaS"),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, "USD"), domain: "herramientas-saas.com", niche: AssetNiche.TECHNOLOGY, name: "Herramientas SaaS" }),
         askingPrice: Money.fromCents(6800000, "USD"), // $68.000
         createdDaysAgo: 15,
         publishedDaysAgo: 9,
@@ -395,7 +395,7 @@ async function main() {
     // USD 16.000: cualquier activo más caro no se puede publicar en pesos.
     const nicheStore = seedListing({
         sellerId: seller2.id,
-        assetStrategy: new WebStrategy(Money.fromCents(25000, "USD"), 28, "decoclub.com.ar", AssetNiche.LIFESTYLE, "DecoClub"),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(25000, "USD"), domain: "decoclub.com.ar", niche: AssetNiche.LIFESTYLE, name: "DecoClub" }),
         askingPrice: Money.fromCents(975000000, "ARS"), // $9.750.000
         createdDaysAgo: 35,
         publishedDaysAgo: 30,
@@ -404,7 +404,7 @@ async function main() {
     // Sin publicar: queda en revisión para que la cola del admin no esté vacía.
     const hardwareReviews = seedListing({
         sellerId: seller.id,
-        assetStrategy: new WebStrategy(Money.fromCents(135000, "USD"), 41, "probamostodo.com", AssetNiche.TECHNOLOGY, "Probamos Todo"),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(135000, "USD"), domain: "probamostodo.com", niche: AssetNiche.TECHNOLOGY, name: "Probamos Todo" }),
         askingPrice: Money.fromCents(4300000, "USD"), // $43.000
         createdDaysAgo: 1,
     });
