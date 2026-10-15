@@ -487,6 +487,27 @@ describe("PrismaListingRepository — constancia de titularidad", () => {
         expect(guardado!.ownershipVerification!.monthlyRevenueCents).toBe(78_450);
         expect(guardado!.ownershipVerification!.source).toBe("adsense");
     });
+
+    it("debería persistir la constancia por registro DNS y devolver su fuente y su dominio", async () => {
+        const seller = await createPersistedUser({
+            email: "seller-dns@test.com",
+            role: UserRole.SELLER,
+        });
+        const listing = await createPersistedListing(seller.id);
+
+        listing.registerOwnershipVerification({
+            verifiedBy: seller.id,
+            assetId: "ejemplo.com",
+            source: "dns",
+        });
+        await listingRepo.save(listing);
+
+        const guardado = await listingRepo.findById(listing.id.toString());
+
+        expect(guardado!.isOwnershipVerified()).toBe(true);
+        expect(guardado!.ownershipVerification!.source).toBe("dns");
+        expect(guardado!.ownershipVerification!.assetId).toBe("ejemplo.com");
+    });
 });
 
 describe("PrismaListingRepository — solicitud de acceso de la plataforma", () => {

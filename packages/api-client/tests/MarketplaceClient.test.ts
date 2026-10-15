@@ -330,3 +330,35 @@ describe('MarketplaceClient — conexión de canal de YouTube', () => {
         expect(dup.listingId).toBe('l9');
     });
 });
+
+describe('MarketplaceClient — titularidad de un sitio por DNS', () => {
+    it('pide el registro TXT con GET, codificando el id del activo', async () => {
+        const desafio = {
+            domain: 'ejemplo.com',
+            host: '@',
+            value: 'traspaso-verificacion=abc',
+            nameservers: ['a.nsone.net'],
+            provider: 'hostinger',
+        };
+        const { impl, llamadas } = fetchQueDevuelve(200, desafio);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const res = await client.domainOwnershipChallenge('l/1');
+
+        expect(res).toEqual(desafio);
+        expect(llamadas[0][0]).toBe('http://api.test/listings/l%2F1/verificacion-dns');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('comprueba el registro con POST y sin código', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { verified: false });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const res = await client.verifyDomainOwnership('l-1');
+
+        expect(res).toEqual({ verified: false });
+        expect(llamadas[0][0]).toBe('http://api.test/listings/l-1/verificar/dns');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(llamadas[0][1]?.body).toBeUndefined();
+    });
+});

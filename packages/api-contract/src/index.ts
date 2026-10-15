@@ -311,7 +311,26 @@ export interface UpdateCustodyAccountRequest {
  * Contraste entre lo que el vendedor declaró y lo que informa la API pública
  * de YouTube. Es una foto con fecha, no una garantía hacia adelante.
  */
-export type VerificationSourceDto = 'youtube' | 'adsense';
+export type VerificationSourceDto = 'youtube' | 'adsense' | 'dns';
+
+/** Proveedor de DNS deducido de los servidores de nombres de un dominio. */
+export type DnsProviderDto = 'hostinger' | 'cloudflare' | 'godaddy' | 'namecheap' | 'route53' | 'donweb';
+
+/** Registro TXT que el vendedor tiene que cargar en el DNS de su dominio. */
+export interface DomainOwnershipChallengeDto {
+    domain: string;
+    /** Dónde se carga el registro: `@` en la raíz de la zona o el nombre completo en un subdominio. */
+    host: string;
+    /** El valor completo del registro TXT. */
+    value: string;
+    nameservers: string[];
+    /** `null` cuando los servidores de nombres no son de un proveedor conocido. */
+    provider: DnsProviderDto | null;
+}
+
+export interface DomainOwnershipVerificationDto {
+    verified: boolean;
+}
 
 /**
  * Constancia de que el vendedor demostró controlar el activo. La emite la
@@ -597,7 +616,7 @@ export interface AssetTypeDescriptorDto {
     identityField: AssetFieldDto;
     fields: AssetFieldDto[];
     summaryMetricKeys: string[];
-    ownershipSource: 'youtube' | 'adsense';
+    ownershipSource: 'youtube' | 'adsense' | 'dns';
     transferWaitingDays: number;
     /** Por qué la cesión del acceso la registra una persona. */
     handoverNotice: string;

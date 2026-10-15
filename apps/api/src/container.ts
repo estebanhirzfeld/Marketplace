@@ -49,7 +49,11 @@ import {
 import {
     VerifyChannelOwnershipUseCase,
     VerifyWebsiteRevenueUseCase,
+    GetDomainOwnershipChallengeUseCase,
+    VerifyDomainOwnershipUseCase,
 } from '@marketplace/domain/src/use-cases/listing/VerifyOwnershipUseCases';
+import { HmacOwnershipChallengeIssuer } from './adapters/HmacOwnershipChallengeIssuer';
+import { NodeDnsResolver } from './adapters/NodeDnsResolver';
 import { ApproveListingUseCase } from '@marketplace/domain/src/use-cases/listing/ApproveListingUseCase';
 import { RejectListingUseCase } from '@marketplace/domain/src/use-cases/listing/RejectListingUseCase';
 import { GetListingDetailsUseCase } from '@marketplace/domain/src/use-cases/listing/GetListingDetailsUseCase';
@@ -188,6 +192,12 @@ export interface Container {
     startPlatformAccessVerification?: StartPlatformAccessVerificationUseCase;
     verifyPlatformAccess?: VerifyPlatformAccessUseCase;
     verifyWebsiteRevenue?: VerifyWebsiteRevenueUseCase;
+    /**
+     * Titularidad de un sitio por registro TXT. Ausentes mientras no haya
+     * `DNS_CHALLENGE_SECRET`: sin el secreto no hay forma de derivar el valor.
+     */
+    getDomainOwnershipChallenge?: GetDomainOwnershipChallengeUseCase;
+    verifyDomainOwnership?: VerifyDomainOwnershipUseCase;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
     rejectPlatformAccessRequest: RejectPlatformAccessRequestUseCase;
@@ -348,6 +358,14 @@ export function createContainer(
 
     const userRepo = new PrismaUserRepository();
     const listingRepo = new PrismaListingRepository();
+
+    const dnsChallengeSecret = process.env.DNS_CHALLENGE_SECRET?.trim();
+    const dnsOwnership = dnsChallengeSecret
+        ? {
+              issuer: new HmacOwnershipChallengeIssuer(dnsChallengeSecret),
+              resolver: new NodeDnsResolver(),
+          }
+        : undefined;
     const reportRepo = new PrismaReportRepository();
     // La conexión de canales necesita el OAuth completo Y la clave que cifra
     // el token de actualización (la misma de Mercado Pago). El adaptador de
@@ -455,6 +473,12 @@ export function createContainer(
                 : undefined,
         verifyWebsiteRevenue: googleOAuth
             ? new VerifyWebsiteRevenueUseCase(listingRepo, new AdSenseApiReader(googleOAuth))
+            : undefined,
+        getDomainOwnershipChallenge: dnsOwnership
+            ? new GetDomainOwnershipChallengeUseCase(listingRepo, dnsOwnership.issuer, dnsOwnership.resolver)
+            : undefined,
+        verifyDomainOwnership: dnsOwnership
+            ? new VerifyDomainOwnershipUseCase(listingRepo, dnsOwnership.issuer, dnsOwnership.resolver)
             : undefined,
         registerPlatformAccess,
         listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo, userRepo),

@@ -81,7 +81,7 @@ function serializeAcceso(a?: PlatformAccessRecord): {
     };
 }
 
-const FUENTES: readonly VerificationSource[] = ["youtube", "adsense"];
+const FUENTES: readonly VerificationSource[] = ["youtube", "adsense", "dns"];
 
 /**
  * Lee la constancia de titularidad. La fuente se valida contra la lista: si la
