@@ -15,6 +15,7 @@ export function VerificationCards({
     ownershipSource,
     kycVerified,
     verifyAction,
+    dnsVerification,
 }: {
     ownership: { done: boolean; sourceLabel: string; verifiedAt?: string };
     /** Se acepta por compatibilidad: ya no dibuja nada, lo cuenta el desglose del nivel. */
@@ -23,6 +24,12 @@ export function VerificationCards({
     ownershipSource: string;
     kycVerified: boolean;
     verifyAction: () => Promise<void>;
+    /**
+     * El botón que abre el diálogo de DNS. Cuando la fuente es DNS reemplaza al
+     * formulario que redirige a Google: no hay cuenta a la que ir, hay un
+     * registro que cargar.
+     */
+    dnsVerification?: React.ReactNode;
 }) {
     return (
         <>
@@ -34,11 +41,13 @@ export function VerificationCards({
                         points="+1 NIVEL"
                         text="Publicás sin revisión y tus números llevan sello."
                     >
-                        <form action={verifyAction}>
-                            <SubmitButton pendingText="Redirigiendo a Google…" className="px-[18px] py-3">
-                                Comprobar con {ownershipSource}
-                            </SubmitButton>
-                        </form>
+                        {dnsVerification ?? (
+                            <form action={verifyAction}>
+                                <SubmitButton pendingText="Redirigiendo a Google…" className="px-[18px] py-3">
+                                    Comprobar con {ownershipSource}
+                                </SubmitButton>
+                            </form>
+                        )}
                     </Card>
                 )}
                 {!mercadoPago.done && !mercadoPago.unavailable && (

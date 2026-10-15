@@ -29,4 +29,29 @@ describe('VerificationCards', () => {
         const html = renderToStaticMarkup(<VerificationCards {...base} access={{ done: true }} />);
         expect(html).toContain('Identidad verificada · requisito para publicar');
     });
+
+    it('con DNS la tarjeta de titularidad abre el diálogo en vez de redirigir a Google', () => {
+        const html = renderToStaticMarkup(
+            <VerificationCards
+                {...base}
+                ownership={{ done: false, sourceLabel: 'tu DNS' }}
+                ownershipSource="tu DNS"
+                dnsVerification={<button type="button">Comprobar con tu DNS</button>}
+            />,
+        );
+
+        expect(html).toContain('Comprobar titularidad');
+        expect(html).toContain('Comprobar con tu DNS');
+        expect(html).not.toContain('Redirigiendo a Google');
+        expect(html).not.toContain('<form');
+    });
+
+    it('sin DNS la tarjeta sigue redirigiendo a Google', () => {
+        const html = renderToStaticMarkup(
+            <VerificationCards {...base} ownership={{ done: false, sourceLabel: 'YouTube' }} />,
+        );
+
+        expect(html).toContain('Comprobar con YouTube');
+        expect(html).toContain('<form');
+    });
 });

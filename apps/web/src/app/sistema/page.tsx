@@ -28,6 +28,7 @@ import { DiscardDraftButton } from '@/components/DiscardDraftButton';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { WhyPopover } from '@/components/WhyPopover';
+import { DnsVerificationDialogView } from '@/components/DnsVerificationDialog';
 import { ImmediateBadge, ShimmerBolt } from '@/components/ShimmerBolt';
 import { CheckLine } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
@@ -49,6 +50,7 @@ import {
 } from '@/components/ui';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
 import type {
+    DomainOwnershipChallengeDto,
     HandoverStepDto,
     OperationStatusDto,
     PaymentOptionsDto,
@@ -104,6 +106,19 @@ const CUENTA_VINCULADA = {
     linkedAt: new Date(Date.now() - 3 * DIA).toISOString(),
     expiresAt: new Date(Date.now() + 120 * DIA).toISOString(),
     expired: false,
+};
+const DNS_HOSTINGER: DomainOwnershipChallengeDto = {
+    domain: 'ejemplo.com',
+    host: '@',
+    value: 'traspaso-verificacion=178cd4d4534d977fbdf74f70',
+    nameservers: ['dns1.p08.nsone.net', 'dns2.p08.nsone.net'],
+    provider: 'hostinger',
+};
+const DNS_UNKNOWN: DomainOwnershipChallengeDto = { ...DNS_HOSTINGER, provider: null };
+const DNS_SUBDOMAIN: DomainOwnershipChallengeDto = {
+    ...DNS_UNKNOWN,
+    domain: 'tienda.ejemplo.com',
+    host: 'tienda.ejemplo.com',
 };
 const AYER = new Date(Date.now() - DIA).toISOString();
 const EN_CINCO_DIAS = new Date(Date.now() + 5 * DIA).toISOString();
@@ -670,7 +685,7 @@ export default function Sistema() {
                         <AssetTypeCard
                             logo={<WebLogo />}
                             title="Sitio web"
-                            description="Cargás los datos del sitio y comprobás que es tuyo con AdSense."
+                            description="Cargás los datos del sitio y comprobás que es tuyo con un registro en tu DNS."
                             cta="Cargar sitio →"
                             href="/sistema"
                         />
@@ -960,6 +975,58 @@ export default function Sistema() {
                             kycVerified
                             verifyAction={noopVoid}
                         />
+                    </div>
+                </Section>
+
+                <Section
+                    title="Titularidad de un sitio por DNS"
+                    note="El sitio comprueba que es del vendedor con un registro TXT en su DNS, sin depender de AdSense. El diálogo tiene dos pasos: el registro, con el valor para copiar, y el panel donde cargarlo. Si los servidores de nombres delatan al proveedor, dice «Parece que»: nsone.net, por ejemplo, no es exclusivo de Hostinger, así que se afirma con cautela y los pasos siguen sirviendo si no lo es. Con un proveedor que no se reconoce, los pasos son genéricos. Mientras el diálogo está abierto consulta cada 10 segundos, unos 5 minutos como máximo: primero dice que lo busca, después que puede tardar, al final deja de buscar y pide avisar con «Ya lo cargué». AdSense queda como alternativa al pie, porque además verifica los ingresos."
+                >
+                    <div className="grid gap-8 lg:grid-cols-2">
+                        {(
+                            [
+                                ['PROVEEDOR RECONOCIDO · BUSCANDO', { challenge: DNS_HOSTINGER, status: 'searching' }],
+                                ['PROVEEDOR NO RECONOCIDO · TODAVÍA NO', { challenge: DNS_UNKNOWN, status: 'delayed' }],
+                                ['SUBDOMINIO · DEJÓ DE BUSCAR', { challenge: DNS_SUBDOMAIN, status: 'stopped' }],
+                                ['VERIFICADO', { challenge: DNS_HOSTINGER, status: 'verified' }],
+                                ['SIN CONFIGURAR', { challenge: DNS_HOSTINGER, status: 'error', error: 'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.' }],
+                                ['PREPARANDO EL REGISTRO', { challenge: null, status: 'searching' }],
+                            ] as const
+                        ).map(([label, props]) => (
+                            <div key={label} className="flex flex-col gap-3">
+                                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">{label}</div>
+                                <div className="rounded-[var(--radius-grande)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)]">
+                                    <DnsVerificationDialogView {...props} checking={false} adsenseAction={noopVoid} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-8 flex flex-col gap-8">
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DE TITULARIDAD CON DNS</div>
+                            <VerificationCards
+                                ownership={{ done: false, sourceLabel: 'tu DNS' }}
+                                mercadoPago={{ done: true }}
+                                ownershipSource="tu DNS"
+                                kycVerified
+                                verifyAction={noopVoid}
+                                dnsVerification={<Button type="button" className="px-[18px] py-3">Comprobar con tu DNS</Button>}
+                            />
+                        </div>
+                        <div className="flex max-w-[640px] flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">BORRADOR DE UN SITIO SIN TITULARIDAD</div>
+                            <DraftPanel
+                                variant="unverified"
+                                subject="sitio"
+                                sourceLabel="tu DNS"
+                                price="US$ 1.500"
+                                kycVerified
+                                publishAction={noop}
+                                reviewAction={noop}
+                                verifyAction={noopVoid}
+                                dnsVerification={<Button type="button" className="min-h-[52px] px-7 text-[16px]">Comprobar con tu DNS</Button>}
+                            />
+                        </div>
                     </div>
                 </Section>
             </div>

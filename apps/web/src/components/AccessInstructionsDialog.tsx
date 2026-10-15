@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { HandoverStepDto } from '@marketplace/api-contract';
 import { Button, ExternalButtonLink } from './ui';
 import { BrandAccountMock, InviteMock } from './GoogleMock';
-import { CopyEmailButton } from './CopyEmailButton';
+import { CopyValueButton } from './CopyValueButton';
 import { WhyPopover } from './WhyPopover';
 
 /**
@@ -119,7 +119,7 @@ export function AccessInstructionsDialog({
                             ))}
                         </ol>
                         {index === 1 && (
-                            <CopyEmailButton email={email} />
+                            <CopyValueButton value={email} />
                         )}
                         {link && (
                             <ExternalButtonLink href={link.href} variant="primario" className="self-start px-4 py-2.5">

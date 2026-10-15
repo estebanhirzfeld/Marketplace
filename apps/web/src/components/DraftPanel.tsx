@@ -28,6 +28,7 @@ export function DraftPanel({
     publishAction,
     reviewAction,
     verifyAction,
+    dnsVerification,
 }: {
     variant: 'ready' | 'unverified' | 'rejected';
     /** «canal» o «sitio»: cómo se llama el activo en el texto. */
@@ -40,6 +41,8 @@ export function DraftPanel({
     publishAction: Action;
     reviewAction: Action;
     verifyAction: () => Promise<void>;
+    /** El botón del diálogo de DNS: reemplaza al formulario que redirige a Google. */
+    dnsVerification?: React.ReactNode;
 }) {
     const tone =
         variant === 'ready'
@@ -73,7 +76,11 @@ export function DraftPanel({
                 <>
                     <Heading
                         title={`Falta comprobar que el ${subject} es tuyo`}
-                        text={`Con tu cuenta de ${sourceLabel} lo comprobamos en un minuto, y al publicar aparece en el mercado en el momento.`}
+                        text={
+                            dnsVerification
+                                ? 'Cargando un registro en el DNS de tu dominio lo comprobamos en unos minutos, y al publicar aparece en el mercado en el momento.'
+                                : `Con tu cuenta de ${sourceLabel} lo comprobamos en un minuto, y al publicar aparece en el mercado en el momento.`
+                        }
                     />
                     <ul className="flex flex-col gap-2.5">
                         <Identity kycVerified={kycVerified} />
@@ -85,14 +92,16 @@ export function DraftPanel({
                             Titularidad sin comprobar
                         </li>
                     </ul>
-                    <form action={verifyAction}>
-                        <SubmitButton pendingText="Redirigiendo a Google…" className="min-h-[52px] px-7 text-[16px]">
-                            Comprobar con {sourceLabel}
-                        </SubmitButton>
-                    </form>
+                    {dnsVerification ?? (
+                        <form action={verifyAction}>
+                            <SubmitButton pendingText="Redirigiendo a Google…" className="min-h-[52px] px-7 text-[16px]">
+                                Comprobar con {sourceLabel}
+                            </SubmitButton>
+                        </form>
+                    )}
                     <div className="flex flex-col gap-2 border-t border-[var(--color-borde)] pt-5">
                         <span className="text-[14px] text-[var(--color-tenue)]">
-                            ¿No usás {sourceLabel}?
+                            {dnsVerification ? '¿No podés cargar el registro?' : `¿No usás ${sourceLabel}?`}
                         </span>
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="w-fit">

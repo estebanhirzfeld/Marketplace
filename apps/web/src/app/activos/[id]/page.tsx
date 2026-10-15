@@ -28,7 +28,14 @@ import { isAccessRegistered, type MercadoPagoState } from '@/lib/sellerLevel';
 import { channelIdFromUrl } from '@/lib/youtubeChannel';
 import { findOwnershipResult } from '@/lib/ownershipResults';
 import { money, nicheLabel } from '@/lib/format';
-import { startVerification, submitForReview } from '../../vender/actions';
+import {
+    checkDomainOwnership,
+    getDomainOwnershipChallenge,
+    startVerification,
+    submitForReview,
+} from '../../vender/actions';
+import { DnsVerificationTrigger } from '@/components/DnsVerificationTrigger';
+import { oauthOwnershipSource, ownershipSourceLabel } from '@/lib/ownershipSource';
 import { discardDraft, editListing, publishDraft, requestAccess } from './actions';
 
 /**
@@ -149,10 +156,22 @@ export default async function DetalleDeActivo(props: {
         listingSteps.length === 2 &&
         listingSteps.every((p) => p.details && p.details.length > 0);
     const accessRegistered = mio.transferable || isAccessRegistered(mio.platformAccessStatus);
-    const sourceLabel = listing.descriptor.ownershipSource === 'adsense' ? 'AdSense' : 'YouTube';
+    const sourceLabel = ownershipSourceLabel(listing.descriptor.ownershipSource);
     const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
     const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
-    const verifyAction = startVerification.bind(null, id, listing.descriptor.ownershipSource);
+    // Con DNS no se redirige a Google: el diálogo ofrece AdSense como alternativa.
+    const verifyAction = startVerification.bind(null, id, oauthOwnershipSource(listing.descriptor.ownershipSource));
+    // El registro se pide al abrir el diálogo y no acá: resolver los servidores
+    // de nombres es una consulta de red que no vale pagar en cada visita.
+    const dnsTrigger = (className: string) =>
+        listing.descriptor.ownershipSource === 'dns' ? (
+            <DnsVerificationTrigger
+                className={className}
+                getChallenge={getDomainOwnershipChallenge.bind(null, id)}
+                checkAction={checkDomainOwnership.bind(null, id)}
+                adsenseAction={startVerification.bind(null, id, 'adsense')}
+            />
+        ) : undefined;
     const now = new Date().toISOString();
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
@@ -387,7 +406,7 @@ export default async function DetalleDeActivo(props: {
                         <VerificationCards
                             ownership={{
                                 done: !!mio.ownership,
-                                sourceLabel: mio.ownership?.source === 'adsense' ? 'AdSense' : 'YouTube',
+                                sourceLabel: ownershipSourceLabel(mio.ownership?.source ?? ''),
                                 verifiedAt: mio.ownership?.verifiedAt,
                             }}
                             access={{ done: accessRegistered }}
@@ -395,6 +414,7 @@ export default async function DetalleDeActivo(props: {
                             ownershipSource={sourceLabel}
                             kycVerified={kycVerified}
                             verifyAction={verifyAction}
+                            dnsVerification={dnsTrigger('px-[18px] py-3')}
                         />
 
                         {/*
@@ -444,6 +464,7 @@ export default async function DetalleDeActivo(props: {
                                 publishAction={publishDraft.bind(null, id)}
                                 reviewAction={submitForReview.bind(null, id)}
                                 verifyAction={verifyAction}
+                                dnsVerification={dnsTrigger('min-h-[52px] px-7 text-[16px]')}
                             />
                             {mio.status === 'draft' && (
                                 <SellMoreAside

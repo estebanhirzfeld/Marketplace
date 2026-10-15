@@ -148,7 +148,7 @@ export default async function Publicar(props: {
                         <AssetTypeCard
                             logo={<WebLogo />}
                             title="Sitio web"
-                            description="Cargás los datos del sitio y comprobás que es tuyo con AdSense."
+                            description="Cargás los datos del sitio y comprobás que es tuyo con un registro en tu DNS."
                             cta="Cargar sitio →"
                             href="/vender?tipo=web"
                         />
