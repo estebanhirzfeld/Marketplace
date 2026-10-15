@@ -55,7 +55,7 @@ describe('IAssetStrategy.describe', () => {
     });
 
     it.each(estrategias)('%s dice contra qué fuente se comprueba su titularidad', (_, strategy) => {
-        expect(['youtube', 'adsense']).toContain(strategy.describe().ownershipSource);
+        expect(['youtube', 'adsense', 'dns']).toContain(strategy.describe().ownershipSource);
     });
 
     it.each(estrategias)('%s describe exactamente los campos que emite', (_, strategy) => {
@@ -90,6 +90,30 @@ describe('IAssetStrategy.describe', () => {
         for (const clave of d.summaryMetricKeys) {
             expect(publicos).toContain(clave);
         }
+    });
+
+    it('comprueba la titularidad de un sitio por DNS y la de un canal contra YouTube', () => {
+        const [, youtube] = estrategias[0];
+        const [, web] = estrategias[1];
+
+        expect(web.describe().ownershipSource).toBe('dns');
+        expect(youtube.describe().ownershipSource).toBe('youtube');
+    });
+
+    it('cuenta que AdSense es opcional y solo aporta el ingreso de un sitio', () => {
+        const [, web] = estrategias[1];
+        const aviso = web.describe().revenueNotice;
+
+        expect(aviso).toMatch(/AdSense/);
+        expect(aviso).toMatch(/opcional/i);
+    });
+
+    it('aclara que el registro DNS no prueba quién figura como titular del dominio', () => {
+        const [, web] = estrategias[1];
+        const aviso = web.describe().handoverNotice;
+
+        expect(aviso).toMatch(/DNS/);
+        expect(aviso).toMatch(/titular/i);
     });
 
     it('explica por qué el acceso lo registra una persona, en sus propios términos', () => {

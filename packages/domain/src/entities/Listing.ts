@@ -98,7 +98,7 @@ export type PlatformAccessInput = Omit<
 };
 
 /** De dónde salió la comprobación. Cada fuente expone cosas distintas. */
-export type VerificationSource = 'youtube' | 'adsense';
+export type VerificationSource = 'youtube' | 'adsense' | 'dns';
 
 /**
  * Constancia de que el vendedor controla el activo.
