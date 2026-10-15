@@ -3,6 +3,7 @@ import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
+import { listingDraftNotice } from '@/lib/listingDraftCopy';
 import { PublishListingForm } from '@/components/PublishListingForm';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
@@ -247,8 +248,7 @@ export default async function Publicar(props: {
                         </Reveal>
                         <Reveal delay={140}>
                             <p className="mt-5 text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                Se guarda como borrador. Al enviarlo a revisión lo evaluamos antes
-                                de publicarlo, y en ese momento te pedimos el acceso al activo.
+                                {listingDraftNotice(wantsWeb ? 'web' : 'youtube')}
                             </p>
                             {wantsWeb && (
                                 <p className="mt-3 text-[14px]">

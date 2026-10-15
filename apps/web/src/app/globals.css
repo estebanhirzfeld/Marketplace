@@ -303,6 +303,25 @@ textarea:focus-visible,
   0%, 58% { color: #5f6368; }
   62%, 100% { color: #1a73e8; }
 }
+@keyframes mock-cursor-dns {
+  0% { transform: translate(340px, 40px); }
+  26% { transform: translate(130px, 236px); }
+  30% { transform: translate(130px, 236px) scale(0.85); }
+  33%, 54% { transform: translate(130px, 236px); }
+  70% { transform: translate(318px, 284px); }
+  75% { transform: translate(318px, 284px) scale(0.85); }
+  78%, 100% { transform: translate(318px, 284px); }
+}
+@keyframes mock-dns-boton {
+  0%, 72% { filter: none; }
+  74%, 80% { filter: brightness(0.75); }
+  82%, 100% { filter: none; }
+}
+@keyframes mock-dns-guardado {
+  0%, 78% { opacity: 0; transform: translateY(6px); }
+  84%, 94% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; }
+}
 @keyframes girar {
   to { transform: rotate(360deg); }
 }
@@ -320,6 +339,9 @@ textarea:focus-visible,
   font-family: var(--font-mono);
 }
 .mock-rol { animation: mock-rol 8s ease-in-out infinite; }
+.mock-cursor-dns { animation: mock-cursor-dns 8s ease-in-out infinite; }
+.mock-dns-boton { animation: mock-dns-boton 8s ease-in-out infinite; }
+.mock-dns-guardado { animation: mock-dns-guardado 8s ease-in-out infinite; }
 .girando { animation: girar 1s linear infinite; }
 
 /* Sin movimiento: el brillo queda quieto, la maqueta muestra el estado final
@@ -335,11 +357,15 @@ textarea:focus-visible,
   .mock-dialogo-2,
   .mock-tipeado,
   .mock-rol,
+  .mock-cursor-dns,
+  .mock-dns-boton,
+  .mock-dns-guardado,
   .girando {
     animation: none;
   }
   .mock-cursor-1,
-  .mock-cursor-2 {
+  .mock-cursor-2,
+  .mock-cursor-dns {
     display: none;
   }
 }

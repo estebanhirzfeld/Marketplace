@@ -338,7 +338,7 @@ describe('MarketplaceClient — titularidad de un sitio por DNS', () => {
             host: '@',
             value: 'traspaso-verificacion=abc',
             nameservers: ['a.nsone.net'],
-            provider: 'hostinger',
+            provider: 'netlify',
         };
         const { impl, llamadas } = fetchQueDevuelve(200, desafio);
         const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });

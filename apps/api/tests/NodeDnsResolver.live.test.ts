@@ -19,7 +19,7 @@ describe.skipIf(!process.env.DNS_LIVE_TEST)('NodeDnsResolver contra el DNS real'
 
     it('reconoce al proveedor por los servidores de nombres', async () => {
         const nameservers = await resolver.nameserversOf('deliaorrego.online');
-        expect(identifyDnsProvider(nameservers)).toBe('hostinger');
+        expect(identifyDnsProvider(nameservers)).toBe('netlify');
     });
 
     it('un dominio inexistente da una lista vacía', async () => {

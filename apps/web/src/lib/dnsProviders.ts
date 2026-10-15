@@ -13,4 +13,24 @@ export const DNS_PROVIDERS: Record<DnsProviderDto, { name: string; panelUrl: str
     namecheap: { name: 'Namecheap', panelUrl: 'https://ap.www.namecheap.com' },
     route53: { name: 'Amazon Route 53', panelUrl: 'https://console.aws.amazon.com/route53' },
     donweb: { name: 'DonWeb', panelUrl: 'https://micuenta.donweb.com' },
+    netlify: { name: 'Netlify', panelUrl: 'https://app.netlify.com/' },
 };
+
+/** Lo que el vendedor puede elegir en el diálogo: un proveedor o «Otro». */
+export type DnsChoice = DnsProviderDto | 'other';
+
+/** El orden en que se ofrecen las opciones. */
+export const DNS_CHOICES: readonly DnsChoice[] = [
+    'netlify',
+    'hostinger',
+    'cloudflare',
+    'godaddy',
+    'donweb',
+    'namecheap',
+    'route53',
+    'other',
+];
+
+export function dnsChoiceName(choice: DnsChoice): string {
+    return choice === 'other' ? 'Otro' : DNS_PROVIDERS[choice].name;
+}

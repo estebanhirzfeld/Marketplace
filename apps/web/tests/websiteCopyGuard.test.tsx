@@ -10,6 +10,10 @@ import { DraftPanel } from '@/components/DraftPanel';
 import { PriceSection } from '@/components/PriceSection';
 import { AssetSummaryCard } from '@/components/AssetSummaryCard';
 import { AccessInbox } from '@/components/AdminInbox';
+import { DnsVerificationDialogView } from '@/components/DnsVerificationDialog';
+import { PublishListingForm } from '@/components/PublishListingForm';
+import { listingDraftNotice } from '@/lib/listingDraftCopy';
+import { DNS_CHOICES } from '@/lib/dnsProviders';
 import { ownershipSourceLabel } from '@/lib/ownershipSource';
 import { textFor } from '@/lib/notifications';
 
@@ -251,5 +255,44 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
                 />,
             ),
         );
+    });
+
+    it('el diálogo de la comprobación por DNS, con cada proveedor elegido y con «No sé» abierto', () => {
+        const challenge = {
+            domain: 'ejemplo.com',
+            host: '@',
+            value: 'traspaso-verificacion=178cd4d4534d977fbdf74f70',
+            nameservers: ['dns1.p08.nsone.net'],
+            provider: 'netlify' as const,
+        };
+        const states = [
+            ...DNS_CHOICES.map((selectedProvider) => ({ selectedProvider, unsureOpen: false })),
+            { selectedProvider: null, unsureOpen: true },
+        ];
+        for (const status of ['searching', 'delayed', 'stopped', 'verified'] as const) {
+            for (const { selectedProvider, unsureOpen } of states) {
+                for (const provider of [challenge.provider, null]) {
+                    expectNoYouTube(
+                        renderToStaticMarkup(
+                            <DnsVerificationDialogView
+                                challenge={{ ...challenge, provider }}
+                                status={status}
+                                checking={false}
+                                adsenseAction={noopVoid}
+                                selectedProvider={selectedProvider}
+                                unsureOpen={unsureOpen}
+                            />,
+                        ),
+                    );
+                }
+            }
+        }
+    });
+
+    it('el formulario de venta y su aviso', () => {
+        expectNoYouTube(
+            renderToStaticMarkup(<PublishListingForm action={noop} estimate={async () => null} types={['web']} />),
+        );
+        expectNoYouTube(listingDraftNotice('web'));
     });
 });

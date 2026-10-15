@@ -109,14 +109,14 @@ const CUENTA_VINCULADA = {
     expiresAt: new Date(Date.now() + 120 * DIA).toISOString(),
     expired: false,
 };
-const DNS_HOSTINGER: DomainOwnershipChallengeDto = {
+const DNS_NETLIFY: DomainOwnershipChallengeDto = {
     domain: 'ejemplo.com',
     host: '@',
     value: 'traspaso-verificacion=178cd4d4534d977fbdf74f70',
     nameservers: ['dns1.p08.nsone.net', 'dns2.p08.nsone.net'],
-    provider: 'hostinger',
+    provider: 'netlify',
 };
-const DNS_UNKNOWN: DomainOwnershipChallengeDto = { ...DNS_HOSTINGER, provider: null };
+const DNS_UNKNOWN: DomainOwnershipChallengeDto = { ...DNS_NETLIFY, provider: null };
 const DNS_SUBDOMAIN: DomainOwnershipChallengeDto = {
     ...DNS_UNKNOWN,
     domain: 'tienda.ejemplo.com',
@@ -1015,16 +1015,19 @@ export default function Sistema() {
 
                 <Section
                     title="Titularidad de un sitio por DNS"
-                    note="El sitio comprueba que es del vendedor con un registro TXT en su DNS, sin depender de AdSense. El diálogo tiene dos pasos: el registro, con el valor para copiar, y el panel donde cargarlo. Si los servidores de nombres delatan al proveedor, dice «Parece que»: nsone.net, por ejemplo, no es exclusivo de Hostinger, así que se afirma con cautela y los pasos siguen sirviendo si no lo es. Con un proveedor que no se reconoce, los pasos son genéricos. Mientras el diálogo está abierto consulta cada 10 segundos, unos 5 minutos como máximo: primero dice que lo busca, después que puede tardar, al final deja de buscar y pide avisar con «Ya lo cargué». AdSense queda como alternativa al pie, porque además verifica los ingresos."
+                    note="El sitio comprueba que es del vendedor con un registro TXT en su DNS, sin depender de AdSense. El diálogo tiene dos pasos: el registro, con el valor para copiar y la aclaración de dejar el TTL como viene, y el panel donde cargarlo. El proveedor lo elige el vendedor: no se preselecciona nunca, porque deducirlo de los servidores de nombres puede fallar (un dominio comprado en Hostinger puede tener el DNS en Netlify, que usa nsone.net). «No sé» muestra lo que se deduce, con un botón para elegirlo, y cómo averiguarlo. «Otro» da pasos genéricos. A la derecha, en pantallas anchas, una maqueta genérica de un panel de DNS escribe el valor real del registro y lo guarda; no es de ningún proveedor y, con movimiento reducido, queda en su estado final. Mientras el diálogo está abierto consulta cada 10 segundos, unos 5 minutos como máximo: primero dice que lo busca, después que puede tardar, al final deja de buscar y pide avisar con «Ya lo cargué». AdSense queda como alternativa al pie, porque además verifica los ingresos."
                 >
-                    <div className="grid gap-8 lg:grid-cols-2">
+                    <div className="grid gap-8">
                         {(
                             [
-                                ['PROVEEDOR RECONOCIDO · BUSCANDO', { challenge: DNS_HOSTINGER, status: 'searching' }],
-                                ['PROVEEDOR NO RECONOCIDO · TODAVÍA NO', { challenge: DNS_UNKNOWN, status: 'delayed' }],
-                                ['SUBDOMINIO · DEJÓ DE BUSCAR', { challenge: DNS_SUBDOMAIN, status: 'stopped' }],
-                                ['VERIFICADO', { challenge: DNS_HOSTINGER, status: 'verified' }],
-                                ['SIN CONFIGURAR', { challenge: DNS_HOSTINGER, status: 'error', error: 'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.' }],
+                                ['SIN ELEGIR · BUSCANDO', { challenge: DNS_NETLIFY, status: 'searching' }],
+                                ['PROVEEDOR ELEGIDO · BUSCANDO', { challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify' }],
+                                ['«NO SÉ» · SE DEDUCE EL PROVEEDOR', { challenge: DNS_NETLIFY, status: 'searching', unsureOpen: true }],
+                                ['«NO SÉ» · NO SE PUDO DEDUCIR', { challenge: DNS_UNKNOWN, status: 'searching', unsureOpen: true }],
+                                ['«OTRO» · TODAVÍA NO', { challenge: DNS_UNKNOWN, status: 'delayed', selectedProvider: 'other' }],
+                                ['SUBDOMINIO · DEJÓ DE BUSCAR', { challenge: DNS_SUBDOMAIN, status: 'stopped', selectedProvider: 'cloudflare' }],
+                                ['VERIFICADO', { challenge: DNS_NETLIFY, status: 'verified', selectedProvider: 'netlify' }],
+                                ['SIN CONFIGURAR', { challenge: DNS_NETLIFY, status: 'error', error: 'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.' }],
                                 ['PREPARANDO EL REGISTRO', { challenge: null, status: 'searching' }],
                             ] as const
                         ).map(([label, props]) => (

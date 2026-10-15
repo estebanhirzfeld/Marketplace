@@ -3,7 +3,8 @@ import { identifyDnsProvider } from '../src/adapters/identifyDnsProvider';
 
 describe('identifyDnsProvider', () => {
     it.each([
-        [['dns1.p01.nsone.net', 'dns2.p01.nsone.net'], 'hostinger'],
+        [['dns1.p01.nsone.net', 'dns2.p01.nsone.net'], 'netlify'],
+        [['ns1.dns-parking.com', 'ns2.dns-parking.com'], 'hostinger'],
         [['ada.ns.cloudflare.com', 'bob.ns.cloudflare.com'], 'cloudflare'],
         [['ns35.domaincontrol.com', 'ns36.domaincontrol.com'], 'godaddy'],
         [['dns1.registrar-servers.com', 'dns2.registrar-servers.com'], 'namecheap'],
@@ -25,5 +26,6 @@ describe('identifyDnsProvider', () => {
     it('no confunde un dominio que solo termina parecido', () => {
         expect(identifyDnsProvider(['ns1.minsone.net'])).toBeNull();
         expect(identifyDnsProvider(['ns1.notcloudflare.com'])).toBeNull();
+        expect(identifyDnsProvider(['ns1.mydns-parking.com'])).toBeNull();
     });
 });

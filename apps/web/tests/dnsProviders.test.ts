@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DnsProviderDto } from '@marketplace/api-contract';
-import { DNS_PROVIDERS } from '@/lib/dnsProviders';
+import { DNS_CHOICES, DNS_PROVIDERS, dnsChoiceName } from '@/lib/dnsProviders';
 
 /**
  * Cada proveedor que la API sabe reconocer tiene que tener nombre y una
@@ -8,7 +8,7 @@ import { DNS_PROVIDERS } from '@/lib/dnsProviders';
  * mandar al vendedor.
  */
 
-const PROVIDERS: DnsProviderDto[] = ['hostinger', 'cloudflare', 'godaddy', 'namecheap', 'route53', 'donweb'];
+const PROVIDERS: DnsProviderDto[] = ['hostinger', 'cloudflare', 'godaddy', 'namecheap', 'route53', 'donweb', 'netlify'];
 
 describe('DNS_PROVIDERS', () => {
     it.each(PROVIDERS)('%s tiene nombre y un panel con https', (provider) => {
@@ -22,5 +22,21 @@ describe('DNS_PROVIDERS', () => {
         expect(DNS_PROVIDERS.hostinger.name).toBe('Hostinger');
         expect(DNS_PROVIDERS.route53.name).toBe('Amazon Route 53');
         expect(DNS_PROVIDERS.godaddy.name).toBe('GoDaddy');
+        expect(DNS_PROVIDERS.netlify.name).toBe('Netlify');
+        expect(DNS_PROVIDERS.netlify.panelUrl).toBe('https://app.netlify.com/');
+    });
+
+    it('ofrece todos los proveedores conocidos, en orden, y «Otro» al final', () => {
+        expect(DNS_CHOICES.map(dnsChoiceName)).toEqual([
+            'Netlify',
+            'Hostinger',
+            'Cloudflare',
+            'GoDaddy',
+            'DonWeb',
+            'Namecheap',
+            'Amazon Route 53',
+            'Otro',
+        ]);
+        expect(new Set(DNS_CHOICES.filter((c) => c !== 'other'))).toEqual(new Set(PROVIDERS));
     });
 });

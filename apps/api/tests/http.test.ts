@@ -1476,7 +1476,7 @@ describe('Titularidad de un sitio por DNS', () => {
             host: '@',
             value: tokenFor(id, 'ejemplo.com'),
             nameservers: NAMESERVERS,
-            provider: 'hostinger',
+            provider: 'netlify',
         });
     });
 
