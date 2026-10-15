@@ -57,8 +57,9 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
   - Mapeo corregido: `*.nsone.net` es Netlify (NS1), no Hostinger; Hostinger es `dns-parking.com` (verificado: `netlify.app` delega en `p01.nsone.net`; tutorial de Hostinger). El dominio del usuario se compró en Hostinger y su DNS está en Netlify.
   - Aclarar que el TTL queda en el valor por defecto.
   - Animación de un panel de DNS cargando el registro, como la de YouTube.
+  - El formulario de venta de un sitio todavía dice que para publicar hay que enviarlo a revisión; con la titularidad por DNS se publica directo.
   - Ruta: escritor delegado, después de T3c.
-- [ ] T5 Sacar la autoridad de dominio del formulario, de los datos del sitio y de la valuación (decisión del usuario, 16/10/2026: es un puntaje de Moz que el vendedor escribe a mano, no se comprueba y sumaba un 10 % al precio). Vuelve solo si se mide (Moz o Search Console). Ruta: escritor delegado, después de T3c (comparte `WebStrategy`).
+- [x] T5 Sacar la autoridad de dominio del formulario, de los datos del sitio y de la valuación (decisión del usuario, 16/10/2026: es un puntaje de Moz que el vendedor escribe a mano, no se comprueba y sumaba un 10 % al precio). Vuelve solo si se mide (Moz o Search Console). Ruta: escritor delegado, después de T3c (comparte `WebStrategy`). Commit `592f4ef`: `WebStrategy` pasa a recibir un objeto con nombres (los argumentos posicionales permitían cruzar rubro y nombre); los datos guardados con `domainAuthority` se leen sin error y el campo se descarta; también se quitó el filtro «autoridad desde» del mercado, que leía el mismo dato. RED visto (7 tests), luego dominio 1070, db 122, api 497, api-client 24 y web 460 tests en verde, `tsc` sin errores; verificado por el padre en la app (formulario sin el campo; el borrador del usuario con el dato viejo carga bien).
 - [ ] T4 Prueba real con `deliaorrego.online` en local y en producción; write-up en `docs/fase-*.md`, `docs/gant.json` y el ítem tildado en la épica. Ruta: en línea.
 
 ## Criterios de aceptación
