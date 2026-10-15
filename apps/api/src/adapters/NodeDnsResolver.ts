@@ -1,5 +1,6 @@
 import { Resolver } from 'node:dns/promises';
 import { IDnsResolver } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { isPublicIPv4 } from './isPublicIPv4';
 import { ServiceUnavailableError } from '@marketplace/domain/src/errors/DomainError';
 
 /** Lo mínimo de `dns.promises.Resolver` que usa el adaptador. */
@@ -14,9 +15,16 @@ export type DnsLookupFactory = (servers: string[]) => DnsLookup;
 
 const PUBLIC_SERVERS = ['1.1.1.1', '8.8.8.8'];
 const TIMEOUT_MS = 4_000;
+/** Plazo total de cada llamada pública, sumando todas sus consultas. */
+const DEFAULT_DEADLINE_MS = 8_000;
+
+export interface NodeDnsResolverOptions {
+    /** Plazo total por llamada; inyectable para no esperar 8 s en los tests. */
+    deadlineMs?: number;
+}
 
 const defaultFactory: DnsLookupFactory = (servers) => {
-    const resolver = new Resolver({ timeout: TIMEOUT_MS, tries: 2 });
+    const resolver = new Resolver({ timeout: TIMEOUT_MS, tries: 1 });
     resolver.setServers(servers);
     return resolver;
 };
@@ -42,9 +50,35 @@ function unavailable(): ServiceUnavailableError {
  * un buen rato después de que el vendedor cargó el registro.
  */
 export class NodeDnsResolver implements IDnsResolver {
-    constructor(private readonly lookupFor: DnsLookupFactory = defaultFactory) {}
+    private readonly deadlineMs: number;
 
-    async nameserversOf(domain: string): Promise<string[]> {
+    constructor(
+        private readonly lookupFor: DnsLookupFactory = defaultFactory,
+        options: NodeDnsResolverOptions = {},
+    ) {
+        this.deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS;
+    }
+
+    nameserversOf(domain: string): Promise<string[]> {
+        return this.withDeadline(this.queryNameservers(domain));
+    }
+
+    txtRecordsOf(domain: string): Promise<string[]> {
+        return this.withDeadline(this.queryTxtRecords(domain));
+    }
+
+    /** Corta la llamada entera si tarda más del plazo, sea cual sea la etapa. */
+    private withDeadline<T>(work: Promise<T>): Promise<T> {
+        let timer: NodeJS.Timeout | undefined;
+        const deadline = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(unavailable()), this.deadlineMs);
+        });
+        // Si el plazo gana, el trabajo sigue en el aire: que no genere rechazos sin atender.
+        work.catch(() => undefined);
+        return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+    }
+
+    private async queryNameservers(domain: string): Promise<string[]> {
         try {
             return await this.lookupFor(PUBLIC_SERVERS).resolveNs(domain);
         } catch (error) {
@@ -53,7 +87,7 @@ export class NodeDnsResolver implements IDnsResolver {
         }
     }
 
-    async txtRecordsOf(domain: string): Promise<string[]> {
+    private async queryTxtRecords(domain: string): Promise<string[]> {
         const authoritative = await this.authoritativeServersOf(domain);
 
         if (authoritative.length > 0) {
@@ -109,7 +143,9 @@ export class NodeDnsResolver implements IDnsResolver {
             const addresses = await Promise.all(
                 nameservers.map((ns) => publicLookup.resolve4(ns).catch(() => [] as string[])),
             );
-            return [...new Set(addresses.flat())];
+            // Las direcciones salen de nombres que fija el vendedor: solo se aceptan
+            // las públicas, para que no pueda apuntarnos a la red interna.
+            return [...new Set(addresses.flat().filter(isPublicIPv4))];
         }
 
         return [];

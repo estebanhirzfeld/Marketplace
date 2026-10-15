@@ -3,6 +3,7 @@ import { IOwnershipChallengeIssuer } from '@marketplace/domain/src/ports/IOwners
 
 const PREFIX = 'traspaso-verificacion=';
 const HEX_LENGTH = 24;
+const MIN_SECRET_LENGTH = 32;
 
 /**
  * Deriva el valor del registro TXT con HMAC-SHA256 del par `listing:dominio`.
@@ -14,8 +15,11 @@ const HEX_LENGTH = 24;
  */
 export class HmacOwnershipChallengeIssuer implements IOwnershipChallengeIssuer {
     constructor(private readonly secret: string) {
-        if (secret.trim() === '') {
-            throw new Error('El secreto del desafío de DNS no puede estar vacío.');
+        if (secret.trim().length < MIN_SECRET_LENGTH) {
+            throw new Error(
+                `El secreto del desafío de DNS debe tener al menos ${MIN_SECRET_LENGTH} caracteres. ` +
+                    'Generalo con: openssl rand -hex 32',
+            );
         }
     }
 

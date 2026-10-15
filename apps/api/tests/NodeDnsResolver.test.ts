@@ -159,4 +159,59 @@ describe('NodeDnsResolver.txtRecordsOf', () => {
 
         await expect(resolver.txtRecordsOf('ejemplo.com')).rejects.toThrow(/DNS/);
     });
+
+    it.each([['10.0.0.5'], ['169.254.169.254'], ['127.0.0.1'], ['192.168.0.9']])(
+        'no consulta a un servidor autoritativo privado (%s) y usa el resolvedor público',
+        async (privateIp) => {
+            const { resolver, calls } = build(
+                { ns: { 'ejemplo.com': ['ns1.prov.test'] }, a: { 'ns1.prov.test': [privateIp] }, txt: { 'ejemplo.com': [['desde-publico']] } },
+                { txt: { 'ejemplo.com': [['desde-privado']] } },
+            );
+
+            await expect(resolver.txtRecordsOf('ejemplo.com')).resolves.toEqual(['desde-publico']);
+            expect(calls.flat()).not.toContain(privateIp);
+            expect(calls.every((c) => c.join() === PUBLIC_SERVERS.join())).toBe(true);
+        },
+    );
+
+    it('en una lista mixta conserva solo las direcciones públicas', async () => {
+        const { resolver, calls } = build(
+            {
+                ns: { 'ejemplo.com': ['ns1.prov.test', 'ns2.prov.test'] },
+                a: { 'ns1.prov.test': ['10.0.0.5', '203.0.113.7'], 'ns2.prov.test': ['169.254.169.254', '198.51.100.9'] },
+            },
+            { txt: { 'ejemplo.com': [['ok']] } },
+        );
+
+        await expect(resolver.txtRecordsOf('ejemplo.com')).resolves.toEqual(['ok']);
+        expect(calls).toContainEqual(['203.0.113.7', '198.51.100.9']);
+        expect(calls.flat()).not.toContain('10.0.0.5');
+        expect(calls.flat()).not.toContain('169.254.169.254');
+    });
+});
+
+describe('NodeDnsResolver — plazo total', () => {
+    const hanging = (): DnsLookup => ({
+        resolveNs: () => new Promise<string[]>(() => {}),
+        resolve4: () => new Promise<string[]>(() => {}),
+        resolveTxt: () => new Promise<string[][]>(() => {}),
+    });
+
+    it('nameserversOf falla con ServiceUnavailableError al vencer el plazo', async () => {
+        const resolver = new NodeDnsResolver(hanging, { deadlineMs: 30 });
+
+        await expect(resolver.nameserversOf('ejemplo.com')).rejects.toBeInstanceOf(ServiceUnavailableError);
+    });
+
+    it('txtRecordsOf falla con ServiceUnavailableError al vencer el plazo', async () => {
+        const resolver = new NodeDnsResolver(hanging, { deadlineMs: 30 });
+
+        await expect(resolver.txtRecordsOf('ejemplo.com')).rejects.toBeInstanceOf(ServiceUnavailableError);
+    });
+
+    it('una respuesta a tiempo no se ve afectada por el plazo', async () => {
+        const resolver = new NodeDnsResolver(() => fakeLookup({ ns: { 'ejemplo.com': ['a.ns.test'] } }), { deadlineMs: 1_000 });
+
+        await expect(resolver.nameserversOf('ejemplo.com')).resolves.toEqual(['a.ns.test']);
+    });
 });
