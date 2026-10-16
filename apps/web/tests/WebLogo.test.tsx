@@ -1,34 +1,51 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AssetMark, WebLogo } from '@/components/AssetTypeCard';
+import { AssetMark, WebLogo, WebMark } from '@/components/AssetTypeCard';
 
 describe('WebLogo', () => {
-    it('nombra las plataformas para los lectores de pantalla', () => {
+    it('es una ventana de navegador que se nombra como sitio web', () => {
         const html = renderToStaticMarkup(<WebLogo />);
 
         expect(html).toContain('role="img"');
-        expect(html).toContain('aria-label="Sitio web: Tiendanube, WooCommerce, WordPress, Shopify u otro"');
+        expect(html).toContain('aria-label="Sitio web"');
     });
 
-    it('pone al frente un mosaico del mismo tamaño que el de YouTube', () => {
+    it('mide lo mismo que el de YouTube', () => {
         const html = renderToStaticMarkup(<WebLogo />);
 
         expect(html).toContain('width="72" height="52" viewBox="0 0 72 52"');
     });
 
-    it('apila detrás cada plataforma como mosaico de su color de marca', () => {
+    it('dibuja la ventana: cuerpo blanco, barra de color con tres puntos y dos renglones', () => {
+        const html = renderToStaticMarkup(<WebLogo />);
+
+        expect(html).toContain('fill="#ffffff"');
+        expect(html).toContain('fill="#2f6bff"');
+        expect(html.match(/<circle /g)).toHaveLength(3);
+        expect(html.match(/<rect /g)).toHaveLength(3);
+    });
+
+    it('ya no apila las plataformas de sitios detrás', () => {
         const html = renderToStaticMarkup(<WebLogo />);
 
         for (const color of ['#1D2340', '#96588A', '#21759B', '#7AB55C']) {
-            expect(html).toContain(`background-color:${color}`);
+            expect(html).not.toContain(color);
         }
+        expect(html).not.toContain('mask-image');
+        expect(html).not.toMatch(/Tiendanube|WooCommerce|WordPress|Shopify/);
+    });
+});
+
+describe('WebMark', () => {
+    it('conserva la proporción a cualquier tamaño', () => {
+        expect(renderToStaticMarkup(<WebMark width={52} />)).toContain('width="52" height="38"');
     });
 
-    it('funde solo los extremos de la composición', () => {
-        const html = renderToStaticMarkup(<WebLogo />);
+    it('dentro de una composición que ya se nombra no se anuncia', () => {
+        const html = renderToStaticMarkup(<WebMark decorative />);
 
-        // Una sola máscara, con y sin prefijo, sobre el contenedor.
-        expect(html.match(/mask-image:linear-gradient\(to right/g)).toHaveLength(2);
+        expect(html).toContain('aria-hidden="true"');
+        expect(html).not.toContain('role="img"');
     });
 });
 
@@ -39,6 +56,7 @@ describe('AssetMark', () => {
         const web = renderToStaticMarkup(<AssetMark assetType="web" width={22} />);
         expect(web).toContain('aria-label="Sitio web"');
         expect(web).toContain('width="22" height="16"');
+        expect(web).toContain('fill="#2f6bff"');
         expect(web).not.toMatch(/YouTube/);
     });
 

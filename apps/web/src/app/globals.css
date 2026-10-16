@@ -325,6 +325,11 @@ textarea:focus-visible,
 @keyframes girar {
   to { transform: rotate(360deg); }
 }
+/* El panel del diálogo de DNS entra con un fundido; las opciones no se animan. */
+@keyframes dns-panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 .mock-cursor-1 { animation: mock-cursor-1 7s ease-in-out infinite; }
 .mock-enlace-1 { animation: mock-enlace-1 7s ease-in-out infinite; }
@@ -343,6 +348,7 @@ textarea:focus-visible,
 .mock-dns-boton { animation: mock-dns-boton 8s ease-in-out infinite; }
 .mock-dns-guardado { animation: mock-dns-guardado 8s ease-in-out infinite; }
 .girando { animation: girar 1s linear infinite; }
+.dns-panel-in { animation: dns-panel-in 0.35s ease-out; }
 
 /* Sin movimiento: el brillo queda quieto, la maqueta muestra el estado final
    (los diálogos ya visibles, el correo completo) y el cursor se va. */
@@ -360,7 +366,8 @@ textarea:focus-visible,
   .mock-cursor-dns,
   .mock-dns-boton,
   .mock-dns-guardado,
-  .girando {
+  .girando,
+  .dns-panel-in {
     animation: none;
   }
   .mock-cursor-1,

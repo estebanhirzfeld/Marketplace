@@ -15,9 +15,10 @@ export function DnsVerificationTrigger({
     getChallenge,
     checkAction,
     adsenseAction,
+    publishAction,
 }: {
     className?: string;
-} & Pick<ComponentProps<typeof DnsVerificationDialog>, 'getChallenge' | 'checkAction' | 'adsenseAction'>) {
+} & Pick<ComponentProps<typeof DnsVerificationDialog>, 'getChallenge' | 'checkAction' | 'adsenseAction' | 'publishAction'>) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -31,6 +32,7 @@ export function DnsVerificationTrigger({
                 getChallenge={getChallenge}
                 checkAction={checkAction}
                 adsenseAction={adsenseAction}
+                publishAction={publishAction}
             />
         </>
     );
