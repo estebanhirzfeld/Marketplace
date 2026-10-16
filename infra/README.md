@@ -230,6 +230,24 @@ sudo -E DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.e
 
 Deja las cuentas demo. **No** se re-corre en cada deploy.
 
+### 8.1 Cuentas de demostración `seller3` y `buyer3`
+
+El seed borra todo, así que para sumar estas dos cuentas a una base que ya está
+en uso hay un script aparte. No borra nada y es idempotente: si una cuenta ya
+existe, la salta.
+
+```bash
+# en la VM, en /srv/marketplace
+sudo -E DATABASE_URL="$(sudo sed -n 's/^DATABASE_URL=//p' /etc/marketplace/api.env)" \
+  pnpm --filter @marketplace/db db:demo-users
+```
+
+Crea `seller3@forzalabs.online` (vendedor) y `buyer3@forzalabs.online`
+(comprador), con KYC verificado. **La contraseña es igual al correo, a
+propósito**: es una decisión para una demo entre conocidos. Ninguna es
+administradora, pero como el repositorio es público cualquiera puede entrar con
+ellas; no cargar datos reales en esas cuentas.
+
 ---
 
 ## 9. Simulacro de restore (tarea 6.9)
