@@ -25,6 +25,7 @@ import { DraftPanel } from '@/components/DraftPanel';
 import { SellMoreAside } from '@/components/SellMoreAside';
 import { EditListingDialog } from '@/components/EditListingDialog';
 import { DiscardDraftButton } from '@/components/DiscardDraftButton';
+import { AssetSummaryCard } from '@/components/AssetSummaryCard';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { WhyPopover } from '@/components/WhyPopover';
@@ -146,12 +147,32 @@ const PASOS_DE_ACCESO: HandoverStepDto[] = [
     },
 ];
 
-/** Dos canales esperando que verifiquemos el acceso, uno de hoy y otro de ayer. */
+/** Los dos pasos de antes de la venta de un sitio: sin maqueta de Google, se leen como texto. */
+const PASOS_DE_ACCESO_WEB: HandoverStepDto[] = [
+    {
+        id: '1',
+        phase: 'listing',
+        description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
+        title: 'Eximite del bloqueo de 60 días',
+        instruction:
+            'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede.',
+    },
+    {
+        id: '2',
+        phase: 'listing',
+        description: 'El vendedor entrega el código de autorización (EPP) del dominio',
+        title: 'Pasanos el código de autorización',
+        instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo',
+    },
+];
+
+/** Un canal y un sitio esperando que verifiquemos el acceso, uno de hoy y otro de ayer. */
 const ACCESOS_DE_MUESTRA = [
-    { id: 'a1', assetName: 'Pc Lover', sellerName: 'Esteban Vendedor', hace: 2 * 60 * 60 * 1000 },
-    { id: 'a2', assetName: 'Lovi en Reddit', sellerName: 'Esteban Vendedor', hace: 26 * 60 * 60 * 1000 },
-].map(({ id, assetName, sellerName, hace }) => ({
+    { id: 'a1', assetType: 'youtube', assetName: 'Pc Lover', sellerName: 'Esteban Vendedor', hace: 2 * 60 * 60 * 1000 },
+    { id: 'a2', assetType: 'web', assetName: 'Tienda de muestra', sellerName: 'Esteban Vendedor', hace: 26 * 60 * 60 * 1000 },
+].map(({ id, assetType, assetName, sellerName, hace }) => ({
     id,
+    assetType,
     assetName,
     sellerName,
     platformAccessRequestedAt: new Date(Date.now() - hace).toISOString(),
@@ -442,7 +463,7 @@ export default function Sistema() {
 
                 <Section
                     title="Bandeja del panel de la plataforma"
-                    note="Lo que espera un movimiento de la plataforma, en pestañas con contador: accesos por verificar, activos por revisar y reclamos. La pestaña abierta es la primera con pendientes, y cada pestaña es un enlace, así que se comparte. Los accesos son una tabla con las dos acciones de siempre; la antigüedad del aviso se pinta en ámbar durante el primer día. Las acciones son de muestra."
+                    note="Lo que espera un movimiento de la plataforma, en pestañas con contador: accesos por verificar, activos por revisar y reclamos. La pestaña abierta es la primera con pendientes, y cada pestaña es un enlace, así que se comparte. Los accesos son una tabla con las dos acciones de siempre y la marca del tipo de activo en cada fila (YouTube o sitio); la antigüedad del aviso se pinta en ámbar durante el primer día. Las acciones son de muestra."
                 >
                     <div className="flex flex-col gap-8">
                         <div className="flex flex-col gap-3">
@@ -708,15 +729,15 @@ export default function Sistema() {
                     <div className="grid gap-8">
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PRECIO POR ENCIMA DE LA VALUACIÓN</div>
-                            <PriceSectionDemo initialCurrency="USD" initialPrice="13000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="13000" estimated={{ cents: 1_000_000, currency: 'USD' }} basis="los números verificados de tu canal" />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN PRECIO NI VALUACIÓN</div>
-                            <PriceSectionDemo initialCurrency="USD" initialPrice="" estimated={null} />
+                            <PriceSectionDemo initialCurrency="USD" initialPrice="" estimated={null} basis="los datos que cargaste" />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN PESOS — LA VALUACIÓN SE MUESTRA EN USD</div>
-                            <PriceSectionDemo initialCurrency="ARS" initialPrice="13000000" estimated={{ cents: 1_000_000, currency: 'USD' }} />
+                            <PriceSectionDemo initialCurrency="ARS" initialPrice="13000000" estimated={{ cents: 1_000_000, currency: 'USD' }} basis="los números verificados de tu canal" />
                         </div>
                     </div>
                 </Section>
@@ -931,24 +952,28 @@ export default function Sistema() {
 
                 <Section
                     title="Acceso de la plataforma, en el orden en que se hace"
-                    note="Solo los dos pasos de antes de la venta, que se destraban de a uno: el primero lo tilda el vendedor en su navegador; el segundo avisa a la plataforma. Después el panel cuenta en qué va: verificando, cuenta regresiva de siete días o transferencia inmediata. «Ver cómo» abre un diálogo nativo con una maqueta animada de Google (se quieta con prefers-reduced-motion) y el texto «¿Por qué te pedimos esto?». Los pasos de la operación no aparecen acá."
+                    note="Solo los dos pasos de antes de la venta, que se destraban de a uno: el primero lo tilda el vendedor en su navegador; el segundo avisa a la plataforma. Después el panel cuenta en qué va: verificando, cuenta regresiva (los días que informa el tipo de activo: siete en un canal, ninguno en un sitio, que no la muestra) o transferencia inmediata. El texto del beneficio y los pasos salen del tipo de activo, nunca fijos. «Ver cómo» abre un diálogo nativo con una maqueta animada de Google (se quieta con prefers-reduced-motion) y el texto «¿Por qué te pedimos esto?». Los pasos de la operación no aparecen acá."
                 >
                     <div className="grid gap-8 lg:grid-cols-2">
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — AÚN SIN AVISAR</div>
-                            <AccessPanel listingId="muestra" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="pending" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                            <AccessPanel listingId="muestra" subject="canal" waitingDays={7} steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="pending" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VERIFICANDO</div>
-                            <AccessPanel listingId="muestra-2" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="verifying" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                            <AccessPanel listingId="muestra-2" subject="canal" waitingDays={7} steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="verifying" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CONFIRMADO — CUENTA REGRESIVA</div>
-                            <AccessPanel listingId="muestra-3" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="waiting" transferableFrom="2026-10-17T12:00:00.000Z" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                            <AccessPanel listingId="muestra-3" subject="canal" waitingDays={7} steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="waiting" transferableFrom="2026-10-17T12:00:00.000Z" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TRANSFERENCIA INMEDIATA</div>
-                            <AccessPanel listingId="muestra-4" steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="immediate" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                            <AccessPanel listingId="muestra-4" subject="canal" waitingDays={7} steps={PASOS_DE_ACCESO} email="custodia-yt-01@forzalabs.online" status="immediate" guided now={AHORA_DE_MUESTRA} requestAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SITIO — PASOS COMO TEXTO, SIN ESPERA</div>
+                            <AccessPanel listingId="muestra-5" subject="sitio" waitingDays={0} steps={PASOS_DE_ACCESO_WEB} status="pending" guided={false} now={AHORA_DE_MUESTRA} requestAction={noop} />
                         </div>
                         <div className="relative flex flex-col gap-3 pb-56">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">«¿POR QUÉ TE PEDIMOS ESTO?» — PASO 1 Y PASO 2</div>
@@ -963,14 +988,19 @@ export default function Sistema() {
 
                 <Section
                     title="Nivel de vendedor"
-                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Debajo del anillo, un desglose con el logo de cada logro: los que ya están llevan un tilde y sus puntos, los que faltan van apagados, y la fila de Mercado Pago no aparece cuando no está disponible. Lo que falta va en tarjetas con su botón; la identidad queda en una sola línea."
+                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Debajo del anillo, un desglose con el logo de cada logro (en la titularidad, la marca del tipo de activo: YouTube o el sitio): los que ya están llevan un tilde y sus puntos, los que faltan van apagados, y la fila de Mercado Pago no aparece cuando no está disponible. Lo que falta va en tarjetas con su botón; la identidad queda en una sola línea."
                 >
                     <div className="flex flex-col gap-8">
                         <div className="flex flex-wrap gap-4">
-                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified={false} accessRegistered={false} /></div>
-                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered={false} /></div>
-                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered mercadoPago="linked" /></div>
-                            <div className="w-[260px]"><SellerLevelGauge ownershipVerified accessRegistered mercadoPago="unavailable" /></div>
+                            <div className="w-[260px]"><SellerLevelGauge assetType="youtube" ownershipVerified={false} accessRegistered={false} /></div>
+                            <div className="w-[260px]"><SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered={false} /></div>
+                            <div className="w-[260px]"><SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered mercadoPago="linked" /></div>
+                            <div className="w-[260px]"><SellerLevelGauge assetType="youtube" ownershipVerified accessRegistered mercadoPago="unavailable" /></div>
+                            <div className="w-[260px]"><SellerLevelGauge assetType="web" ownershipVerified accessRegistered={false} /></div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL SITIO EN LAS VERIFICACIONES — SE ALINEA ARRIBA, MIDE LO QUE SU CONTENIDO</div>
+                            <AssetSummaryCard name="Tienda de muestra" assetLabel="Sitio web" note="La titularidad se comprueba con un registro en el DNS del dominio." />
                         </div>
                         <VerificationCards
                             ownership={{ done: true, sourceLabel: 'YouTube', verifiedAt: AHORA_DE_MUESTRA }}

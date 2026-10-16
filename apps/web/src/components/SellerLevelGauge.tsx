@@ -1,12 +1,12 @@
 import { type LevelRow, type MercadoPagoState, levelBreakdown, maxSellerLevel, sellerLevel } from '@/lib/sellerLevel';
-import { YouTubeLogo } from './AssetTypeCard';
+import { AssetMark } from './AssetTypeCard';
 import { CheckIcon } from './ui';
 
 const RADIUS = 56;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function RowIcon({ row }: { row: LevelRow }) {
-    if (row.key === 'ownership') return <YouTubeLogo width={22} />;
+function RowIcon({ row, assetType }: { row: LevelRow; assetType: string }) {
+    if (row.key === 'ownership') return <AssetMark assetType={assetType} width={22} />;
     if (row.key === 'access') {
         return (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--color-acento)" aria-hidden="true" className="flex-none">
@@ -24,10 +24,13 @@ function RowIcon({ row }: { row: LevelRow }) {
  * que faltan.
  */
 export function SellerLevelGauge({
+    assetType,
     ownershipVerified,
     accessRegistered,
     mercadoPago = 'not_linked',
 }: {
+    /** De qué es el activo: la fila de titularidad lleva la marca de su tipo. */
+    assetType: string;
     ownershipVerified: boolean;
     accessRegistered: boolean;
     mercadoPago?: MercadoPagoState;
@@ -68,7 +71,7 @@ export function SellerLevelGauge({
                         key={row.key}
                         className={`flex items-center gap-2.5 text-[14px] ${row.done ? '' : 'text-[var(--color-apagado)]'}`}
                     >
-                        <RowIcon row={row} />
+                        <RowIcon row={row} assetType={assetType} />
                         <span className="flex-1">{row.label}</span>
                         {row.done && <CheckIcon />}
                         <span className={`font-mono text-[12px] ${row.done ? 'text-[var(--color-tinta)]' : ''}`}>+{row.points}</span>

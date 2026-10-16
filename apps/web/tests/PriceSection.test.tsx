@@ -14,6 +14,7 @@ function vista(props: Partial<React.ComponentProps<typeof PriceSection>> = {}) {
             price=""
             onPriceChange={() => {}}
             estimated={null}
+            basis="los datos que cargaste"
             {...props}
         />,
     );
@@ -65,5 +66,12 @@ describe('PriceSection', () => {
         const t = texto(vista());
 
         expect(t).toContain('Vos recibís el precio menos el 5 % de comisión.');
+        expect(t).toContain('La valuación sale de los datos que cargaste.');
+    });
+
+    it('dice de dónde sale la valuación con lo que le pasa el tipo de activo', () => {
+        const t = texto(vista({ basis: 'los números verificados de tu canal' }));
+
+        expect(t).toContain('La valuación sale de los números verificados de tu canal.');
     });
 });

@@ -114,11 +114,12 @@ export class WebStrategy implements IAssetStrategy {
                 id: '1',
                 phase: 'listing',
                 description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
+                title: 'Eximite del bloqueo de 60 días',
                 instruction: 'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede, y el comprador queda sin poder mover el dominio durante ese plazo.',
                 requiredActor: 'seller',
                 automated: false,
             },
-            { id: '2', phase: 'listing', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
+            { id: '2', phase: 'listing', description: 'El vendedor entrega el código de autorización (EPP) del dominio', title: 'Pasanos el código de autorización', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
             {
                 id: '3',
                 description: comprador

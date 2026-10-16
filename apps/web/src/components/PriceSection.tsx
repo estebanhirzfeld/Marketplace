@@ -22,14 +22,14 @@ export function PriceSection({
     price,
     onPriceChange,
     estimated,
-    basis = 'los números verificados de tu canal',
+    basis,
 }: {
     currency: string;
     onCurrencyChange: (value: string) => void;
     price: string;
     onPriceChange: (value: string) => void;
     estimated: MoneyDto | null;
-    /** De dónde sale la valuación, dicho para este tipo de activo. */
+    /** De dónde sale la valuación, dicho para este tipo de activo. Sin valor por omisión: uno fijo se filtraría a otro tipo. */
     basis?: string;
 }) {
     const comparable = comparableEstimate(estimated, currency);

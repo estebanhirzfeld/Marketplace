@@ -171,6 +171,28 @@ describe('WebStrategy.getTransferSteps', () => {
         const delComprador = pasos.find((p) => p.requiredActor === 'buyer')!;
         expect(delComprador.description).toContain('comprador@gmail.com');
     });
+
+    it('los pasos del vendedor antes de la venta llevan título, dicho al vendedor', () => {
+        const antes = web()
+            .getTransferSteps()
+            .filter((p) => p.phase === 'listing');
+
+        expect(antes.length).toBeGreaterThan(0);
+        for (const paso of antes) {
+            // Sin título, el panel de acceso muestra la descripción en tercera persona.
+            expect(paso.title).toBeTruthy();
+            expect(paso.title).not.toMatch(/^El vendedor/);
+        }
+    });
+
+    it('ningún paso habla de canales, de YouTube ni de la espera de 7 días', () => {
+        const todo = web()
+            .getTransferSteps()
+            .map((p) => [p.title, p.description, p.instruction].join(' '))
+            .join(' ');
+
+        expect(todo).not.toMatch(/canal|youtube|7 días/i);
+    });
 });
 
 /**
