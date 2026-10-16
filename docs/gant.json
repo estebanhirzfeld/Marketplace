@@ -893,6 +893,34 @@
         "Seis de los siete PRs (#30, #31, #32, #33, #35, #36) superan el tope de 400 líneas; se pidió size:exception porque cada corte es una tarea con sus tests (entre el 30 y el 60 % del cambio).",
         "La revisión nativa de Gentle AI no pudo correr por un defecto de la herramienta (Gentleman-Programming/gentle-ai#5044); se revisó con judgment-day."
       ]
+    },
+    {
+      "id": "fase-19",
+      "number": 19,
+      "kind": "fase",
+      "parent": null,
+      "label": "Usuarios de demostración y vista previa al compartir",
+      "doc": "docs/fase-19-usuarios-de-demostracion-y-vista-previa.md",
+      "docLines": 77,
+      "track": "fases",
+      "start": "2026-10-16T16:08:03-03:00",
+      "end": "2026-10-16T16:09:30-03:00",
+      "dating": "exact",
+      "group": null,
+      "commits": [
+        "177a47b",
+        "28049f8",
+        "f4842ea"
+      ],
+      "commitCount": 3,
+      "branch": "feat/usuarios-demo-y-seo (PR #38)",
+      "docCommit": null,
+      "docCommittedAt": null,
+      "declaredStatus": "Completa",
+      "declaredDate": "Octubre 2026",
+      "warnings": [
+        "Las dos cuentas de demostración usan contraseña igual al correo por decisión del usuario; el repositorio es público."
+      ]
     }
   ],
   "sddChanges": [
