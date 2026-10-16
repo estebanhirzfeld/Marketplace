@@ -24,7 +24,7 @@ function youtube() {
 }
 
 function web() {
-    return new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com');
+    return new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' });
 }
 
 const mencionaPermisosDeCanal = (texto: string) =>

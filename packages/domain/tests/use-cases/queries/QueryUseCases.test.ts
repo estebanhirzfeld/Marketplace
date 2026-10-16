@@ -515,7 +515,7 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
     it('para un listing web, handoverSteps queda vacío sin romper', async () => {
         const listing = Listing.create({
             sellerId: SELLER_ID,
-            assetStrategy: new WebStrategy(Money.fromCents(120000, 'USD'), 45),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(120000, 'USD') }),
             askingPrice: Money.fromCents(500000, 'USD'),
         });
         listing.registerPlatformAccess({

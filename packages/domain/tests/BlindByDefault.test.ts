@@ -29,7 +29,7 @@ const ESTRATEGIAS: Array<[string, IAssetStrategy]> = [
             channelUrl: 'https://youtube.com/@canaldeprueba',
         }),
     ],
-    ['Web', new WebStrategy(Money.fromCents(80000, 'USD'), 42, 'ejemplo.com')],
+    ['Web', new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80000, 'USD'), domain: 'ejemplo.com' })],
 ];
 
 function unListing(estrategia: IAssetStrategy): Listing {

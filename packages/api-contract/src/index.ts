@@ -235,9 +235,6 @@ export interface ListingFiltersQuery {
     minSubscribers?: number;
     onlyMonetized?: boolean;
 
-    /** Solo sitios web. */
-    minDomainAuthority?: number;
-
     sort?: ListingSortDto;
     direction?: SortDirectionDto;
 }

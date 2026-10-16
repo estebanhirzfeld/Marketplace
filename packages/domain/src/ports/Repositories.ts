@@ -73,9 +73,6 @@ export interface ListingFilters {
     minSubscribers?: number;
     onlyMonetized?: boolean;
 
-    /** Solo sitios web. */
-    minDomainAuthority?: number;
-
     sort?: ListingSort;
     direction?: SortDirection;
 }

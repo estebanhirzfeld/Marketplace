@@ -32,13 +32,12 @@ function canal() {
 }
 
 function sitio() {
-    return new WebStrategy(
-        Money.fromCents(135000, 'USD'),
-        41,
-        'probamostodo.com',
-        AssetNiche.TECHNOLOGY,
-        NOMBRE_DEL_SITIO,
-    );
+    return new WebStrategy({
+        monthlyRevenueUsd: Money.fromCents(135000, 'USD'),
+        domain: 'probamostodo.com',
+        niche: AssetNiche.TECHNOLOGY,
+        name: NOMBRE_DEL_SITIO,
+    });
 }
 
 function publicado(strategy: ReturnType<typeof canal> | ReturnType<typeof sitio>) {
@@ -90,7 +89,6 @@ describe('El nombre del activo', () => {
     it('un activo sin nombre no rompe nada', () => {
         const sinNombre = createAssetStrategy(AssetType.WEB, {
             monthlyRevenueUsdCents: 100000,
-            domainAuthority: 30,
         });
 
         expect(sinNombre.toJSON().assetData.name).toBe('');

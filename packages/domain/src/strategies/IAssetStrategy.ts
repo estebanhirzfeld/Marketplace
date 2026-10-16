@@ -2,7 +2,7 @@ import { Money } from '../value-objects/Money';
 import { VerificationSource } from '../entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
 
-export type MetricKey = 'followers' | 'revenue' | 'domainAuthority' | 'sessions' | 'subscribers' | 'engagement';
+export type MetricKey = 'followers' | 'revenue' | 'sessions' | 'subscribers' | 'engagement';
 
 /** Un enlace directo a la pantalla donde se hace el paso. */
 export interface TransferStepLink {

@@ -170,7 +170,7 @@ describe('publishListing (formulario manual)', () => {
         const destino = await redirigeA(
             publishListing(
                 {},
-                form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com', metrica: '10' }),
+                form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com' }),
             ),
         );
 
@@ -183,7 +183,7 @@ describe('publishListing (formulario manual)', () => {
 
         const estado = await publishListing(
             {},
-            form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com', metrica: '10' }),
+            form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com' }),
         );
 
         expect(estado.error).toBe('Dato inválido.');

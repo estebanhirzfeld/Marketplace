@@ -59,7 +59,7 @@ function unCanalPublicado(channelUrl = 'https://youtube.com/@canaldeprueba'): Li
 function unSitio(domain = 'ejemplo.com'): Listing {
     return Listing.create({
         sellerId: SELLER_ID,
-        assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 42, domain),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80000, 'USD'), domain: domain }),
         askingPrice: Money.fromCents(900_000, 'USD'),
     });
 }

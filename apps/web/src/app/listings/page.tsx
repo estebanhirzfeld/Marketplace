@@ -68,7 +68,6 @@ function leerFiltros(params: Record<string, string | string[] | undefined>): {
         maxPrice,
         minSubscribers: assetType === 'youtube' ? aEntero(params.minSubscribers) : undefined,
         onlyMonetized: assetType === 'youtube' && params.onlyMonetized === 'true' ? true : undefined,
-        minDomainAuthority: assetType === 'web' ? aEntero(params.minDomainAuthority) : undefined,
         // La relevancia es el orden por defecto: no viaja en la URL ni a la
         // API, y la dirección no le aplica.
         sort: ordenExplicito,

@@ -56,13 +56,12 @@ function armar(...admins: User[]) {
 function unActivo() {
     return Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(
-            Money.fromCents(120000, 'USD'),
-            44,
-            'ejemplo.com',
-            AssetNiche.TECHNOLOGY,
-            'Ejemplo',
-        ),
+        assetStrategy: new WebStrategy({
+            monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+            domain: 'ejemplo.com',
+            niche: AssetNiche.TECHNOLOGY,
+            name: 'Ejemplo',
+        }),
         askingPrice: Money.fromCents(3600000, 'USD'),
     });
 }

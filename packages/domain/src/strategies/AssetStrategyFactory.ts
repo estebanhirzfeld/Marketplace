@@ -47,7 +47,6 @@ const MUESTRA: Record<AssetType, AssetData> = {
     },
     [AssetType.WEB]: {
         monthlyRevenueUsdCents: 0,
-        domainAuthority: 0,
     },
 };
 
@@ -73,13 +72,13 @@ export function createAssetStrategy(assetType: string, assetData: AssetData): IA
         }
 
         case AssetType.WEB:
-            return new WebStrategy(
-                dinero(assetData, 'monthlyRevenueUsdCents'),
-                entero(assetData, 'domainAuthority'),
-                textoOpcional(assetData, 'domain', ''),
-                rubro(assetData),
-                textoOpcional(assetData, 'name', ''),
-            );
+            // Las filas anteriores guardaban `domainAuthority`: se ignora al leer.
+            return new WebStrategy({
+                monthlyRevenueUsd: dinero(assetData, 'monthlyRevenueUsdCents'),
+                domain: textoOpcional(assetData, 'domain', ''),
+                niche: rubro(assetData),
+                name: textoOpcional(assetData, 'name', ''),
+            });
 
 
         default:

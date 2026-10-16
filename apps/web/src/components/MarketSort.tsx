@@ -39,7 +39,6 @@ function href(actuales: FiltrosDeBusqueda, sort: Criterio, direction: 'asc' | 'd
     poner('maxPrice', actuales.maxPrice);
     poner('minSubscribers', actuales.minSubscribers);
     poner('onlyMonetized', actuales.onlyMonetized);
-    poner('minDomainAuthority', actuales.minDomainAuthority);
     // La relevancia es el orden por defecto: la URL queda limpia y no tiene
     // dirección que invertir.
     if (sort !== 'relevance') {
