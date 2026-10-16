@@ -3,6 +3,8 @@ import {
     ContractDto,
     ContractDocumentDto,
     AuthorizationUrlDto,
+    DomainOwnershipChallengeDto,
+    DomainOwnershipVerificationDto,
     ChannelMetricsReportDto,
     OwnershipVerificationDto,
     VerificationSourceDto,
@@ -300,6 +302,16 @@ export class MarketplaceClient {
             `/listings/${encodeURIComponent(listingId)}/verificar/${source}`,
             { body: { code } },
         );
+    }
+
+    /** El registro TXT que el vendedor tiene que cargar en el DNS de su sitio. */
+    domainOwnershipChallenge(listingId: string): Promise<DomainOwnershipChallengeDto> {
+        return this.request('GET', `/listings/${encodeURIComponent(listingId)}/verificacion-dns`);
+    }
+
+    /** Comprueba si el registro TXT ya está publicado. `verified: false` no es un error. */
+    verifyDomainOwnership(listingId: string): Promise<DomainOwnershipVerificationDto> {
+        return this.request('POST', `/listings/${encodeURIComponent(listingId)}/verificar/dns`);
     }
 
     /**

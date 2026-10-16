@@ -36,7 +36,14 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
   - `judgment-day` sobre `ee256d3`: **APPROVED**, ronda 1, sin hallazgos críticos, 13 advertencias o sugerencias informativas.
   - [x] T1b Arreglos de las advertencias, aceptados por el usuario: la comprobación por AdSense normaliza el dominio; `DomainName` acepta dominios con tildes o ñ (punycode); identificadores nuevos en inglés; en un subdominio la consigna usa el nombre completo en vez de `@`. Ruta: escritor delegado. Commit `0e80936`: RED visto (5 tests), luego dominio 68 archivos / 1065 tests en verde y `tsc` sin errores, verificado por el padre.
   - Pendientes anotados, anteriores a este cambio: AdSense guarda el ingreso sin mirar la moneda; el ingreso verificado no cambia el precio estimado; los pasos 3 a 5 de `WebStrategy` no tienen fase; las comprobaciones de titularidad no miran el estado del activo; `registerOwnershipVerification` no valida `monthlyRevenueCents`.
-- [ ] T2 Infraestructura: `'dns'` en `ListingMapper`; adaptadores `HmacOwnershipChallengeIssuer` y `NodeDnsResolver`; `identifyDnsProvider`; rutas `GET /listings/:id/verificacion-dns` y `POST /listings/:id/verificar/dns`; contrato, cliente y contenedor. Ruta: escritor delegado.
+- [x] T2 Infraestructura: `'dns'` en `ListingMapper`; adaptadores `HmacOwnershipChallengeIssuer` y `NodeDnsResolver`; `identifyDnsProvider`; rutas `GET /listings/:id/verificacion-dns` y `POST /listings/:id/verificar/dns`; contrato, cliente y contenedor. Ruta: escritor delegado.
+  - Commit `5f8fa08`. RED visto en cada pieza (mapper: «Fuente de verificación desconocida en la base: dns»; módulos inexistentes; rutas con 404). Verde: dominio 1065, db 122 (contra `marketplace_test`), api 450 + 3 omitidos (la prueba en vivo), api-client 24; `tsc` sin errores en todos. La API la volvió a correr el padre.
+  - Prueba en vivo con `DNS_LIVE_TEST=1`: `deliaorrego.online` devuelve los NS `dns1..4.p08.nsone.net` (Hostinger) y el TXT `traspaso-verificacion=178cd4d4534d977fbdf74f70`.
+  - `DNS_CHALLENGE_SECRET` documentada en `env.example`; sin ella, las dos rutas responden 503 «La verificación por DNS todavía no está configurada.». Las rutas de Google ahora aceptan solo `youtube` o `adsense` como fuente.
+  - Revisión nativa: riesgo medio, consentida; la captura falla igual que en T1 (#5044). Por decisión del usuario se omitió para este cambio, sin reportar de nuevo, y se revisa con `judgment-day`.
+  - `judgment-day` sobre `5f8fa08`: **APPROVED**, ronda 1, sin hallazgos críticos, 13 advertencias o sugerencias informativas.
+  - [x] T2b Arreglos aceptados por el usuario: filtrar IP no públicas antes de consultar los servidores autoritativos (consultas a la red interna); un intento y tope total de 8 s por comprobación; secreto de al menos 32 caracteres. Ruta: escritor delegado. Commit `5cc66d5`: RED visto (9 tests), luego api 497 + 3 omitidos en verde y `tsc` sin errores, verificado por el padre; la prueba en vivo sigue pasando. Un secreto de menos de 32 caracteres hace fallar el arranque de la API, como `MP_TOKEN_ENCRYPTION_KEY`; vacío sigue siendo «no configurada».
+  - Pendientes anotados: en un subdominio no se detecta el proveedor (no se reusa la subida al dominio padre); los errores DNS pierden su causa; `authorizationUrl` y `verifyOwnership` del cliente aceptan `'dns'` en el tipo; `nsone.net` no es exclusivo de Hostinger (T3 lo muestra como «Parece que…»).
 - [ ] T3 Web: `DnsVerificationDialog`, variante DNS de `VerificationCards`, consulta repetida, `CopyValueButton`, textos de `/vender` y de `activos/[id]`, `/sistema`. Ruta: escritor delegado.
 - [ ] T4 Prueba real con `deliaorrego.online` en local y en producción; write-up en `docs/fase-*.md`, `docs/gant.json` y el ítem tildado en la épica. Ruta: en línea.
 
@@ -59,8 +66,8 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
 
 ## Progreso
 
-T1 hecha (`ee256d3`).
+T1, T1b, T2 y T2b hechas (`ee256d3`, `0e80936`, `5f8fa08`, `5cc66d5`).
 
 ## Siguiente paso
 
-T2.
+T3.

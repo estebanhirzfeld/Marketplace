@@ -36,6 +36,9 @@ import { Email } from '@marketplace/domain/src/value-objects/Email';
 import { Money } from '@marketplace/domain/src/value-objects/Money';
 import { UniqueEntityID } from '@marketplace/domain/src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '@marketplace/domain/src/strategies/YouTubeStrategy';
+import { WebStrategy } from '@marketplace/domain/src/strategies/WebStrategy';
+import { IDnsResolver, IOwnershipChallengeIssuer } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { GetDomainOwnershipChallengeUseCase, VerifyDomainOwnershipUseCase } from '@marketplace/domain/src/use-cases/listing/VerifyOwnershipUseCases';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { AssetType } from '@marketplace/shared-types';
 import { GoogleOAuthClient } from '../src/adapters/GoogleOAuthClient';
@@ -1412,6 +1415,157 @@ describe('Verificación de titularidad con Google', () => {
         const res = await app.inject({ method: 'GET', url: `/listings/${id}/autorizacion/youtube` });
 
         expect(res.statusCode).toBe(401);
+    });
+});
+
+/**
+ * Titularidad de un sitio por registro TXT. El DNS y el emisor del valor son
+ * fakes: lo que se prueba es el transporte, la autorización y que la constancia
+ * quede guardada en la base.
+ */
+describe('Titularidad de un sitio por DNS', () => {
+    const NAMESERVERS = ['dns1.p08.nsone.net', 'dns2.p08.nsone.net'];
+    const tokenFor = (listingId: string, domain: string) => `traspaso-verificacion=${listingId.slice(0, 8)}-${domain}`;
+
+    async function unSitio(email = 'seller-dns@test.com'): Promise<string> {
+        const seller = await crearUsuario(email, UserRole.SELLER);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'https://www.Ejemplo.com/inicio'),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        });
+        await listingRepo.save(listing);
+        return listing.id.toString();
+    }
+
+    function servidor(options: { configured?: boolean; txt?: string[] } = {}) {
+        const issuer: IOwnershipChallengeIssuer = { tokenFor };
+        const resolver: IDnsResolver = {
+            nameserversOf: vi.fn(async () => NAMESERVERS),
+            txtRecordsOf: vi.fn(async () => options.txt ?? []),
+        };
+        const base = createContainer(fakeHasher);
+        const container: Container =
+            options.configured === false
+                ? { ...base, getDomainOwnershipChallenge: undefined, verifyDomainOwnership: undefined }
+                : {
+                      ...base,
+                      getDomainOwnershipChallenge: new GetDomainOwnershipChallengeUseCase(listingRepo, issuer, resolver),
+                      verifyDomainOwnership: new VerifyDomainOwnershipUseCase(listingRepo, issuer, resolver),
+                  };
+        return buildApp({ container, jwtSecret: 'secreto-de-test' });
+    }
+
+    async function como(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    it('el vendedor recibe el registro, los servidores y el proveedor deducido', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/verificacion-dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({
+            domain: 'ejemplo.com',
+            host: '@',
+            value: tokenFor(id, 'ejemplo.com'),
+            nameservers: NAMESERVERS,
+            provider: 'hostinger',
+        });
+    });
+
+    it('sin el TXT publicado la comprobación responde verified: false y no guarda nada', async () => {
+        const id = await unSitio();
+        const server = await servidor({ txt: ['v=spf1 -all'] });
+
+        const res = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ verified: false });
+        expect((await listingRepo.findById(id))!.isOwnershipVerified()).toBe(false);
+    });
+
+    it('con el TXT publicado responde verified: true y el activo queda con titularidad comprobada', async () => {
+        const id = await unSitio();
+        const server = await servidor({ txt: [tokenFor(id, 'ejemplo.com')] });
+
+        const res = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ verified: true });
+
+        const guardado = await listingRepo.findById(id);
+        expect(guardado!.isOwnershipVerified()).toBe(true);
+        expect(guardado!.ownershipVerification).toMatchObject({ source: 'dns', assetId: 'ejemplo.com' });
+    });
+
+    it('403 si lo pide alguien que no es el vendedor ni admin', async () => {
+        const id = await unSitio();
+        await crearUsuario('intruso-dns@test.com', UserRole.SELLER);
+        const server = await servidor();
+
+        const get = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/verificacion-dns`,
+            headers: await como('intruso-dns@test.com'),
+        });
+        const post = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('intruso-dns@test.com'),
+        });
+
+        expect(get.statusCode).toBe(403);
+        expect(post.statusCode).toBe(403);
+    });
+
+    it('la autorización de Google rechaza la fuente dns en vez de tratarla como YouTube', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/autorizacion/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('401 sin sesión', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({ method: 'GET', url: `/listings/${id}/verificacion-dns` });
+
+        expect(res.statusCode).toBe(401);
+    });
+
+    it('503 en las dos rutas cuando falta DNS_CHALLENGE_SECRET', async () => {
+        const id = await unSitio();
+        const server = await servidor({ configured: false });
+        const headers = await como('seller-dns@test.com');
+
+        const get = await server.inject({ method: 'GET', url: `/listings/${id}/verificacion-dns`, headers });
+        const post = await server.inject({ method: 'POST', url: `/listings/${id}/verificar/dns`, headers });
+
+        expect(get.statusCode).toBe(503);
+        expect(post.statusCode).toBe(503);
+        expect(get.json().message).toMatch(/DNS/);
     });
 });
 
