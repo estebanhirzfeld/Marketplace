@@ -19,6 +19,7 @@ import { ContractDataBuilder } from "@marketplace/domain/src/contracts/ContractD
 import { generateDocument } from "@marketplace/domain/src/contracts/ContractGenerator";
 import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
 import { AssetType } from "@marketplace/shared-types";
+import { DEMO_USERS } from "../src/demoUsers";
 import { PrismaUserRepository } from "../src/repositories/PrismaUserRepository";
 import { PrismaListingRepository } from "../src/repositories/PrismaListingRepository";
 import { PrismaOperationRepository } from "../src/repositories/PrismaOperationRepository";
@@ -238,7 +239,12 @@ async function main() {
         country: "AR",
     });
 
-    console.log("✅ 5 usuarios creados (1 admin, 2 vendedores, 2 compradores)");
+    // Las cuentas de demostración (seller3, buyer3) también existen en desarrollo.
+    for (const demo of DEMO_USERS) {
+        await createUser(demo);
+    }
+
+    console.log("✅ 7 usuarios creados (1 admin, 3 vendedores, 3 compradores)");
 
     // ── 2b. Cuentas de custodia ────────────────────────────
     //
@@ -491,6 +497,7 @@ async function main() {
         "seller2@forzalabs.online",
         "buyer@forzalabs.online",
         "buyer2@forzalabs.online",
+        ...DEMO_USERS.map((demo) => demo.email),
     ]) {
         console.log(`   · ${email}`);
     }
