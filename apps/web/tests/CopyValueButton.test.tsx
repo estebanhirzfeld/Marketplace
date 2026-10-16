@@ -1,22 +1,24 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CopyEmailButtonView } from '@/components/CopyEmailButton';
+import { CopyValueButtonView } from '@/components/CopyValueButton';
 import { copyText } from '@/lib/clipboard';
 
 /**
- * El mail de custodia se copia con un clic. Sin DOM en los tests, se fija el
- * marcado de cada estado y la lógica de copiado por separado.
+ * Un valor se copia con un clic (el mail de custodia, el TXT del DNS). Sin DOM
+ * en los tests, se fija el marcado de cada estado y la lógica de copiado por
+ * separado.
  */
 
 const EMAIL = 'custodia@traspaso.com';
+const TXT = 'traspaso-verificacion=178cd4d4534d977fbdf74f70';
 
 function texto(html: string): string {
     return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-describe('CopyEmailButtonView', () => {
-    it('es un botón con la etiqueta «Copiar <email>» que muestra la dirección', () => {
-        const html = renderToStaticMarkup(<CopyEmailButtonView email={EMAIL} copied={false} onCopy={() => {}} />);
+describe('CopyValueButtonView', () => {
+    it('es un botón con la etiqueta «Copiar <valor>» que muestra el valor', () => {
+        const html = renderToStaticMarkup(<CopyValueButtonView value={EMAIL} copied={false} onCopy={() => {}} />);
 
         expect(html).toContain('<button');
         expect(html).toContain(`aria-label="Copiar ${EMAIL}"`);
@@ -25,9 +27,18 @@ describe('CopyEmailButtonView', () => {
     });
 
     it('al copiar muestra «Copiado»', () => {
-        const html = renderToStaticMarkup(<CopyEmailButtonView email={EMAIL} copied onCopy={() => {}} />);
+        const html = renderToStaticMarkup(<CopyValueButtonView value={EMAIL} copied onCopy={() => {}} />);
 
         expect(texto(html)).toContain('Copiado');
+    });
+
+    it('la etiqueta accesible se puede nombrar, para que el lector de pantalla diga qué se copia', () => {
+        const html = renderToStaticMarkup(
+            <CopyValueButtonView value={TXT} label="Copiar el valor del registro" copied={false} onCopy={() => {}} />,
+        );
+
+        expect(html).toContain(`aria-label="Copiar el valor del registro: ${TXT}"`);
+        expect(texto(html)).toContain(TXT);
     });
 });
 

@@ -44,7 +44,13 @@ Hoy la única fuente de titularidad de un sitio es AdSense (`WebStrategy.ownersh
   - `judgment-day` sobre `5f8fa08`: **APPROVED**, ronda 1, sin hallazgos críticos, 13 advertencias o sugerencias informativas.
   - [x] T2b Arreglos aceptados por el usuario: filtrar IP no públicas antes de consultar los servidores autoritativos (consultas a la red interna); un intento y tope total de 8 s por comprobación; secreto de al menos 32 caracteres. Ruta: escritor delegado. Commit `5cc66d5`: RED visto (9 tests), luego api 497 + 3 omitidos en verde y `tsc` sin errores, verificado por el padre; la prueba en vivo sigue pasando. Un secreto de menos de 32 caracteres hace fallar el arranque de la API, como `MP_TOKEN_ENCRYPTION_KEY`; vacío sigue siendo «no configurada».
   - Pendientes anotados: en un subdominio no se detecta el proveedor (no se reusa la subida al dominio padre); los errores DNS pierden su causa; `authorizationUrl` y `verifyOwnership` del cliente aceptan `'dns'` en el tipo; `nsone.net` no es exclusivo de Hostinger (T3 lo muestra como «Parece que…»).
-- [ ] T3 Web: `DnsVerificationDialog`, variante DNS de `VerificationCards`, consulta repetida, `CopyValueButton`, textos de `/vender` y de `activos/[id]`, `/sistema`. Ruta: escritor delegado.
+- [x] T3 Web: `DnsVerificationDialog`, variante DNS de `VerificationCards`, consulta repetida, `CopyValueButton`, textos de `/vender` y de `activos/[id]`, `/sistema`. Ruta: escritor delegado.
+  - Commit `b506970` (incluye la URL de DonWeb corregida a `micuenta.donweb.com`; la anterior daba 404). RED visto (11 tests), luego web 48 archivos / 420 tests en verde y `tsc` sin errores, verificado por el padre; lint con los 2 errores previos de `error.tsx` y `global-error.tsx`.
+  - Revisión nativa: riesgo medio, consentida; la captura falla igual (#5044). Se omitió para este cambio, sin reportar de nuevo. `judgment-day` sobre `b506970`: **APPROVED**, ronda 1, sin hallazgos críticos.
+  - Advertencias en las que coinciden los dos jueces: la consulta repetida sigue después de un error (por ejemplo el 503); la consigna inicial no maneja un rechazo y queda en «Preparando tu registro…»; una falla de red durante la consulta llega al límite de errores y reemplaza la página; el botón de copiar oculta el valor a los lectores de pantalla; `/sistema` muestra un botón de relleno en vez de `DnsVerificationTrigger`; el ciclo de la consulta repetida no tiene tests.
+  - Prueba en la app (local, 16/10/2026): borrador `[TEST] Delia Orrego` con `deliaorrego.online`; el modal mostró `TXT`, `@`, el valor y «Parece que tu DNS está en Hostinger»; el usuario agregó el TXT nuevo, apareció en `dns1.p08.nsone.net` en ~5 s y el modal lo detectó solo: la página pasó a «Listo para publicar · Sos el titular del sitio» con el botón «Publicar», sin revisión. El borrador se borró después.
+  - Hallazgo en la prueba: en un sitio aparece «Vendé más rápido… A los 7 días tu canal la muestra», texto de YouTube. Pendiente.
+  - [x] T3b Arreglos aceptados por el usuario: la consulta repetida se detiene ante un error y una consulta en curso se muestra como búsqueda; la consigna muestra un error con «Reintentar»; una falla de red durante la consulta queda como error en el modal; el estado se limpia al cerrar y la primera consulta corre apenas carga la consigna; el botón de copiar incluye el valor en su nombre accesible y el título del modal es `h2`; `/sistema` usa `DnsVerificationTrigger` real; pista de subdominio sin calcular la etiqueta; `SellMoreAside` dice «sitio» o «canal» según el activo. Ruta: escritor delegado. Commit `b6d90a6`: RED visto (13 tests), luego web 50 archivos / 438 tests en verde y `tsc` sin errores, verificado por el padre; comprobado en `/sistema` en la app.
 - [ ] T4 Prueba real con `deliaorrego.online` en local y en producción; write-up en `docs/fase-*.md`, `docs/gant.json` y el ítem tildado en la épica. Ruta: en línea.
 
 ## Criterios de aceptación
@@ -70,4 +76,4 @@ T1, T1b, T2 y T2b hechas (`ee256d3`, `0e80936`, `5f8fa08`, `5cc66d5`).
 
 ## Siguiente paso
 
-T3.
+T4: producción (`DNS_CHALLENGE_SECRET` en el VPS, PRs de las tres tandas, despliegue) y write-up.

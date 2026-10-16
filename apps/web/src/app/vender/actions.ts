@@ -12,6 +12,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
+import type { DomainOwnershipChallengeDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
@@ -182,6 +183,57 @@ export async function startVerification(
     }
 
     redirect(url);
+}
+
+/** Cómo termina una consulta del TXT: `verified: false` sin error es «todavía no está». */
+export type DomainCheckState = { verified?: boolean; error?: string };
+
+const DNS_NOT_AVAILABLE =
+    'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.';
+const DNS_GENERIC_ERROR = 'No pudimos consultar tu DNS. Probá de nuevo.';
+
+/** El 503 de la API es «sin secreto configurado»; el resto se muestra como viene. */
+function dnsErrorMessage(e: unknown): string {
+    if (e instanceof ApiError) return e.status === 503 ? DNS_NOT_AVAILABLE : e.message;
+    return DNS_GENERIC_ERROR;
+}
+
+/**
+ * El registro TXT que el vendedor tiene que cargar en el DNS de su dominio.
+ *
+ * Lo pide el diálogo cuando se abre y no la página: resolver los servidores de
+ * nombres es una consulta de red, y no tiene sentido pagarla en cada visita al
+ * activo si casi nadie abre el diálogo. Devuelve el error en vez de lanzar:
+ * el diálogo lo muestra en su lugar.
+ */
+export async function getDomainOwnershipChallenge(
+    listingId: string,
+): Promise<{ challenge?: DomainOwnershipChallengeDto; error?: string }> {
+    await requireCounterparty();
+    try {
+        return { challenge: await api().domainOwnershipChallenge(listingId) };
+    } catch (e) {
+        return { error: dnsErrorMessage(e) };
+    }
+}
+
+/**
+ * Pregunta si el TXT ya está en el DNS. Se llama a repetición mientras el
+ * diálogo está abierto, así que «todavía no» es una respuesta normal, no un
+ * error. Solo un resultado positivo invalida la pantalla del activo.
+ */
+export async function checkDomainOwnership(
+    listingId: string,
+    _state: DomainCheckState,
+): Promise<DomainCheckState> {
+    await requireCounterparty();
+    try {
+        const { verified } = await api().verifyDomainOwnership(listingId);
+        if (verified) revalidatePath(`/activos/${listingId}`);
+        return { verified };
+    } catch (e) {
+        return { verified: false, error: dnsErrorMessage(e) };
+    }
 }
 
 /**

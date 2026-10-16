@@ -9,10 +9,13 @@ import { ImmediateBadge, ShimmerBolt } from './ShimmerBolt';
  */
 export function SellMoreAside({
     accessHref,
+    subject,
     showAccess,
     showMercadoPago,
 }: {
     accessHref: string;
+    /** Lo que se vende: el plazo de YouTube es solo de los canales. */
+    subject: 'canal' | 'sitio';
     showAccess: boolean;
     showMercadoPago: boolean;
 }) {
@@ -30,7 +33,9 @@ export function SellMoreAside({
                     </div>
                     <ImmediateBadge />
                     <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                        A los 7 días tu canal la muestra y gana más visibilidad en el mercado.
+                        {subject === 'canal'
+                            ? 'A los 7 días tu canal la muestra y gana más visibilidad en el mercado.'
+                            : 'Con acceso, el traspaso es inmediato y tu sitio gana más visibilidad en el mercado.'}
                     </span>
                     <ButtonLink href={accessHref} className="self-start px-4 py-2.5">
                         Empezar
