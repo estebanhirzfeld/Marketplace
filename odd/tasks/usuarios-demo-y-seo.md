@@ -31,7 +31,7 @@ Activo (configuración del proyecto). Runner: Vitest (`pnpm --filter <paquete> e
 - [x] T1 · Script `db:demo-users` idempotente + usuarios en el seed. Ruta: delegada (2+ archivos).
   Evidencia: commit `177a47b`; `vitest run` en `@marketplace/db` 126/126 (`demoUsers.test.ts` corre la creación dos veces y verifica una fila por usuario); `tsc --noEmit` limpio.
 - [x] T2 · Metadata de la portada, imagen para compartir e íconos. Ruta: delegada (2+ archivos).
-  Evidencia: commit en la rama `feat/usuarios-demo-y-seo` (`feat(web): vista previa...`); `vitest run` en `web` 518/518 + 11 nuevos en `siteMetadata.test.ts`; `tsc --noEmit` limpio; con `next dev` el HTML de `/` trae `og:*`, `twitter:card=summary_large_image` e íconos, y `/opengraph-image` y `/twitter-image` responden 200 `image/png`.
+  Evidencia: commit `28049f8`; `vitest run` en `web` 518/518 (incluye 11 nuevos en `siteMetadata.test.ts`); `tsc --noEmit` limpio; con `next dev` el HTML de `/` trae `og:*`, `twitter:card=summary_large_image` e íconos, y `/opengraph-image` y `/twitter-image` responden 200 `image/png`.
 
 ## Criterios de aceptación
 
