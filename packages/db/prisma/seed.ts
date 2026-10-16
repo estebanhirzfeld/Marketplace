@@ -394,11 +394,6 @@ async function main() {
 
     // El único con precio pedido en pesos: sin él, el filtro por moneda del
     // mercado no tiene contra qué mostrarse.
-    //
-    // El monto es chico a la fuerza. `askingPrice` es `Int` en Postgres, o sea
-    // 2.147.483.647 centavos como techo, así que un precio en pesos por encima
-    // de $21.474.836 desborda la columna. Con la cotización de hoy eso son unos
-    // USD 16.000: cualquier activo más caro no se puede publicar en pesos.
     const nicheStore = seedListing({
         sellerId: seller2.id,
         assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(25000, "USD"), domain: "decoclub.com.ar", niche: AssetNiche.LIFESTYLE, name: "DecoClub" }),

@@ -1,6 +1,7 @@
 import { IListingDeleter, IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
 import { Listing, ListingStatus } from "@marketplace/domain/src/entities/Listing";
 import { ListingMapper } from "../mappers/ListingMapper";
+import { centsToColumn } from "../mappers/moneyColumns";
 import { prisma, PrismaLike } from "../client";
 import { Prisma } from "../../generated/prisma/client";
 import { ChannelAlreadyListedError } from "@marketplace/domain/src/errors/DomainError";
@@ -50,9 +51,9 @@ export class PrismaListingRepository implements IListingRepository, IListingDele
         // Cada criterio se traduce explícitamente. Antes se hacía spread del
         // objeto recibido, así que cualquier clave que llegara del cliente
         // terminaba en el `where` de Prisma.
-        const precio: { gte?: number; lte?: number } = {};
-        if (filters?.minPrice !== undefined) precio.gte = filters.minPrice;
-        if (filters?.maxPrice !== undefined) precio.lte = filters.maxPrice;
+        const precio: { gte?: bigint; lte?: bigint } = {};
+        if (filters?.minPrice !== undefined) precio.gte = centsToColumn(filters.minPrice);
+        if (filters?.maxPrice !== undefined) precio.lte = centsToColumn(filters.maxPrice);
 
         // El orden final lo decide el use case, porque uno de los criterios
         // —la proyección— se calcula y no está en ninguna columna. Acá se deja

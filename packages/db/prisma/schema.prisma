@@ -113,7 +113,7 @@ model Listing {
   assetType       AssetType
   assetData       Json
   status          ListingStatus @default(draft)
-  askingPrice     Int
+  askingPrice     BigInt
   currency        String        @default("USD")
   publishedAt     DateTime?
   rejectionReason String?
@@ -202,13 +202,13 @@ model Operation {
   buyerId          String
   sellerId         String
   status           OperationStatus @default(offer_sent)
-  offerPrice       Int
-  finalPrice       Int?
-  buyerCommission  Int?
-  sellerCommission Int?
-  buyerPays        Int?
-  sellerReceives   Int?
-  platformEarns    Int?
+  offerPrice       BigInt
+  finalPrice       BigInt?
+  buyerCommission  BigInt?
+  sellerCommission BigInt?
+  buyerPays        BigInt?
+  sellerReceives   BigInt?
+  platformEarns    BigInt?
   currency         String          @default("USD")
   negotiations     Json            @default("[]")
   // La declaración del vendedor de haber cedido el control del activo.
@@ -264,7 +264,7 @@ model Notification {
   type        NotificationType
   operationId String?
   listingId   String?
-  amountCents Int?
+  amountCents BigInt?
   currency    String?
   occursAt    DateTime?
   readAt      DateTime?

@@ -5,6 +5,7 @@ import {
     NotificationType,
 } from "@marketplace/domain/src/entities/Notification";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
+import { centsToColumnOrNull, columnToCentsOrUndefined } from "./moneyColumns";
 
 export class NotificationMapper {
     public static toDomain(raw: PrismaNotification): Notification {
@@ -13,7 +14,7 @@ export class NotificationMapper {
             type: raw.type as NotificationType,
             operationId: raw.operationId ? new UniqueEntityID(raw.operationId) : undefined,
             listingId: raw.listingId ? new UniqueEntityID(raw.listingId) : undefined,
-            amountCents: raw.amountCents ?? undefined,
+            amountCents: columnToCentsOrUndefined(raw.amountCents),
             currency: raw.currency ?? undefined,
             occursAt: raw.occursAt ?? undefined,
             readAt: raw.readAt ?? undefined,
@@ -31,7 +32,7 @@ export class NotificationMapper {
             type: props.type,
             operationId: props.operationId?.toString() ?? null,
             listingId: props.listingId?.toString() ?? null,
-            amountCents: props.amountCents ?? null,
+            amountCents: centsToColumnOrNull(props.amountCents),
             currency: props.currency ?? null,
             occursAt: props.occursAt ?? null,
             readAt: props.readAt ?? null,
