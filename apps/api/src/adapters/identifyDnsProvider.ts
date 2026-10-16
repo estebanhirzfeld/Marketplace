@@ -2,8 +2,10 @@ import type { DnsProviderDto } from '@marketplace/api-contract';
 
 /** Sufijo del nombre de un servidor de nombres → proveedor que lo opera. */
 const PROVIDERS: ReadonlyArray<readonly [suffix: string, provider: DnsProviderDto]> = [
-    // El DNS de Hostinger corre sobre NS1 (verificado en dos dominios reales).
-    ['nsone.net', 'hostinger'],
+    // NS1 es el DNS de Netlify (netlify.app delega en p01.nsone.net). Hostinger
+    // tiene servidores propios: dns-parking.com (tutorial de Hostinger).
+    ['nsone.net', 'netlify'],
+    ['dns-parking.com', 'hostinger'],
     ['cloudflare.com', 'cloudflare'],
     ['domaincontrol.com', 'godaddy'],
     ['registrar-servers.com', 'namecheap'],

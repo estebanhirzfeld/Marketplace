@@ -4,7 +4,7 @@ import { startTransition, useActionState, useEffect, useId, useRef, useState } f
 import { useRouter } from 'next/navigation';
 import type { DomainOwnershipChallengeDto } from '@marketplace/api-contract';
 import type { DomainCheckState } from '@/app/vender/actions';
-import { DNS_PROVIDERS } from '@/lib/dnsProviders';
+import { DNS_CHOICES, DNS_PROVIDERS, dnsChoiceName, type DnsChoice } from '@/lib/dnsProviders';
 import {
     DNS_DELAYED_AFTER_ATTEMPTS,
     DNS_POLL_INTERVAL_MS,
@@ -16,6 +16,7 @@ import {
 import { safeChallenge, safeCheck, visibleCheckState, type ChallengeResult } from '@/lib/dnsDialogActions';
 import { Alert, Button, CheckIcon, ExternalButtonLink } from './ui';
 import { CopyValueButton } from './CopyValueButton';
+import { DnsRecordMock } from './DnsMock';
 import { SubmitButton } from './SubmitButton';
 
 const TXT_LABEL = 'Copiar el valor del registro';
@@ -37,6 +38,10 @@ export function DnsVerificationDialogView({
     onCheckNow,
     onRetryLoad,
     adsenseAction,
+    selectedProvider = null,
+    onSelectProvider,
+    unsureOpen = false,
+    onToggleUnsure,
 }: {
     /** El registro a cargar, o `null` mientras se pide o si no se pudo pedir. */
     challenge: DomainOwnershipChallengeDto | null;
@@ -49,13 +54,28 @@ export function DnsVerificationDialogView({
     /** Vuelve a pedir el registro cuando no se pudo pedir. */
     onRetryLoad?: () => void;
     adsenseAction: () => Promise<void>;
+    /** Dónde dijo el vendedor que maneja su DNS. Nunca se deduce: lo elige él. */
+    selectedProvider?: DnsChoice | null;
+    onSelectProvider?: (choice: DnsChoice) => void;
+    /** «No sé» desplegado. */
+    unsureOpen?: boolean;
+    onToggleUnsure?: () => void;
+    // Los manejadores son opcionales porque `/sistema` pinta cada estado con
+    // `selectedProvider` y `unsureOpen` fijos, sin nada que escuchar.
 }) {
     return (
-        <div className="flex flex-col gap-6 px-6 py-6">
+        <div className="grid md:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="flex min-w-0 flex-col gap-6 px-6 py-6">
             {challenge ? (
                 <>
                     <RecordStep challenge={challenge} />
-                    <ProviderStep challenge={challenge} />
+                    <ProviderStep
+                        challenge={challenge}
+                        selected={selectedProvider}
+                        onSelect={onSelectProvider}
+                        unsureOpen={unsureOpen}
+                        onToggleUnsure={onToggleUnsure}
+                    />
                     <StatusArea status={status} error={error} checking={checking} onCheckNow={onCheckNow} />
                 </>
             ) : loadError ? (
@@ -89,6 +109,12 @@ export function DnsVerificationDialogView({
                 </SubmitButton>
             </form>
         </div>
+        {challenge && (
+            <div className="hidden items-start justify-center border-l border-[var(--color-borde)] bg-[var(--color-fondo)]/60 p-6 md:flex">
+                <DnsRecordMock host={challenge.host} value={challenge.value} />
+            </div>
+        )}
+        </div>
     );
 }
 
@@ -113,36 +139,101 @@ function RecordStep({ challenge }: { challenge: DomainOwnershipChallengeDto }) {
                     <CopyValueButton value={challenge.value} label={TXT_LABEL} />
                 </Row>
             </dl>
+            <p className="text-[13px] text-[var(--color-apagado)]">Si te pide TTL, dejá el valor que viene por defecto.</p>
         </section>
     );
 }
 
-function ProviderStep({ challenge }: { challenge: DomainOwnershipChallengeDto }) {
-    const provider = challenge.provider ? DNS_PROVIDERS[challenge.provider] : null;
+function ProviderStep({
+    challenge,
+    selected,
+    onSelect,
+    unsureOpen,
+    onToggleUnsure,
+}: {
+    challenge: DomainOwnershipChallengeDto;
+    selected: DnsChoice | null;
+    onSelect?: (choice: DnsChoice) => void;
+    unsureOpen: boolean;
+    onToggleUnsure?: () => void;
+}) {
     // En un subdominio la zona es la del dominio principal, que no sabemos nombrar.
     const zone = challenge.host === '@' ? challenge.domain : 'tu dominio';
+    const provider = selected && selected !== 'other' ? DNS_PROVIDERS[selected] : null;
+    const guess = challenge.provider ? DNS_PROVIDERS[challenge.provider] : null;
+    const steps = selected
+        ? [
+              provider ? `Entrá a tu cuenta de ${provider.name}.` : 'Entrá al panel donde administrás el DNS de tu dominio.',
+              `Buscá la sección DNS de ${zone}${provider ? '' : ' (a veces se llama «Zona DNS» o «Registros»)'} y agregá un registro nuevo de tipo TXT.`,
+              'Pegá el nombre y el valor de arriba, y guardá.',
+          ]
+        : [];
     return (
         <section className="flex flex-col gap-3">
-            <StepTitle n={2}>{provider ? `Parece que tu DNS está en ${provider.name}` : 'Cargalo donde administrás tu dominio'}</StepTitle>
-            <ol className="flex flex-col gap-2.5 text-[15px] leading-relaxed text-[#c4c8cd]">
-                {(provider
-                    ? [
-                          `Entrá a tu panel de ${provider.name}.`,
-                          `Abrí la zona DNS de ${zone} y agregá un registro nuevo de tipo TXT.`,
-                          'Pegá el nombre y el valor de arriba, y guardá.',
-                      ]
-                    : [
-                          'Entrá al panel donde administrás tu dominio: donde lo compraste o donde tenés el DNS.',
-                          'Buscá la sección de DNS (a veces se llama «Zona DNS») y agregá un registro nuevo de tipo TXT.',
-                          'Pegá el nombre y el valor de arriba, y guardá.',
-                      ]
-                ).map((text, i) => (
-                    <li key={text} className="flex gap-3">
-                        <span className="font-mono text-[13px] text-[var(--color-apagado)]">{i + 1}.</span>
-                        {text}
-                    </li>
+            <StepTitle n={2}>¿Dónde manejás el DNS de tu dominio?</StepTitle>
+            <div className="flex flex-wrap gap-2">
+                {DNS_CHOICES.map((choice) => (
+                    <button
+                        key={choice}
+                        type="button"
+                        aria-pressed={selected === choice}
+                        onClick={() => onSelect?.(choice)}
+                        className={`min-h-11 rounded-[var(--radius-chico)] border px-3.5 text-[14px] ${
+                            selected === choice
+                                ? 'border-[var(--color-acento)] bg-[var(--color-superficie-alta)] text-[var(--color-tinta)]'
+                                : 'border-[var(--color-borde)] text-[var(--color-tenue)] hover:text-[var(--color-tinta)]'
+                        }`}
+                    >
+                        {dnsChoiceName(choice)}
+                    </button>
                 ))}
-            </ol>
+            </div>
+            <div className="flex flex-col gap-2">
+                <button
+                    type="button"
+                    aria-expanded={unsureOpen}
+                    onClick={onToggleUnsure}
+                    className="min-h-11 self-start text-[14px] text-[var(--color-tenue)] underline underline-offset-[3px] hover:text-[var(--color-tinta)]"
+                >
+                    No sé
+                </button>
+                {unsureOpen && (
+                    <div className="flex flex-col items-start gap-2 rounded-[var(--radius-medio)] border border-[var(--color-borde)] p-4 text-[14px] leading-relaxed text-[var(--color-tenue)]">
+                        {guess && challenge.provider ? (
+                            <>
+                                <p>Por tus servidores DNS, parece que es {guess.name}.</p>
+                                <Button
+                                    type="button"
+                                    variant="secundario"
+                                    onClick={() => challenge.provider && onSelect?.(challenge.provider)}
+                                    className="px-4 py-2.5"
+                                >
+                                    Es {guess.name}
+                                </Button>
+                            </>
+                        ) : (
+                            <p>No pudimos deducirlo de tus servidores DNS.</p>
+                        )}
+                        <p>
+                            En general es donde compraste el dominio, salvo que lo hayas apuntado a otro servicio. En el
+                            panel donde lo compraste, buscá «DNS» o «Servidores de nombres»: si ahí figura otro
+                            servicio, el DNS se maneja allá.
+                        </p>
+                    </div>
+                )}
+            </div>
+            {selected ? (
+                <ol className="flex flex-col gap-2.5 text-[15px] leading-relaxed text-[#c4c8cd]">
+                    {steps.map((text, i) => (
+                        <li key={text} className="flex gap-3">
+                            <span className="font-mono text-[13px] text-[var(--color-apagado)]">{i + 1}.</span>
+                            {text}
+                        </li>
+                    ))}
+                </ol>
+            ) : (
+                <p className="text-[14px] text-[var(--color-tenue)]">Elegí uno y te mostramos los pasos.</p>
+            )}
             {provider && (
                 <ExternalButtonLink href={provider.panelUrl} variant="secundario" className="self-start px-4 py-2.5">
                     Abrir {provider.name}
@@ -283,6 +374,9 @@ export function DnsVerificationDialog({
     );
     const state = visibleCheckState(stamped, session);
     const checkingRef = useRef(false);
+    // Lo que el vendedor eligió vale mientras el diálogo siga abierto.
+    const [selectedProvider, setSelectedProvider] = useState<DnsChoice | null>(null);
+    const [unsureOpen, setUnsureOpen] = useState(false);
 
     useEffect(() => {
         const dialog = dialogRef.current;
@@ -350,6 +444,8 @@ export function DnsVerificationDialog({
             onClose={() => {
                 setAttempts(0);
                 setLoadError(undefined);
+                setSelectedProvider(null);
+                setUnsureOpen(false);
                 sessionRef.current += 1;
                 setSession(sessionRef.current);
                 onClose();
@@ -357,7 +453,7 @@ export function DnsVerificationDialog({
             onClick={(e) => {
                 if (e.target === dialogRef.current) dialogRef.current?.close();
             }}
-            className="m-auto w-[min(640px,calc(100vw-2rem))] max-h-[92vh] overflow-y-auto rounded-[var(--radius-grande)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)] p-0 text-[var(--color-tinta)] backdrop:bg-black/70"
+            className="m-auto w-[min(980px,calc(100vw-2rem))] max-h-[92vh] overflow-y-auto rounded-[var(--radius-grande)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)] p-0 text-[var(--color-tinta)] backdrop:bg-black/70"
         >
             <header className="flex items-center justify-between border-b border-[var(--color-borde)] py-3 pl-6 pr-4">
                 <h2 id={titleId} className="text-[15px] font-medium">
@@ -383,6 +479,10 @@ export function DnsVerificationDialog({
                 onCheckNow={checkNow}
                 onRetryLoad={retryLoad}
                 adsenseAction={adsenseAction}
+                selectedProvider={selectedProvider}
+                onSelectProvider={setSelectedProvider}
+                unsureOpen={unsureOpen}
+                onToggleUnsure={() => setUnsureOpen((v) => !v)}
             />
         </dialog>
     );

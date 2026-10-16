@@ -225,7 +225,9 @@ export function PublishListingForm({
             {state.error && <Alert>{state.error}</Alert>}
             {state.ok && (
                 <div className="rounded-[var(--radius-chico)] border border-[var(--color-acento)]/40 px-4 py-3 text-[13px] text-[var(--color-acento)]">
-                    Activo creado como borrador. Enviálo a revisión cuando esté listo.
+                    {type === 'web'
+                        ? 'Activo creado como borrador. Comprobá que el sitio es tuyo para publicarlo.'
+                        : 'Activo creado como borrador. Enviálo a revisión cuando esté listo.'}
                 </div>
             )}
 
@@ -234,8 +236,9 @@ export function PublishListingForm({
             </Button>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión,
-                y eso requiere tener la identidad verificada.
+                {type === 'web'
+                    ? 'Nace como borrador y no lo ve nadie. Para publicarlo comprobás que el sitio es tuyo con un registro en tu DNS, o lo enviás a revisión.'
+                    : 'Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión, y eso requiere tener la identidad verificada.'}
             </p>
         </form>
     );

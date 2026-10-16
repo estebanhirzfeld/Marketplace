@@ -311,7 +311,7 @@ export interface UpdateCustodyAccountRequest {
 export type VerificationSourceDto = 'youtube' | 'adsense' | 'dns';
 
 /** Proveedor de DNS deducido de los servidores de nombres de un dominio. */
-export type DnsProviderDto = 'hostinger' | 'cloudflare' | 'godaddy' | 'namecheap' | 'route53' | 'donweb';
+export type DnsProviderDto = 'hostinger' | 'cloudflare' | 'godaddy' | 'namecheap' | 'route53' | 'donweb' | 'netlify';
 
 /** Registro TXT que el vendedor tiene que cargar en el DNS de su dominio. */
 export interface DomainOwnershipChallengeDto {
