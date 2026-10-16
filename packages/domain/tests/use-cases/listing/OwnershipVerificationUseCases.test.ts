@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+    GetDomainOwnershipChallengeUseCase,
     VerifyChannelOwnershipUseCase,
+    VerifyDomainOwnershipUseCase,
     VerifyWebsiteRevenueUseCase,
 } from '../../../src/use-cases/listing/VerifyOwnershipUseCases';
 import { IListingRepository } from '../../../src/ports/Repositories';
@@ -8,6 +10,8 @@ import { IYouTubeChannelReader } from '../../../src/ports/IYouTubeChannelReader'
 import {
     AdSenseEarnings,
     IAdSenseReader,
+    IDnsResolver,
+    IOwnershipChallengeIssuer,
     IYouTubeOwnershipReader,
     OwnedYouTubeChannel,
 } from '../../../src/ports/IOwnershipReaders';
@@ -17,7 +21,7 @@ import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../../../src/strategies/WebStrategy';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../../src/errors/DomainError';
+import { ForbiddenError, NotFoundError, ServiceUnavailableError, ValidationError } from '../../../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
 const SELLER_ID = new UniqueEntityID();
@@ -229,6 +233,22 @@ describe('VerifyWebsiteRevenueUseCase', () => {
         expect(adsense.monthlyEarningsFor).toHaveBeenCalledWith(GRANT, 'otrodominio.com');
     });
 
+    it('normaliza el dominio publicado antes de consultar y de guardar', async () => {
+        const repo = createMockListingRepo(unSitio('https://www.Ejemplo.com/'));
+        const adsense = lectorAdSense(UN_INGRESO);
+
+        const constancia = await new VerifyWebsiteRevenueUseCase(repo, adsense).execute('l1', GRANT, SELLER);
+
+        expect(adsense.monthlyEarningsFor).toHaveBeenCalledWith(GRANT, 'ejemplo.com');
+        expect(constancia.assetId).toBe('ejemplo.com');
+    });
+
+    it('falla si el sitio no tiene dominio cargado', async () => {
+        const { uso } = armar(unSitio(''), UN_INGRESO);
+
+        await expect(uso.execute('l1', GRANT, SELLER)).rejects.toThrow(/dominio/);
+    });
+
     it('falla si el activo no es un sitio web', async () => {
         const { uso } = armar(unCanalPublicado(), UN_INGRESO);
 
@@ -239,5 +259,275 @@ describe('VerifyWebsiteRevenueUseCase', () => {
         const { uso } = armar(unSitio(), UN_INGRESO);
 
         await expect(uso.execute('l1', GRANT, AJENO)).rejects.toThrow(ForbiddenError);
+    });
+});
+
+// ═════════════════════════════════════════════════════════
+
+const VALOR_TXT = 'traspaso-verificacion=0123456789abcdef01234567';
+
+const emisor = (): IOwnershipChallengeIssuer => ({
+    tokenFor: vi.fn().mockReturnValue(VALOR_TXT),
+});
+
+const resolvedor = (txt: string[], nameservers: string[] = ['ns1.nsone.net']): IDnsResolver => ({
+    nameserversOf: vi.fn().mockResolvedValue(nameservers),
+    txtRecordsOf: vi.fn().mockResolvedValue(txt),
+});
+
+describe('GetDomainOwnershipChallengeUseCase', () => {
+    function armar(listing: Listing | null, dns: IDnsResolver = resolvedor([])) {
+        const repo = createMockListingRepo(listing);
+        const issuer = emisor();
+        return { uso: new GetDomainOwnershipChallengeUseCase(repo, issuer, dns), repo, issuer, dns };
+    }
+
+    it('devuelve el registro TXT que el vendedor tiene que cargar', async () => {
+        const { uso } = armar(unSitio());
+
+        const desafio = await uso.execute('l1', SELLER);
+
+        expect(desafio).toEqual({
+            domain: 'ejemplo.com',
+            host: '@',
+            value: VALOR_TXT,
+            nameservers: ['ns1.nsone.net'],
+        });
+    });
+
+    it('indica el nombre completo como host cuando el dominio es un subdominio', async () => {
+        const { uso } = armar(unSitio('https://blog.ejemplo.com/'), resolvedor([], []));
+
+        const desafio = await uso.execute('l1', SELLER);
+
+        expect(desafio.host).toBe('blog.ejemplo.com');
+        expect(desafio.domain).toBe('blog.ejemplo.com');
+        expect(desafio.nameservers).toEqual([]);
+    });
+
+    it('deriva el valor del listing y del dominio normalizado', async () => {
+        const listing = unSitio('https://WWW.Ejemplo.com/inicio');
+        const { uso, issuer } = armar(listing);
+
+        const desafio = await uso.execute('l1', SELLER);
+
+        expect(desafio.domain).toBe('ejemplo.com');
+        expect(issuer.tokenFor).toHaveBeenCalledWith(listing.id.toString(), 'ejemplo.com');
+    });
+
+    it('consulta los servidores de nombres del dominio normalizado', async () => {
+        const { uso, dns } = armar(unSitio('www.ejemplo.com'));
+
+        await uso.execute('l1', SELLER);
+
+        expect(dns.nameserversOf).toHaveBeenCalledWith('ejemplo.com');
+    });
+
+    it('deja pedirlo a un admin', async () => {
+        const { uso } = armar(unSitio());
+
+        await expect(uso.execute('l1', ADMIN)).resolves.toBeDefined();
+    });
+
+    it('rechaza a un tercero', async () => {
+        const { uso } = armar(unSitio());
+
+        await expect(uso.execute('l1', AJENO)).rejects.toThrow(ForbiddenError);
+    });
+
+    it('falla si el listing no existe', async () => {
+        const { uso } = armar(null);
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(NotFoundError);
+    });
+
+    it('falla si el activo no es un sitio web', async () => {
+        const { uso } = armar(unCanalPublicado());
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ValidationError);
+    });
+
+    it('falla si el sitio no tiene dominio cargado', async () => {
+        const { uso } = armar(unSitio(''));
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ValidationError);
+    });
+
+    it('falla si el dominio cargado no es válido', async () => {
+        const { uso } = armar(unSitio('sin extension'));
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ValidationError);
+    });
+
+    it('no oculta una falla del resolvedor', async () => {
+        const dns = resolvedor([]);
+        dns.nameserversOf = vi.fn().mockRejectedValue(new ServiceUnavailableError('sin red'));
+        const { uso } = armar(unSitio(), dns);
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ServiceUnavailableError);
+    });
+});
+
+describe('VerifyDomainOwnershipUseCase', () => {
+    function armar(listing: Listing | null, txt: string[]) {
+        const repo = createMockListingRepo(listing);
+        const dns = resolvedor(txt);
+        return { uso: new VerifyDomainOwnershipUseCase(repo, emisor(), dns), repo, dns };
+    }
+
+    it('deja constancia cuando el TXT esperado está publicado', async () => {
+        const listing = unSitio();
+        const { uso, repo } = armar(listing, ['v=spf1 -all', VALOR_TXT]);
+
+        const resultado = await uso.execute('l1', SELLER);
+
+        expect(resultado).toEqual({ verified: true });
+        expect(listing.isOwnershipVerified()).toBe(true);
+        expect(listing.ownershipVerification?.source).toBe('dns');
+        expect(listing.ownershipVerification?.assetId).toBe('ejemplo.com');
+        expect(listing.ownershipVerification?.verifiedBy.toString()).toBe(SELLER.id);
+        expect(listing.ownershipVerification?.monthlyRevenueCents).toBeUndefined();
+        expect(repo.save).toHaveBeenCalledOnce();
+    });
+
+    it('consulta los TXT del dominio normalizado', async () => {
+        const { uso, dns } = armar(unSitio('https://www.Ejemplo.com/'), [VALOR_TXT]);
+
+        await uso.execute('l1', SELLER);
+
+        expect(dns.txtRecordsOf).toHaveBeenCalledWith('ejemplo.com');
+    });
+
+    /**
+     * Como en las otras fuentes, la constancia nombra al vendedor: el TXT prueba
+     * que él controla el DNS, aunque la consulta la dispare un admin.
+     */
+    it('registra al vendedor aunque la comprobación la pida un admin', async () => {
+        const listing = unSitio();
+        const { uso } = armar(listing, [VALOR_TXT]);
+
+        await uso.execute('l1', ADMIN);
+
+        expect(listing.ownershipVerification?.verifiedBy.toString()).toBe(SELLER.id);
+    });
+
+    it('acepta el valor aunque venga con espacios alrededor', async () => {
+        const listing = unSitio();
+        const { uso } = armar(listing, [`  ${VALOR_TXT}\t`]);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: true });
+        expect(listing.isOwnershipVerified()).toBe(true);
+    });
+
+    it('responde que no está verificado, sin guardar, si el TXT no aparece', async () => {
+        const listing = unSitio();
+        const { uso, repo } = armar(listing, ['v=spf1 -all', 'google-site-verification=abc']);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: false });
+        expect(listing.isOwnershipVerified()).toBe(false);
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('responde que no está verificado si el dominio no existe (sin registros)', async () => {
+        const { uso, repo } = armar(unSitio(), []);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: false });
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('ignora un valor parecido pero no idéntico', async () => {
+        const { uso } = armar(unSitio(), ['traspaso-verificacion=0123456789abcdef0123456']);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: false });
+    });
+
+    /**
+     * Si ya hay una constancia por DNS del mismo dominio, volver a comprobar no
+     * debe reescribirla (cambiaría la fecha) ni exigir que el TXT siga ahí:
+     * revocar la constancia por un TXT borrado queda fuera del alcance.
+     */
+    it('es idempotente: con constancia previa de DNS para el mismo dominio no consulta ni guarda', async () => {
+        const listing = unSitio();
+        listing.registerOwnershipVerification({
+            verifiedBy: SELLER_ID,
+            assetId: 'ejemplo.com',
+            source: 'dns',
+        });
+        const antes = listing.ownershipVerification;
+        const { uso, repo, dns } = armar(listing, []);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: true });
+        expect(listing.ownershipVerification).toBe(antes);
+        expect(dns.txtRecordsOf).not.toHaveBeenCalled();
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    /**
+     * AdSense también prueba la titularidad y además trae los ingresos
+     * verificados: pisarla con DNS los perdería.
+     */
+    it('respeta una constancia de AdSense del mismo dominio: no consulta ni guarda', async () => {
+        const listing = unSitio();
+        listing.registerOwnershipVerification({
+            verifiedBy: SELLER_ID,
+            assetId: 'Ejemplo.com ',
+            source: 'adsense',
+            monthlyRevenueCents: 78_450,
+        });
+        const antes = listing.ownershipVerification;
+        const { uso, repo, dns } = armar(listing, [VALOR_TXT]);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: true });
+        expect(listing.ownershipVerification).toBe(antes);
+        expect(dns.txtRecordsOf).not.toHaveBeenCalled();
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('comprueba el TXT si la constancia previa es de otro dominio', async () => {
+        const listing = unSitio();
+        listing.registerOwnershipVerification({
+            verifiedBy: SELLER_ID,
+            assetId: 'otrodominio.com',
+            source: 'adsense',
+        });
+        const { uso, repo } = armar(listing, [VALOR_TXT]);
+
+        await expect(uso.execute('l1', SELLER)).resolves.toEqual({ verified: true });
+        expect(listing.ownershipVerification?.source).toBe('dns');
+        expect(listing.ownershipVerification?.assetId).toBe('ejemplo.com');
+        expect(repo.save).toHaveBeenCalledOnce();
+    });
+
+    it('rechaza a un tercero', async () => {
+        const { uso } = armar(unSitio(), [VALOR_TXT]);
+
+        await expect(uso.execute('l1', AJENO)).rejects.toThrow(ForbiddenError);
+    });
+
+    it('falla si el listing no existe', async () => {
+        const { uso } = armar(null, [VALOR_TXT]);
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(NotFoundError);
+    });
+
+    it('falla si el activo no es un sitio web', async () => {
+        const { uso } = armar(unCanalPublicado(), [VALOR_TXT]);
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ValidationError);
+    });
+
+    it('falla si el sitio no tiene dominio cargado', async () => {
+        const { uso } = armar(unSitio(''), [VALOR_TXT]);
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ValidationError);
+    });
+
+    it('no oculta una falla del resolvedor ni guarda nada', async () => {
+        const listing = unSitio();
+        const { uso, repo, dns } = armar(listing, []);
+        dns.txtRecordsOf = vi.fn().mockRejectedValue(new ServiceUnavailableError('sin red'));
+
+        await expect(uso.execute('l1', SELLER)).rejects.toThrow(ServiceUnavailableError);
+        expect(repo.save).not.toHaveBeenCalled();
     });
 });

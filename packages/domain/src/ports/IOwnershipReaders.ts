@@ -61,3 +61,33 @@ export interface IAdSenseReader {
      */
     monthlyEarningsFor(grant: string, domain: string): Promise<AdSenseEarnings | null>;
 }
+
+/**
+ * Emite el valor que el vendedor tiene que publicar en el DNS de su dominio
+ * para demostrar que lo controla.
+ *
+ * Es una función pura de `(listing, dominio)`: el mismo par da siempre el mismo
+ * valor, así que no hace falta guardarlo y el vendedor puede pedirlo las veces
+ * que quiera. Ligarlo al listing evita que un TXT publicado para un sitio sirva
+ * para otro.
+ */
+export interface IOwnershipChallengeIssuer {
+    /** El valor completo del registro TXT, por ejemplo `traspaso-verificacion=<hex>`. */
+    tokenFor(listingId: string, domain: string): string;
+}
+
+/**
+ * Consulta de DNS para la titularidad de un sitio.
+ *
+ * Que el nombre no exista no es un error: los dos métodos devuelven `[]`, y
+ * "todavía no está el registro" es justamente la respuesta esperada mientras el
+ * vendedor lo carga. Solo una falla de transporte (red caída, tiempo agotado,
+ * servidores que no responden) se informa lanzando `ServiceUnavailableError`,
+ * para que el transporte pueda pedir que se reintente más tarde.
+ */
+export interface IDnsResolver {
+    /** Servidores de nombres autoritativos del dominio. Vacío si no existe. */
+    nameserversOf(domain: string): Promise<string[]>;
+    /** Valores de los registros TXT del dominio, uno por registro. Vacío si no existe. */
+    txtRecordsOf(domain: string): Promise<string[]>;
+}

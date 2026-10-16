@@ -53,10 +53,10 @@ export class WebStrategy implements IAssetStrategy {
                 domain,
             ],
             summaryMetricKeys: ['domainAuthority', 'monthlyRevenueUsdCents'],
-            ownershipSource: 'adsense',
+            ownershipSource: 'dns',
             transferWaitingDays: this.transferWaitingDays(),
             handoverNotice:
-                'No lo detectamos solos: ningún registrador expone por API quién controla un dominio.',
+                'No lo detectamos solos: ningún registrador informa por API quién es el titular de un dominio. El registro DNS prueba que controlás los servidores de nombres, no que figurás como titular en el registrador.',
             /*
              * No hay espera para transferir, pero sí algo que avisar.
              *
@@ -70,7 +70,7 @@ export class WebStrategy implements IAssetStrategy {
             waitingNotice:
                 'Un sitio se transfiere de inmediato, pero cambiar el titular de un dominio activa un bloqueo de 60 días de la ICANN para moverlo a otro registrador. No afecta la propiedad —el dominio es tuyo desde el traspaso— pero durante ese plazo no vas a poder llevártelo a un registrador distinto.',
             revenueNotice:
-                'Se comprueba junto con la titularidad: AdSense informa cuánto genera el dominio.',
+                'La titularidad se comprueba con un registro en el DNS del dominio. Conectar AdSense es opcional: es lo que además comprueba cuánto genera el sitio; sin eso, el ingreso queda como declaración tuya.',
         };
     }
 
