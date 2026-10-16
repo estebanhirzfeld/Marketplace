@@ -16,7 +16,7 @@ import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
 import { VerificationSeal } from '@/components/VerificationSeal';
 import { YouTubeConnectStep } from '@/components/YouTubeConnectStep';
 import { YouTubeListingForm } from '@/components/YouTubeListingForm';
-import { AssetTypeCard, WebLogo, YouTubeLogo } from '@/components/AssetTypeCard';
+import { AssetMark, AssetTypeCard, WebLogo, WebMark, YouTubeLogo } from '@/components/AssetTypeCard';
 import { SellSteps } from '@/components/SellSteps';
 import { PriceSectionDemo } from './PriceSectionDemo';
 import { InstructionsModal } from '@/components/InstructionsModal';
@@ -25,7 +25,8 @@ import { DraftPanel } from '@/components/DraftPanel';
 import { SellMoreAside } from '@/components/SellMoreAside';
 import { EditListingDialog } from '@/components/EditListingDialog';
 import { DiscardDraftButton } from '@/components/DiscardDraftButton';
-import { AssetSummaryCard } from '@/components/AssetSummaryCard';
+import { AssetSummaryCard, OwnershipCheck, OwnershipProof } from '@/components/AssetSummaryCard';
+import { SendToReviewLink } from '@/components/SendToReviewLink';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { WhyPopover } from '@/components/WhyPopover';
@@ -694,7 +695,7 @@ export default function Sistema() {
 
                 <Section
                     title="Elegir qué vender"
-                    note="La entrada de /vender: una tarjeta por tipo de activo, con el logo, qué se hace y la llamada abajo. La de YouTube envía una acción (abre Google) cuando no hay canales conectados; con canales, o en la de sitio web, es un enlace. Arriba del recorrido, los pasos de cada tipo con el actual resaltado."
+                    note="La entrada de /vender: una tarjeta por tipo de activo, con el logo, qué se hace y la llamada abajo. La de YouTube envía una acción (abre Google) cuando no hay canales conectados; con canales, o en la de sitio web, es un enlace. Arriba del recorrido, los pasos de cada tipo con el actual resaltado. El logo del sitio es una ventana de navegador (cuerpo blanco, barra azul con tres puntos y dos renglones) del mismo tamaño que el de YouTube: la forma misma es la marca, sin plataformas apiladas detrás."
                 >
                     <div className="grid gap-8 lg:grid-cols-2">
                         <AssetTypeCard
@@ -988,7 +989,7 @@ export default function Sistema() {
 
                 <Section
                     title="Nivel de vendedor"
-                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Debajo del anillo, un desglose con el logo de cada logro (en la titularidad, la marca del tipo de activo: YouTube o el sitio): los que ya están llevan un tilde y sus puntos, los que faltan van apagados, y la fila de Mercado Pago no aparece cuando no está disponible. Lo que falta va en tarjetas con su botón; la identidad queda en una sola línea."
+                    note="Titularidad suma 1, acceso de administración suma 2 y Mercado Pago suma 1, sobre 4 (sobre 3 cuando Mercado Pago no está disponible: no se ofrece ni suma). La identidad verificada es requisito para publicar y no suma. Debajo del anillo, un desglose con el logo de cada logro (en la titularidad, la marca del tipo de activo: YouTube o el sitio): los que ya están llevan un tilde y sus puntos, los que faltan van apagados, y la fila de Mercado Pago no aparece cuando no está disponible. Lo que falta va en tarjetas con su botón; la identidad queda en una sola línea. En un sitio la titularidad no es una tarjeta aparte: el bloque «Comprobá que el sitio es tuyo» vive dentro de la tarjeta del sitio, junto a su nombre, y al comprobarse se cambia por una línea de constancia. El anillo va a la izquierda del título y el desglose ocupa el ancho, igual para YouTube y para el sitio."
                 >
                     <div className="flex flex-col gap-8">
                         <div className="flex flex-wrap gap-4">
@@ -999,8 +1000,38 @@ export default function Sistema() {
                             <div className="w-[260px]"><SellerLevelGauge assetType="web" ownershipVerified accessRegistered={false} /></div>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL SITIO EN LAS VERIFICACIONES — SE ALINEA ARRIBA, MIDE LO QUE SU CONTENIDO</div>
-                            <AssetSummaryCard name="Tienda de muestra" assetLabel="Sitio web" note="La titularidad se comprueba con un registro en el DNS del dominio." />
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LOGO DEL SITIO — EN /VENDER, EN LA TARJETA Y EN LAS FILAS CHICAS</div>
+                            <div className="flex flex-wrap items-center gap-6">
+                                <WebLogo />
+                                <WebMark width={52} />
+                                <AssetMark assetType="web" width={22} />
+                                <YouTubeLogo />
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL SITIO EN LAS VERIFICACIONES — PIDE LA TITULARIDAD, CON LA SALIDA DE QUIEN NO PUEDE CARGAR EL REGISTRO</div>
+                            <div className="grid gap-4 lg:grid-cols-[5fr_2fr]">
+                                <AssetSummaryCard name="Siteweb" subtitle="deliaorrego.online · Entretenimiento" mark={<WebMark width={52} />}>
+                                    <OwnershipCheck
+                                        action={<DnsVerificationTrigger className="min-h-11 px-[18px] py-3" getChallenge={noopDnsChallenge} checkAction={noopDnsCheck} adsenseAction={noopVoid} />}
+                                        alternative={<SendToReviewLink action={noop} />}
+                                    />
+                                </AssetSummaryCard>
+                                <SellerLevelGauge assetType="web" ownershipVerified={false} accessRegistered={false} mercadoPago="linked" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL SITIO CON TITULARIDAD COMPROBADA — LA CONSTANCIA EN VEZ DEL BLOQUE</div>
+                            <div className="grid gap-4 lg:grid-cols-[5fr_2fr]">
+                                <AssetSummaryCard name="Siteweb" subtitle="deliaorrego.online · Entretenimiento" mark={<WebMark width={52} />}>
+                                    <OwnershipProof sourceLabel="tu DNS" />
+                                </AssetSummaryCard>
+                                <SellerLevelGauge assetType="web" ownershipVerified accessRegistered={false} mercadoPago="linked" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DEL ACTIVO SIN MARCA NI BLOQUE — SE ALINEA ARRIBA, MIDE LO QUE SU CONTENIDO</div>
+                            <AssetSummaryCard name="Tienda de muestra" subtitle="Sitio web" note="La titularidad se comprueba con un registro en el DNS del dominio." />
                         </div>
                         <VerificationCards
                             ownership={{ done: true, sourceLabel: 'YouTube', verifiedAt: AHORA_DE_MUESTRA }}
@@ -1015,20 +1046,26 @@ export default function Sistema() {
 
                 <Section
                     title="Titularidad de un sitio por DNS"
-                    note="El sitio comprueba que es del vendedor con un registro TXT en su DNS, sin depender de AdSense. El diálogo tiene dos pasos: el registro, con el valor para copiar y la aclaración de dejar el TTL como viene, y el panel donde cargarlo. El proveedor lo elige el vendedor: no se preselecciona nunca, porque deducirlo de los servidores de nombres puede fallar (un dominio comprado en Hostinger puede tener el DNS en Netlify, que usa nsone.net). «No sé» muestra lo que se deduce, con un botón para elegirlo, y cómo averiguarlo. «Otro» da pasos genéricos. A la derecha, en pantallas anchas, una maqueta genérica de un panel de DNS escribe el valor real del registro y lo guarda; no es de ningún proveedor y, con movimiento reducido, queda en su estado final. Mientras el diálogo está abierto consulta cada 10 segundos, unos 5 minutos como máximo: primero dice que lo busca, después que puede tardar, al final deja de buscar y pide avisar con «Ya lo cargué». AdSense queda como alternativa al pie, porque además verifica los ingresos."
+                    note="El sitio comprueba que es del vendedor con un registro TXT en su DNS, sin depender de AdSense. Tres pantallas. La primera es solo la pregunta, centrada, con ocho opciones en cuatro por dos y «No sé»: no hay nada más hasta contestar. Al elegir, las opciones pasan de golpe a una columna a la izquierda (sin animación) y a la derecha entra, con un fundido, «Vas a cargarlo en…» con los tres pasos. El proveedor lo elige el vendedor y nunca se preselecciona: deducirlo de los servidores de nombres puede fallar (un dominio comprado en Hostinger puede tener el DNS en Netlify, que usa nsone.net). «No sé» elige lo que se deduce y lo dice, con cómo averiguarlo; si no se deduce nada, lo dice y no elige. «Otro» da pasos genéricos. La segunda pantalla es el registro, con el valor para copiar, la aclaración del TTL y, en pantallas anchas, una maqueta genérica de un panel de DNS que escribe el valor real; con movimiento reducido queda en su estado final. «Ya lo cargué» lleva a la tercera, la lista de lo que se comprobó: mientras busca gira un indicador, y al encontrar el registro dice «Listo» y ofrece publicar. Consulta cada 10 segundos, unos 5 minutos como máximo: primero dice que lo busca, después que puede tardar, al final deja de buscar y pide «Buscar de nuevo». AdSense queda como alternativa en la pantalla del registro, porque además verifica los ingresos."
                 >
                     <div className="grid gap-8">
                         {(
                             [
-                                ['SIN ELEGIR · BUSCANDO', { challenge: DNS_NETLIFY, status: 'searching' }],
-                                ['PROVEEDOR ELEGIDO · BUSCANDO', { challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify' }],
-                                ['«NO SÉ» · SE DEDUCE EL PROVEEDOR', { challenge: DNS_NETLIFY, status: 'searching', unsureOpen: true }],
-                                ['«NO SÉ» · NO SE PUDO DEDUCIR', { challenge: DNS_UNKNOWN, status: 'searching', unsureOpen: true }],
-                                ['«OTRO» · TODAVÍA NO', { challenge: DNS_UNKNOWN, status: 'delayed', selectedProvider: 'other' }],
-                                ['SUBDOMINIO · DEJÓ DE BUSCAR', { challenge: DNS_SUBDOMAIN, status: 'stopped', selectedProvider: 'cloudflare' }],
-                                ['VERIFICADO', { challenge: DNS_NETLIFY, status: 'verified', selectedProvider: 'netlify' }],
-                                ['SIN CONFIGURAR', { challenge: DNS_NETLIFY, status: 'error', error: 'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.' }],
+                                ['1 · SIN ELEGIR — LA PREGUNTA CENTRADA', { challenge: DNS_NETLIFY, status: 'searching' }],
+                                ['1 · PROVEEDOR ELEGIDO — OPCIONES A LA IZQUIERDA, PASOS A LA DERECHA', { challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify' }],
+                                ['1 · «NO SÉ» — SE DEDUCE EL PROVEEDOR', { challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify', unsure: true }],
+                                ['1 · «NO SÉ» — NO SE PUDO DEDUCIR', { challenge: DNS_UNKNOWN, status: 'searching', unsure: true }],
+                                ['1 · «OTRO» — PASOS GENÉRICOS', { challenge: DNS_UNKNOWN, status: 'searching', selectedProvider: 'other' }],
+                                ['2 · EL REGISTRO EN UN PROVEEDOR', { step: 'record', challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify' }],
+                                ['2 · EL REGISTRO DE UN SUBDOMINIO, EN «OTRO»', { step: 'record', challenge: DNS_SUBDOMAIN, status: 'searching', selectedProvider: 'other' }],
+                                ['3 · BUSCANDO', { step: 'result', challenge: DNS_NETLIFY, status: 'searching', selectedProvider: 'netlify' }],
+                                ['3 · TODAVÍA NO LO VE', { step: 'result', challenge: DNS_UNKNOWN, status: 'delayed', selectedProvider: 'other' }],
+                                ['3 · DEJÓ DE BUSCAR', { step: 'result', challenge: DNS_SUBDOMAIN, status: 'stopped', selectedProvider: 'cloudflare' }],
+                                ['3 · SIN CONFIGURAR', { step: 'result', challenge: DNS_NETLIFY, status: 'error', selectedProvider: 'netlify', error: 'La comprobación por DNS todavía no está disponible. Probá más tarde o comprobalo con AdSense.' }],
+                                ['3 · VERIFICADO — PUBLICAR', { step: 'result', challenge: DNS_NETLIFY, status: 'verified', selectedProvider: 'netlify', publishAction: noop }],
+                                ['3 · VERIFICADO — SIN BORRADOR QUE PUBLICAR', { step: 'result', challenge: DNS_NETLIFY, status: 'verified', selectedProvider: 'netlify' }],
                                 ['PREPARANDO EL REGISTRO', { challenge: null, status: 'searching' }],
+                                ['NO SE PUDO PEDIR EL REGISTRO', { challenge: null, status: 'searching', loadError: 'No pudimos consultar tu DNS. Probá de nuevo.' }],
                             ] as const
                         ).map(([label, props]) => (
                             <div key={label} className="flex flex-col gap-3">
@@ -1040,24 +1077,6 @@ export default function Sistema() {
                         ))}
                     </div>
                     <div className="mt-8 flex flex-col gap-8">
-                        <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">TARJETA DE TITULARIDAD CON DNS</div>
-                            <VerificationCards
-                                ownership={{ done: false, sourceLabel: 'tu DNS' }}
-                                mercadoPago={{ done: true }}
-                                ownershipSource="tu DNS"
-                                kycVerified
-                                verifyAction={noopVoid}
-                                dnsVerification={
-                                    <DnsVerificationTrigger
-                                        className="px-[18px] py-3"
-                                        getChallenge={noopDnsChallenge}
-                                        checkAction={noopDnsCheck}
-                                        adsenseAction={noopVoid}
-                                    />
-                                }
-                            />
-                        </div>
                         <div className="flex max-w-[640px] flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">BORRADOR DE UN SITIO SIN TITULARIDAD</div>
                             <DraftPanel
@@ -1075,6 +1094,7 @@ export default function Sistema() {
                                         getChallenge={noopDnsChallenge}
                                         checkAction={noopDnsCheck}
                                         adsenseAction={noopVoid}
+                                        publishAction={noop}
                                     />
                                 }
                             />

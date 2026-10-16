@@ -18,7 +18,9 @@ import { DraftPanel } from '@/components/DraftPanel';
 import { SellMoreAside } from '@/components/SellMoreAside';
 import { EditListingDialog } from '@/components/EditListingDialog';
 import { DiscardDraftButton } from '@/components/DiscardDraftButton';
-import { AssetSummaryCard } from '@/components/AssetSummaryCard';
+import { AssetSummaryCard, OwnershipCheck, OwnershipProof } from '@/components/AssetSummaryCard';
+import { WebMark } from '@/components/AssetTypeCard';
+import { SendToReviewLink } from '@/components/SendToReviewLink';
 import { SellerLevelGauge } from '@/components/SellerLevelGauge';
 import { VerificationCards } from '@/components/VerificationCards';
 import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
@@ -164,15 +166,20 @@ export default async function DetalleDeActivo(props: {
     const verifyAction = startVerification.bind(null, id, oauthOwnershipSource(listing.descriptor.ownershipSource));
     // El registro se pide al abrir el diálogo y no acá: resolver los servidores
     // de nombres es una consulta de red que no vale pagar en cada visita.
+    const dnsSource = listing.descriptor.ownershipSource === 'dns';
     const dnsTrigger = (className: string) =>
-        listing.descriptor.ownershipSource === 'dns' ? (
+        dnsSource ? (
             <DnsVerificationTrigger
                 className={className}
                 getChallenge={getDomainOwnershipChallenge.bind(null, id)}
                 checkAction={checkDomainOwnership.bind(null, id)}
                 adsenseAction={startVerification.bind(null, id, 'adsense')}
+                // Al comprobarse, el diálogo ofrece publicar sin salir de él.
+                publishAction={mio.status === 'draft' ? publishDraft.bind(null, id) : undefined}
             />
         ) : undefined;
+    const isWeb = mio.assetType === 'web';
+    const domain = typeof listing.assetData.domain === 'string' ? listing.assetData.domain : '';
     const now = new Date().toISOString();
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
@@ -387,7 +394,26 @@ export default async function DetalleDeActivo(props: {
                         {canal ? (
                             <VerifiedChannelCard channel={canal} avatarShape="square" />
                         ) : (
-                            <AssetSummaryCard name={nombre} assetLabel={listing.descriptor.label} note={ingresoMensual} />
+                            <AssetSummaryCard
+                                name={nombre}
+                                subtitle={isWeb ? [domain, rubro].filter(Boolean).join(' · ') : listing.descriptor.label}
+                                note={isWeb ? undefined : ingresoMensual}
+                                mark={isWeb ? <WebMark width={52} /> : undefined}
+                            >
+                                {dnsSource &&
+                                    (mio.ownership ? (
+                                        <OwnershipProof sourceLabel={ownershipSourceLabel(mio.ownership.source)} />
+                                    ) : (
+                                        <OwnershipCheck
+                                            action={dnsTrigger('min-h-11 px-[18px] py-3')}
+                                            alternative={
+                                                mio.status === 'draft' ? (
+                                                    <SendToReviewLink action={submitForReview.bind(null, id)} />
+                                                ) : undefined
+                                            }
+                                        />
+                                    ))}
+                            </AssetSummaryCard>
                         )}
                         <SellerLevelGauge assetType={mio.assetType} ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
                     </div>

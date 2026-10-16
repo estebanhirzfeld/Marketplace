@@ -30,7 +30,7 @@ describe('VerificationCards', () => {
         expect(html).toContain('Identidad verificada · requisito para publicar');
     });
 
-    it('con DNS la tarjeta de titularidad abre el diálogo en vez de redirigir a Google', () => {
+    it('con DNS la comprobación vive en la tarjeta del sitio: acá no se repite', () => {
         const html = renderToStaticMarkup(
             <VerificationCards
                 {...base}
@@ -40,10 +40,26 @@ describe('VerificationCards', () => {
             />,
         );
 
-        expect(html).toContain('Comprobar titularidad');
-        expect(html).toContain('Comprobar con tu DNS');
+        expect(html).not.toContain('Comprobar titularidad');
+        expect(html).not.toContain('Comprobar con tu DNS');
         expect(html).not.toContain('Redirigiendo a Google');
         expect(html).not.toContain('<form');
+        // Mercado Pago sigue pidiendo su vinculación.
+        expect(html).toContain('Vincular');
+    });
+
+    it('si no falta ninguna tarjeta no deja la grilla vacía', () => {
+        const html = renderToStaticMarkup(
+            <VerificationCards
+                {...base}
+                ownership={{ done: false, sourceLabel: 'tu DNS' }}
+                mercadoPago={{ done: true }}
+                dnsVerification={<button type="button">Comprobar con tu DNS</button>}
+            />,
+        );
+
+        expect(html).not.toContain('md:grid-cols-2');
+        expect(html).toContain('Identidad verificada');
     });
 
     it('sin DNS la tarjeta sigue redirigiendo a Google', () => {

@@ -25,47 +25,50 @@ export function VerificationCards({
     kycVerified: boolean;
     verifyAction: () => Promise<void>;
     /**
-     * El botón que abre el diálogo de DNS. Cuando la fuente es DNS reemplaza al
-     * formulario que redirige a Google: no hay cuenta a la que ir, hay un
-     * registro que cargar.
+     * Que la fuente es DNS. La comprobación no redirige a Google: hay un
+     * registro que cargar, y su botón vive en la tarjeta del activo (junto al
+     * nombre del sitio), no en otra tarjeta. Acá no se repite.
      */
     dnsVerification?: React.ReactNode;
 }) {
+    const showOwnership = !ownership.done && !dnsVerification;
+    const showMercadoPago = !mercadoPago.done && !mercadoPago.unavailable;
+
     return (
         <>
-            <div className="grid gap-4 md:grid-cols-2">
-                {!ownership.done && (
-                    <Card
-                        icon={<span className="font-mono text-[20px] text-[var(--color-acento)]">✓</span>}
-                        title="Comprobar titularidad"
-                        points="+1 NIVEL"
-                        text="Publicás sin revisión y tus números llevan sello."
-                    >
-                        {dnsVerification ?? (
+            {(showOwnership || showMercadoPago) && (
+                <div className="grid gap-4 md:grid-cols-2">
+                    {showOwnership && (
+                        <Card
+                            icon={<span className="font-mono text-[20px] text-[var(--color-acento)]">✓</span>}
+                            title="Comprobar titularidad"
+                            points="+1 NIVEL"
+                            text="Publicás sin revisión y tus números llevan sello."
+                        >
                             <form action={verifyAction}>
                                 <SubmitButton pendingText="Redirigiendo a Google…" className="px-[18px] py-3">
                                     Comprobar con {ownershipSource}
                                 </SubmitButton>
                             </form>
-                        )}
-                    </Card>
-                )}
-                {!mercadoPago.done && !mercadoPago.unavailable && (
-                    <Card
-                        icon={
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src="/logos/mercadopago.svg" alt="" className="h-[34px] w-auto flex-none" />
-                        }
-                        title="Mercado Pago"
-                        points="+1 NIVEL"
-                        text="El comprador puede pagarte con Mercado Pago y cobrás directo en tu cuenta."
-                    >
-                        <ButtonLink href="/perfil#mercadopago" variant="secundario" className="px-[18px] py-3">
-                            Vincular
-                        </ButtonLink>
-                    </Card>
-                )}
-            </div>
+                        </Card>
+                    )}
+                    {showMercadoPago && (
+                        <Card
+                            icon={
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src="/logos/mercadopago.svg" alt="" className="h-[34px] w-auto flex-none" />
+                            }
+                            title="Mercado Pago"
+                            points="+1 NIVEL"
+                            text="El comprador puede pagarte con Mercado Pago y cobrás directo en tu cuenta."
+                        >
+                            <ButtonLink href="/perfil#mercadopago" variant="secundario" className="px-[18px] py-3">
+                                Vincular
+                            </ButtonLink>
+                        </Card>
+                    )}
+                </div>
+            )}
 
             <ul className="flex flex-wrap gap-x-6 gap-y-2 pt-1 text-[14px] text-[var(--color-tenue)]">
                 {kycVerified ? (

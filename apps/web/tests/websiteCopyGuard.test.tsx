@@ -8,7 +8,9 @@ import { SellMoreAside } from '@/components/SellMoreAside';
 import { VerificationCards } from '@/components/VerificationCards';
 import { DraftPanel } from '@/components/DraftPanel';
 import { PriceSection } from '@/components/PriceSection';
-import { AssetSummaryCard } from '@/components/AssetSummaryCard';
+import { AssetSummaryCard, OwnershipCheck, OwnershipProof } from '@/components/AssetSummaryCard';
+import { SendToReviewLink } from '@/components/SendToReviewLink';
+import { AssetMark, WebLogo } from '@/components/AssetTypeCard';
 import { AccessInbox } from '@/components/AdminInbox';
 import { DnsVerificationDialogView } from '@/components/DnsVerificationDialog';
 import { PublishListingForm } from '@/components/PublishListingForm';
@@ -188,16 +190,30 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
         }
     });
 
-    it('la tarjeta del activo en las verificaciones', () => {
+    it('la tarjeta del sitio en las verificaciones, pidiendo la titularidad y con la constancia', () => {
+        const mark = <AssetMark assetType="web" width={52} />;
         expectNoYouTube(
             renderToStaticMarkup(
-                <AssetSummaryCard
-                    name="Mi tienda"
-                    assetLabel="Sitio web"
-                    note="La titularidad se comprueba con un registro en el DNS del dominio."
-                />,
+                <AssetSummaryCard name="Mi tienda" subtitle="ejemplo.com · Comercio" mark={mark}>
+                    <OwnershipCheck
+                        action={dnsButton}
+                        alternative={<SendToReviewLink action={noop} />}
+                    />
+                </AssetSummaryCard>,
             ),
         );
+        expectNoYouTube(
+            renderToStaticMarkup(
+                <AssetSummaryCard name="Mi tienda" subtitle="ejemplo.com · Comercio" mark={mark}>
+                    <OwnershipProof sourceLabel={WEB_SOURCE} />
+                </AssetSummaryCard>,
+            ),
+        );
+    });
+
+    it('el logo del sitio, grande y chico', () => {
+        expectNoYouTube(renderToStaticMarkup(<WebLogo />));
+        expectNoYouTube(renderToStaticMarkup(<AssetMark assetType="web" width={22} />));
     });
 
     it('los avisos, todos', () => {
@@ -257,7 +273,7 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
         );
     });
 
-    it('el diálogo de la comprobación por DNS, con cada proveedor elegido y con «No sé» abierto', () => {
+    it('el diálogo de la comprobación por DNS, en cada pantalla, con cada proveedor y con «No sé»', () => {
         const challenge = {
             domain: 'ejemplo.com',
             host: '@',
@@ -266,26 +282,49 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
             provider: 'netlify' as const,
         };
         const states = [
-            ...DNS_CHOICES.map((selectedProvider) => ({ selectedProvider, unsureOpen: false })),
-            { selectedProvider: null, unsureOpen: true },
+            { selectedProvider: null, unsure: false },
+            ...DNS_CHOICES.map((selectedProvider) => ({ selectedProvider, unsure: false })),
+            { selectedProvider: 'netlify' as const, unsure: true },
+            { selectedProvider: null, unsure: true },
         ];
-        for (const status of ['searching', 'delayed', 'stopped', 'verified'] as const) {
-            for (const { selectedProvider, unsureOpen } of states) {
-                for (const provider of [challenge.provider, null]) {
-                    expectNoYouTube(
-                        renderToStaticMarkup(
-                            <DnsVerificationDialogView
-                                challenge={{ ...challenge, provider }}
-                                status={status}
-                                checking={false}
-                                adsenseAction={noopVoid}
-                                selectedProvider={selectedProvider}
-                                unsureOpen={unsureOpen}
-                            />,
-                        ),
-                    );
+        for (const step of ['provider', 'record', 'result'] as const) {
+            for (const status of ['searching', 'delayed', 'stopped', 'verified', 'error'] as const) {
+                for (const { selectedProvider, unsure } of states) {
+                    for (const provider of [challenge.provider, null]) {
+                        for (const publishAction of [undefined, noop]) {
+                            expectNoYouTube(
+                                renderToStaticMarkup(
+                                    <DnsVerificationDialogView
+                                        step={step}
+                                        challenge={{ ...challenge, provider }}
+                                        status={status}
+                                        error={status === 'error' ? 'La comprobación por DNS todavía no está disponible.' : undefined}
+                                        checking={false}
+                                        adsenseAction={noopVoid}
+                                        selectedProvider={selectedProvider}
+                                        unsure={unsure}
+                                        publishAction={publishAction}
+                                    />,
+                                ),
+                            );
+                        }
+                    }
                 }
             }
+        }
+        // Sin el registro todavía: preparando y con error de carga.
+        for (const loadError of [undefined, 'No pudimos consultar tu DNS. Probá de nuevo.']) {
+            expectNoYouTube(
+                renderToStaticMarkup(
+                    <DnsVerificationDialogView
+                        challenge={null}
+                        loadError={loadError}
+                        status="searching"
+                        checking={false}
+                        adsenseAction={noopVoid}
+                    />,
+                ),
+            );
         }
     });
 
