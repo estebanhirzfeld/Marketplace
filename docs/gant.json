@@ -841,6 +841,58 @@
         "El PR #23 (merge d8eb344) supera el tope de 400 líneas (138 archivos, +8636/−692); cada commit se revisó por separado.",
         "Incluye una regresión hallada en producción (enable_yt_permissions en canales de cuenta de marca), corregida por el PR #24."
       ]
+    },
+    {
+      "id": "fase-18",
+      "number": 18,
+      "kind": "fase",
+      "parent": null,
+      "label": "Titularidad de un sitio por registro DNS",
+      "doc": "docs/fase-18-titularidad-de-un-sitio-por-dns.md",
+      "docLines": 134,
+      "track": "fases",
+      "start": "2026-10-15T18:05:44-03:00",
+      "end": "2026-10-15T21:23:55-03:00",
+      "dating": "exact",
+      "group": null,
+      "commits": [
+        "ee256d3",
+        "0e80936",
+        "50d317e",
+        "68eed85",
+        "5f8fa08",
+        "5cc66d5",
+        "5dbcf96",
+        "b506970",
+        "1a8d2d4",
+        "b6d90a6",
+        "a6c8d57",
+        "b384b9c",
+        "ad43de3",
+        "fb41d04",
+        "221686e",
+        "7631679",
+        "6b2ea3e",
+        "592f4ef",
+        "140a07f",
+        "e4f7e37",
+        "0500190",
+        "38d2c3f",
+        "77f4548",
+        "85e1f92",
+        "bc25131",
+        "137f749"
+      ],
+      "commitCount": 26,
+      "branch": "feat/titularidad-dns (cadena de PRs #30–#36)",
+      "docCommit": null,
+      "docCommittedAt": null,
+      "declaredStatus": "Completa",
+      "declaredDate": "Octubre 2026",
+      "warnings": [
+        "Seis de los siete PRs (#30, #31, #32, #33, #35, #36) superan el tope de 400 líneas; se pidió size:exception porque cada corte es una tarea con sus tests (entre el 30 y el 60 % del cambio).",
+        "La revisión nativa de Gentle AI no pudo correr por un defecto de la herramienta (Gentleman-Programming/gentle-ai#5044); se revisó con judgment-day."
+      ]
     }
   ],
   "sddChanges": [

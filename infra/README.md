@@ -15,7 +15,7 @@ Valores fijos de este despliegue:
 | Shape | `VM.Standard.E2.1.Micro`, **x86_64**, 1 OCPU / 1 GB (`launch-instance.sh --micro`) |
 | Shape alternativa | `VM.Standard.A1.Flex` aarch64 2/12 (default del script; A1 sin capacidad hoy) |
 | Build | **en GitHub Actions**, no en la VM — la micro de 1 GB no puede con `next build` |
-| IP SSH permitida | `181.47.21.233/32` (solo esa; **no** `0.0.0.0/0`) |
+| IP SSH permitida | La IP actual del operador, solo esa (**no** `0.0.0.0/0`); cambia y se actualiza con `infra/scripts/allow-my-ip.sh` (última vez 15/10/2026: `190.210.19.221`). `ssh ubuntu@144.22.175.14` funciona con `known_hosts`; el nombre de host puede no estar registrado ahí |
 | Base de datos | `marketplace` (**no** `marketplace_dev`) |
 | MercadoPago | activo | Google/YouTube | apagado (rutas 503 por diseño) |
 
