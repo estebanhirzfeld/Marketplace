@@ -87,11 +87,11 @@ describe('OwnershipCheck', () => {
 });
 
 describe('SendToReviewLink', () => {
-    it('es un botón con forma de enlace que envía la acción', () => {
+    it('es un botón con forma de enlace que primero pide confirmar, sin enviar', () => {
         const html = renderToStaticMarkup(<SendToReviewLink action={noop} />);
 
-        expect(html).toContain('<form');
-        expect(html).toContain('type="submit"');
+        expect(html).not.toContain('<form');
+        expect(html).not.toContain('type="submit"');
         expect(texto(html)).toContain('No puedo cargar el registro');
     });
 });
