@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
+import { MAX_MONEY_CENTS } from './moneyLimits';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
 import { identifyDnsProvider } from '../adapters/identifyDnsProvider';
 import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
@@ -69,8 +70,8 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                         currency: { type: 'string', enum: ['ARS', 'USD'] },
                         // `coerceTypes` de Fastify convierte el string del query
                         // a número; sin el schema llegarían como texto.
-                        minPrice: { type: 'integer', minimum: 0 },
-                        maxPrice: { type: 'integer', minimum: 0 },
+                        minPrice: { type: 'integer', minimum: 0, maximum: MAX_MONEY_CENTS },
+                        maxPrice: { type: 'integer', minimum: 0, maximum: MAX_MONEY_CENTS },
                         minSubscribers: { type: 'integer', minimum: 0 },
                         onlyMonetized: { type: 'boolean' },
                         sort: { type: 'string', enum: ['relevance', 'price', 'created', 'published', 'estimated'] },
@@ -309,7 +310,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                             type: 'object',
                             required: ['cents', 'currency'],
                             properties: {
-                                cents: { type: 'integer' },
+                                cents: { type: 'integer', maximum: MAX_MONEY_CENTS },
                                 currency: { type: 'string' },
                             },
                         },
@@ -390,7 +391,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                             type: 'object',
                             required: ['cents', 'currency'],
                             properties: {
-                                cents: { type: 'integer' },
+                                cents: { type: 'integer', maximum: MAX_MONEY_CENTS },
                                 currency: { type: 'string', enum: ['ARS', 'USD'] },
                             },
                         },
@@ -492,7 +493,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                             type: 'object',
                             required: ['cents', 'currency'],
                             properties: {
-                                cents: { type: 'integer' },
+                                cents: { type: 'integer', maximum: MAX_MONEY_CENTS },
                                 currency: { type: 'string' },
                             },
                         },

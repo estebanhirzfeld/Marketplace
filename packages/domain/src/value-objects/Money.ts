@@ -1,5 +1,11 @@
 import { ValidationError } from '../errors/DomainError';
 
+/**
+ * Mayor monto, en centavos, que el dominio acepta. Por encima de este entero
+ * `number` deja de representar cada centavo y las cuentas serían inexactas.
+ */
+export const MAX_MONEY_CENTS = Number.MAX_SAFE_INTEGER;
+
 export class Money {
     private constructor(
         private readonly amount: number, // NOTE in smallest unit, e.g. cents if applicable, or keep as float with precise math. Let's use cents to avoid floating point issues.
@@ -7,6 +13,9 @@ export class Money {
     ) {
         if (!Number.isInteger(amount)) {
             throw new ValidationError("El monto debe estar en centavos (entero) para evitar errores de punto flotante.");
+        }
+        if (Math.abs(amount) > MAX_MONEY_CENTS) {
+            throw new ValidationError(`El monto supera el máximo permitido (${MAX_MONEY_CENTS} centavos).`);
         }
     }
 
@@ -48,11 +57,25 @@ export class Money {
     }
 
     public addPercentage(percentage: number): Money {
-        return this.multiply(1 + (percentage / 100));
+        return this.add(this.getPercentage(percentage));
     }
 
+    /**
+     * Porcentaje redondeado al centavo más cercano (mitades hacia arriba). Con
+     * un porcentaje de hasta dos decimales la cuenta es entera (BigInt), porque
+     * `monto * 5` ya se sale de los enteros seguros cerca del tope y un `number`
+     * redondearía mal.
+     */
     public getPercentage(percentage: number): Money {
-        return this.multiply(percentage / 100);
+        const basisPoints = Math.round(percentage * 100);
+        if (Math.abs(basisPoints - percentage * 100) > 1e-9) {
+            return this.multiply(percentage / 100);
+        }
+        const numerator = BigInt(this.amount) * BigInt(basisPoints) * 2n + 10000n;
+        const denominator = 20000n;
+        let quotient = numerator / denominator;
+        if (numerator % denominator !== 0n && numerator < 0n) quotient -= 1n; // piso, no truncado
+        return new Money(Number(quotient), this.currency);
     }
 
     public isGreaterThan(other: Money): boolean {

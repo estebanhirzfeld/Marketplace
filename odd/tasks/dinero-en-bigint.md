@@ -12,8 +12,8 @@ B) pasar a `BigInt` las columnas de dinero (usuario, 16/10/2026). El dominio sig
 ## Tareas
 - [x] T1 Migración: `Listing.askingPrice`, `Operation.offerPrice/finalPrice/buyerCommission/sellerCommission/buyerPays/sellerReceives/platformEarns`, `Notification.amountCents` a `BigInt`.
 - [x] T2 Mappers y repositorios de `packages/db` (conversión, filtros `minPrice/maxPrice`, orden), seed y scripts.
-- [ ] T3 Dominio/API: tope en `Money`, esquemas JSON de la API con `maximum`, 400 claro en vez de 500.
-- [ ] T4 Tests: regresión con 4555555497 y filtro `maxPrice=12312312300`; suites domain + db + api en verde.
+- [x] T3 Dominio/API: tope en `Money`, esquemas JSON de la API con `maximum`, 400 claro en vez de 500.
+- [x] T4 Tests: regresión con 4555555497 y filtro `maxPrice=12312312300`; suites domain + db + api en verde.
 
 ## Ruta
 Delegada (escritor único): toca más de 2 archivos no triviales.

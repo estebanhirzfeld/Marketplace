@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
+import { MAX_MONEY_CENTS } from './moneyLimits';
 import { authenticate, actorOf } from '../plugins/authenticate';
 import type {
     CheckoutDto,
@@ -23,7 +24,7 @@ const priceSchema = {
                 type: 'object',
                 required: ['cents', 'currency'],
                 properties: {
-                    cents: { type: 'integer' },
+                    cents: { type: 'integer', maximum: MAX_MONEY_CENTS },
                     currency: { type: 'string' },
                 },
             },
@@ -140,7 +141,7 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                     required: ['method', 'amountCents', 'currency'],
                     properties: {
                         method: { type: 'string', minLength: 1 },
-                        amountCents: { type: 'integer', minimum: 1 },
+                        amountCents: { type: 'integer', minimum: 1, maximum: MAX_MONEY_CENTS },
                         currency: { type: 'string', minLength: 3, maxLength: 3 },
                     },
                 },
