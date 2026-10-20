@@ -32,7 +32,7 @@ Que la venta de un sitio con dominio genérico proteja al comprador igual que la
 
 ## Tareas
 
-- [ ] T1 Pasos con tipo de comprobación: `automated` → `key` estable + `check: 'automatic' | 'declared' | 'admin'`; pasos de web reescritos con fase, título e instrucción; `GetOperationDetailsUseCase` entrega los pasos de operación de un sitio. Ruta: escritor delegado (varios archivos no triviales).
+- [x] T1 Pasos con tipo de comprobación: `automated` → `key` estable + `check: 'automatic' | 'declared' | 'admin'`; pasos de web reescritos con fase, título e instrucción; `GetOperationDetailsUseCase` entrega los pasos de operación de un sitio. Ruta: escritor delegado (varios archivos no triviales).
 - [ ] T2 Progreso por paso persistido: entidad `TransferStepProgress`, puerto, tabla aditiva `transfer_step_progress`, mapper y repositorio. Ruta: escritor delegado.
 - [ ] T3 Puerto `IDomainRegistrar` y adaptador `HostingerDomainRegistrar` con `fetch` inyectable, cableado condicional y prueba en vivo de solo lectura. Ruta: escritor delegado.
 - [ ] T4 Custodia del dominio en la operación: comprobación de la señal, guarda de aceptación, cuenta de custodia web sin `platformAccess`, `isPrimaryOwner` desde el portfolio. Ruta: escritor delegado.
@@ -53,8 +53,8 @@ Otros registradores y `.ar`; señales automáticas de hosting, GA4 y foto de DNS
 
 ## Progreso
 
-Sin tareas empezadas.
+T1 hecha (`5529e4c`). `automated` se reemplazó por `key` + `check` en `TransferStep`; `HandoverStepDto` suma `key` y `check` opcionales (aditivo) y las rutas `me.ts` y `listings.ts` los serializan. `WebStrategy` pasa a: tener el dominio en Hostinger (listing), `domain-to-platform`, `hosting`, `code`, `accounts` (operation) y `domain-to-buyer` (plataforma). Pendiente para T4: `GetOperationDetailsUseCase` sigue exigiendo `listing.isReadyToTransfer()`, o sea `platformAccess` registrado; un sitio sin él seguirá recibiendo lista vacía hasta que T4 resuelva la custodia web sin `platformAccess`. `apps/api` no se ejecutó (`tsc` falla por Prisma sin generar, previo a este cambio; `http.test.ts` necesita base).
 
 ## Próximo paso
 
-T1.
+T2.
