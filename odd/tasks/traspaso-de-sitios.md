@@ -33,7 +33,7 @@ Que la venta de un sitio con dominio genérico proteja al comprador igual que la
 ## Tareas
 
 - [x] T1 Pasos con tipo de comprobación: `automated` → `key` estable + `check: 'automatic' | 'declared' | 'admin'`; pasos de web reescritos con fase, título e instrucción; `GetOperationDetailsUseCase` entrega los pasos de operación de un sitio. Ruta: escritor delegado (varios archivos no triviales).
-- [ ] T2 Progreso por paso persistido: entidad `TransferStepProgress`, puerto, tabla aditiva `transfer_step_progress`, mapper y repositorio. Ruta: escritor delegado.
+- [x] T2 Progreso por paso persistido: entidad `TransferStepProgress`, puerto, tabla aditiva `transfer_step_progress`, mapper y repositorio. Ruta: escritor delegado. Commit `6070aee`. RED: `TransferStepProgress.test.ts` falló por módulo inexistente; VERDE: 43 tests, dominio 70 archivos / 1143 tests, `tsc` de dominio y db sin errores. Tests de db (`transfer-step-progress.test.ts`) escritos pero NO ejecutados: el Postgres de `docker-compose.yml` (puerto 5434) no está levantado y el del 5432 no tiene el rol `marketplace`.
 - [ ] T3 Puerto `IDomainRegistrar` y adaptador `HostingerDomainRegistrar` con `fetch` inyectable, cableado condicional y prueba en vivo de solo lectura. Ruta: escritor delegado.
 - [ ] T4 Custodia del dominio en la operación: comprobación de la señal, guarda de aceptación, cuenta de custodia web sin `platformAccess`, `isPrimaryOwner` desde el portfolio. Ruta: escritor delegado.
 - [ ] T5 Avisos de recordatorio, vencimiento y dominio en custodia (migración del enum). Ruta: escritor delegado.
@@ -57,6 +57,8 @@ T1 hecha (`5529e4c`). `automated` se reemplazó por `key` + `check` en `Transfer
 
 Corrección del padre en T1: el paso `domain-to-buyer` ofrecía el código EPP para llevar el dominio a otro registrador, pero el traslado a la cuenta de la plataforma ya activó el bloqueo de 60 días, así que durante la custodia esa mudanza está trabada. Ahora la entrega es siempre a la cuenta de Hostinger del comprador y el texto explica que mudarlo a otro registrador espera 60 días. RED visto (1 test), luego dominio 69 archivos / 1100 tests, `tsc` sin errores y guarda de textos de web 14 tests, todo verificado por el padre.
 
+T2 hecha (`6070aee`). Entidad con transiciones validadas, `isOverdue`/`needsReminder` (3 días antes por defecto, configurable)/`needsEscalation` con reloj inyectado, y recordatorio y escalada de una sola vez. Puerto `ITransferStepProgressRepository` (`findByScope`, `find`, `findOpen`, `save` con upsert por `(scope, scopeId, stepKey)`). `findOpen` trae `pending`, `waiting` y `expired` sin escalar. Tabla `transfer_step_progress` sin clave foránea (`scopeId` apunta a activo u operación) y migración `20261020190000_add_transfer_step_progress`. No se integró al `PrismaUnitOfWork`: hoy solo tiene los cuatro repositorios transaccionales del flujo de venta. Pendiente: correr los tests de db contra `marketplace_test` cuando el Postgres esté arriba.
+
 ## Próximo paso
 
-T2.
+T3: puerto `IDomainRegistrar` y adaptador `HostingerDomainRegistrar`.
