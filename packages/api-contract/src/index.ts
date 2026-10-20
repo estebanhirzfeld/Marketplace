@@ -58,11 +58,17 @@ export type ApiErrorCode =
     | 'INVALID_STATE'
     | 'VALIDATION'
     | 'UNAUTHORIZED'
+    | 'SERVICE_UNAVAILABLE'
     | 'INTERNAL';
 
 export interface ApiErrorDto {
     code: ApiErrorCode;
     message: string;
+    /**
+     * Solo en el 409 de publicar un canal ya publicado por el propio vendedor:
+     * el activo existente, para poder enlazarlo. Nunca se revela el de otro.
+     */
+    listingId?: string;
 }
 
 // ── Autenticación ────────────────────────────────────────
@@ -195,7 +201,7 @@ export type ListingCurrencyDto = 'ARS' | 'USD';
  * porque un activo puede pasar días en borrador o en revisión. `estimated` es
  * la proyección que calcula la plataforma, no un dato declarado.
  */
-export type ListingSortDto = 'price' | 'created' | 'published' | 'estimated';
+export type ListingSortDto = 'relevance' | 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirectionDto = 'asc' | 'desc';
 
@@ -229,9 +235,6 @@ export interface ListingFiltersQuery {
     minSubscribers?: number;
     onlyMonetized?: boolean;
 
-    /** Solo sitios web. */
-    minDomainAuthority?: number;
-
     sort?: ListingSortDto;
     direction?: SortDirectionDto;
 }
@@ -240,6 +243,16 @@ export interface ListingFiltersQuery {
  * Un admin registra que la plataforma obtuvo acceso al activo. Es manual
  * porque la API de YouTube no expone quiénes son los propietarios de un canal.
  */
+export interface PlatformAccessAuthorizationRequest {
+    /** Ata la vuelta de Google al navegador del admin y al activo; lo valida la capa web. */
+    state: string;
+}
+
+/** El código que Google devolvió tras elegir la cuenta de custodia. */
+export interface VerifyPlatformAccessRequest {
+    code: string;
+}
+
 export interface RegisterPlatformAccessRequest {
     /** Desde cuándo hay acceso, en ISO. No puede ser futura. */
     accessSince: string;
@@ -295,7 +308,26 @@ export interface UpdateCustodyAccountRequest {
  * Contraste entre lo que el vendedor declaró y lo que informa la API pública
  * de YouTube. Es una foto con fecha, no una garantía hacia adelante.
  */
-export type VerificationSourceDto = 'youtube' | 'adsense';
+export type VerificationSourceDto = 'youtube' | 'adsense' | 'dns';
+
+/** Proveedor de DNS deducido de los servidores de nombres de un dominio. */
+export type DnsProviderDto = 'hostinger' | 'cloudflare' | 'godaddy' | 'namecheap' | 'route53' | 'donweb' | 'netlify';
+
+/** Registro TXT que el vendedor tiene que cargar en el DNS de su dominio. */
+export interface DomainOwnershipChallengeDto {
+    domain: string;
+    /** Dónde se carga el registro: `@` en la raíz de la zona o el nombre completo en un subdominio. */
+    host: string;
+    /** El valor completo del registro TXT. */
+    value: string;
+    nameservers: string[];
+    /** `null` cuando los servidores de nombres no son de un proveedor conocido. */
+    provider: DnsProviderDto | null;
+}
+
+export interface DomainOwnershipVerificationDto {
+    verified: boolean;
+}
 
 /**
  * Constancia de que el vendedor demostró controlar el activo. La emite la
@@ -316,6 +348,91 @@ export interface OwnershipVerificationDto {
 /** El destino al que hay que mandar al vendedor para que autorice. */
 export interface AuthorizationUrlDto {
     url: string;
+}
+
+// ── Cuenta de Mercado Pago del vendedor ──────────────────
+
+/**
+ * El estado de la vinculación. Nunca incluye los tokens: solo lo que el
+ * vendedor necesita ver.
+ */
+export type SellerPaymentAccountStatusDto =
+    | { linked: false }
+    | {
+          linked: true;
+          mpUserId: string;
+          linkedAt: string;
+          expiresAt: string;
+          /** El token de acceso venció; la cuenta sigue vinculada y se renueva al cobrar. */
+          expired: boolean;
+      };
+
+/**
+ * Pedido de la dirección de autorización. `state` y `codeChallenge` los genera
+ * el cliente (el desafío PKCE es el SHA-256 del verificador, en base64url).
+ */
+export interface MercadoPagoAuthorizationRequest {
+    state: string;
+    codeChallenge: string;
+}
+
+/** Completa la vinculación con lo que trajo el navegador al volver. */
+export interface LinkMercadoPagoRequest {
+    code: string;
+    /** El verificador PKCE original, de 43 a 128 caracteres. */
+    codeVerifier: string;
+}
+
+// ── Conexión del vendedor con un canal de YouTube ────────
+
+/**
+ * Pedido de la dirección de autorización. El `state` lo genera el cliente y lo
+ * ata a su navegador (cookie): al volver de Google compara el que trae la
+ * dirección con el de la cookie, igual que en Mercado Pago.
+ */
+export interface YouTubeAuthorizationRequest {
+    state: string;
+}
+
+/** Completa la conexión con el código que trajo el navegador al volver. */
+export interface ConnectYouTubeChannelRequest {
+    code: string;
+}
+
+/**
+ * Un canal conectado, con la última lectura de Google. Nunca incluye el token
+ * ni los permisos: solo lo que el vendedor necesita ver. El dinero va en
+ * centavos de dólar.
+ */
+export interface YouTubeConnectionDto {
+    connectionId: string;
+    channelId: string;
+    channelTitle: string;
+    thumbnailUrl?: string;
+    subscribers: number;
+    views12Months: number;
+    revenue12MonthsCents: number;
+    /** Promedio de los últimos 3 meses completos: el que usa la valuación. */
+    monthlyRevenueCents: number;
+    isMonetized: boolean;
+    /** Ausente si Google no informó ningún país (canal sin vistas). */
+    topCountry?: string;
+    periodStart: string;
+    periodEnd: string;
+    readAt: string;
+}
+
+/** Lo que Google no sabe y el vendedor completa al publicar su canal. */
+export interface CreateListingFromYouTubeRequest {
+    niche: string;
+    hasNoFaceContent: boolean;
+    askingPrice: { cents: number; currency: 'ARS' | 'USD' };
+}
+
+export interface CreatedYouTubeListingDto {
+    listingId: string;
+    /** Valuación sobre los datos verificados, en centavos de dólar. */
+    estimatedPriceCents: number;
 }
 
 export interface ChannelMetricsReportDto {
@@ -348,6 +465,17 @@ export interface CreatedListingDto {
     status: ListingStatusDto;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
+}
+
+/**
+ * Cambios del vendedor sobre su listing. Todo es opcional pero tiene que haber
+ * al menos un campo. En borrador o rechazado admite los tres; publicado, solo
+ * `askingPrice`.
+ */
+export interface EditListingRequest {
+    niche?: string;
+    hasNoFaceContent?: boolean;
+    askingPrice?: MoneyDto;
 }
 
 export interface RejectListingRequest {
@@ -423,6 +551,11 @@ export interface MyListingDto {
     custodyAccountIdentifier?: string;
     /** Rubro: con qué nombrar el activo en el catálogo. Es un campo público. */
     niche?: string;
+    /**
+     * Dirección del canal, solo en un activo de YouTube. Es de su dueño: de ahí
+     * se saca el identificador para mostrarle la foto de su canal conectado.
+     */
+    channelUrl?: string;
     askingPrice: MoneyDto;
     estimatedPrice: MoneyDto;
     rejectionReason?: string;
@@ -444,6 +577,12 @@ export interface MyListingDto {
      * se cede con su código de autorización.
      */
     handoverSteps: HandoverStepDto[];
+    /** Si el vendedor avisó que invitó a la plataforma y si un admin ya lo confirmó. */
+    platformAccessStatus: PlatformAccessStatusDto;
+    /** Cuándo avisó. La cola del admin ordena por esta fecha. */
+    platformAccessRequestedAt?: string;
+    /** Quién vende el activo. Solo viaja en la bandeja de accesos del admin. */
+    sellerName?: string;
     /** Lo que este tipo de activo sabe de sí mismo. */
     descriptor: AssetTypeDescriptorDto;
     createdAt: string;
@@ -457,13 +596,15 @@ export interface MyListingDto {
  * no presentación — el formato de los números y los colores siguen siendo de
  * la vista.
  */
-export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+export type AssetFieldKindDto = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche' | 'date';
 
 export interface AssetFieldDto {
     key: string;
     label: string;
     kind: AssetFieldKindDto;
     confidential: boolean;
+    /** Dato interno de la valuación: las vistas no lo muestran. */
+    internal?: boolean;
 }
 
 export interface AssetTypeDescriptorDto {
@@ -472,7 +613,7 @@ export interface AssetTypeDescriptorDto {
     identityField: AssetFieldDto;
     fields: AssetFieldDto[];
     summaryMetricKeys: string[];
-    ownershipSource: 'youtube' | 'adsense';
+    ownershipSource: 'youtube' | 'adsense' | 'dns';
     transferWaitingDays: number;
     /** Por qué la cesión del acceso la registra una persona. */
     handoverNotice: string;
@@ -482,13 +623,33 @@ export interface AssetTypeDescriptorDto {
     revenueNotice: string;
 }
 
+/** Un enlace directo a la pantalla donde se hace un paso. */
+export interface HandoverStepLinkDto {
+    label: string;
+    href: string;
+}
+
 /** Un paso de la cesión del activo a la plataforma. */
+/** Cuándo le toca el paso al vendedor: publicado, o con una venta en curso. */
+export type TransferPhaseDto = 'listing' | 'operation';
+
+/** Dónde está el acceso de la plataforma al activo, visto desde el vendedor. */
+export type PlatformAccessStatusDto = 'pending' | 'verifying' | 'waiting' | 'immediate';
+
 export interface HandoverStepDto {
     id: string;
+    /** Cuándo se le pide. Los pasos de la fase `operation` aparecen recién con la venta firmada. */
+    phase?: TransferPhaseDto;
     /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */
     instruction?: string;
+    /** Título corto, para el carrusel de instrucciones. */
+    title?: string;
+    /** El detalle del paso en viñetas cortas. */
+    details?: string[];
+    /** Enlaces directos a las pantallas donde se hace el paso. */
+    links?: HandoverStepLinkDto[];
     /**
      * Si le toca después de que la plataforma entre en escena. Separa lo que
      * el vendedor puede hacer ya de lo que se le va a pedir con el contrato
@@ -550,6 +711,11 @@ export interface PlatformDashboardDto {
     /** Solo de operaciones completadas: comprometido no es cobrado. */
     earned: MoneyDto;
     pending: PendingOperationDto[];
+    /**
+     * Las operaciones cuyo próximo paso es del vendedor. La plataforma no
+     * puede destrabarlas: solo avisar y esperar la declaración.
+     */
+    waitingOnSeller: PendingOperationDto[];
 }
 
 /** Una de las dos partes de una operación, con nombre para poder mostrarla. */
@@ -603,6 +769,13 @@ export interface OperationDetailDto {
     recipientIdentity?: RecipientIdentityDto;
     /** Constancia de entrega, una vez cerrada la operación. */
     delivery?: DeliveryVerificationDto;
+    /** La declaración del vendedor de haber cedido el control del activo. */
+    transferInitiation?: TransferInitiationDto;
+    /**
+     * Lo que le falta al vendedor ceder después de la firma. Ausente si quien
+     * arma el DTO no resolvió cuenta de custodia.
+     */
+    handoverSteps?: HandoverStepDto[];
     createdAt: string;
 }
 
@@ -662,11 +835,74 @@ export interface CheckoutDto {
     url: string;
 }
 
+/** Por qué Mercado Pago no se puede usar en una operación. */
+export type MercadoPagoUnavailableReasonDto =
+    | 'not_configured'
+    | 'seller_not_linked'
+    | 'rate_unavailable';
+
+/**
+ * Cómo puede pagar el comprador una operación con el activo en custodia. Lo
+ * pueden pedir las partes y los admins; las instrucciones de transferencia
+ * viajan solo a ellos.
+ */
+export interface PaymentOptionsDto {
+    /** Moneda de la operación. */
+    currency: string;
+    /** Lo que paga el comprador, comisión incluida, en la moneda de la operación. */
+    amount: MoneyDto;
+    mercadopago: {
+        available: boolean;
+        reason?: MercadoPagoUnavailableReasonDto;
+        chargedIn: 'ARS';
+        /** `true` cuando la operación no es en pesos y se cobra convertida. */
+        converted: boolean;
+    };
+    transfer: {
+        available: boolean;
+        instructions?: string;
+        /** Lo que el comprador indica al transferir: el id de la operación. */
+        reference: string;
+    };
+}
+
 /** Registro de una transferencia bancaria que solo una persona pudo ver llegar. */
 export interface ConfirmPaymentRequest {
     method: string;
     amountCents: number;
     currency: string;
+}
+
+/**
+ * La declaración del vendedor de haber cedido el control del activo.
+ *
+ * `declaredBy` no viaja, igual que `CustodyVerificationDto` no expone
+ * `verifiedBy`: la asimetría con el resto de los campos es a propósito.
+ */
+export interface TransferInitiationDto {
+    declaredAt: string;
+    controlCeded: boolean;
+    /** Copia congelada al declarar. Ausente si el acceso no nombraba cuenta. */
+    custodyAccountId?: string;
+    /**
+     * Con qué nombre reconoce esa cuenta una persona. Ausente si la cuenta ya
+     * no está en el padrón, que no es lo mismo que no haber registrado ninguna:
+     * para distinguirlo hay que mirar si vino `custodyAccountId`.
+     */
+    custodyAccountIdentifier?: string;
+    notes?: string;
+}
+
+/**
+ * Iniciar la transferencia exige declarar la cesión de control.
+ *
+ * `controlCeded` distinto de `true` es un vendedor que todavía no terminó, no
+ * un dato faltante: el dominio lo rechaza igual que rechaza `isPrimaryOwner:
+ * false` en la custodia.
+ */
+export interface InitiateTransferRequest {
+    controlCeded: boolean;
+    notes?: string;
 }
 
 export interface CustodyVerificationDto {
@@ -675,6 +911,14 @@ export interface CustodyVerificationDto {
     isPrimaryOwner: boolean;
     accessSecured: boolean;
     metrics: Record<string, number>;
+    /**
+     * Copia congelada de la cuenta de custodia al confirmar. Ausente en
+     * constancias anteriores a `asset-custody-identity`: se muestra como
+     * "sin registrar", nunca se inventa.
+     */
+    custodyAccountId?: string;
+    /** Con qué nombre reconoce esa cuenta una persona. */
+    custodyAccountIdentifier?: string;
     notes?: string;
 }
 
@@ -778,6 +1022,18 @@ export interface EvidenceDossierDto {
     verifications: {
         ownership?: { verifiedAt: string; assetId: string; source: string; monthlyRevenueCents?: number };
         platformAccess?: { verifiedAt: string; accessSince: string };
+        /**
+         * Lo que el vendedor declaró al ceder el control. La única pieza del
+         * escrow que aporta él, y por eso la que importa ante un reclamo por un
+         * traspaso que nunca ocurrió. Sin `declaredBy`: el vendedor ya está
+         * identificado como parte en el propio legajo.
+         */
+        transferInitiation?: {
+            declaredAt: string;
+            controlCeded: boolean;
+            custodyAccountId?: string;
+            notes?: string;
+        };
         custody?: {
             verifiedAt: string;
             isPrimaryOwner: boolean;
@@ -798,6 +1054,8 @@ export type NotificationTypeDto =
     | 'listing_aprobado'
     | 'listing_rechazado'
     | 'contrato_firmado'
+    /** Al vendedor, en vez de `contrato_firmado`: le toca ceder el control. */
+    | 'cesion_pendiente'
     | 'activo_en_custodia'
     | 'pago_confirmado'
     | 'operacion_completada'
@@ -806,7 +1064,12 @@ export type NotificationTypeDto =
     | 'revision_pendiente'
     | 'acceso_pendiente'
     | 'custodia_pendiente'
-    | 'liquidacion_pendiente';
+    | 'liquidacion_pendiente'
+    /** Al vendedor: el admin no encontró su invitación a la plataforma. */
+    | 'acceso_no_encontrado'
+    /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
+    | 'acceso_solicitado'
+    | 'acceso_confirmado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia
@@ -818,6 +1081,8 @@ export interface NotificationDto {
     operationId?: string;
     listingId?: string;
     amount?: MoneyDto;
+    /** Fecha a la que se refiere el aviso (ISO), cuando habla de una. */
+    occursAt?: string;
     read: boolean;
     createdAt: string;
 }

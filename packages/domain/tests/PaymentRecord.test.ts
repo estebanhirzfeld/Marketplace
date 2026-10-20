@@ -14,15 +14,16 @@ import { InvalidStateError, ValidationError } from '../src/errors/DomainError';
  */
 
 function unaOperacionEnCustodia(): Operation {
+    const sellerId = new UniqueEntityID();
     const op = Operation.create({
         listingId: new UniqueEntityID(),
         buyerId: new UniqueEntityID(),
-        sellerId: new UniqueEntityID(),
+        sellerId,
         offerPrice: Money.fromCents(1_000_000, 'USD'),
     });
     op.acceptCurrentOffer('seller');
     op.signContract();
-    op.initiateTransfer();
+    op.initiateTransfer({ declaredBy: sellerId, controlCeded: true });
     op.confirmAssetCustody({
         verifiedBy: new UniqueEntityID(),
         isPrimaryOwner: true,

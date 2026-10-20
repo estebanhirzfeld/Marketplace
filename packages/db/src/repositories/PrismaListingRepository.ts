@@ -1,9 +1,39 @@
-import { IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
+import { IListingDeleter, IListingRepository, ListingFilters } from "@marketplace/domain/src/ports/Repositories";
 import { Listing, ListingStatus } from "@marketplace/domain/src/entities/Listing";
 import { ListingMapper } from "../mappers/ListingMapper";
 import { prisma, PrismaLike } from "../client";
+import { Prisma } from "../../generated/prisma/client";
+import { ChannelAlreadyListedError } from "@marketplace/domain/src/errors/DomainError";
 
-export class PrismaListingRepository implements IListingRepository {
+/** Nombre del índice único parcial que impide dos activos vigentes sobre un canal. */
+export const ACTIVE_YOUTUBE_CHANNEL_INDEX = "listings_active_youtube_channel_key";
+
+/**
+ * Indica si el error es la violación del índice de canal vigente. Según el
+ * motor, el nombre del índice viene en `meta.target`, en la restricción del
+ * error del adaptador de driver o en su mensaje: se aceptan todas las formas.
+ */
+export function isActiveChannelConflict(error: unknown): boolean {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        return false;
+    }
+
+    const meta = asRecord(error.meta);
+    const cause = asRecord(asRecord(meta?.driverAdapterError)?.cause);
+    const constraint = asRecord(cause?.constraint);
+
+    return [meta?.target, constraint?.fields, constraint?.index, cause?.originalMessage]
+        .flatMap((value) => (Array.isArray(value) ? value : [value]))
+        .some((value) => typeof value === "string" && value.includes(ACTIVE_YOUTUBE_CHANNEL_INDEX));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+    return typeof value === "object" && value !== null
+        ? Object.fromEntries(Object.entries(value))
+        : undefined;
+}
+
+export class PrismaListingRepository implements IListingRepository, IListingDeleter {
     /**
      * El cliente se inyecta para que el Unit of Work pueda pasar el cliente
      * transaccional. Por defecto usa el singleton, que es lo correcto para
@@ -72,6 +102,17 @@ export class PrismaListingRepository implements IListingRepository {
         return rows.map(ListingMapper.toDomain);
     }
 
+    /**
+     * Borra solo si sigue en borrador o rechazado: el estado se vuelve a
+     * condicionar en la propia consulta, así un publicado nunca se pierde por
+     * un pedido que leyó el estado viejo. Un id inexistente no es un error.
+     */
+    async delete(id: string): Promise<void> {
+        await this.db.listing.deleteMany({
+            where: { id, status: { in: ["draft", "rejected"] } },
+        });
+    }
+
     async save(listing: Listing): Promise<void> {
         const { id, createdAt, props } = listing.toSnapshot();
 
@@ -84,10 +125,22 @@ export class PrismaListingRepository implements IListingRepository {
             strategyJson.assetData
         );
 
-        await this.db.listing.upsert({
-            where: { id: data.id },
-            create: data,
-            update: data,
-        });
+        try {
+            await this.db.listing.upsert({
+                where: { id: data.id },
+                create: data,
+                update: data,
+            });
+        } catch (error) {
+            // Respaldo del caso de uso: dos pedidos simultáneos pasan ambos la
+            // consulta "¿ya está publicado?" y el segundo choca con el índice.
+            // No se busca el activo ganador: dentro de una transacción de
+            // Postgres abortada cualquier consulta posterior falla, y no hay
+            // forma de saber si es del mismo vendedor sin otra lectura.
+            if (isActiveChannelConflict(error)) {
+                throw new ChannelAlreadyListedError("Ese canal ya está publicado.", false);
+            }
+            throw error;
+        }
     }
 }

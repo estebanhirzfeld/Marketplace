@@ -4,6 +4,8 @@ import { Listing } from '../entities/Listing';
 import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
+import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
+import { YouTubeConnection } from '../entities/YouTubeConnection';
 import { ListingStatus } from '../entities/Listing';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
@@ -40,9 +42,11 @@ export type ListingCurrency = 'ARS' | 'USD';
  * `created` es la antigüedad del activo en la plataforma y `published` la de
  * la publicación: son dos fechas distintas porque un listing puede pasar días
  * en borrador o en revisión antes de salir. `estimated` es la proyección que
- * calcula la estrategia del activo, no un dato guardado.
+ * calcula la estrategia del activo, no un dato guardado. `relevance` es el
+ * orden por defecto: lo listo para traspasar primero y luego lo más reciente;
+ * ignora `direction`.
  */
-export type ListingSort = 'price' | 'created' | 'published' | 'estimated';
+export type ListingSort = 'relevance' | 'price' | 'created' | 'published' | 'estimated';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -69,9 +73,6 @@ export interface ListingFilters {
     minSubscribers?: number;
     onlyMonetized?: boolean;
 
-    /** Solo sitios web. */
-    minDomainAuthority?: number;
-
     sort?: ListingSort;
     direction?: SortDirection;
 }
@@ -92,6 +93,18 @@ export interface IListingRepository {
      */
     findHeldBy(custodyAccountId: string): Promise<Listing[]>;
     save(listing: Listing): Promise<void>;
+}
+
+/**
+ * Eliminar un listing. Va en un puerto aparte para que quien solo lee o guarda
+ * no cargue con una operación destructiva.
+ *
+ * Solo borra un borrador o un rechazado: la condición se vuelve a comprobar
+ * en la consulta, para que dos pedidos simultáneos no borren un activo que
+ * mientras tanto se publicó.
+ */
+export interface IListingDeleter {
+    delete(id: string): Promise<void>;
 }
 
 /**
@@ -139,4 +152,39 @@ export interface IReportRepository {
     /** Las abiertas, para el tablero de la plataforma. */
     findOpen(): Promise<Report[]>;
     save(report: Report): Promise<void>;
+}
+
+/**
+ * La cuenta de Mercado Pago que cada vendedor vinculó para cobrar. Una por
+ * usuario. Los tokens se cifran en la implementación, nunca acá.
+ */
+export interface ISellerPaymentAccountRepository {
+    findByUserId(userId: string): Promise<SellerPaymentAccount | null>;
+    /**
+     * Si el usuario vinculó una cuenta, SIN descifrar los tokens. Alcanza para
+     * las puertas que solo preguntan "¿hay cuenta?": con la clave rotada o una
+     * fila corrupta, `findByUserId` lanzaría y taparía la respuesta real.
+     */
+    existsByUserId(userId: string): Promise<boolean>;
+    /**
+     * La cuenta que corresponde a un usuario de Mercado Pago. Una cuenta de
+     * Mercado Pago pertenece a un solo usuario de la plataforma. Sirve para
+     * saber a qué vendedor se le cobró cuando llega un aviso de pago.
+     */
+    findByMpUserId(mpUserId: string): Promise<SellerPaymentAccount | null>;
+    /** Alta o reemplazo: vincular de nuevo pisa la cuenta anterior del usuario. */
+    save(account: SellerPaymentAccount): Promise<void>;
+    deleteByUserId(userId: string): Promise<void>;
+}
+
+/**
+ * Las conexiones de los vendedores con sus canales de YouTube. Una por
+ * vendedor y canal. El token de actualización ya llega cifrado desde el caso
+ * de uso: el repositorio lo guarda tal cual.
+ */
+export interface IYouTubeConnectionRepository {
+    findBySellerAndChannel(sellerId: string, channelId: string): Promise<YouTubeConnection | null>;
+    findBySeller(sellerId: string): Promise<YouTubeConnection[]>;
+    /** Alta o actualización de la conexión de ese vendedor con ese canal. */
+    save(connection: YouTubeConnection): Promise<void>;
 }

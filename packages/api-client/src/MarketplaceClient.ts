@@ -3,19 +3,24 @@ import {
     ContractDto,
     ContractDocumentDto,
     AuthorizationUrlDto,
+    DomainOwnershipChallengeDto,
+    DomainOwnershipVerificationDto,
     ChannelMetricsReportDto,
     OwnershipVerificationDto,
     VerificationSourceDto,
     CloseReportRequest,
     CheckoutDto,
+    PaymentOptionsDto,
     ConfirmCustodyRequest,
     ConfirmPaymentRequest,
+    InitiateTransferRequest,
     EvidenceDossierDto,
     FileReportRequest,
     ReportDto,
     RegisterPlatformAccessRequest,
     CounterOfferRequest,
     CreateListingRequest,
+    EditListingRequest,
     EstimateListingRequest,
     EstimatedPriceDto,
     PlatformDashboardDto,
@@ -41,6 +46,14 @@ import {
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
+    SellerPaymentAccountStatusDto,
+    MercadoPagoAuthorizationRequest,
+    LinkMercadoPagoRequest,
+    YouTubeAuthorizationRequest,
+    ConnectYouTubeChannelRequest,
+    YouTubeConnectionDto,
+    CreateListingFromYouTubeRequest,
+    CreatedYouTubeListingDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -111,6 +124,53 @@ export class MarketplaceClient {
         return this.request('POST', `/me/notifications/${encodeURIComponent(id)}/read`);
     }
 
+    // ── Cuenta de Mercado Pago del vendedor ──────────────
+
+    /** Si el usuario vinculó su cuenta de Mercado Pago. Nunca trae tokens. */
+    paymentAccountStatus(): Promise<SellerPaymentAccountStatusDto> {
+        return this.request('GET', '/me/mercadopago');
+    }
+
+    /** Dónde tiene que autorizar el vendedor para vincular su cuenta. */
+    mercadoPagoAuthorizationUrl(body: MercadoPagoAuthorizationRequest): Promise<AuthorizationUrlDto> {
+        return this.request('POST', '/me/mercadopago/authorization', { body });
+    }
+
+    /** Completa la vinculación con el código y el verificador PKCE. */
+    linkMercadoPago(body: LinkMercadoPagoRequest): Promise<void> {
+        return this.request('POST', '/me/mercadopago/link', { body });
+    }
+
+    /** Desvincula la cuenta. Idempotente. */
+    unlinkMercadoPago(): Promise<void> {
+        return this.request('DELETE', '/me/mercadopago');
+    }
+
+    // ── Conexión del vendedor con un canal de YouTube ────
+
+    /** Dónde tiene que autorizar el vendedor para conectar su canal. */
+    youTubeAuthorizationUrl(body: YouTubeAuthorizationRequest): Promise<AuthorizationUrlDto> {
+        return this.request('POST', '/me/youtube/authorization', { body });
+    }
+
+    /** Completa la conexión con el código de Google. Nunca devuelve tokens. */
+    connectYouTubeChannel(body: ConnectYouTubeChannelRequest): Promise<YouTubeConnectionDto> {
+        return this.request('POST', '/me/youtube/connect', { body });
+    }
+
+    /** Los canales que el vendedor tiene conectados, con su última lectura. */
+    youTubeConnections(): Promise<YouTubeConnectionDto[]> {
+        return this.request('GET', '/me/youtube/connections');
+    }
+
+    /** Crea el borrador del activo con los datos que Google verificó. */
+    createListingFromYouTubeConnection(
+        channelId: string,
+        body: CreateListingFromYouTubeRequest,
+    ): Promise<CreatedYouTubeListingDto> {
+        return this.request('POST', `/me/youtube/connections/${encodeURIComponent(channelId)}/listing`, { body });
+    }
+
     // ── Listings ─────────────────────────────────────────
 
     listings(filtros?: ListingFiltersQuery): Promise<ListingSummaryDto[]> {
@@ -131,7 +191,6 @@ export class MarketplaceClient {
             'maxPrice',
             'minSubscribers',
             'onlyMonetized',
-            'minDomainAuthority',
             'sort',
             'direction',
         ] as const) {
@@ -163,6 +222,25 @@ export class MarketplaceClient {
 
     submitListing(id: string): Promise<void> {
         return this.request('POST', `/listings/${encodeURIComponent(id)}/submit`);
+    }
+
+    /** Publica sin revisión; solo si la titularidad está comprobada. */
+    publishListing(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/publish`);
+    }
+
+    /** Avisa que ya invitó a la plataforma; el activo queda «verificando» hasta que un admin lo confirme. */
+    requestPlatformAccess(id: string): Promise<void> {
+        return this.request('POST', `/listings/${encodeURIComponent(id)}/acceso-solicitado`);
+    }
+
+    editListing(id: string, body: EditListingRequest): Promise<void> {
+        return this.request('PATCH', `/listings/${encodeURIComponent(id)}`, { body });
+    }
+
+    /** Elimina un borrador o rechazado. */
+    deleteListing(id: string): Promise<void> {
+        return this.request('DELETE', `/listings/${encodeURIComponent(id)}`);
     }
 
     approveListing(id: string): Promise<void> {
@@ -225,6 +303,16 @@ export class MarketplaceClient {
         );
     }
 
+    /** El registro TXT que el vendedor tiene que cargar en el DNS de su sitio. */
+    domainOwnershipChallenge(listingId: string): Promise<DomainOwnershipChallengeDto> {
+        return this.request('GET', `/listings/${encodeURIComponent(listingId)}/verificacion-dns`);
+    }
+
+    /** Comprueba si el registro TXT ya está publicado. `verified: false` no es un error. */
+    verifyDomainOwnership(listingId: string): Promise<DomainOwnershipVerificationDto> {
+        return this.request('POST', `/listings/${encodeURIComponent(listingId)}/verificar/dns`);
+    }
+
     /**
      * Contrasta las métricas declaradas contra la API de YouTube. Solo el
      * vendedor del activo o un admin.
@@ -242,6 +330,30 @@ export class MarketplaceClient {
         return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso`, {
             body,
         });
+    }
+
+    /** Activos cuyo vendedor avisó que invitó a la plataforma y esperan nuestra confirmación. Solo admin. */
+    listingsConAccesoPendiente(): Promise<MyListingDto[]> {
+        return this.request('GET', '/admin/listings/acceso-pendiente');
+    }
+
+    /** Dónde ingresa el admin con la cuenta de custodia para verificar el acceso. Solo admin. */
+    platformAccessAuthorization(listingId: string, state: string): Promise<AuthorizationUrlDto> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/autorizacion`, {
+            body: { state },
+        });
+    }
+
+    /** Completa la verificación con el código de Google: registra el acceso si la cuenta administra el canal. Solo admin. */
+    verifyPlatformAccess(listingId: string, code: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/verificar`, {
+            body: { code },
+        });
+    }
+
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. Solo admin. */
+    rejectPlatformAccessRequest(listingId: string): Promise<void> {
+        return this.request('POST', `/admin/listings/${encodeURIComponent(listingId)}/acceso/rechazar`);
     }
 
     /** Borra la constancia cuando la plataforma perdió el acceso. Solo admin. */
@@ -273,8 +385,9 @@ export class MarketplaceClient {
         return this.operationStep(operationId, 'cancel');
     }
 
-    initiateTransfer(operationId: string): Promise<void> {
-        return this.operationStep(operationId, 'transfer');
+    /** El vendedor declara haber cedido el control del activo. */
+    initiateTransfer(operationId: string, body: InitiateTransferRequest): Promise<void> {
+        return this.operationStep(operationId, 'transfer', body);
     }
 
     confirmCustody(operationId: string, body: ConfirmCustodyRequest): Promise<void> {
@@ -284,6 +397,11 @@ export class MarketplaceClient {
     /** Pide el link de pago. Solo con el activo en custodia. */
     checkout(operationId: string): Promise<CheckoutDto> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/checkout`);
+    }
+
+    /** Cómo puede pagar el comprador: Mercado Pago y transferencia, con su disponibilidad. */
+    paymentOptions(operationId: string): Promise<PaymentOptionsDto> {
+        return this.request('GET', `/operations/${encodeURIComponent(operationId)}/payment-options`);
     }
 
     /** Registra una transferencia bancaria. Los pagos de MercadoPago los confirma el webhook. */

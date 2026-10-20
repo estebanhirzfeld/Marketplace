@@ -31,10 +31,10 @@ function unCanal(over: { subs?: number; monetizado?: boolean; precio?: number } 
     return l;
 }
 
-function unSitio(over: { da?: number; precio?: number } = {}): Listing {
+function unSitio(over: { precio?: number } = {}): Listing {
     const l = Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(Money.fromCents(80_000, 'USD'), over.da ?? 42, 'ejemplo.com'),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80_000, 'USD'), domain: 'ejemplo.com' }),
         askingPrice: Money.fromCents(over.precio ?? 900_000, 'USD'),
     });
     l.submitForReview();
@@ -101,18 +101,6 @@ describe('Filtros propios de un canal de YouTube', () => {
     });
 });
 
-describe('Filtros propios de un sitio web', () => {
-    it('filtra por autoridad de dominio', async () => {
-        const vistas = await armar([unSitio({ da: 55 }), unSitio({ da: 12 })]).execute({
-            ...web,
-            minDomainAuthority: 40,
-        });
-
-        expect(vistas).toHaveLength(1);
-        expect(vistas[0].assetData.domainAuthority).toBe(55);
-    });
-});
-
 describe('Filtros que no corresponden al tipo elegido', () => {
     /**
      * Ignorarlos en silencio devolvería una lista vacía sin explicar por qué,
@@ -121,12 +109,6 @@ describe('Filtros que no corresponden al tipo elegido', () => {
     it('rechaza filtrar por suscriptores sobre sitios web', async () => {
         await expect(
             armar([]).execute({ ...web, minSubscribers: 1000 }),
-        ).rejects.toThrow(ValidationError);
-    });
-
-    it('rechaza filtrar por autoridad de dominio sobre canales', async () => {
-        await expect(
-            armar([]).execute({ ...youtube, minDomainAuthority: 40 }),
         ).rejects.toThrow(ValidationError);
     });
 
@@ -237,6 +219,85 @@ describe('Ordenamiento', () => {
         const vistas = await armar([viejo, nuevo]).execute();
 
         expect(vistas[0].askingPrice.cents).toBe(2);
+    });
+
+    describe('relevancia', () => {
+        const ADMIN = new UniqueEntityID();
+        const CUSTODIA = new UniqueEntityID();
+
+        function conAcceso(listing: Listing, dias: number): Listing {
+            listing.registerPlatformAccess({
+                verifiedBy: ADMIN,
+                heldRole: 'manager',
+                custodyAccountId: CUSTODIA,
+                accessSince: new Date(Date.now() - dias * 24 * 60 * 60 * 1000),
+            });
+            return listing;
+        }
+
+        it('pone primero lo listo para traspasar, aunque sea más viejo', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-08-01T10:00:00Z'));
+            const listoViejo = unCanal({ precio: 1 });
+            vi.setSystemTime(new Date('2026-08-20T10:00:00Z'));
+            const nuevoSinAcceso = unCanal({ precio: 2 });
+            vi.useRealTimers();
+            conAcceso(listoViejo, 8);
+
+            const vistas = await armar([nuevoSinAcceso, listoViejo]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([1, 2]);
+        });
+
+        it('dentro de cada grupo, lo publicado más recientemente primero', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+
+            const vistas = await armar([viejo, nuevo]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([2, 1]);
+        });
+
+        it('ignora la dirección', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+
+            const vistas = await armar([viejo, nuevo]).execute({ sort: 'relevance', direction: 'asc' });
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([2, 1]);
+        });
+
+        it('desempata por id de forma estable', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-08-01T10:00:00Z'));
+            const a = unCanal({ precio: 1 });
+            const b = unCanal({ precio: 2 });
+            vi.useRealTimers();
+            const esperado = [a, b]
+                .sort((x, y) => x.toSnapshot().id.localeCompare(y.toSnapshot().id))
+                .map((l) => l.toSnapshot().id);
+
+            const vistas = await armar([b, a]).execute({ sort: 'relevance' });
+
+            expect(vistas.map((v) => v.id)).toEqual(esperado);
+        });
+
+        it('es el orden por defecto', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+            conAcceso(viejo, 8);
+
+            const vistas = await armar([nuevo, viejo]).execute();
+
+            expect(vistas.map((v) => v.askingPrice.cents)).toEqual([1, 2]);
+        });
+
+        it('usa el reloj inyectado para decidir qué está listo', async () => {
+            const [viejo, nuevo] = dosPublicadosConDiferencia();
+            conAcceso(nuevo, 1);
+            const enUnMes = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+            const vistas = await new GetPublishedListingsUseCase(unRepo([viejo, nuevo]), enUnMes).execute();
+
+            expect(vistas[0].transferable).toBe(true);
+        });
     });
 
     it('expone la fecha de publicación además de la de creación', async () => {

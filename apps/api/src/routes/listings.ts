@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, authenticateOptional, actorOf } from '../plugins/authenticate';
+import { identifyDnsProvider } from '../adapters/identifyDnsProvider';
 import { SCOPE_ADSENSE, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import { ASSET_NICHES, AssetType } from '@marketplace/shared-types';
 import { describeAssetTypes } from '@marketplace/domain/src/strategies/AssetStrategyFactory';
@@ -11,11 +12,14 @@ import type {
     CreateOfferRequest,
     CreatedListingDto,
     CreatedOperationDto,
+    EditListingRequest,
     EstimateListingRequest,
     EstimatedPriceDto,
     ListingDetailDto,
     ListingFiltersQuery,
     AuthorizationUrlDto,
+    DomainOwnershipChallengeDto,
+    DomainOwnershipVerificationDto,
     ChannelMetricsReportDto,
     OwnershipVerificationDto,
     ListingSummaryDto,
@@ -24,6 +28,17 @@ import type {
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
+
+/** Las fuentes que pasan por el consentimiento de Google. `dns` tiene sus propias rutas. */
+const GOOGLE_SOURCE_PARAMS = {
+    type: 'object',
+    properties: { fuente: { type: 'string', enum: ['youtube', 'adsense'] } },
+} as const;
+
+const dnsNotConfigured = {
+    code: 'INTERNAL',
+    message: 'La verificación por DNS todavía no está configurada.',
+};
 
 export function registerListingRoutes(app: FastifyInstance, c: Container): void {
     /*
@@ -58,8 +73,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                         maxPrice: { type: 'integer', minimum: 0 },
                         minSubscribers: { type: 'integer', minimum: 0 },
                         onlyMonetized: { type: 'boolean' },
-                        minDomainAuthority: { type: 'integer', minimum: 0, maximum: 100 },
-                        sort: { type: 'string', enum: ['price', 'created', 'published', 'estimated'] },
+                        sort: { type: 'string', enum: ['relevance', 'price', 'created', 'published', 'estimated'] },
                         direction: { type: 'string', enum: ['asc', 'desc'] },
                     },
                 },
@@ -126,7 +140,15 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
-                handoverSteps: view.handoverSteps.map(({ id, description, instruction }) => ({ id, description, instruction })),
+                handoverSteps: view.handoverSteps.map(({ id, description, instruction, title, details, links, phase }) => ({
+                    id,
+                    description,
+                    instruction,
+                    title,
+                    details,
+                    links,
+                    phase,
+                })),
                 descriptor: view.descriptor,
                 createdAt: view.createdAt.toISOString(),
             };
@@ -167,7 +189,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
      */
     app.get<{ Params: { id: string; fuente: string }; Reply: AuthorizationUrlDto }>(
         '/listings/:id/autorizacion/:fuente',
-        { preHandler: [authenticate] },
+        { preHandler: [authenticate], schema: { params: GOOGLE_SOURCE_PARAMS } },
         async (request, reply) => {
             if (!c.googleOAuth) {
                 return reply.code(503).send({
@@ -186,6 +208,50 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
     );
 
     /**
+     * Titularidad de un sitio por registro TXT: el registro que el vendedor
+     * tiene que cargar. No escribe nada, así que se puede pedir las veces que
+     * haga falta. Sin `DNS_CHALLENGE_SECRET` no hay forma de derivarlo.
+     */
+    app.get<{ Params: IdParams; Reply: DomainOwnershipChallengeDto }>(
+        '/listings/:id/verificacion-dns',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.getDomainOwnershipChallenge) {
+                return reply.code(503).send(dnsNotConfigured as never);
+            }
+
+            const challenge = await c.getDomainOwnershipChallenge.execute(
+                request.params.id,
+                actorOf(request),
+            );
+
+            return reply.send({
+                ...challenge,
+                provider: identifyDnsProvider(challenge.nameservers),
+            });
+        },
+    );
+
+    /**
+     * Comprueba si el TXT ya está publicado. Que todavía no esté es una
+     * respuesta (`verified: false`), no un error. Ruta estática: tiene
+     * prioridad sobre `/verificar/:fuente`, que es la de los flujos de Google
+     * con código de OAuth.
+     */
+    app.post<{ Params: IdParams; Reply: DomainOwnershipVerificationDto }>(
+        '/listings/:id/verificar/dns',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            if (!c.verifyDomainOwnership) {
+                return reply.code(503).send(dnsNotConfigured as never);
+            }
+
+            const result = await c.verifyDomainOwnership.execute(request.params.id, actorOf(request));
+            return reply.send(result);
+        },
+    );
+
+    /**
      * Paso dos: con el código que trajo el navegador, se le pregunta a Google
      * qué controla esa cuenta y se compara contra lo publicado. El código se
      * canjea, se usa una vez y se descarta: no se guarda ningún token.
@@ -195,6 +261,7 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         {
             preHandler: [authenticate],
             schema: {
+                params: GOOGLE_SOURCE_PARAMS,
                 body: {
                     type: 'object',
                     required: ['code'],
@@ -274,6 +341,75 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
         { preHandler: [authenticate] },
         async (request, reply) => {
             await c.submitListing.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * Publica sin revisión. Solo procede con la titularidad ya comprobada; si
+     * no, 409 y el vendedor sigue por `/submit`.
+     */
+    app.post<{ Params: IdParams }>(
+        '/listings/:id/publish',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.publishListing.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * El vendedor avisa que ya invitó a la plataforma. No registra el acceso:
+     * deja el activo en «verificando» hasta que un admin lo confirme.
+     */
+    app.post<{ Params: IdParams }>(
+        '/listings/:id/acceso-solicitado',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.requestPlatformAccess.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /**
+     * Edita un listing propio. En borrador o rechazado admite rubro, sin rostro
+     * y precio; publicado, solo el precio.
+     */
+    app.patch<{ Params: IdParams; Body: EditListingRequest }>(
+        '/listings/:id',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        niche: { type: 'string' },
+                        hasNoFaceContent: { type: 'boolean' },
+                        askingPrice: {
+                            type: 'object',
+                            required: ['cents', 'currency'],
+                            properties: {
+                                cents: { type: 'integer' },
+                                currency: { type: 'string', enum: ['ARS', 'USD'] },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.editListing.execute(request.params.id, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /** Elimina un borrador o rechazado propio. */
+    app.delete<{ Params: IdParams }>(
+        '/listings/:id',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.deleteDraftListing.execute(request.params.id, actorOf(request));
             return reply.code(204).send();
         },
     );

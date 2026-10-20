@@ -9,12 +9,18 @@ import type {
     PlatformDashboardDto,
     MyOperationDto,
     OperationDetailDto,
+    PendingOperationDto,
     RegisterPlatformAccessRequest,
+    AuthorizationUrlDto,
+    PlatformAccessAuthorizationRequest,
+    VerifyPlatformAccessRequest,
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
 } from '@marketplace/api-contract';
+import { PendingOperation } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
+import { SCOPE_OPENID_EMAIL, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { HandoverStep } from '@marketplace/domain/src/entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
@@ -36,6 +42,12 @@ interface IdParams { id: string }
  */
 function nombreDelActivo(listing: Listing): string | undefined {
     const valor = listing.assetDataFor(true).assetData.name;
+    return typeof valor === 'string' && valor ? valor : undefined;
+}
+
+/** La dirección del canal, para su dueño; solo existe en un activo de YouTube. */
+function direccionDelCanal(listing: Listing): string | undefined {
+    const valor = listing.assetDataFor(true).assetData.channelUrl;
     return typeof valor === 'string' && valor ? valor : undefined;
 }
 
@@ -69,6 +81,7 @@ function aMyListingDto(
             currency: listing.estimatedPrice.getCurrency(),
         },
         assetName: nombreDelActivo(listing),
+        channelUrl: direccionDelCanal(listing),
         rejectionReason: props.rejectionReason,
         ownership: listing.ownershipVerification && {
             verifiedAt: listing.ownershipVerification.verifiedAt.toISOString(),
@@ -77,12 +90,18 @@ function aMyListingDto(
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, description, instruction, afterPlatformStarts }) => ({
+        handoverSteps: pasos.map(({ id, description, instruction, title, details, links, phase, afterPlatformStarts }) => ({
             id,
             description,
             instruction,
+            title,
+            details,
+            links,
+            phase,
             afterPlatformStarts,
         })),
+        platformAccessStatus: listing.platformAccessStatus(),
+        platformAccessRequestedAt: listing.platformAccessRequestedAt?.toISOString(),
         custodyAccountIdentifier: custodyAccountIdentifier,
         descriptor: listing.describeAssetType(),
         createdAt: createdAt.toISOString(),
@@ -119,6 +138,24 @@ function aMyOperationDto(
         },
         pendingResponseFrom: operation.pendingResponseFrom,
         createdAt: createdAt.toISOString(),
+    };
+}
+
+/** Una fila del tablero: espera a la plataforma o espera al vendedor, misma forma. */
+function aPendingOperationDto(p: PendingOperation): PendingOperationDto {
+    return {
+        id: p.id,
+        status: p.status,
+        listingId: p.listingId,
+        amount:
+            p.amountCents === undefined || p.currency === undefined
+                ? undefined
+                : { cents: p.amountCents, currency: p.currency },
+        waitingSince: p.waitingSince.toISOString(),
+        assetName: p.assetName,
+        assetType: p.assetType,
+        buyerName: p.buyerName,
+        sellerName: p.sellerName,
     };
 }
 
@@ -254,6 +291,88 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         },
     );
 
+    /** Los activos que esperan que confirmemos el acceso: el vendedor avisó que ya invitó. */
+    app.get<{ Reply: MyListingDto[] }>(
+        '/admin/listings/acceso-pendiente',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const listings = await c.listAwaitingAccess.executeWithSellerNames(actorOf(request));
+            return reply.send(listings.map(({ listing, sellerName }) => ({ ...aMyListingDto(listing), sellerName })));
+        },
+    );
+
+    /**
+     * Paso uno de la verificación por OAuth: la dirección de Google con la cuenta
+     * de custodia sugerida. `youtube.readonly` más `openid email` (para saber quién
+     * inició sesión) y en línea: no queda ningún token guardado.
+     */
+    app.post<{ Params: IdParams; Body: PlatformAccessAuthorizationRequest; Reply: AuthorizationUrlDto }>(
+        '/admin/listings/:id/acceso/autorizacion',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['state'],
+                    additionalProperties: false,
+                    properties: { state: { type: 'string', minLength: 1, maxLength: 512 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            if (!c.googleOAuth || !c.startPlatformAccessVerification) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            const { custodyAccountIdentifier } = await c.startPlatformAccessVerification.execute(
+                request.params.id,
+                actorOf(request),
+            );
+            return reply.send({
+                url: c.googleOAuth.authorizationUrl(`${SCOPE_YOUTUBE} ${SCOPE_OPENID_EMAIL}`, request.body.state, {
+                    loginHint: custodyAccountIdentifier,
+                    // `consent` fuerza el selector de canal en cada intento: sin él
+                    // Google recuerda el canal elegido antes y lo reusa en silencio.
+                    prompt: 'select_account consent',
+                    enableYoutubePermissions: true,
+                }),
+            });
+        },
+    );
+
+    /**
+     * Paso dos: con el código, se le pregunta a Google qué canales administra la
+     * cuenta elegida y, si está el del activo, se registra el acceso.
+     */
+    app.post<{ Params: IdParams; Body: VerifyPlatformAccessRequest }>(
+        '/admin/listings/:id/acceso/verificar',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['code'],
+                    additionalProperties: false,
+                    properties: { code: { type: 'string', minLength: 1, maxLength: 2048 } },
+                },
+            },
+        },
+        async (request, reply) => {
+            if (!c.verifyPlatformAccess) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'La verificación con Google todavía no está configurada.',
+                } as never);
+            }
+
+            await c.verifyPlatformAccess.execute(request.params.id, request.body.code, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
     /** El tablero de la plataforma: qué hay pendiente y en qué estado va todo. */
     app.get<{ Reply: PlatformDashboardDto }>(
         '/admin/dashboard',
@@ -267,20 +386,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 operationsInProgress: t.operationsInProgress,
                 openReports: t.openReports,
                 earned: { cents: t.earnedCents, currency: t.currency },
-                pending: t.pending.map((p) => ({
-                    id: p.id,
-                    status: p.status,
-                    listingId: p.listingId,
-                    amount:
-                        p.amountCents === undefined || p.currency === undefined
-                            ? undefined
-                            : { cents: p.amountCents, currency: p.currency },
-                    waitingSince: p.waitingSince.toISOString(),
-                    assetName: p.assetName,
-                    assetType: p.assetType,
-                    buyerName: p.buyerName,
-                    sellerName: p.sellerName,
-                })),
+                pending: t.pending.map(aPendingOperationDto),
+                waitingOnSeller: t.waitingOnSeller.map(aPendingOperationDto),
             });
         },
     );
@@ -409,6 +516,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         },
     );
 
+    /** El admin no encontró la invitación del vendedor: vuelve a pendiente y se le avisa. */
+    app.post<{ Params: IdParams }>(
+        '/admin/listings/:id/acceso/rechazar',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.rejectPlatformAccessRequest.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
     /** Cuando el vendedor expulsó a la plataforma. Ninguna API nos lo avisa. */
     app.delete<{ Params: IdParams }>(
         '/admin/listings/:id/acceso',
@@ -424,7 +541,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, custodyAccountNames } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -466,6 +583,8 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     ...props.custodyVerification,
                     verifiedBy: props.custodyVerification.verifiedBy.toString(),
                     verifiedAt: props.custodyVerification.verifiedAt.toISOString(),
+                    custodyAccountId: props.custodyVerification.custodyAccountId?.toString(),
+                    custodyAccountIdentifier: custodyAccountNames?.verified,
                 },
                 recipientIdentity: operation.recipientIdentity && {
                     identifier: operation.recipientIdentity.identifier,
@@ -477,6 +596,16 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     verifiedBy: operation.deliveryCheck.verifiedBy.toString(),
                     verifiedAt: operation.deliveryCheck.verifiedAt.toISOString(),
                 },
+                // declaredBy no viaja al DTO a propósito: asimetría
+                // documentada respecto de CustodyVerificationDto.verifiedBy.
+                transferInitiation: operation.transferInitiation && {
+                    declaredAt: operation.transferInitiation.declaredAt.toISOString(),
+                    controlCeded: operation.transferInitiation.controlCeded,
+                    custodyAccountId: operation.transferInitiation.custodyAccountId?.toString(),
+                    custodyAccountIdentifier: custodyAccountNames?.declared,
+                    notes: operation.transferInitiation.notes,
+                },
+                handoverSteps,
                 createdAt: createdAt.toISOString(),
             };
 

@@ -4,31 +4,42 @@ import {
     AssetFieldDescriptor,
     AssetTypeDescriptor,
     IAssetStrategy,
+    MAX_RECIPIENT_IDENTIFIER_LENGTH,
     MetricKey,
     TransferContext,
     TransferStep,
 } from './IAssetStrategy';
+import { ValidationError } from '../errors/DomainError';
 import { Money } from '../value-objects/Money';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
+export interface WebStrategyProps {
+    monthlyRevenueUsd: Money;
+    /** El dominio identifica al activo, así que es reservado. */
+    domain?: string;
+    /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
+    niche?: string;
+    /** Cómo se llama el sitio. Reservado por el mismo motivo que el dominio. */
+    name?: string;
+}
+
+/*
+ * Los datos van nombrados y no posicionales: con `niche` y `name` ambos de
+ * tipo texto, un argumento corrido de lugar compilaba igual y el rubro de un
+ * sitio terminó siendo su nombre. Con un objeto, ese error no se puede escribir.
+ */
 export class WebStrategy implements IAssetStrategy {
-    constructor(
-        private readonly monthlyRevenueUsd: Money,
-        private readonly domainAuthority: number,
-        /** El dominio identifica al activo, así que es reservado. */
-        private readonly domain: string = '',
-        /** Rubro del sitio. Público: dice de qué trata, no cuál es. */
-        private readonly niche: string = AssetNiche.OTHER,
-        /**
-         * Cómo se llama el sitio. Reservado por el mismo motivo que el
-         * dominio: con el nombre se lo encuentra buscándolo.
-         *
-         * Va último porque los argumentos son posicionales: insertarlo en el
-         * medio corría en silencio todos los que venían después, y así fue
-         * como el rubro de un sitio pasó a ser su nombre.
-         */
-        private readonly name: string = ''
-    ) { }
+    private readonly monthlyRevenueUsd: Money;
+    private readonly domain: string;
+    private readonly niche: string;
+    private readonly name: string;
+
+    constructor(props: WebStrategyProps) {
+        this.monthlyRevenueUsd = props.monthlyRevenueUsd;
+        this.domain = props.domain ?? '';
+        this.niche = props.niche ?? AssetNiche.OTHER;
+        this.name = props.name ?? '';
+    }
 
     public describe(): AssetTypeDescriptor {
         const domain: AssetFieldDescriptor = {
@@ -46,15 +57,14 @@ export class WebStrategy implements IAssetStrategy {
                 { key: 'niche', label: 'Rubro', kind: 'niche', confidential: false },
                 { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
                 { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
-                { key: 'domainAuthority', label: 'Autoridad de dominio', kind: 'number', confidential: false },
                 { key: 'name', label: 'Nombre del sitio', kind: 'text', confidential: true },
                 domain,
             ],
-            summaryMetricKeys: ['domainAuthority', 'monthlyRevenueUsdCents'],
-            ownershipSource: 'adsense',
+            summaryMetricKeys: ['monthlyRevenueUsdCents'],
+            ownershipSource: 'dns',
             transferWaitingDays: this.transferWaitingDays(),
             handoverNotice:
-                'No lo detectamos solos: ningún registrador expone por API quién controla un dominio.',
+                'No lo detectamos solos: ningún registrador informa por API quién es el titular de un dominio. El registro DNS prueba que controlás los servidores de nombres, no que figurás como titular en el registrador.',
             /*
              * No hay espera para transferir, pero sí algo que avisar.
              *
@@ -68,21 +78,15 @@ export class WebStrategy implements IAssetStrategy {
             waitingNotice:
                 'Un sitio se transfiere de inmediato, pero cambiar el titular de un dominio activa un bloqueo de 60 días de la ICANN para moverlo a otro registrador. No afecta la propiedad —el dominio es tuyo desde el traspaso— pero durante ese plazo no vas a poder llevártelo a un registrador distinto.',
             revenueNotice:
-                'Se comprueba junto con la titularidad: AdSense informa cuánto genera el dominio.',
+                'La titularidad se comprueba con un registro en el DNS del dominio. Conectar AdSense es opcional: es lo que además comprueba cuánto genera el sitio; sin eso, el ingreso queda como declaración tuya.',
         };
     }
 
     public calculateEstimatedPrice(): Money {
         // Múltiplo estándar para webs es 24-36 meses.
         const multiple = 30;
-        let price = this.monthlyRevenueUsd.multiply(multiple);
 
-        // Bonus por Domain Authority (si DA > 40)
-        if (this.domainAuthority >= 40) {
-            price = price.addPercentage(10);
-        }
-
-        return price;
+        return this.monthlyRevenueUsd.multiply(multiple);
     }
 
     public getVerifiableMetrics(): MetricKey[] {
@@ -110,12 +114,14 @@ export class WebStrategy implements IAssetStrategy {
                  * expresamente eximirse una vez empezado.
                  */
                 id: '1',
+                phase: 'listing',
                 description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
+                title: 'Eximite del bloqueo de 60 días',
                 instruction: 'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede, y el comprador queda sin poder mover el dominio durante ese plazo.',
                 requiredActor: 'seller',
                 automated: false,
             },
-            { id: '2', description: 'El vendedor entrega el código de autorización (EPP) del dominio', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
+            { id: '2', phase: 'listing', description: 'El vendedor entrega el código de autorización (EPP) del dominio', title: 'Pasanos el código de autorización', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
             {
                 id: '3',
                 description: comprador
@@ -130,7 +136,7 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     public getPublicFields(): string[] {
-        return ['niche', 'monthlyRevenueUsdCents', 'currency', 'domainAuthority'];
+        return ['niche', 'monthlyRevenueUsdCents', 'currency'];
     }
 
     /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
@@ -142,6 +148,32 @@ export class WebStrategy implements IAssetStrategy {
         return ['name', 'domain'];
     }
 
+    /**
+     * Un dominio se recibe en una cuenta de registrador, y cada registrador
+     * nombra a sus usuarios como quiere: algunos usan la dirección de correo,
+     * otros un alias propio. No hay forma canónica que comprobar sin decidir
+     * por el comprador cuál es su proveedor, así que acá solo se exige que el
+     * dato exista y quepa. Las mayúsculas se respetan: en varios registradores
+     * el usuario las distingue.
+     */
+    public normalizeRecipientIdentifier(identifier: string): string {
+        const limpio = (identifier ?? '').trim();
+
+        if (limpio === '') {
+            throw new ValidationError(
+                'Indicá el usuario del registrador donde querés recibir el dominio.',
+            );
+        }
+
+        if (limpio.length > MAX_RECIPIENT_IDENTIFIER_LENGTH) {
+            throw new ValidationError(
+                `El usuario del registrador no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
+            );
+        }
+
+        return limpio;
+    }
+
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
         return {
             assetType: AssetType.WEB,
@@ -149,7 +181,6 @@ export class WebStrategy implements IAssetStrategy {
                 niche: this.niche,
                 monthlyRevenueUsdCents: this.monthlyRevenueUsd.getCents(),
                 currency: this.monthlyRevenueUsd.getCurrency(),
-                domainAuthority: this.domainAuthority,
                 name: this.name,
                 domain: this.domain,
             }

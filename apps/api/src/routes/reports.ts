@@ -103,6 +103,10 @@ export function registerReportRoutes(app: FastifyInstance, c: Container): void {
                         verifiedAt: d.verifications.platformAccess.verifiedAt.toISOString(),
                         accessSince: d.verifications.platformAccess.accessSince.toISOString(),
                     },
+                    transferInitiation: d.verifications.transferInitiation && {
+                        ...d.verifications.transferInitiation,
+                        declaredAt: d.verifications.transferInitiation.declaredAt.toISOString(),
+                    },
                     custody: d.verifications.custody && {
                         ...d.verifications.custody,
                         verifiedAt: d.verifications.custody.verifiedAt.toISOString(),

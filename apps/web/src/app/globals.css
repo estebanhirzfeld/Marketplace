@@ -187,3 +187,192 @@ textarea:focus-visible,
     display: flex !important;
   }
 }
+
+/* ── Titular rotativo de la landing ──────────────────────────────────────────
+   Las cuatro frases se renderizan en el servidor, apiladas en el mismo lugar, y
+   la animación las alterna. Sin JavaScript: no hay componente cliente, no hay
+   hidratación y el HTML que llega ya trae las cuatro.
+
+   La altura se reserva con la más larga, que ocupa el flujo mientras las otras
+   se posicionan encima. Sin eso la página salta en cada cambio.
+
+   Seis segundos por frase, veinticuatro el ciclo. Sin puntos ni flechas: el
+   movimiento tiene que pasar casi desapercibido, no pedir atención. */
+.titulares-rotativos {
+  position: relative;
+  display: grid;
+}
+
+.titulares-rotativos > span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  animation: titular-rota 24s infinite;
+}
+
+.titulares-rotativos > span:nth-child(1) { animation-delay: 0s; }
+.titulares-rotativos > span:nth-child(2) { animation-delay: 6s; }
+.titulares-rotativos > span:nth-child(3) { animation-delay: 12s; }
+.titulares-rotativos > span:nth-child(4) { animation-delay: 18s; }
+
+@keyframes titular-rota {
+  0%   { opacity: 0; transform: translateY(10px); }
+  2%   { opacity: 1; transform: none; }
+  23%  { opacity: 1; transform: none; }
+  25%  { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 0; transform: translateY(10px); }
+}
+
+/* Quien pidió menos movimiento ve la primera y nada más. Es la que renderiza el
+   servidor y la que indexa Google, así que tiene que valerse sola. */
+@media (prefers-reduced-motion: reduce) {
+  .titulares-rotativos > span { animation: none; }
+  .titulares-rotativos > span:nth-child(1) { opacity: 1; }
+}
+
+/* ── Brillo de la transferencia inmediata ────────────────────────────────────
+   Un barrido de luz de 2,8 s sobre el color de acento. Lo usan la etiqueta
+   «TRANSFERENCIA INMEDIATA» y el rayo del acceso de administración, para que
+   las dos cosas se lean como la misma. Sin respiración ni resplandor. */
+@keyframes brillo {
+  0% { background-position: -160% 0; }
+  60%, 100% { background-position: 260% 0; }
+}
+
+.brillo-acento {
+  background: linear-gradient(100deg, var(--color-acento) 40%, #f4ffc4 50%, var(--color-acento) 60%) 0 0 / 250% 100%;
+  animation: brillo 2.8s ease-in-out infinite;
+}
+
+/* El rayo es una máscara: el barrido corre sobre su silueta. */
+.rayo-brillante {
+  display: inline-block;
+  flex: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 2h7l-4 7h5L8 22l2.5-9H6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 2h7l-4 7h5L8 22l2.5-9H6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ── Instrucciones del acceso: la maqueta animada de Google ──────────────────
+   Cada animación es un ciclo corto que muestra el gesto: el cursor llega, toca,
+   aparece el diálogo. La anchura del texto «tipeado» sale de `--n`, la cantidad
+   de caracteres del correo, para que `steps()` revele una letra por paso. */
+@keyframes mock-cursor-1 {
+  0% { transform: translate(300px, 250px); }
+  20% { transform: translate(118px, 128px); }
+  26% { transform: translate(118px, 128px) scale(0.85); }
+  30%, 48% { transform: translate(118px, 128px); }
+  68% { transform: translate(318px, 262px); }
+  74% { transform: translate(318px, 262px) scale(0.85); }
+  78%, 100% { transform: translate(318px, 262px); }
+}
+@keyframes mock-enlace-1 {
+  0%, 22% { background: transparent; }
+  24%, 30% { background: #e8f0fe; }
+  32%, 100% { background: transparent; }
+}
+@keyframes mock-dialogo-1 {
+  0%, 30% { opacity: 0; transform: translateY(8px); }
+  36%, 92% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; }
+}
+@keyframes mock-boton-1 {
+  0%, 72% { filter: none; }
+  74%, 80% { filter: brightness(0.8); }
+  82%, 100% { filter: none; }
+}
+@keyframes mock-cursor-2 {
+  0% { transform: translate(300px, 40px); }
+  16% { transform: translate(330px, 92px); }
+  21% { transform: translate(330px, 92px) scale(0.85); }
+  25%, 30% { transform: translate(330px, 92px); }
+  45% { transform: translate(150px, 176px); }
+  60% { transform: translate(150px, 176px); }
+  72% { transform: translate(330px, 282px); }
+  77% { transform: translate(330px, 282px) scale(0.85); }
+  80%, 100% { transform: translate(330px, 282px); }
+}
+@keyframes mock-dialogo-2 {
+  0%, 24% { opacity: 0; transform: translateY(8px); }
+  30%, 94% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; }
+}
+@keyframes mock-tipeado {
+  0%, 32% { width: 0; }
+  52%, 100% { width: calc(var(--n) * 1ch); }
+}
+@keyframes mock-rol {
+  0%, 58% { color: #5f6368; }
+  62%, 100% { color: #1a73e8; }
+}
+@keyframes mock-cursor-dns {
+  0% { transform: translate(340px, 40px); }
+  26% { transform: translate(130px, 236px); }
+  30% { transform: translate(130px, 236px) scale(0.85); }
+  33%, 54% { transform: translate(130px, 236px); }
+  70% { transform: translate(318px, 284px); }
+  75% { transform: translate(318px, 284px) scale(0.85); }
+  78%, 100% { transform: translate(318px, 284px); }
+}
+@keyframes mock-dns-boton {
+  0%, 72% { filter: none; }
+  74%, 80% { filter: brightness(0.75); }
+  82%, 100% { filter: none; }
+}
+@keyframes mock-dns-guardado {
+  0%, 78% { opacity: 0; transform: translateY(6px); }
+  84%, 94% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; }
+}
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+/* El panel del diálogo de DNS entra con un fundido; las opciones no se animan. */
+@keyframes dns-panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mock-cursor-1 { animation: mock-cursor-1 7s ease-in-out infinite; }
+.mock-enlace-1 { animation: mock-enlace-1 7s ease-in-out infinite; }
+.mock-dialogo-1 { animation: mock-dialogo-1 7s ease-in-out infinite; }
+.mock-boton-1 { animation: mock-boton-1 7s ease-in-out infinite; }
+.mock-cursor-2 { animation: mock-cursor-2 8s ease-in-out infinite; }
+.mock-dialogo-2 { animation: mock-dialogo-2 8s ease-in-out infinite; }
+.mock-tipeado {
+  animation: mock-tipeado 8s steps(var(--n), end) infinite;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.mock-rol { animation: mock-rol 8s ease-in-out infinite; }
+.mock-cursor-dns { animation: mock-cursor-dns 8s ease-in-out infinite; }
+.mock-dns-boton { animation: mock-dns-boton 8s ease-in-out infinite; }
+.mock-dns-guardado { animation: mock-dns-guardado 8s ease-in-out infinite; }
+.girando { animation: girar 1s linear infinite; }
+.dns-panel-in { animation: dns-panel-in 0.35s ease-out; }
+
+/* Sin movimiento: el brillo queda quieto, la maqueta muestra el estado final
+   (los diálogos ya visibles, el correo completo) y el cursor se va. */
+@media (prefers-reduced-motion: reduce) {
+  .brillo-acento,
+  .rayo-brillante,
+  .mock-cursor-1,
+  .mock-enlace-1,
+  .mock-dialogo-1,
+  .mock-boton-1,
+  .mock-cursor-2,
+  .mock-dialogo-2,
+  .mock-tipeado,
+  .mock-rol,
+  .mock-cursor-dns,
+  .mock-dns-boton,
+  .mock-dns-guardado,
+  .girando,
+  .dns-panel-in {
+    animation: none;
+  }
+  .mock-cursor-1,
+  .mock-cursor-2,
+  .mock-cursor-dns {
+    display: none;
+  }
+}

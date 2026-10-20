@@ -1,6 +1,11 @@
-import { IListingRepository, IUserRepository } from '../../ports/Repositories';
+import {
+    IListingRepository,
+    ISellerPaymentAccountRepository,
+    IUserRepository,
+} from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
+import { PublishingRequirements } from '../../services/PublishingRequirements';
 import { NotFoundError } from '../../errors/DomainError';
 
 /**
@@ -11,11 +16,17 @@ import { NotFoundError } from '../../errors/DomainError';
  * antes de la verificación cargaría el flag desactualizado.
  */
 export class SubmitListingForReviewUseCase {
+    private readonly requirements: PublishingRequirements;
+
     constructor(
         private readonly listingRepo: IListingRepository,
-        private readonly userRepo: IUserRepository,
+        userRepo: IUserRepository,
         private readonly avisosDePlataforma?: PlatformNotifier,
-    ) {}
+        /** Si se provee, publicar exige Mercado Pago vinculado. Ver `PublishingRequirements`. */
+        paymentAccounts?: ISellerPaymentAccountRepository,
+    ) {
+        this.requirements = new PublishingRequirements(userRepo, paymentAccounts);
+    }
 
     async execute(listingId: string, actor: Actor): Promise<void> {
         const listing = await this.listingRepo.findById(listingId);
@@ -25,11 +36,7 @@ export class SubmitListingForReviewUseCase {
 
         listing.assertOwnedBy(actor.id);
 
-        const user = await this.userRepo.findById(actor.id);
-        if (!user) {
-            throw new NotFoundError('Usuario no encontrado');
-        }
-        user.assertCanSign();
+        await this.requirements.assertMetBy(actor);
 
         // La validación de estado vive en la entidad (Tell, Don't Ask)
         listing.submitForReview();

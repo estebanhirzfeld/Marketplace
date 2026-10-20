@@ -4,7 +4,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { KycNotice } from '@/components/KycNotice';
 import { DemoBanner } from '@/components/DemoBanner';
-import { robotsMetadata } from '@/lib/indexing';
+import { siteMetadata } from '@/lib/siteMetadata';
 import './globals.css';
 
 const sans = Space_Grotesk({
@@ -26,12 +26,7 @@ const mono = JetBrains_Mono({
 // servicio alcanza, sin recompilar. El artefacto autoritativo del interruptor
 // es `app/robots.ts` (dinámico); esta etiqueta es una segunda capa.
 export function generateMetadata(): Metadata {
-    return {
-        title: 'Traspaso · Compraventa de activos digitales con custodia',
-        description:
-            'Canales de YouTube y sitios web. Recibimos el activo, lo revisamos, y recién ahí el comprador paga.',
-        robots: robotsMetadata(),
-    };
+    return siteMetadata();
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

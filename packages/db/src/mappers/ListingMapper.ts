@@ -81,7 +81,7 @@ function serializeAcceso(a?: PlatformAccessRecord): {
     };
 }
 
-const FUENTES: readonly VerificationSource[] = ["youtube", "adsense"];
+const FUENTES: readonly VerificationSource[] = ["youtube", "adsense", "dns"];
 
 /**
  * Lee la constancia de titularidad. La fuente se valida contra la lista: si la
@@ -140,6 +140,7 @@ export class ListingMapper {
             publishedAt: raw.publishedAt ?? undefined,
             rejectionReason: raw.rejectionReason ?? undefined,
             platformAccess: parseAcceso(raw.platformAccess, raw.custodyAccountId),
+            platformAccessRequestedAt: raw.platformAccessRequestedAt ?? undefined,
             ownershipVerification: parseOwnership(raw.ownershipCheck),
         };
 
@@ -166,6 +167,9 @@ export class ListingMapper {
             rejectionReason: props.rejectionReason ?? null,
             platformAccess: acceso.platformAccess,
             custodyAccountId: acceso.custodyAccountId,
+            // `null` y no `undefined`: revocar el acceso borra la solicitud, y un
+            // `undefined` en un update de Prisma significa «no tocar».
+            platformAccessRequestedAt: props.platformAccessRequestedAt ?? null,
             ownershipCheck: serializeOwnership(props.ownershipVerification),
             createdAt,
         };

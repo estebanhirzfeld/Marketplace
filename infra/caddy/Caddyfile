@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Caddy — TLS público y reverse proxy para traspaso.forzalabs.online
+#
+# Instalar en la VM en /etc/caddy/Caddyfile y recargar con:
+#   sudo cp infra/caddy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Topología: Caddy es el único proceso público (80/443). Detrás quedan
+# Next (127.0.0.1:3000) y Fastify (127.0.0.1:3001), ambos en loopback.
+#
+# El navegador NUNCA llama a Fastify directo: todo el tráfico de API pasa por
+# el código server-side de Next. La ÚNICA excepción es el webhook de
+# MercadoPago, que lo llama MercadoPago (no una persona) y tiene que llegar a
+# Fastify: ver el matcher `@mercadopago_webhook` más abajo.
+#
+# Let's Encrypt es automático por HTTP-01 (el puerto 80 ya está abierto para el
+# redirect). Caddy renueva solo. El redirect HTTP -> HTTPS es el comportamiento
+# por defecto de Caddy y no hace falta declararlo.
+#
+# NO hay cabecera `noindex` acá: el indexado se gobierna desde apps/web con la
+# variable SEARCH_INDEXING (apps/web/src/app/robots.ts). Este archivo no opina.
+# ─────────────────────────────────────────────────────────────────────────────
+
+traspaso.forzalabs.online {
+	encode zstd gzip
+
+	# ── Excepción localhost-only: el webhook de MercadoPago va directo a
+	#    Fastify. Es la única ruta pública que no pasa por Next.
+	@mercadopago_webhook path /webhooks/mercadopago /webhooks/mercadopago/*
+	handle @mercadopago_webhook {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	# ── Todo lo demás: Next.
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

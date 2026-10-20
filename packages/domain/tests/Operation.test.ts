@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Operation } from '../src/entities/Operation';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
 import { Money } from '../src/value-objects/Money';
+import { ForbiddenError } from '../src/errors/DomainError';
 
 describe('Operation Entity', () => {
     const createTestOperation = (offerCents = 200000) => {
@@ -171,7 +172,10 @@ describe('Operation Entity', () => {
             expect(operation.status).toBe('contract_signed');
 
             // 3. Transferencia
-            operation.initiateTransfer();
+            operation.initiateTransfer({
+                declaredBy: operation.toSnapshot().props.sellerId,
+                controlCeded: true,
+            });
             expect(operation.status).toBe('transfer_in_progress');
 
             // 4. Custodia
@@ -229,7 +233,10 @@ describe('Operation Entity', () => {
             const operation = createTestOperation();
             operation.acceptCurrentOffer('seller');
             operation.signContract();
-            operation.initiateTransfer();
+            operation.initiateTransfer({
+                declaredBy: operation.toSnapshot().props.sellerId,
+                controlCeded: true,
+            });
 
             expect(() => operation.confirmBuyerPayment(unPagoDe(operation)))
                 .toThrow('El activo debe estar en custodia de la plataforma antes del pago');
@@ -239,7 +246,10 @@ describe('Operation Entity', () => {
             const operation = createTestOperation();
             operation.acceptCurrentOffer('seller');
             operation.signContract();
-            operation.initiateTransfer();
+            operation.initiateTransfer({
+                declaredBy: operation.toSnapshot().props.sellerId,
+                controlCeded: true,
+            });
             operation.confirmAssetCustody({
                 verifiedBy: new UniqueEntityID(),
                 isPrimaryOwner: true,
@@ -254,6 +264,100 @@ describe('Operation Entity', () => {
                 sellerRemoved: true,
             }))
                 .toThrow('El pago debe estar confirmado para completar la operación');
+        });
+    });
+
+    describe('Transferencia (initiateTransfer)', () => {
+        const SELLER_ID = new UniqueEntityID();
+        const BUYER_ID = new UniqueEntityID();
+
+        function unaOperacionFirmada(): Operation {
+            const op = Operation.create({
+                buyerId: BUYER_ID,
+                sellerId: SELLER_ID,
+                listingId: new UniqueEntityID(),
+                offerPrice: Money.fromCents(200000, 'USD'),
+            });
+            op.acceptCurrentOffer('seller');
+            op.signContract();
+            return op;
+        }
+
+        it('un tercero no puede declarar la cesión', () => {
+            const op = unaOperacionFirmada();
+            const ajeno = new UniqueEntityID();
+
+            expect(() => op.initiateTransfer({ declaredBy: ajeno, controlCeded: true }))
+                .toThrow(ForbiddenError);
+            expect(op.status).toBe('contract_signed');
+        });
+
+        it('el comprador tampoco puede declarar la cesión', () => {
+            const op = unaOperacionFirmada();
+
+            expect(() => op.initiateTransfer({ declaredBy: BUYER_ID, controlCeded: true }))
+                .toThrow('Solo el vendedor de la operación puede hacer esto.');
+            expect(op.status).toBe('contract_signed');
+        });
+
+        it('rechaza fuera de contract_signed', () => {
+            const op = Operation.create({
+                buyerId: BUYER_ID,
+                sellerId: SELLER_ID,
+                listingId: new UniqueEntityID(),
+                offerPrice: Money.fromCents(200000, 'USD'),
+            });
+
+            expect(() => op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true }))
+                .toThrow('El contrato debe estar firmado para iniciar la transferencia');
+        });
+
+        it('sin declaredBy → error de validación', () => {
+            const op = unaOperacionFirmada();
+
+            expect(() =>
+                op.initiateTransfer({ controlCeded: true } as unknown as Parameters<Operation['initiateTransfer']>[0]),
+            ).toThrow('Falta registrar quién declaró la cesión.');
+            expect(op.status).toBe('contract_signed');
+        });
+
+        it('controlCeded ausente se rechaza y el estado no cambia', () => {
+            const op = unaOperacionFirmada();
+
+            expect(() =>
+                op.initiateTransfer({ declaredBy: SELLER_ID } as unknown as Parameters<Operation['initiateTransfer']>[0]),
+            ).toThrow('Para iniciar la transferencia tenés que declarar que ya cediste el control del activo.');
+            expect(op.status).toBe('contract_signed');
+        });
+
+        it('controlCeded en false se rechaza y el estado no cambia', () => {
+            const op = unaOperacionFirmada();
+
+            expect(() => op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: false }))
+                .toThrow('Para iniciar la transferencia tenés que declarar que ya cediste el control del activo.');
+            expect(op.status).toBe('contract_signed');
+        });
+
+        it('camino feliz: declara y congela la cuenta de custodia', () => {
+            const op = unaOperacionFirmada();
+            const cuenta = new UniqueEntityID();
+
+            op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true, custodyAccountId: cuenta });
+
+            expect(op.status).toBe('transfer_in_progress');
+            expect(op.transferInitiation?.declaredBy.toString()).toBe(SELLER_ID.toString());
+            expect(op.transferInitiation?.declaredAt).toBeInstanceOf(Date);
+            expect(op.transferInitiation?.controlCeded).toBe(true);
+            expect(op.transferInitiation?.custodyAccountId?.toString()).toBe(cuenta.toString());
+        });
+
+        it('custodyAccountId ausente no bloquea la transición', () => {
+            const op = unaOperacionFirmada();
+
+            op.initiateTransfer({ declaredBy: SELLER_ID, controlCeded: true });
+
+            expect(op.status).toBe('transfer_in_progress');
+            expect(op.transferInitiation?.custodyAccountId).toBeUndefined();
         });
     });
 
@@ -291,7 +395,10 @@ describe('Operation Entity', () => {
             const operation = createTestOperation();
             operation.acceptCurrentOffer('seller');
             operation.signContract();
-            operation.initiateTransfer();
+            operation.initiateTransfer({
+                declaredBy: operation.toSnapshot().props.sellerId,
+                controlCeded: true,
+            });
             operation.confirmAssetCustody({
                 verifiedBy: new UniqueEntityID(),
                 isPrimaryOwner: true,

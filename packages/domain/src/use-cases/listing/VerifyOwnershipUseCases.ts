@@ -1,8 +1,15 @@
 import { IListingRepository } from '../../ports/Repositories';
 import { IYouTubeChannelReader } from '../../ports/IYouTubeChannelReader';
-import { IAdSenseReader, IYouTubeOwnershipReader } from '../../ports/IOwnershipReaders';
+import {
+    IAdSenseReader,
+    IDnsResolver,
+    IOwnershipChallengeIssuer,
+    IYouTubeOwnershipReader,
+} from '../../ports/IOwnershipReaders';
 import { Actor } from '../../ports/Actor';
 import { YouTubeChannelRef } from '../../value-objects/YouTubeChannelRef';
+import { DomainName } from '../../value-objects/DomainName';
+import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { Listing, OwnershipVerification } from '../../entities/Listing';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../errors/DomainError';
 import { AssetType, UserRole } from '@marketplace/shared-types';
@@ -110,17 +117,9 @@ export class VerifyWebsiteRevenueUseCase {
     async execute(listingId: string, grant: string, actor: Actor): Promise<OwnershipVerification> {
         const listing = await cargar(this.listingRepo, listingId, actor);
 
-        const { assetType, assetData } = listing.assetDataFor(true);
-        if (assetType !== AssetType.WEB) {
-            throw new ValidationError('Este activo no es un sitio web.');
-        }
+        const domain = siteDomain(listing).value;
 
-        const domain = assetData.domain;
-        if (typeof domain !== 'string' || domain.trim() === '') {
-            throw new ValidationError('Este activo no tiene cargado el dominio.');
-        }
-
-        const ingreso = await this.adsense.monthlyEarningsFor(grant, domain.trim());
+        const ingreso = await this.adsense.monthlyEarningsFor(grant, domain);
         if (!ingreso) {
             throw new ForbiddenError(
                 'Esa cuenta de AdSense no reporta ingresos para este dominio. ' +
@@ -130,7 +129,7 @@ export class VerifyWebsiteRevenueUseCase {
 
         listing.registerOwnershipVerification({
             verifiedBy: listing.sellerId,
-            assetId: domain.trim(),
+            assetId: domain,
             source: 'adsense',
             monthlyRevenueCents: ingreso.earningsCents,
         });
@@ -138,5 +137,128 @@ export class VerifyWebsiteRevenueUseCase {
         await this.listingRepo.save(listing);
 
         return listing.ownershipVerification!;
+    }
+}
+
+/** El dominio publicado de un sitio, ya normalizado. Rechaza lo que no es un sitio. */
+function siteDomain(listing: Listing): DomainName {
+    const { assetType, assetData } = listing.assetDataFor(true);
+    if (assetType !== AssetType.WEB) {
+        throw new ValidationError('Este activo no es un sitio web.');
+    }
+
+    const domain = assetData.domain;
+    if (typeof domain !== 'string' || domain.trim() === '') {
+        throw new ValidationError('Este activo no tiene cargado el dominio.');
+    }
+
+    return DomainName.parse(domain);
+}
+
+export interface DomainOwnershipChallenge {
+    domain: string;
+    /**
+     * Dónde se carga el registro: `@` si el dominio es la raíz de una zona
+     * (tiene servidores de nombres propios) o el nombre completo si es un
+     * subdominio, porque el TXT va justo en el nombre que se verifica.
+     */
+    host: string;
+    /** El valor completo del registro TXT. */
+    value: string;
+    /** Servidores de nombres del dominio, para que la pantalla deduzca el proveedor. */
+    nameservers: string[];
+}
+
+/**
+ * Le dice al vendedor qué registro TXT cargar para demostrar que controla el
+ * dominio del sitio.
+ *
+ * Poder editar el DNS de un dominio es lo que distingue a quien lo controla de
+ * quien solo conoce su nombre. El valor se deriva del listing y del dominio, así
+ * que pedirlo no escribe nada.
+ */
+export class GetDomainOwnershipChallengeUseCase {
+    constructor(
+        private readonly listingRepo: IListingRepository,
+        private readonly issuer: IOwnershipChallengeIssuer,
+        private readonly resolver: IDnsResolver,
+    ) {}
+
+    async execute(listingId: string, actor: Actor): Promise<DomainOwnershipChallenge> {
+        const listing = await cargar(this.listingRepo, listingId, actor);
+        const domain = siteDomain(listing).value;
+        const nameservers = await this.resolver.nameserversOf(domain);
+
+        return {
+            domain,
+            // Sin servidores de nombres propios no es la raíz de una zona.
+            host: nameservers.length > 0 ? '@' : domain,
+            value: this.issuer.tokenFor(listing.id.toString(), domain),
+            nameservers,
+        };
+    }
+}
+
+/**
+ * Comprueba que el registro TXT expected ya está publicado en el DNS del
+ * dominio del sitio.
+ *
+ * Que todavía no esté no es un error: el vendedor lo carga y la propagación
+ * tarda, así que la respuesta es `verified: false` y la pantalla sigue
+ * esperando. Esto prueba control del DNS, no quién figura como titular del
+ * dominio en el registrador.
+ *
+ * Es idempotente: con una constancia por DNS del mismo dominio no vuelve a
+ * consultar ni a guardar. Revocar la constancia si el registro se borra queda
+ * fuera de este caso de uso.
+ */
+export class VerifyDomainOwnershipUseCase {
+    constructor(
+        private readonly listingRepo: IListingRepository,
+        private readonly issuer: IOwnershipChallengeIssuer,
+        private readonly resolver: IDnsResolver,
+    ) {}
+
+    async execute(listingId: string, actor: Actor): Promise<{ verified: boolean }> {
+        const listing = await cargar(this.listingRepo, listingId, actor);
+        const domain = siteDomain(listing).value;
+
+        if (isAlreadyVerified(listing, domain)) {
+            return { verified: true };
+        }
+
+        const expected = this.issuer.tokenFor(listing.id.toString(), domain);
+        const published = await this.resolver.txtRecordsOf(domain);
+        if (!published.some((record) => record.trim() === expected)) {
+            return { verified: false };
+        }
+
+        listing.registerOwnershipVerification({
+            verifiedBy: listing.sellerId,
+            assetId: domain,
+            source: 'dns',
+        });
+
+        await this.listingRepo.save(listing);
+
+        return { verified: true };
+    }
+}
+
+/**
+ * Si el dominio ya tiene una constancia de titularidad, sea por DNS o por
+ * AdSense, no hay nada que comprobar. Pisar la de AdSense perdería los
+ * ingresos verificados que trae.
+ */
+function isAlreadyVerified(listing: Listing, domain: string): boolean {
+    const previous = listing.ownershipVerification;
+    if (previous?.source !== 'dns' && previous?.source !== 'adsense') {
+        return false;
+    }
+
+    try {
+        return DomainName.parse(previous.assetId).value === domain;
+    } catch {
+        return false;
     }
 }

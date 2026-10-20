@@ -1,17 +1,33 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
-import { AssetTypeDescriptor, IAssetStrategy, TransferContext, TransferStep } from '../strategies/IAssetStrategy';
+import { createAssetStrategy } from '../strategies/AssetStrategyFactory';
+import {
+    AssetTypeDescriptor,
+    IAssetStrategy,
+    TransferContext,
+    TransferPhase,
+    TransferStep,
+} from '../strategies/IAssetStrategy';
 
 /**
- * Un paso de la cesión, con el momento en que le toca al vendedor.
+ * Un paso de la cesión que le toca al vendedor.
  *
- * `afterPlatformStarts` distingue lo que puede hacer ya de lo que se le va a
- * pedir con el contrato firmado —promovernos a propietario principal—. Sale de
- * la posición en el recorrido, así que lo pone la entidad: la estrategia
- * enumera los pasos, no interpreta cuándo cae cada uno.
+ * `phase` (heredada del paso) dice cuándo se le muestra; `afterPlatformStarts`
+ * es el mismo dato como booleano, para las pantallas que ya separaban «ahora»
+ * de «con el contrato firmado». Es `true` solo en la fase de operación.
  */
-export type HandoverStep = TransferStep & { afterPlatformStarts: boolean };
+export type HandoverStep = TransferStep & { phase: TransferPhase; afterPlatformStarts: boolean };
+
+/**
+ * Dónde está el acceso de la plataforma al activo, visto desde el vendedor.
+ *
+ * - `pending`: no hizo nada todavía.
+ * - `verifying`: declaró que invitó a la plataforma y falta que un admin lo confirme.
+ * - `waiting`: confirmado, pero la plataforma del activo todavía impone espera.
+ * - `immediate`: confirmado y sin espera: se puede transferir ya.
+ */
+export type PlatformAccessStatus = 'pending' | 'verifying' | 'waiting' | 'immediate';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type ListingStatus =
@@ -82,7 +98,7 @@ export type PlatformAccessInput = Omit<
 };
 
 /** De dónde salió la comprobación. Cada fuente expone cosas distintas. */
-export type VerificationSource = 'youtube' | 'adsense';
+export type VerificationSource = 'youtube' | 'adsense' | 'dns';
 
 /**
  * Constancia de que el vendedor controla el activo.
@@ -115,6 +131,8 @@ export interface ListingProps {
     publishedAt?: Date;
     rejectionReason?: string;
     platformAccess?: PlatformAccessRecord;
+    /** Cuándo el vendedor declaró que ya invitó a la plataforma. Es una declaración, no una constancia. */
+    platformAccessRequestedAt?: Date;
     ownershipVerification?: OwnershipVerification;
 }
 
@@ -244,6 +262,57 @@ export class Listing extends Entity<ListingProps> {
      */
     public revokePlatformAccess(): void {
         this.props.platformAccess = undefined;
+        // La solicitud vieja también cae: quedaría «verificando» algo que el
+        // vendedor tiene que volver a hacer, porque la plataforma ya no está.
+        this.props.platformAccessRequestedAt = undefined;
+    }
+
+    public get platformAccessRequestedAt(): Date | undefined {
+        return this.props.platformAccessRequestedAt;
+    }
+
+    /**
+     * El vendedor declara que ya invitó a la plataforma.
+     *
+     * No mueve ningún plazo: el que cuenta es el de la constancia que registra
+     * un admin. Sirve para que la cola de revisión sepa qué activos mirar y
+     * para que el vendedor vea «verificando» en vez de nada.
+     *
+     * Conserva la PRIMERA fecha: repetir el pedido no lo manda al fondo de la
+     * cola. Con la constancia ya registrada no hace nada, a propósito y sin
+     * error: el estado ya está más adelante y un doble clic o una carrera con el
+     * admin no justifica un mensaje de falla. Solo en borrador o publicado;
+     * en cualquier otro estado el activo no está a la espera de sumar a la
+     * plataforma.
+     */
+    public requestPlatformAccess(at: Date): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'published') {
+            throw new InvalidStateError(
+                'Solo se puede pedir la verificación del acceso de un activo en borrador o publicado.',
+            );
+        }
+        if (this.props.platformAccess || this.props.platformAccessRequestedAt) return;
+
+        this.props.platformAccessRequestedAt = at;
+    }
+
+    /**
+     * El admin no encontró la invitación del vendedor: la solicitud cae y el
+     * activo vuelve a «pending», para que el vendedor invite de nuevo y
+     * vuelva a avisar. Solo tiene sentido mientras se espera la verificación.
+     */
+    public rejectPlatformAccessRequest(): void {
+        if (this.props.platformAccess || !this.props.platformAccessRequestedAt) {
+            throw new InvalidStateError('Este activo no está esperando la verificación del acceso.');
+        }
+        this.props.platformAccessRequestedAt = undefined;
+    }
+
+    public platformAccessStatus(ahora: Date = new Date()): PlatformAccessStatus {
+        if (this.props.platformAccess) {
+            return this.isReadyToTransfer(ahora) ? 'immediate' : 'waiting';
+        }
+        return this.props.platformAccessRequestedAt ? 'verifying' : 'pending';
     }
 
     /**
@@ -263,38 +332,37 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.describe();
     }
 
-    public handoverSteps(context?: TransferContext): HandoverStep[] {
-        const pasos = this.props.assetStrategy.getTransferSteps(context);
+    /**
+     * Comprueba la cuenta donde el comprador quiere recibir este activo y la
+     * devuelve normalizada.
+     *
+     * Lo resuelve la estrategia, que es la única que sabe si el dato es una
+     * cuenta de Google o un usuario de registrador. La `Operation` no puede
+     * hacerlo por su cuenta: conoce el `listingId`, no el tipo de activo.
+     */
+    public normalizeRecipientIdentifier(identifier: string): string {
+        return this.props.assetStrategy.normalizeRecipientIdentifier(identifier);
+    }
 
+    public handoverSteps(
+        context?: TransferContext,
+        phase: TransferPhase = 'listing',
+    ): HandoverStep[] {
         /*
-         * El comprador marca la frontera. Antes de que él aparezca, lo que
-         * ocurre es que el activo entra en custodia; después, que sale hacia
-         * él.
+         * La fase la declara cada paso en su estrategia, y acá solo se filtra.
+         * Antes se deducía de la posición —el tramo anterior al comprador, y
+         * «después del primer paso nuestro» para lo que llegaba con el
+         * contrato—, y esa inferencia dejó de alcanzar cuando hubo pasos del
+         * vendedor que no son de la cesión (migrar el hosting) y otros que se
+         * esconden a propósito hasta la operación.
          *
-         * Antes se cortaba en el primer paso ajeno al vendedor, asumiendo que
-         * lo suyo iba todo junto al principio. Dejó de ser cierto cuando se
-         * agregó su promoción a propietario principal, que ocurre entre dos
-         * pasos nuestros: con aquel corte quedaba invisible justo el momento
-         * en que se le pide ceder el control, que es lo que más necesita ver.
-         *
-         * Y filtrar por rol sería peor: un sitio web tiene pasos del vendedor
-         * después del comprador —migrar el hosting, ceder las cuentas
-         * afiliadas— que son de la entrega y no de la cesión.
+         * Por defecto es la fase de publicación: es lo único que se le muestra
+         * al vendedor mientras no haya una venta en curso.
          */
-        const entraElComprador = pasos.findIndex((p) => p.requiredActor === 'buyer');
-        const custodia = entraElComprador === -1 ? pasos : pasos.slice(0, entraElComprador);
-
-        // El primer paso nuestro parte la lista en dos momentos. Lo marca la
-        // entidad y no la estrategia porque depende de la posición en el
-        // recorrido completo, que la estrategia enumera pero no interpreta.
-        const entramosNosotros = custodia.findIndex((p) => p.requiredActor === 'platform');
-
-        return custodia
-            .map((paso, i) => ({
-                ...paso,
-                afterPlatformStarts: entramosNosotros !== -1 && i > entramosNosotros,
-            }))
-            .filter((p) => p.requiredActor === 'seller');
+        return this.props.assetStrategy
+            .getTransferSteps(context)
+            .filter((p): p is TransferStep & { phase: TransferPhase } => p.phase === phase)
+            .map((paso) => ({ ...paso, afterPlatformStarts: paso.phase === 'operation' }));
     }
 
     /**
@@ -386,6 +454,104 @@ export class Listing extends Entity<ListingProps> {
             throw new InvalidStateError("Solo un activo en borrador o rechazado puede enviarse a revisión.");
         }
         this.props.status = 'under_review';
+    }
+
+    /**
+     * Publica sin pasar por la revisión de un admin.
+     *
+     * Solo cuando la fuente ya demostró que el vendedor controla el activo: la
+     * revisión existe para dudar de lo que dijo una persona, y acá no hay nada
+     * que dudar. Sin esa constancia el único camino sigue siendo `submitForReview`.
+     */
+    public publish(): void {
+        // Un rechazado NO: el admin ya dijo que no, y publicar directo sería
+        // saltarse esa decisión. Tiene que volver a revisión.
+        if (this.props.status !== 'draft') {
+            throw new InvalidStateError(
+                'Solo un activo en borrador puede publicarse sin revisión: uno rechazado tiene que volver a enviarse a revisión.',
+            );
+        }
+        if (!this.isOwnershipVerified()) {
+            throw new InvalidStateError(
+                'Para publicar sin revisión hay que comprobar la titularidad del activo: sin eso, enviá el activo a revisión.',
+            );
+        }
+        this.props.status = 'published';
+        this.props.publishedAt = new Date();
+        this.props.rejectionReason = undefined;
+    }
+
+    /**
+     * Edita lo que el vendedor tipeó: rubro, contenido sin rostro y precio.
+     *
+     * Las métricas (suscriptores, ingreso, país) no se pueden tocar a
+     * propósito: cuando las leyó YouTube son una constancia, y cuando las
+     * declaró el vendedor cambiarlas después de crear el borrador permitiría
+     * reescribir el activo entero. Solo en borrador o rechazado, porque lo
+     * publicado es lo que un comprador ya vio.
+     */
+    public editDraft(changes: {
+        niche?: string;
+        hasNoFaceContent?: boolean;
+        askingPrice?: Money;
+    }): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
+            throw new InvalidStateError('Solo un activo en borrador o rechazado puede editarse.');
+        }
+        const { niche, hasNoFaceContent, askingPrice } = changes;
+        if (niche === undefined && hasNoFaceContent === undefined && askingPrice === undefined) {
+            throw new ValidationError('No hay ningún cambio para guardar.');
+        }
+        if (askingPrice) this.assertValidAskingPrice(askingPrice);
+
+        let strategy = this.props.assetStrategy;
+        if (niche !== undefined || hasNoFaceContent !== undefined) {
+            const { assetType, assetData } = strategy.toJSON();
+            if (hasNoFaceContent !== undefined && !('hasNoFaceContent' in assetData)) {
+                throw new ValidationError('Este tipo de activo no tiene contenido sin rostro.');
+            }
+            // Se reconstruye por la fábrica: es quien valida el rubro y la
+            // misma ruta por la que entra todo activo, así que no hay un
+            // segundo camino con otro rigor.
+            strategy = createAssetStrategy(assetType, {
+                ...assetData,
+                ...(niche !== undefined ? { niche } : {}),
+                ...(hasNoFaceContent !== undefined ? { hasNoFaceContent } : {}),
+            });
+        }
+
+        this.props.assetStrategy = strategy;
+        if (askingPrice) this.props.askingPrice = askingPrice;
+    }
+
+    /**
+     * Cambia el precio pedido.
+     *
+     * Se permite también publicado: es lo único que el vendedor ajusta con el
+     * activo en el mercado. En revisión no, porque el admin está evaluando lo
+     * que se le mandó; en operación y vendido el precio ya lo fija la
+     * negociación, no el pedido.
+     */
+    public changePrice(price: Money): void {
+        const permitidos: ListingStatus[] = ['draft', 'rejected', 'published'];
+        if (!permitidos.includes(this.props.status)) {
+            throw new InvalidStateError('El precio solo puede cambiarse en un activo en borrador, rechazado o publicado.');
+        }
+        this.assertValidAskingPrice(price);
+        this.props.askingPrice = price;
+    }
+
+    private assertValidAskingPrice(price: Money): void {
+        if (price.getCents() <= 0) {
+            throw new ValidationError('El precio pedido tiene que ser mayor a cero.');
+        }
+    }
+
+    /** Solo un borrador o un rechazado puede eliminarse: nadie lo vio ni negoció sobre él. */
+    public assertCanBeDiscarded(): void {
+        if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
+            throw new InvalidStateError('Solo un activo en borrador o rechazado puede eliminarse.');
+        }
     }
 
     public approve(): void {

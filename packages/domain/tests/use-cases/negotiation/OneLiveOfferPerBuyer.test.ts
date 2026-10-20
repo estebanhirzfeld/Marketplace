@@ -30,7 +30,7 @@ function unActivoPublicado(): Listing {
     return Listing.reconstitute(
         {
             sellerId: SELLER_ID,
-            assetStrategy: new WebStrategy(Money.fromCents(50000, 'USD'), 30, 'ejemplo.com'),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(50000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(1500000, 'USD'),
             status: 'published',
             publishedAt: new Date(),

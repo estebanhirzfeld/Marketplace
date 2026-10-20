@@ -28,7 +28,7 @@ const estrategias: Array<[string, IAssetStrategy]> = [
             channelUrl: 'https://youtube.com/@ejemplo',
         }),
     ],
-    ['web', new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com')],
+    ['web', new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' })],
 ];
 
 describe('IAssetStrategy.describe', () => {
@@ -40,12 +40,22 @@ describe('IAssetStrategy.describe', () => {
         expect(d.fields.length).toBeGreaterThan(0);
     });
 
+    it('el factor de crecimiento es un dato interno de la valuación: se describe pero no se muestra', () => {
+        const [, youtube] = estrategias[0];
+        const growth = youtube.describe().fields.find((f) => f.key === 'growthFactor');
+
+        expect(growth?.internal).toBe(true);
+        const shown = youtube.describe().fields.filter((f) => !f.internal);
+        expect(shown.map((f) => f.key)).not.toContain('growthFactor');
+        expect(shown.length).toBeGreaterThan(0);
+    });
+
     it.each(estrategias)('%s declara sus días de espera sin que nadie los adivine', (_, strategy) => {
         expect(strategy.describe().transferWaitingDays).toBe(strategy.transferWaitingDays());
     });
 
     it.each(estrategias)('%s dice contra qué fuente se comprueba su titularidad', (_, strategy) => {
-        expect(['youtube', 'adsense']).toContain(strategy.describe().ownershipSource);
+        expect(['youtube', 'adsense', 'dns']).toContain(strategy.describe().ownershipSource);
     });
 
     it.each(estrategias)('%s describe exactamente los campos que emite', (_, strategy) => {
@@ -80,6 +90,30 @@ describe('IAssetStrategy.describe', () => {
         for (const clave of d.summaryMetricKeys) {
             expect(publicos).toContain(clave);
         }
+    });
+
+    it('comprueba la titularidad de un sitio por DNS y la de un canal contra YouTube', () => {
+        const [, youtube] = estrategias[0];
+        const [, web] = estrategias[1];
+
+        expect(web.describe().ownershipSource).toBe('dns');
+        expect(youtube.describe().ownershipSource).toBe('youtube');
+    });
+
+    it('cuenta que AdSense es opcional y solo aporta el ingreso de un sitio', () => {
+        const [, web] = estrategias[1];
+        const aviso = web.describe().revenueNotice;
+
+        expect(aviso).toMatch(/AdSense/);
+        expect(aviso).toMatch(/opcional/i);
+    });
+
+    it('aclara que el registro DNS no prueba quién figura como titular del dominio', () => {
+        const [, web] = estrategias[1];
+        const aviso = web.describe().handoverNotice;
+
+        expect(aviso).toMatch(/DNS/);
+        expect(aviso).toMatch(/titular/i);
     });
 
     it('explica por qué el acceso lo registra una persona, en sus propios términos', () => {

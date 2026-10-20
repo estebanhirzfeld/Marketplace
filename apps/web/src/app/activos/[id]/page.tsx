@@ -1,21 +1,45 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ApiError } from '@marketplace/api-client';
-import type { ListingDetailDto, MyListingDto, OfferSummaryDto } from '@marketplace/api-contract';
+import type {
+    ListingDetailDto,
+    MyListingDto,
+    OfferSummaryDto,
+    YouTubeConnectionDto,
+} from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
 import { Reveal } from '@/components/Reveal';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
-import { OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
-import { SubmitButton } from '@/components/SubmitButton';
-import { OperationAction } from '@/components/OperationAction';
+import { Alert, OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
+import { AccessPanel } from '@/components/AccessPanel';
+import { DraftPanel } from '@/components/DraftPanel';
+import { SellMoreAside } from '@/components/SellMoreAside';
+import { EditListingDialog } from '@/components/EditListingDialog';
+import { DiscardDraftButton } from '@/components/DiscardDraftButton';
+import { AssetSummaryCard, OwnershipCheck, OwnershipProof } from '@/components/AssetSummaryCard';
+import { WebMark } from '@/components/AssetTypeCard';
+import { SendToReviewLink } from '@/components/SendToReviewLink';
+import { SellerLevelGauge } from '@/components/SellerLevelGauge';
+import { VerificationCards } from '@/components/VerificationCards';
+import { VerifiedChannelCard } from '@/components/VerifiedChannelCard';
+import { PublishedData } from '@/components/PublishedData';
+import { YOUTUBE_CARD_FIELD_KEYS } from '@/lib/publishedFields';
+import { currentProfile } from '@/lib/profile';
+import { isAccessRegistered, type MercadoPagoState } from '@/lib/sellerLevel';
+import { channelIdFromUrl } from '@/lib/youtubeChannel';
+import { findOwnershipResult } from '@/lib/ownershipResults';
+import { money, nicheLabel } from '@/lib/format';
 import {
-    fechaLarga,
-    money,
-    nicheLabel,
-    fieldValue,
-} from '@/lib/format';
-import { startVerification, submitForReview } from '../../vender/actions';
+    checkDomainOwnership,
+    getDomainOwnershipChallenge,
+    startVerification,
+    submitForReview,
+} from '../../vender/actions';
+import { DnsVerificationTrigger } from '@/components/DnsVerificationTrigger';
+import { oauthOwnershipSource, ownershipSourceLabel } from '@/lib/ownershipSource';
+import { discardDraft, editListing, publishDraft, requestAccess } from './actions';
 
 /**
  * La vista de control de un activo.
@@ -46,6 +70,7 @@ export default async function DetalleDeActivo(props: {
     await requireCounterparty();
     const { id } = await props.params;
     const query = await props.searchParams;
+    const resultado = findOwnershipResult(query.verificacion);
     const pestana = esPestana(query.ver) ? query.ver : 'estado';
 
     // El catálogo propio dice el estado real y el motivo de rechazo; el detalle
@@ -71,25 +96,91 @@ export default async function DetalleDeActivo(props: {
         offers = [];
     }
 
+    /*
+     * La foto y el nombre del canal verificado, solo para el dueño: identifican
+     * el canal, así que no viajan en `assetData` ni en nada público. Salen de la
+     * conexión del vendedor, buscada por el identificador de la dirección. Si no
+     * hay conexión (un activo cargado a mano, o desconectada) simplemente no se
+     * muestra.
+     */
+    let canal: YouTubeConnectionDto | undefined;
+    const channelId = channelIdFromUrl(listing.assetData.channelUrl);
+    if (pestana === 'verificaciones' && channelId) {
+        try {
+            canal = (await api().youTubeConnections()).find((c) => c.channelId === channelId);
+        } catch {
+            canal = undefined;
+        }
+    }
+
+    // Mercado Pago: solo lo necesitan el borrador (tarjeta lateral) y la pestaña
+    // de verificaciones. Si la consulta falla o la API dice 503 se trata como
+    // no disponible: no se ofrece vincular algo que no se puede vincular.
+    let mercadoPago: MercadoPagoState = 'unavailable';
+    const draftish = mio.status === 'draft' || mio.status === 'rejected';
+    if (pestana === 'verificaciones' || (pestana === 'estado' && draftish)) {
+        try {
+            const account = await api().paymentAccountStatus();
+            mercadoPago = account.linked ? 'linked' : 'not_linked';
+        } catch {
+            mercadoPago = 'unavailable';
+        }
+    }
+    const kycVerified = (await currentProfile())?.isKycVerified ?? false;
+
+    // El ingreso mensual que sostiene la valuación: antes tenía un panel propio
+    // y ahora es el pie de la tarjeta del canal.
+    const ingresoMensual =
+        mio.ownership?.monthlyRevenueCents !== undefined ? (
+            <>
+                Ingreso mensual comprobado:{' '}
+                <span className="font-mono text-[var(--color-listo)]">
+                    {money({ cents: mio.ownership.monthlyRevenueCents, currency: 'USD' })}
+                </span>
+                . Lo informa Google, no vos: es el dato que sostiene la valuación.
+            </>
+        ) : (
+            listing.descriptor.revenueNotice
+        );
+
     const sinResponder = offers.filter((o) => o.pendingResponseFrom === 'seller').length;
     const rubro = mio.niche ? nicheLabel(mio.niche) : 'Activo';
 
     /*
-     * Los pasos de la cesión, partidos en dos momentos.
-     *
-     * El primer paso de la plataforma marca la frontera: lo anterior es lo que
-     * el vendedor puede hacer ya, y lo posterior —promovernos a propietario
-     * principal— es lo que le vamos a pedir recién con el contrato firmado.
-     * Mostrarle los dos desde el principio es lo que hace creíble la primera
-     * mitad: la promesa es que no cede control ahora, y eso solo tranquiliza
-     * si puede ver cuándo sí.
-     *
-     * El momento se deduce de la posición y no de un campo del paso: la
-     * estrategia describe un recorrido, no sabe de operaciones.
+     * Solo los pasos de antes de la venta. Quitar el acceso directo y el
+     * propietario principal se piden con el contrato firmado, dentro de la
+     * operación: acá mostrarlos asusta sin que haya nada que hacer todavía.
      */
-    const ahora = mio.handoverSteps.filter((p) => !p.afterPlatformStarts);
-    const despues = mio.handoverSteps.filter((p) => p.afterPlatformStarts);
+    const listingSteps = mio.handoverSteps.filter((p) => (p.phase ?? 'listing') === 'listing');
     const cuentaDeCustodia = mio.custodyAccountIdentifier;
+    const guided =
+        mio.assetType === 'youtube' &&
+        !!cuentaDeCustodia &&
+        listingSteps.length === 2 &&
+        listingSteps.every((p) => p.details && p.details.length > 0);
+    const accessRegistered = mio.transferable || isAccessRegistered(mio.platformAccessStatus);
+    const sourceLabel = ownershipSourceLabel(listing.descriptor.ownershipSource);
+    const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
+    const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
+    // Con DNS no se redirige a Google: el diálogo ofrece AdSense como alternativa.
+    const verifyAction = startVerification.bind(null, id, oauthOwnershipSource(listing.descriptor.ownershipSource));
+    // El registro se pide al abrir el diálogo y no acá: resolver los servidores
+    // de nombres es una consulta de red que no vale pagar en cada visita.
+    const dnsSource = listing.descriptor.ownershipSource === 'dns';
+    const dnsTrigger = (className: string) =>
+        dnsSource ? (
+            <DnsVerificationTrigger
+                className={className}
+                getChallenge={getDomainOwnershipChallenge.bind(null, id)}
+                checkAction={checkDomainOwnership.bind(null, id)}
+                adsenseAction={startVerification.bind(null, id, 'adsense')}
+                // Al comprobarse, el diálogo ofrece publicar sin salir de él.
+                publishAction={mio.status === 'draft' ? publishDraft.bind(null, id) : undefined}
+            />
+        ) : undefined;
+    const isWeb = mio.assetType === 'web';
+    const domain = typeof listing.assetData.domain === 'string' ? listing.assetData.domain : '';
+    const now = new Date().toISOString();
     // El activo es suyo, así que el nombre le llega siempre. El rubro y el
     // tipo quedan como subtítulo: dicen de qué se trata sin repetir el nombre.
     const nombre = typeof listing.assetData.name === 'string' && listing.assetData.name
@@ -143,6 +234,20 @@ export default async function DetalleDeActivo(props: {
                         <div className="mt-1.5 font-mono text-[13px] text-[var(--color-apagado)]">
                             valuación {money(mio.estimatedPrice)}
                         </div>
+                        {(draftish || mio.status === 'published') && (
+                            <div className="mt-4 flex flex-wrap items-start justify-end gap-2">
+                                <EditListingDialog
+                                    action={editListing.bind(null, id, mio.status)}
+                                    scope={draftish ? 'listing' : 'price'}
+                                    niche={mio.niche}
+                                    noFace={listing.assetData.hasNoFaceContent === true}
+                                    showNoFace={mio.assetType === 'youtube'}
+                                    priceCents={mio.askingPrice.cents}
+                                    currency={mio.askingPrice.currency}
+                                />
+                                {draftish && <DiscardDraftButton action={discardDraft.bind(null, id)} />}
+                            </div>
+                        )}
                     </div>
                 </div>
             </Reveal>
@@ -271,241 +376,91 @@ export default async function DetalleDeActivo(props: {
                         publicar, que ya no muestra este aviso, así que el clic
                         parecía no hacer nada.
                     */}
+                    {/* La vuelta de Google trae el resultado en la dirección. */}
+                    {query.verificacion !== 'no-configurada' && resultado && (
+                        <div className="mt-6">
+                            <Alert tono={resultado.ok ? 'listo' : 'alerta'}>
+                                {resultado.text}
+                            </Alert>
+                        </div>
+                    )}
                     {query.verificacion === 'no-configurada' && (
                         <div className="mt-6 rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[14px] leading-relaxed text-[var(--color-alerta)]">
                             La verificación con Google todavía no está configurada en este entorno,
                             así que no pudimos empezarla.
                         </div>
                     )}
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
-                        <Panel title="TITULARIDAD">
-                            {mio.ownership ? (
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-[15px] text-[var(--color-listo)]">
-                                        Comprobada contra {mio.ownership.source === 'adsense' ? 'AdSense' : 'YouTube'}
-                                    </span>
-                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Lo confirmamos el{' '}
-                                        {new Date(mio.ownership.verifiedAt).toLocaleDateString('es-AR')}.
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-4">
-                                    <span className="text-[15px] text-[var(--color-alerta)]">
-                                        Falta comprobar que controlás el activo
-                                    </span>
-                                    <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Te vamos a llevar a Google para que autorices la consulta. Es
-                                        la verificación que impide que alguien publique un activo
-                                        ajeno.
-                                    </p>
-                                    <form
-                                        action={startVerification.bind(
-                                            null,
-                                            id,
-                                            listing.descriptor.ownershipSource,
-                                        )}
-                                    >
-                                        <SubmitButton
-                                            variant="secundario"
-                                            pendingText="Redirigiendo a Google…"
-                                        >
-                                            Verificar con{' '}
-                                            {listing.descriptor.ownershipSource === 'adsense'
-                                                ? 'AdSense'
-                                                : 'YouTube'}
-                                        </SubmitButton>
-                                    </form>
-                                </div>
-                            )}
-                        </Panel>
+                    <div className="mt-6 grid gap-4 lg:grid-cols-[5fr_2fr]">
+                        {canal ? (
+                            <VerifiedChannelCard channel={canal} avatarShape="square" />
+                        ) : (
+                            <AssetSummaryCard
+                                name={nombre}
+                                subtitle={isWeb ? [domain, rubro].filter(Boolean).join(' · ') : listing.descriptor.label}
+                                note={isWeb ? undefined : ingresoMensual}
+                                mark={isWeb ? <WebMark width={52} /> : undefined}
+                            >
+                                {dnsSource &&
+                                    (mio.ownership ? (
+                                        <OwnershipProof sourceLabel={ownershipSourceLabel(mio.ownership.source)} />
+                                    ) : (
+                                        <OwnershipCheck
+                                            action={dnsTrigger('min-h-11 px-[18px] py-3')}
+                                            alternative={
+                                                mio.status === 'draft' ? (
+                                                    <SendToReviewLink action={submitForReview.bind(null, id)} />
+                                                ) : undefined
+                                            }
+                                        />
+                                    ))}
+                            </AssetSummaryCard>
+                        )}
+                        <SellerLevelGauge assetType={mio.assetType} ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
+                    </div>
 
-                        <Panel title="INGRESO MENSUAL">
-                            {mio.ownership?.monthlyRevenueCents !== undefined ? (
-                                <div className="flex flex-col gap-2">
-                                    <span className="font-mono text-[15px] text-[var(--color-listo)]">
-                                        {money({
-                                            cents: mio.ownership.monthlyRevenueCents,
-                                            currency: 'USD',
-                                        })}{' '}
-                                        comprobados
-                                    </span>
-                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Lo informa Google, no vos. Es el dato que sostiene la valuación.
-                                    </span>
-                                </div>
-                            ) : (
-                                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                    {listing.descriptor.revenueNotice}
-                                </p>
-                            )}
-                        </Panel>
+                    <div className="mt-4 flex flex-col gap-4">
+                        <VerificationCards
+                            ownership={{
+                                done: !!mio.ownership,
+                                sourceLabel: ownershipSourceLabel(mio.ownership?.source ?? ''),
+                                verifiedAt: mio.ownership?.verifiedAt,
+                            }}
+                            access={{ done: accessRegistered }}
+                            mercadoPago={{ done: mercadoPago === 'linked', unavailable: mercadoPago === 'unavailable' }}
+                            ownershipSource={sourceLabel}
+                            kycVerified={kycVerified}
+                            verifyAction={verifyAction}
+                            dnsVerification={dnsTrigger('px-[18px] py-3')}
+                        />
 
                         {/*
-                            Acá vive el trabajo real del vendedor. Los pasos estaban
-                            escritos en cada estrategia desde el principio y no se
-                            mostraban en ninguna pantalla, así que el vendedor no
-                            tenía cómo saber qué hacer y se enteraba recién cuando
-                            una operación quedaba trabada esperándolo.
-
-                            Va antes de que haya comprador a propósito: cumplirlo
-                            arranca el plazo, y cuando el plazo se cumple el activo
-                            queda marcado como de transferencia inmediata. Así la
-                            espera transcurre mientras el activo está en el mercado
-                            y no en el medio de una venta ya acordada.
+                            Acá vive el trabajo real del vendedor antes de la venta.
+                            Va antes de que haya comprador a propósito: el plazo corre
+                            mientras el activo está publicado, y cuando se cumple queda
+                            marcado como de transferencia inmediata.
                         */}
-                        <Panel title="ACCESO DE LA PLATAFORMA">
-                            {mio.transferable ? (
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-[15px] text-[var(--color-listo)]">
-                                        Cedido y fuera del plazo de espera
-                                    </span>
-                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Tu activo aparece en el mercado como{' '}
-                                        <span className="font-mono text-[12px] text-[var(--color-listo)]">
-                                            TRANSFERENCIA INMEDIATA
-                                        </span>
-                                        . Quien compre hoy no espera ningún plazo, y el contrato se
-                                        puede firmar el mismo día.
-                                    </span>
-                                </div>
-                            ) : mio.transferableFrom ? (
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-[15px] text-[var(--color-alerta)]">
-                                        En período de espera
-                                    </span>
-                                    <span className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Ya nos diste el acceso. El{' '}
-                                        {fechaLarga(mio.transferableFrom)} tu activo pasa a figurar
-                                        como de transferencia inmediata. Mientras tanto podés
-                                        recibir ofertas y negociar normalmente.
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-4">
-                                    <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
-                                        Todavía no nos diste acceso, así que el contrato de venta no
-                                        se va a poder firmar. Hacelo ahora y no cuando aparezca un
-                                        comprador: el plazo de espera corre igual mientras el activo
-                                        está publicado.
-                                    </p>
+                        {listingSteps.length > 0 && (
+                            <AccessPanel
+                                listingId={id}
+                                subject={subject}
+                                waitingDays={listing.descriptor.transferWaitingDays}
+                                steps={listingSteps}
+                                email={cuentaDeCustodia}
+                                status={mio.transferable ? 'immediate' : mio.platformAccessStatus}
+                                transferableFrom={mio.transferableFrom}
+                                guided={guided}
+                                now={now}
+                                requestAction={requestAccess.bind(null, id)}
+                            />
+                        )}
+                    </div>
 
-                                    {/*
-                                        El dato concreto, destacado. Antes vivía embebido dentro de
-                                        una oración del instructivo y había que buscarlo: es lo
-                                        único que el vendedor necesita copiar, así que no puede
-                                        estar escondido en un párrafo.
-                                    */}
-                                    {cuentaDeCustodia && (
-                                        <div className="flex flex-col gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-acento)]/40 p-4">
-                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                                                INVITANOS A
-                                            </span>
-                                            <span className="font-mono text-[15px] text-[var(--color-acento)]">
-                                                {cuentaDeCustodia}
-                                            </span>
-                                            <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                                                Con permisos de administrador, no de propietario.
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    {/*
-                                        La promesa va en negativo a propósito: el vendedor puede
-                                        verificar cada línea en la interfaz de Google. Una promesa
-                                        en positivo le pediría que nos crea, y de eso se trata
-                                        justamente su desconfianza.
-                                    */}
-                                    <div className="flex flex-col gap-2 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
-                                        <span className="text-[13px] font-medium">
-                                            Con ese rol no podemos
-                                        </span>
-                                        <ul className="flex flex-col gap-1">
-                                            {[
-                                                'Eliminar tu activo',
-                                                'Quitarte a vos',
-                                                'Transferirlo a nadie',
-                                            ].map((no) => (
-                                                <li
-                                                    key={no}
-                                                    className="flex items-start gap-2 text-[12px] leading-relaxed text-[var(--color-apagado)]"
-                                                >
-                                                    <span aria-hidden className="text-[var(--color-listo)]">
-                                                        ✓
-                                                    </span>
-                                                    {no}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                                            Seguís siendo el dueño y podés echarnos cuando quieras.
-                                        </span>
-                                    </div>
-
-                                    {ahora.length > 0 && (
-                                        <ol className="flex flex-col gap-3 border-t border-[var(--color-borde)] pt-4">
-                                            {ahora.map((paso, i) => (
-                                                <li key={paso.id} className="flex gap-3 text-[13px]">
-                                                    <span className="font-mono text-[12px] text-[var(--color-acento)]">
-                                                        {i + 1}
-                                                    </span>
-                                                    <span className="leading-relaxed text-[var(--color-tenue)]">
-                                                        {paso.instruction ?? paso.description}
-                                                    </span>
-                                                </li>
-                                            ))}
-                                        </ol>
-                                    )}
-
-                                    {/*
-                                        El momento en que sí cede el control, mostrado desde el
-                                        principio. La promesa es que no cede nada AHORA, y eso solo
-                                        tranquiliza si puede ver cuándo sí: esconderlo lo volvería
-                                        una sorpresa tardía.
-                                    */}
-                                    {despues.length > 0 && (
-                                        <div className="flex flex-col gap-2 border-t border-[var(--color-borde)] pt-4">
-                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                                                Y MÁS ADELANTE, CON EL CONTRATO FIRMADO
-                                            </span>
-                                            {despues.map((paso) => (
-                                                <span
-                                                    key={paso.id}
-                                                    className="text-[13px] leading-relaxed text-[var(--color-tenue)]"
-                                                >
-                                                    {paso.instruction ?? paso.description}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                                        Cuando lo hagas, avisanos y lo dejamos registrado.{' '}
-                                        {listing.descriptor.handoverNotice}
-                                    </p>
-                                </div>
-                            )}
-                        </Panel>
-
-                        <Panel title="LOS DATOS PUBLICADOS">
-                            <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                                {/*
-                                    El orden y las etiquetas los declara el tipo de activo. La
-                                    pantalla no sabe qué campos existen ni cómo se llaman: solo
-                                    los dibuja en el orden en que se los dan.
-                                */}
-                                {listing.descriptor.fields
-                                    .filter((f) => f.key in listing.assetData)
-                                    .map((f) => (
-                                        <div key={f.key} className="flex justify-between gap-4 py-2.5 text-[14px]">
-                                            <span className="text-[var(--color-tenue)]">{f.label}</span>
-                                            <span className="font-mono">
-                                                {fieldValue(f.kind, listing.assetData[f.key])}
-                                            </span>
-                                        </div>
-                                    ))}
-                            </div>
-                        </Panel>
+                    <div className="mt-4">
+                        <PublishedData
+                            fields={listing.descriptor.fields}
+                            data={listing.assetData}
+                            exclude={mio.assetType === 'youtube' ? YOUTUBE_CARD_FIELD_KEYS : undefined}
+                        />
                     </div>
                 </Reveal>
             )}
@@ -513,21 +468,36 @@ export default async function DetalleDeActivo(props: {
             {/* ── ESTADO ────────────────────────────────────────── */}
             {pestana === 'estado' && (
                 <Reveal>
+                    {draftish && (
+                        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[3fr_2fr]">
+                            <DraftPanel
+                                variant={
+                                    mio.status === 'rejected' ? 'rejected' : mio.ownership ? 'ready' : 'unverified'
+                                }
+                                subject={subject}
+                                sourceLabel={sourceLabel}
+                                price={money(mio.askingPrice)}
+                                kycVerified={kycVerified}
+                                rejectionReason={mio.rejectionReason}
+                                publishAction={publishDraft.bind(null, id)}
+                                reviewAction={submitForReview.bind(null, id)}
+                                verifyAction={verifyAction}
+                                dnsVerification={dnsTrigger('min-h-[52px] px-7 text-[16px]')}
+                            />
+                            {mio.status === 'draft' && (
+                                <SellMoreAside
+                                            accessHref={accessHref}
+                                            subject={subject}
+                                            showAccess={mio.platformAccessStatus === 'pending'}
+                                    showMercadoPago={mercadoPago === 'not_linked'}
+                                />
+                            )}
+                        </div>
+                    )}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        {!draftish && (
                         <Panel title="QUÉ PODÉS HACER">
                             <div className="flex flex-col gap-4">
-                                {(mio.status === 'draft' || mio.status === 'rejected') && (
-                                    <>
-                                        <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                            Todavía no lo ve nadie. Al enviarlo a revisión lo evaluamos
-                                            antes de publicarlo.
-                                        </p>
-                                        <OperationAction
-                                            action={submitForReview.bind(null, id)}
-                                            text="Enviar a revisión"
-                                        />
-                                    </>
-                                )}
                                 {mio.status === 'under_review' && (
                                     <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
                                         Lo estamos revisando. Te avisamos cuando salga al mercado.
@@ -558,6 +528,7 @@ export default async function DetalleDeActivo(props: {
                                 </ButtonLink>
                             </div>
                         </Panel>
+                        )}
 
                         <Panel title={`SI SE VENDE A ${money(mio.askingPrice)}`}>
                             <div className="flex flex-col gap-3">

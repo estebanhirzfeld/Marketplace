@@ -32,46 +32,53 @@ function youtubeListing() {
 function webListing() {
     return Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(Money.fromCents(210000, 'USD'), 52, 'ejemplo.com'),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
         askingPrice: Money.fromCents(6800000, 'USD'),
     });
 }
 
 describe('Listing.handoverSteps', () => {
-    it('debería devolver lo que le toca al vendedor para que el activo entre en custodia', () => {
+    it('antes de la venta le pide al vendedor solo la cuenta de marca y la invitación', () => {
         const pasos = youtubeListing().handoverSteps();
 
-        // Convertir a Cuenta de Marca, salir de los permisos de canal, invitar
-        // como administrador, y —después de dos pasos nuestros— promovernos.
-        expect(pasos).toHaveLength(4);
-        expect(pasos[0].description).toContain('Cuenta de Marca');
-        expect(pasos[1].description).toMatch(/permisos de canal/i);
-        expect(pasos[2].description).toContain('invita a');
-        expect(pasos[3].description).toMatch(/propietari[oa] principal/i);
+        expect(pasos).toHaveLength(2);
+        expect(pasos[0].title).toBe('Pasá tu canal a una cuenta de marca');
+        expect(pasos[1].title).toBe('Invitanos como administrador');
+        expect(pasos.every((p) => p.phase === 'listing')).toBe(true);
     });
 
-    it('incluye el paso del vendedor que ocurre entre dos pasos nuestros', () => {
-        const listing = youtubeListing();
-        const todos = listing.toSnapshot().props.assetStrategy.getTransferSteps();
+    it('no adelanta ni el acceso directo ni el propietario principal ni la mecánica de los 7 días', () => {
+        const texto = youtubeListing()
+            .handoverSteps()
+            .map((p) => `${p.description} ${p.instruction ?? ''} ${(p.details ?? []).join(' ')}`)
+            .join(' ');
 
-        const promocion = listing.handoverSteps().at(-1)!;
-        const posicion = todos.findIndex((p) => p.id === promocion.id);
-        const nuestrosAntes = todos.slice(0, posicion).filter((p) => p.requiredActor === 'platform');
+        expect(texto).not.toMatch(/propietari[oa] principal/i);
+        expect(texto).not.toMatch(/permisos de canal/i);
+        expect(texto).not.toMatch(/7 días|siete días/i);
+    });
 
-        // Es el punto entero del cambio: si se cortara la lista en el primer
-        // paso ajeno al vendedor, este quedaría invisible y él nunca vería
-        // cuándo se le va a pedir ceder el control.
-        expect(nuestrosAntes.length).toBeGreaterThan(0);
+    it('en la operación le pide quitar su acceso directo y hacernos propietarios principales', () => {
+        const pasos = youtubeListing().handoverSteps(undefined, 'operation');
+
+        expect(pasos).toHaveLength(2);
+        expect(pasos[0].title).toBe('Quitá tu acceso directo al canal');
+        expect(pasos[1].title).toBe('Hacenos propietario principal');
+        expect(pasos.every((p) => p.phase === 'operation' && p.afterPlatformStarts)).toBe(true);
+    });
+
+    it('los pasos de antes de la venta no marcan afterPlatformStarts', () => {
+        expect(youtubeListing().handoverSteps().every((p) => !p.afterPlatformStarts)).toBe(true);
     });
 
     it('pide administrador y no propietario, y dice qué no podemos hacer', () => {
-        const invitacion = youtubeListing().handoverSteps()[2];
+        const invitacion = youtubeListing().handoverSteps()[1];
 
         expect(invitacion.description).toMatch(/administrador/i);
         expect(invitacion.description).not.toMatch(/como propietari/i);
         // La promesa va en negativo: el vendedor la puede verificar en la
         // interfaz de Google en vez de tener que creernos.
-        expect(invitacion.instruction).toMatch(/no puede/i);
+        expect(`${invitacion.instruction} ${(invitacion.details ?? []).join(' ')}`).toMatch(/no puede/i);
     });
 
     it('reenvía el contexto a la estrategia: el paso de invitación nombra la cuenta de custodia', () => {
@@ -88,6 +95,8 @@ describe('Listing.handoverSteps', () => {
         expect(pasos).toHaveLength(2);
         expect(pasos[0].description).toContain('60 días');
         expect(pasos[1].description).toContain('EPP');
+        expect(pasos.every((p) => p.phase === 'listing')).toBe(true);
+        expect(webListing().handoverSteps(undefined, 'operation')).toEqual([]);
     });
 
     it('no debería incluir pasos de otras partes', () => {

@@ -20,7 +20,6 @@ export interface FiltrosDeBusqueda {
     maxPrice?: number;
     minSubscribers?: number;
     onlyMonetized?: boolean;
-    minDomainAuthority?: number;
     sort?: ListingFiltersQuery['sort'];
     direction?: ListingFiltersQuery['direction'];
 }
@@ -67,7 +66,6 @@ function hrefDeTipo(assetType: string | undefined, actuales: FiltrosDeBusqueda):
  */
 export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
     const esCanal = actuales.assetType === 'youtube';
-    const esWeb = actuales.assetType === 'web';
 
     /*
      * En pantallas chicas el formulario de filtros completo se apilaba arriba
@@ -193,22 +191,6 @@ export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
                                 Solo monetizados
                             </label>
                         </div>
-                    </Bloque>
-                )}
-
-                {esWeb && (
-                    <Bloque titulo="DEL SITIO">
-                        <Campo
-                            etiqueta="Autoridad de dominio desde"
-                            nota="Del 0 al 100. Estima cuánto pesa el dominio en buscadores."
-                        >
-                            <Numero
-                                name="minDomainAuthority"
-                                valor={actuales.minDomainAuthority}
-                                placeholder="0"
-                                max={100}
-                            />
-                        </Campo>
                     </Bloque>
                 )}
 

@@ -158,6 +158,12 @@ export interface EvidenceDossier {
     verifications: {
         ownership?: { verifiedAt: Date; assetId: string; source: string; monthlyRevenueCents?: number };
         platformAccess?: { verifiedAt: Date; accessSince: Date };
+        /**
+         * Lo que el vendedor declaró al ceder el control. Es la única pieza del
+         * escrow que aporta él y no la plataforma, así que ante un reclamo por
+         * un traspaso que no ocurrió es exactamente lo que hay que entregar.
+         */
+        transferInitiation?: { declaredAt: Date; controlCeded: boolean; custodyAccountId?: string; notes?: string };
         custody?: { verifiedAt: Date; isPrimaryOwner: boolean; accessSecured: boolean; metrics: Record<string, number> };
     };
     contracts: ContractEvidence[];
@@ -257,6 +263,12 @@ export class GetEvidenceDossierUseCase {
                 platformAccess: listing.platformAccess && {
                     verifiedAt: listing.platformAccess.verifiedAt,
                     accessSince: listing.platformAccess.accessSince,
+                },
+                transferInitiation: operation.transferInitiation && {
+                    declaredAt: operation.transferInitiation.declaredAt,
+                    controlCeded: operation.transferInitiation.controlCeded,
+                    custodyAccountId: operation.transferInitiation.custodyAccountId?.toString(),
+                    notes: operation.transferInitiation.notes,
                 },
                 custody: operation.custodyVerification && {
                     verifiedAt: operation.custodyVerification.verifiedAt,

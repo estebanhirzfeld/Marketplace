@@ -152,6 +152,27 @@ export default async function Legajo(props: { params: Promise<{ id: string }> })
                                 </Bloque>
                             )}
 
+                            {d.verifications.transferInitiation && (
+                                <Bloque titulo="Cesión declarada por el vendedor">
+                                    Declarada el{' '}
+                                    {fecha(d.verifications.transferInitiation.declaredAt)}. El
+                                    vendedor afirmó haber cedido el control del activo:{' '}
+                                    {d.verifications.transferInitiation.controlCeded ? 'sí' : 'no'}.
+                                    {d.verifications.transferInitiation.custodyAccountId && (
+                                        <>
+                                            {' '}Cuenta de custodia registrada en ese momento:{' '}
+                                            <span className="font-mono">
+                                                {d.verifications.transferInitiation.custodyAccountId}
+                                            </span>
+                                            .
+                                        </>
+                                    )}
+                                    {d.verifications.transferInitiation.notes && (
+                                        <> Notas del vendedor: {d.verifications.transferInitiation.notes}</>
+                                    )}
+                                </Bloque>
+                            )}
+
                             {d.verifications.custody && (
                                 <Bloque titulo="Custodia del activo">
                                     Verificada el {fecha(d.verifications.custody.verifiedAt)}.

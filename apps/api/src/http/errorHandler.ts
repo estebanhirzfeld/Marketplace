@@ -4,6 +4,8 @@ import {
     NotFoundError,
     ForbiddenError,
     InvalidStateError,
+    ServiceUnavailableError,
+    ChannelAlreadyListedError,
     ValidationError,
 } from '@marketplace/domain/src/errors/DomainError';
 
@@ -18,12 +20,27 @@ function statusFor(error: DomainError): number {
     if (error instanceof ForbiddenError) return 403;
     if (error instanceof InvalidStateError) return 409;
     if (error instanceof ValidationError) return 400;
+    if (error instanceof ServiceUnavailableError) return 503;
     return 500;
 }
 
 export function registerErrorHandler(app: FastifyInstance): void {
     app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
         if (error instanceof DomainError) {
+            // La causa original (un fallo inesperado detrás de un 503, por
+            // ejemplo) nunca llega al cliente, pero tiene que quedar en el log.
+            if (error.cause !== undefined) {
+                request.log.error({ err: error.cause, code: error.code }, error.message);
+            }
+            // El dominio solo lleva el id del activo cuando es del propio
+            // solicitante: el de otro vendedor nunca llega a este punto.
+            if (error instanceof ChannelAlreadyListedError && error.listingId) {
+                return reply.code(statusFor(error)).send({
+                    code: error.code,
+                    message: error.message,
+                    listingId: error.listingId,
+                });
+            }
             return reply.code(statusFor(error)).send({
                 code: error.code,
                 message: error.message,

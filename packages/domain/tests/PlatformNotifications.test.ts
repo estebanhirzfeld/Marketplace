@@ -56,13 +56,12 @@ function armar(...admins: User[]) {
 function unActivo() {
     return Listing.create({
         sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy(
-            Money.fromCents(120000, 'USD'),
-            44,
-            'ejemplo.com',
-            AssetNiche.TECHNOLOGY,
-            'Ejemplo',
-        ),
+        assetStrategy: new WebStrategy({
+            monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+            domain: 'ejemplo.com',
+            niche: AssetNiche.TECHNOLOGY,
+            name: 'Ejemplo',
+        }),
         askingPrice: Money.fromCents(3600000, 'USD'),
     });
 }
@@ -107,6 +106,17 @@ describe('PlatformNotifier', () => {
         await avisos.platformAccessNeeded(unaOperacion());
 
         expect(enviadas[0].type).toBe('acceso_pendiente');
+    });
+
+    it('avisa a los administradores que un vendedor dice haber invitado a la plataforma', async () => {
+        const listing = unActivo();
+        const { avisos, enviadas } = armar(admin('uno@traspaso.com'), admin('dos@traspaso.com'));
+
+        await avisos.platformAccessRequested(listing);
+
+        expect(enviadas).toHaveLength(2);
+        expect(enviadas[0].type).toBe('acceso_solicitado');
+        expect(enviadas[0].toSnapshot().props.listingId?.toString()).toBe(listing.id.toString());
     });
 
     it('lleva el monto que hay que liquidarle al vendedor', async () => {

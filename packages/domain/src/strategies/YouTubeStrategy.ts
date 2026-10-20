@@ -2,11 +2,14 @@ import {
   AssetFieldDescriptor,
   AssetTypeDescriptor,
   IAssetStrategy,
+  MAX_RECIPIENT_IDENTIFIER_LENGTH,
   MetricKey,
   TransferContext,
   TransferStep,
 } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
+import { Email } from '../value-objects/Email';
+import { ValidationError } from '../errors/DomainError';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 interface YouTubeStrategyProps {
@@ -26,7 +29,20 @@ interface YouTubeStrategyProps {
   name?: string;
   /** Rubro del canal. Público: dice de qué trata, no cuál es. */
   niche?: string;
+  /**
+   * Cuándo leyó YouTube Analytics los datos de este activo. Presente solo si
+   * suscriptores, ingreso y país los verificó Google en lugar de tipearlos.
+   */
+  verifiedFromYouTubeAt?: Date;
 }
+
+/** Pantallas de Google y YouTube donde el vendedor hace cada paso del traspaso. */
+const YOUTUBE_LINKS = {
+  channelSwitcher: 'https://www.youtube.com/channel_switcher',
+  advancedSettings: 'https://www.youtube.com/account_advanced',
+  brandAccounts: 'https://myaccount.google.com/brandaccounts',
+  studio: 'https://studio.youtube.com',
+} as const;
 
 export class YouTubeStrategy implements IAssetStrategy {
 
@@ -39,29 +55,35 @@ export class YouTubeStrategy implements IAssetStrategy {
   private readonly subscribers: number;
   private readonly growthFactor: number;
   private readonly isMonetized: boolean;
-  private readonly audienceTopCountry: string;
+  /** `null` cuando Google no informó país: no se inventa uno. */
+  private readonly audienceTopCountry: string | null;
   private readonly hasNoFaceContent: boolean;
   private readonly channelUrl: string;
   private readonly name: string;
   private readonly niche: string;
+  private readonly verifiedFromYouTubeAt?: Date;
 
   constructor({
     monthlyRevenueUsd,
     subscribers,
     growthFactor = 1.0,
     isMonetized,
-    audienceTopCountry = 'AR',
+    audienceTopCountry,
     hasNoFaceContent = false,
     channelUrl = '',
     name = '',
     niche = AssetNiche.OTHER,
+    verifiedFromYouTubeAt,
   }: YouTubeStrategyProps) {
+    this.verifiedFromYouTubeAt = verifiedFromYouTubeAt;
     this.niche = niche;
     this.monthlyRevenueUsd = monthlyRevenueUsd;
     this.subscribers = subscribers;
     this.growthFactor = growthFactor;
     this.isMonetized = isMonetized;
-    this.audienceTopCountry = audienceTopCountry;
+    // Un activo cargado a mano sin país sigue asumiendo AR. Uno verificado sin
+    // país no: el dato no existe y asumirlo restaría múltiplo sin motivo.
+    this.audienceTopCountry = audienceTopCountry ?? (verifiedFromYouTubeAt ? null : 'AR');
     this.hasNoFaceContent = hasNoFaceContent;
     this.channelUrl = channelUrl;
     this.name = name;
@@ -84,12 +106,15 @@ export class YouTubeStrategy implements IAssetStrategy {
         { key: 'subscribers', label: 'Suscriptores', kind: 'number', confidential: false },
         { key: 'monthlyRevenueUsdCents', label: 'Ingreso mensual', kind: 'money', confidential: false },
         { key: 'currency', label: 'Moneda', kind: 'text', confidential: false },
-        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false },
+        { key: 'growthFactor', label: 'Factor de crecimiento', kind: 'number', confidential: false, internal: true },
         { key: 'isMonetized', label: 'Monetizado', kind: 'boolean', confidential: false },
         { key: 'audienceTopCountry', label: 'País principal de la audiencia', kind: 'text', confidential: false },
         { key: 'hasNoFaceContent', label: 'Contenido sin rostro', kind: 'boolean', confidential: false },
         { key: 'name', label: 'Nombre del canal', kind: 'text', confidential: true },
         channelUrl,
+        ...(this.verifiedFromYouTubeAt
+          ? [{ key: 'verifiedFromYouTubeAt', label: 'Datos verificados con YouTube el', kind: 'date' as const, confidential: false }]
+          : []),
       ],
       summaryMetricKeys: ['subscribers', 'monthlyRevenueUsdCents', 'audienceTopCountry'],
       ownershipSource: 'youtube',
@@ -98,9 +123,28 @@ export class YouTubeStrategy implements IAssetStrategy {
         'No lo detectamos solos: la API de YouTube no dice si un canal es Cuenta de Marca ni quiénes son sus propietarios.',
       waitingNotice:
         'YouTube exige haber sido administrador o propietario del canal durante siete días antes de permitir el cambio de propietario principal. Por eso alcanza con sumarnos como administrador: el plazo corre igual y vos seguís siendo el dueño. La espera la impone la plataforma del activo, no nosotros.',
-      revenueNotice:
-        'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada.',
+      revenueNotice: this.revenueNotice(),
     };
+  }
+
+  /**
+   * Un activo verificado trae el ingreso leído de YouTube Analytics con el
+   * permiso del vendedor, así que decir que YouTube no lo expone sería falso.
+   * Uno cargado a mano sigue siendo una declaración jurada.
+   */
+  private revenueNotice(): string {
+    if (!this.verifiedFromYouTubeAt) {
+      return 'YouTube no expone los ingresos de un canal por su API, así que el que declaraste queda como declaración jurada.';
+    }
+    const cents = this.monthlyRevenueUsd.getCents();
+    if (cents > 0) {
+      const amount = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(cents / 100);
+      return `Verificado con YouTube: US$ ${amount} por mes, promedio de los últimos 3 meses.`;
+    }
+    // Monetizado se deduce de los ingresos de 12 meses: sin monetizar, no hubo ninguno.
+    return this.isMonetized
+      ? 'Verificado con YouTube: sin ingresos en los últimos 3 meses.'
+      : 'Verificado con YouTube: sin ingresos en los últimos 12 meses.';
   }
 
   // -------------------------------------------------------------------
@@ -138,7 +182,9 @@ export class YouTubeStrategy implements IAssetStrategy {
   }
 
   // Audiencia anglosajona (US, UK, AU, CA) tiene CPM más alto → múltiplo mayor
+  // Sin país informado el delta es neutro.
   private getAudienceDelta(): number {
+    if (this.audienceTopCountry === null) return 0;
     const highCpmCountries = ['US', 'UK', 'AU', 'CA', 'DE', 'NL'];
     return highCpmCountries.includes(this.audienceTopCountry) ? +4 : -3;
   }
@@ -236,18 +282,21 @@ export class YouTubeStrategy implements IAssetStrategy {
     // viajan al DTO como clave de render.
     const pasos: Omit<TransferStep, 'id'>[] = [
       {
+        phase: 'listing',
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
-        instruction: 'Convertí el canal a Cuenta de Marca, si todavía no lo es',
-        requiredActor: 'seller',
-        automated: false,
-      },
-      {
-        // El paso que faltaba: mientras el vendedor conserve permisos de canal
-        // heredados en YouTube Studio, la invitación parece funcionar pero el
-        // cambio de propietario principal falla sin explicar por qué. Va ANTES
-        // de invitar porque es la causa de ese error incomprensible.
-        description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
-        instruction: 'Entrá a YouTube Studio → Configuración → Permisos y quitá tu propio acceso de nivel de canal: solo tiene que quedar el de la Cuenta de Marca. Si no lo hacés, la invitación va a parecer aceptada pero el cambio de propietario principal va a fallar sin avisar por qué.',
+        title: 'Pasá tu canal a una cuenta de marca',
+        instruction: 'Pasá tu canal a una cuenta de marca si todavía no lo es: este paso va antes de invitarnos.',
+        details: [
+          'Creá la cuenta de marca con "Crear un canal nuevo". Puede llamarse distinto: el canal conserva su nombre.',
+          'Después, en Configuración avanzada, elegí "Transferir canal". Si dice "No hay otras cuentas disponibles", falta crear la cuenta de marca.',
+          'YouTube avisa que borra el canal vacío que se creó junto con la cuenta ("Reemplazar"): es lo esperado, tu canal con sus suscriptores no se pierde.',
+          'Se quitan todos los delegados de Permisos y la información demográfica del creador. Es probable que el canal pierda la verificación y la foto de perfil: volvé a subir la foto.',
+          'YouTube bloquea el acceso a la cuenta hasta unos 10 minutos: no lo hagas si necesitás publicar algo.',
+        ],
+        links: [
+          { label: 'Crear la cuenta de marca', href: YOUTUBE_LINKS.channelSwitcher },
+          { label: 'Transferir el canal', href: YOUTUBE_LINKS.advancedSettings },
+        ],
         requiredActor: 'seller',
         automated: false,
       },
@@ -265,9 +314,26 @@ export class YouTubeStrategy implements IAssetStrategy {
          * negativo el vendedor la puede verificar en la interfaz de Google;
          * una en positivo le pide que nos crea.
          */
+        phase: 'listing',
         description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
-        instruction: `Invitá a ${aQuienInvita} como administrador desde la administración de tu Cuenta de Marca. No como propietario: un administrador no puede eliminar el canal, no puede quitarte a vos, y no puede transferir nada. Lo único que cambia es que arranca el plazo de siete días que exige Google — y ese plazo corre mientras seguís recibiendo ofertas.`,
+        title: 'Invitanos como administrador',
+        instruction: `Invitá a ${aQuienInvita} con el rol Administrador desde la administración de tu Cuenta de Marca.`,
+        details: [
+          'No elijas el rol "Propietario": permite borrar la cuenta de marca, y lo dice el propio diálogo de Google.',
+          'Vos vas a ver a la plataforma como "Administrador" y ella se va a ver como "Supervisor/a" en tu cuenta: es el mismo rol.',
+          'Un administrador no puede eliminar el canal, no puede quitarte a vos y no puede transferir nada.',
+        ],
+        links: [{ label: 'Administrar permisos', href: YOUTUBE_LINKS.brandAccounts }],
         requiredActor: 'seller',
+        automated: false,
+      },
+      {
+        // Aceptar la invitación es lo que convierte a la plataforma en
+        // administradora, y de ahí cuenta el plazo de Google. No se afirma si
+        // el plazo corre desde la invitación o desde la aceptación: no está
+        // verificado.
+        description: 'La plataforma acepta la invitación como administradora desde la cuenta de custodia',
+        requiredActor: 'platform',
         automated: false,
       },
       {
@@ -282,8 +348,26 @@ export class YouTubeStrategy implements IAssetStrategy {
         // Informativo: a los 7 días se cumple el requisito de Google, pero no
         // pasa nada solo. El cambio de propietario principal lo hace el
         // vendedor, y es el paso siguiente.
-        description: 'Pasados 7 días desde la invitación, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
+        description: 'Pasados 7 días como administradora, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
+        automated: false,
+      },
+      {
+        // Mientras el vendedor conserve permisos de canal heredados en YouTube
+        // Studio, el cambio de propietario principal falla sin explicar por
+        // qué. Va en la operación y justo ANTES de la promoción: es la causa
+        // de ese error incomprensible, y recién ahí hay una venta que lo pida.
+        phase: 'operation',
+        description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
+        title: 'Quitá tu acceso directo al canal',
+        instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
+        details: [
+          'Entrá a YouTube Studio → Configuración → Permisos.',
+          'Quitá tu acceso de nivel de canal. Solo tiene que quedar el de la Cuenta de Marca.',
+          'Si no lo hacés, el cambio de propietario principal falla sin avisar por qué.',
+        ],
+        links: [{ label: 'Abrir YouTube Studio', href: YOUTUBE_LINKS.studio }],
+        requiredActor: 'seller',
         automated: false,
       },
       {
@@ -295,8 +379,16 @@ export class YouTubeStrategy implements IAssetStrategy {
          * convertiría en una sorpresa tardía, que es la desconfianza que el
          * producto intenta eliminar.
          */
+        phase: 'operation',
         description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
-        instruction: `Con el contrato ya firmado, promovenos a propietario principal desde la Cuenta de Marca. Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.`,
+        title: 'Hacenos propietario principal',
+        instruction: 'Con el contrato ya firmado, hacenos propietario principal desde la Cuenta de Marca.',
+        details: [
+          'Recién en este momento cedés el control, con el comprador ya comprometido y el precio acordado.',
+          'La opción aparece desde el primer día, pero Google la rechaza con un aviso breve hasta que pasen los 7 días: intentarlo antes no cambia nada.',
+          'Google te va a mostrar lo que cedés: agregar y borrar propietarios y administradores, cambiar permisos y borrar la cuenta por completo.',
+        ],
+        links: [{ label: 'Promover a propietario principal', href: YOUTUBE_LINKS.brandAccounts }],
         requiredActor: 'seller',
         automated: false,
       },
@@ -353,6 +445,8 @@ export class YouTubeStrategy implements IAssetStrategy {
       'growthFactor',
       'audienceTopCountry',
       'hasNoFaceContent',
+      // Dice de dónde salen los números, no cuál es el canal: no lo identifica.
+      ...(this.verifiedFromYouTubeAt ? ['verifiedFromYouTubeAt'] : []),
     ];
   }
 
@@ -362,6 +456,33 @@ export class YouTubeStrategy implements IAssetStrategy {
    */
   public getConfidentialFields(): string[] {
     return ['name', 'channelUrl'];
+  }
+
+  /**
+   * Un canal se cede invitando a una cuenta de Google, así que acá el formato
+   * de una dirección de correo sí es exigible: si está mal escrita, la
+   * invitación no llega a ningún lado y nadie se entera hasta que el traspaso
+   * se traba.
+   */
+  public normalizeRecipientIdentifier(identifier: string): string {
+    const limpio = (identifier ?? '').trim();
+
+    if (limpio.length > MAX_RECIPIENT_IDENTIFIER_LENGTH) {
+      throw new ValidationError(
+        `La cuenta de Google no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
+      );
+    }
+
+    try {
+      return Email.create(limpio).getValue();
+    } catch {
+      // El mensaje del value object habla de una "dirección de email"; acá el
+      // comprador está declarando dónde recibir un canal, y conviene nombrarlo
+      // por lo que es para él.
+      throw new ValidationError(
+        'Indicá la cuenta de Google donde querés recibir el canal, con el formato de una dirección de correo.',
+      );
+    }
   }
 
   public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {
@@ -378,6 +499,9 @@ export class YouTubeStrategy implements IAssetStrategy {
         hasNoFaceContent: this.hasNoFaceContent,
         name: this.name,
         channelUrl: this.channelUrl,
+        ...(this.verifiedFromYouTubeAt
+          ? { verifiedFromYouTubeAt: this.verifiedFromYouTubeAt.toISOString() }
+          : {}),
       }
     };
   }

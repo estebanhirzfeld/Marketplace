@@ -1,0 +1,30 @@
+# marketplace-api — API Fastify (apps/api) como artefacto ESM bundleado.
+#
+# Instalar:
+#   sudo cp infra/systemd/marketplace-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marketplace-api
+#
+# ExecStart apunta al bundle .mjs que produce `pnpm --filter @marketplace/api
+# build` (tsup). Ver docs/fase-12-despliegue.md.
+[Unit]
+Description=Marketplace API (Fastify)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/marketplace/apps/api
+EnvironmentFile=/etc/marketplace/api.env
+ExecStart=/usr/bin/node /srv/marketplace/apps/api/dist/server.mjs
+Restart=always
+RestartSec=5
+# La API escucha en loopback por defecto (resolveListenHost en
+# apps/api/src/config/network.ts). No se define API_HOST a proposito: el unico
+# cliente es el codigo de servidor de Next, en esta misma maquina. El firewall
+# y la security list son la segunda capa, no la unica.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

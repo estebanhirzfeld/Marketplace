@@ -137,7 +137,7 @@ describe('VerifyChannelMetricsUseCase — lo que no se puede verificar', () => {
     it('falla si el activo no es un canal de YouTube', async () => {
         const web = Listing.create({
             sellerId: SELLER_ID,
-            assetStrategy: new WebStrategy(Money.fromCents(80000, 'USD'), 42, 'ejemplo.com'),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(80000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(900_000, 'USD'),
         });
 

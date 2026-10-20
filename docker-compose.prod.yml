@@ -1,0 +1,75 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Postgres de PRODUCCIÓN para la VM de Oracle Cloud.
+#
+# Archivo aparte de docker-compose.yml a propósito: el de dev usa la base
+# `marketplace_dev`, un password fijo y expone el puerto en todas las interfaces
+# porque son ergonomías de desarrollo. Acá cada cosa es honesta con su fin.
+#
+#   - La base es `marketplace` (NO `marketplace_dev`).
+#   - El puerto se publica solo en 127.0.0.1: nadie desde internet toca Postgres.
+#   - Los datos viven en /mnt/pgdata/data, dentro de un block volume separado del disco
+#     de arranque: terminar y recrear la instancia no pierde nada.
+#   - restart: unless-stopped + docker.service habilitado = persiste al reboot,
+#     sin necesidad de una unit de systemd para Postgres.
+#   - El password sale de /etc/marketplace/db.env (0600), nunca del repo.
+#   - `command` afina Postgres 16 para la micro de 1 GB: comparte esa RAM con
+#     Next standalone, el bundle de la API, Caddy y el SO. Los defaults
+#     (shared_buffers 128 MB, max_connections 100, ~10 MB por backend ocioso)
+#     no entran. Números elegidos y justificados en docs/fase-12-despliegue.md.
+#
+# Uso en la VM:
+#   docker compose -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    # Afinado para 1 GB de RAM (ver comentario de cabecera y la Decisión 11).
+    #   shared_buffers=96MB          ~10% de la RAM; el default 128MB es mucho.
+    #   effective_cache_size=256MB   pista al planner, no reserva memoria.
+    #   work_mem=2MB                  por operación de sort/hash; pocos backends.
+    #   maintenance_work_mem=32MB     VACUUM / CREATE INDEX (migraciones).
+    #   max_connections=20           pool de la API + migraciones + un psql.
+    #   max_wal_size=512MB            checkpoints más chicos, menos disco/IO.
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=96MB"
+      - "-c"
+      - "effective_cache_size=256MB"
+      - "-c"
+      - "work_mem=2MB"
+      - "-c"
+      - "maintenance_work_mem=32MB"
+      - "-c"
+      - "max_connections=20"
+      - "-c"
+      - "wal_buffers=4MB"
+      - "-c"
+      - "max_wal_size=512MB"
+      - "-c"
+      - "min_wal_size=128MB"
+    # Solo loopback: el puerto queda inalcanzable desde la red.
+    ports:
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_DB: marketplace
+      # POSTGRES_PASSWORD llega por env_file; no hay default acá a propósito.
+    env_file:
+      # En la VM este archivo (0600, root) trae POSTGRES_PASSWORD. required:false
+      # solo para que `docker compose config` valide en una máquina sin él; en
+      # la VM DEBE existir o Postgres arranca sin password.
+      - path: /etc/marketplace/db.env
+        required: false
+    volumes:
+      # Subdirectorio, NO la raiz del volumen: mkfs.ext4 crea lost+found en
+      # todo sistema de archivos ext4, y el bootstrap crea backups/. Postgres
+      # se niega a inicializar sobre un directorio no vacio, asi que montar
+      # /mnt/pgdata directo deja el contenedor reiniciando en bucle.
+      - /mnt/pgdata/data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d marketplace"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

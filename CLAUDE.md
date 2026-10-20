@@ -20,6 +20,7 @@ The `Makefile` is the sanctioned entry point — `make help` lists every target.
 | DB integration tests (needs DB) | `make test-db` |
 | Reset DB + migrations + seed | `make db-reset` |
 | Prisma Studio | `make db-studio` |
+| Test data on the VPS (create `[TEST]` listings/operations in a given state, delete them) | `make testbed-custody` / `make testbed-clean` (see `make help` for `testbed-*`; docs in `docs/fase-15-cobro-con-reparto.md`) |
 
 Single test file / single case:
 ```bash
@@ -72,16 +73,45 @@ It touches four places and will fail at runtime if you miss the mapper:
 - **Cancellation** is only legal in `offer_sent`, `negotiating`, or `contract_pending`. After the contract is signed, both parties are committed.
 - **Negotiation** is a bidirectional counter-offer log: `Operation.props.negotiations` is an append-only `Negotiation[]`, and whose turn it is (`pendingResponseFrom`) is *derived* from the last entry, never stored. There is no reject — parties counter or cancel. Use `acceptCurrentOffer(by)`; the price comes from the log, not from the caller.
 - **Hybrid multi-offer**: many buyers can hold live `Operation`s on one `Listing` simultaneously. `AcceptOfferUseCase` implements the cascade — accepting one offer cancels every other non-cancelled Operation on that listing and moves the `Listing` to `in_operation`.
-- **Commission is 5% / 5% split** (`COMMISSION_RATE` in `Operation.ts`). Buyer pays `finalPrice + 5%`, seller receives `finalPrice − 5%`, platform keeps 10%. Payouts are computed inside the entity whenever `finalPrice` is set — including in the constructor during rehydration — so they are never assigned from outside. Bank transfer only; PayPal was rejected over chargeback risk.
+- **Commission is 5% / 5% split** (`COMMISSION_RATE` in `Operation.ts`). Buyer pays `finalPrice + 5%`, seller receives `finalPrice − 5%`, platform keeps 10%. Payouts are computed inside the entity whenever `finalPrice` is set — including in the constructor during rehydration — so they are never assigned from outside. The buyer chooses how to pay once the asset is in custody: **Mercado Pago** (the seller links their own account by OAuth and collects directly; the platform keeps its 10% as `marketplace_fee`, always in pesos) or **bank transfer** (in the operation's own currency, confirmed by an admin). Mercado Pago always charges in pesos, so USD operations are converted by the platform with the BCRA A3500 rate, frozen in a `SettlementQuote`. All of it is behind flags (`MERCADOPAGO_SPLIT_ENABLED`, `EXCHANGE_RATE_ENABLED`, `REQUIRE_MP_LINK_TO_PUBLISH`), off by default. PayPal was rejected over chargeback risk.
 - **Contracts and NDAs are one entity** (`Contract`) with three types: `buyer_nda` (buyer + platform, unlocks confidential listing data), `seller_nda` (seller + platform, to publish), and `tripartite` (buyer + seller + platform, to close the sale). Signatures are a role array, so `isFullySigned()` is agnostic to how many parties a given type has — add a new contract type by adding a factory, not by branching on booleans. DB enforces `@@unique([listingId, signerId, type])`.
 - **Blind listings**: when `Listing.isBlind` and the requester has no fully-signed `buyer_nda`, `GetListingDetailsUseCase` filters `assetData` down to the strategy's `getPublicFields()` and returns `hiddenFields[]` so the frontend knows what to blur.
 - `SignContractUseCase` auto-transitions the Operation to `contract_signed` once a tripartite contract reaches full signature.
 
-Known gap: `payment_pending` exists in the `OperationStatus` union and the Prisma enum but no transition ever produces it.
-
 ## Conventions
 
-- TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; `packages/db/tests/integration.test.ts` hits a real database — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
+- TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; the `packages/db` integration tests (and the API's HTTP tests) hit a real database, but never the development one: they wipe whole tables, so a `globalSetup` (`packages/db/test-support/`) points them at `marketplace_test` (derived from `DATABASE_URL`, or `TEST_DATABASE_URL` if set), creates and migrates it with `prisma migrate deploy`, and aborts the suite if the database name does not end in `_test` — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
 - **Identifiers are English; prose is Spanish.** Every name the compiler sees — functions, methods, classes, interfaces, type aliases, object and DTO properties, variables, React components, server actions, file names — is in English. Comments, error messages, UI copy and the `docs/` write-ups are in Spanish. Match the surrounding file.
 - Conventional commits. Never add `Co-Authored-By` or AI attribution.
 - Each completed phase gets a write-up in `docs/fase-*.md`.
+
+## Phase write-ups (`docs/fase-*.md`)
+
+A phase is planned, discussed, then coded; the `.md` goes up when the work is done,
+not while it is in progress. A phase with a decimal (`2.1`, `4.1`, `5.1`) is a
+**deviation that surfaced during planning** — necessary for the parent phase but too
+small to justify a phase of its own. Open a subphase instead of stretching the parent's
+scope or inventing a new phase. `docs/gant.json` records every phase, its commit window
+and its parent; update it when a phase closes.
+
+Heading rules, in force for every write-up:
+
+- A heading is a **noun phrase**. It names its subject and stops there. No moral, no
+  conclusion, no colour commentary. "Métricas públicas: redondeo de `subscriberCount`"
+  — not "Métricas públicas: el redondeo obliga a pensar".
+- If a heading uses a colon, what follows is *which one specifically*, never *what it
+  means*. Compare "Titularidad: se compara por ID, no por handle" (good) with
+  "El dato que definió la arquitectura" (a teaser that hides its own subject).
+- **No emoji in headings.** The `✅ Completa` / `🚧 En curso` of the status blockquote is
+  not a heading and stays.
+- Identifiers go in backticks, in headings too.
+- One `#` H1 per document, and it follows `# Fase N — <noun phrase>`.
+- No jargon or anglicisms in headings (`la VM`, not `la caja`; `desmontaje`, not
+  `teardown`).
+
+Templates to copy rather than improvise: `docs/fase-04.1-unit-of-work.md` is the cleanest
+in the repo, and `docs/fase-00-scaffold.md` and `docs/fase-01-dominio.md` hold the canonical
+skeleton — status blockquote, summary paragraph, `## Objetivos cumplidos`, decisions
+numbered under `##`, `## Tests`, `## Deuda técnica conocida`, `## Siguiente paso`. Closing
+sections are named for what they hold: `## Tests` for suite results, `## Dónde quedó cada
+pieza` for the `Pieza | Dónde` map, `## Pendiente` for what remains.

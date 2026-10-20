@@ -2,8 +2,10 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { ASSET_NICHES, AssetNiche } from '@marketplace/shared-types';
-import { money, nicheLabel } from '@/lib/format';
+import { nicheLabel } from '@/lib/format';
+import { scheduleEstimate } from '@/lib/latestEstimate';
 import { Alert, Button, Field } from './ui';
+import { PriceSection } from './PriceSection';
 import { PAISES_CPM_ALTO, PAISES_RESTO } from './paises';
 
 const CONTROL =
@@ -12,8 +14,8 @@ const CONTROL =
 type State = { error?: string; ok?: boolean };
 
 const TIPOS = [
-    { value: 'youtube', text: 'Canal de YouTube', metrica: 'Suscriptores' },
-    { value: 'web', text: 'Sitio web', metrica: 'Autoridad de dominio' },
+    { value: 'youtube', text: 'Canal de YouTube' },
+    { value: 'web', text: 'Sitio web' },
 ] as const;
 
 /**
@@ -41,7 +43,10 @@ const IDENTIDAD = {
 export function PublishListingForm({
     action,
     estimate,
+    types = ['youtube', 'web'],
 }: {
+    /** Con un solo tipo, el selector no se muestra: no hay nada que elegir. */
+    types?: readonly ('youtube' | 'web')[];
     action: (state: State, form: FormData) => Promise<State>;
     estimate: (
         assetType: string,
@@ -49,15 +54,15 @@ export function PublishListingForm({
     ) => Promise<{ cents: number; currency: string } | null>;
 }) {
     const [state, submit, pending] = useActionState(action, {});
-    const [type, setTipo] = useState<string>('youtube');
+    const [type, setTipo] = useState<string>(types[0] ?? 'youtube');
     const [moneda, setMoneda] = useState<string>('USD');
+    const [precio, setPrecio] = useState('');
     const [niche, setRubro] = useState<string>(AssetNiche.OTHER);
     const [metrica, setMetrica] = useState<number>(0);
     const [ingreso, setIngreso] = useState<number>(0);
     const [monetizado, setMonetizado] = useState(true);
     const [estimado, setEstimado] = useState<{ cents: number; currency: string } | null>(null);
 
-    const actual = TIPOS.find((t) => t.value === type) ?? TIPOS[0];
     const identidad = IDENTIDAD[type as 'youtube' | 'web'] ?? IDENTIDAD.youtube;
 
     /**
@@ -74,18 +79,16 @@ export function PublishListingForm({
         if (type === 'youtube') {
             assetData.subscribers = Math.round(metrica || 0);
             assetData.isMonetized = monetizado;
-        } else {
-            assetData.domainAuthority = Math.round(metrica || 0);
         }
 
-        const t = setTimeout(() => {
-            estimate(type, assetData).then(setEstimado);
-        }, 400);
-        return () => clearTimeout(t);
+        // Al cambiar algo, el pedido anterior se cancela y su respuesta se descarta.
+        return scheduleEstimate(() => estimate(type, assetData), setEstimado, 400);
     }, [type, niche, metrica, ingreso, monetizado, estimate]);
 
     return (
         <form action={submit} className="flex flex-col gap-4">
+            {types.length === 1 && <input type="hidden" name="assetType" value={type} />}
+            {types.length > 1 && (
             <label className="flex flex-col gap-2">
                 <span className="text-[13px] text-[var(--color-tenue)]">Tipo de activo</span>
                 <select
@@ -94,11 +97,12 @@ export function PublishListingForm({
                     onChange={(e) => setTipo(e.target.value)}
                     className="h-11 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none focus:border-[var(--color-acento)]"
                 >
-                    {TIPOS.map((t) => (
+                    {TIPOS.filter((t) => types.includes(t.value)).map((t) => (
                         <option key={t.value} value={t.value}>{t.text}</option>
                     ))}
                 </select>
             </label>
+            )}
 
             {/* El rubro es lo único que dice de qué trata un activo blindado
                 sin revelar cuál es, así que es lo que la grilla usa de título.
@@ -137,15 +141,17 @@ export function PublishListingForm({
                 required
             />
 
-            <Field
-                label={actual.metrica}
-                name="metrica"
-                type="number"
-                min={0}
-                required
-                value={metrica || ''}
-                onChange={(e) => setMetrica(Number(e.target.value))}
-            />
+            {type === 'youtube' && (
+                <Field
+                    label="Suscriptores"
+                    name="metrica"
+                    type="number"
+                    min={0}
+                    required
+                    value={metrica || ''}
+                    onChange={(e) => setMetrica(Number(e.target.value))}
+                />
+            )}
             <Field
                 label="Ingreso mensual (USD)"
                 name="ingreso"
@@ -199,51 +205,16 @@ export function PublishListingForm({
 
             {/* La valuación estaba calculada desde siempre en la strategy del
                 activo, pero solo se mostraba en la ficha ya publicada: el
-                vendedor fijaba el precio a ciegas y recién después veía contra
-                qué se lo comparaba. */}
-            <div className="flex flex-col gap-1.5 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] text-[var(--color-tenue)]">
-                        Nuestra valuación estimada
-                    </span>
-                    <span className="font-mono text-[18px] font-bold text-[var(--color-acento)]">
-                        {estimado ? money(estimado) : '—'}
-                    </span>
-                </div>
-                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                    {estimado
-                        ? 'Sale de tus métricas con la fórmula del tipo de activo. Es una referencia: el precio lo ponés vos.'
-                        : 'Completá las métricas y el ingreso mensual para verla.'}
-                </span>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-                <span className="text-[13px] text-[var(--color-tenue)]">Precio pedido</span>
-                <div className="flex gap-2.5">
-                    <input
-                        name="precio"
-                        type="number"
-                        min={1}
-                        step="0.01"
-                        required
-                        className="h-11 flex-1 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3.5 text-[14px] outline-none transition-colors focus:border-[var(--color-acento)]"
-                    />
-                    <select
-                        name="moneda"
-                        value={moneda}
-                        onChange={(e) => setMoneda(e.target.value)}
-                        className="h-11 w-24 rounded-[var(--radius-chico)] border border-[var(--color-borde-fuerte)] bg-[var(--color-fondo)] px-3 text-[14px] outline-none focus:border-[var(--color-acento)]"
-                    >
-                        <option value="USD">USD</option>
-                        <option value="ARS">ARS</option>
-                    </select>
-                </div>
-                <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                    {moneda === 'USD'
-                        ? 'Si el comprador paga en pesos, la conversión se hace al tipo de cambio del día en que se paga.'
-                        : 'El precio queda fijado en pesos. Si el comprador paga en otra moneda, la conversión se hace al tipo de cambio del día en que se paga.'}
-                </span>
-            </div>
+                vendedor fijaba el precio a ciegas. Ahora va como referencia
+                al costado del precio, que es lo que pide. */}
+            <PriceSection
+                currency={moneda}
+                onCurrencyChange={setMoneda}
+                price={precio}
+                onPriceChange={setPrecio}
+                estimated={estimado}
+                basis="los datos que cargaste"
+            />
 
             <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-3.5 text-[12px] leading-relaxed text-[var(--color-apagado)]">
                 Todos los activos se publican de forma confidencial. La dirección del activo se le
@@ -254,7 +225,9 @@ export function PublishListingForm({
             {state.error && <Alert>{state.error}</Alert>}
             {state.ok && (
                 <div className="rounded-[var(--radius-chico)] border border-[var(--color-acento)]/40 px-4 py-3 text-[13px] text-[var(--color-acento)]">
-                    Activo creado como borrador. Enviálo a revisión cuando esté listo.
+                    {type === 'web'
+                        ? 'Activo creado como borrador. Comprobá que el sitio es tuyo para publicarlo.'
+                        : 'Activo creado como borrador. Enviálo a revisión cuando esté listo.'}
                 </div>
             )}
 
@@ -263,8 +236,9 @@ export function PublishListingForm({
             </Button>
 
             <p className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
-                Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión,
-                y eso requiere tener la identidad verificada.
+                {type === 'web'
+                    ? 'Nace como borrador y no lo ve nadie. Para publicarlo comprobás que el sitio es tuyo con un registro en tu DNS, o lo enviás a revisión.'
+                    : 'Nace como borrador y no lo ve nadie. Para publicarlo hay que enviarlo a revisión, y eso requiere tener la identidad verificada.'}
             </p>
         </form>
     );

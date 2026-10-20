@@ -25,7 +25,7 @@ export function Button({
     variant = 'primario',
     className = '',
     ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+}: React.ComponentProps<'button'> & { variant?: Variant }) {
     return <button {...props} className={`${BASE} ${VARIANTS[variant]} ${className}`} />;
 }
 
@@ -47,6 +47,34 @@ export function ButtonLink({
     );
 }
 
+/**
+ * Un enlace con forma de botón hacia otro sitio (Google, YouTube). Abre en una
+ * pestaña nueva y no le pasa el origen ni la ventana al destino: la persona
+ * está en medio de un trámite acá y tiene que poder volver donde lo dejó.
+ */
+export function ExternalButtonLink({
+    href,
+    variant = 'secundario',
+    className = '',
+    children,
+}: {
+    href: string;
+    variant?: Variant;
+    className?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${BASE} ${VARIANTS[variant]} ${className}`}
+        >
+            {children}
+        </a>
+    );
+}
+
 /* ── Etiquetas de estado ──────────────────────────────────
    El color no decora: dice en qué etapa del escrow está la operación. */
 
@@ -55,7 +83,7 @@ const ESTADOS: Record<OperationStatusDto, { text: string; clase: string }> = {
     negotiating: { text: 'NEGOCIANDO', clase: 'text-[var(--color-alerta)] border-[var(--color-alerta)]/40' },
     contract_pending: { text: 'ESPERANDO FIRMAS', clase: 'text-[var(--color-alerta)] border-[var(--color-alerta)]/40' },
     contract_signed: { text: 'CONTRATO FIRMADO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
-    transfer_in_progress: { text: 'TRANSFIRIENDO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
+    transfer_in_progress: { text: 'VERIFICANDO', clase: 'text-[var(--color-tinta)] border-[var(--color-borde-fuerte)]' },
     asset_in_custody: { text: 'EN CUSTODIA', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]/50' },
     payment_received: { text: 'PAGO RECIBIDO', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]/50' },
     completed: { text: 'COMPLETADA', clase: 'text-[var(--color-acento)] border-[var(--color-acento)]' },
@@ -160,5 +188,37 @@ export function Heading({ children, sub }: { children: React.ReactNode; sub?: st
             <h1 className="text-[30px] font-bold tracking-[-0.03em] sm:text-[36px]">{children}</h1>
             {sub && <p className="max-w-[600px] text-[15px] leading-relaxed text-[var(--color-tenue)]">{sub}</p>}
         </div>
+    );
+}
+
+/* ── Líneas de verificación ───────────────────────────────
+   Lo que ya está hecho se dice con una línea simple y un tilde chico: sin
+   caja ni fondo de color, que le robarían la atención a lo que falta. */
+
+export function CheckIcon({ className = '' }: { className?: string }) {
+    return (
+        <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className={`flex-none text-[var(--color-listo)] ${className}`}
+        >
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+    );
+}
+
+export function CheckLine({ children }: { children: React.ReactNode }) {
+    return (
+        <li className="flex items-center gap-2.5 text-[15px]">
+            <CheckIcon />
+            <span>{children}</span>
+        </li>
     );
 }

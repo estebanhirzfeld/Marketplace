@@ -50,6 +50,9 @@ enum NotificationType {
   listing_aprobado
   listing_rechazado
   contrato_firmado
+  // Al vendedor, en vez de contrato_firmado: a él le toca ceder el control
+  // del activo y declararlo.
+  cesion_pendiente
   activo_en_custodia
   pago_confirmado
   operacion_completada
@@ -64,6 +67,11 @@ enum NotificationType {
   acceso_pendiente
   custodia_pendiente
   liquidacion_pendiente
+  // Al vendedor: el admin no encontró su invitación a la plataforma.
+  acceso_no_encontrado
+  // A los administradores: un vendedor avisó que ya invitó a la plataforma.
+  acceso_solicitado
+  acceso_confirmado
 }
 
 enum ContractType {
@@ -91,7 +99,9 @@ model User {
   operationsAsSeller Operation[] @relation("SellerOperations")
   contractsAsSigner  Contract[]
   notifications      Notification[]
-  reportsFiled       Report[]      @relation("ReportsFiled")
+  paymentAccount     SellerPaymentAccount?
+  youtubeConnections YouTubeConnection[]
+  reportsFiled      Report[]      @relation("ReportsFiled")
   reportsReceived    Report[]      @relation("ReportsReceived")
 
   @@map("users")
@@ -114,6 +124,9 @@ model Listing {
   // asignada, a propósito y sin backfill.
   custodyAccountId String?
   ownershipCheck  Json?
+  // Cuándo el vendedor declaró que ya invitó a la plataforma. Declaración, no
+  // constancia: la constancia es `platformAccess`.
+  platformAccessRequestedAt DateTime?
   createdAt       DateTime      @default(now())
 
   seller        User           @relation(fields: [sellerId], references: [id])
@@ -198,6 +211,10 @@ model Operation {
   platformEarns    Int?
   currency         String          @default("USD")
   negotiations     Json            @default("[]")
+  // La declaración del vendedor de haber cedido el control del activo.
+  // Nullable y aditiva: las operaciones que ya estaban en transfer_in_progress
+  // quedan sin ella y se muestran como "declaración sin registrar".
+  transferInitiation Json?
   custodyCheck     Json?
   payment          Json?
   // Dónde declaró el comprador que quiere recibir el activo. Nullable y
@@ -205,6 +222,10 @@ model Operation {
   recipientIdentity Json?
   // Constancia de entrega, espejo de `custodyCheck`. Se registra al cerrar.
   deliveryCheck    Json?
+  // Cotizaciones en pesos emitidas (historial, de la más vieja a la más nueva),
+  // solo para operaciones no ARS. Nullable y aditiva: una operación vieja o en
+  // pesos no la tiene.
+  settlementQuotes Json?
   completedAt      DateTime?
   createdAt        DateTime        @default(now())
 
@@ -245,6 +266,7 @@ model Notification {
   listingId   String?
   amountCents Int?
   currency    String?
+  occursAt    DateTime?
   readAt      DateTime?
   createdAt   DateTime         @default(now())
 
@@ -253,4 +275,47 @@ model Notification {
   // La bandeja se consulta siempre por usuario y ordenada por fecha.
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+/// La cuenta de Mercado Pago que el vendedor vinculó para cobrar. Una por
+/// usuario. Los tokens se guardan cifrados (AES-256-GCM): las columnas `*Cipher`
+/// nunca contienen el texto plano.
+model SellerPaymentAccount {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  mpUserId           String   @unique
+  accessTokenCipher  String
+  refreshTokenCipher String
+  expiresAt          DateTime
+  scope              String
+  linkedAt           DateTime
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("seller_payment_accounts")
+}
+
+/// La conexión de un vendedor con un canal de YouTube. Una por vendedor y
+/// canal. El token de actualización se guarda cifrado (AES-256-GCM): la base
+/// nunca lo ve en claro.
+model YouTubeConnection {
+  id                 String   @id @default(uuid())
+  sellerId           String
+  channelId          String
+  channelTitle       String
+  grantedScopes      String[]
+  refreshTokenCipher String
+  /// `active` o `disconnected`; el mapper valida el valor al leer.
+  status             String   @default("active")
+  connectedAt        DateTime
+  lastReadAt         DateTime
+  /// Última lectura de Analytics (fechas ISO); el mapper la rehidrata.
+  lastSnapshot       Json
+  updatedAt          DateTime @updatedAt
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, channelId])
+  @@map("youtube_connections")
 }

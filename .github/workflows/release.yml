@@ -1,0 +1,119 @@
+name: release
+
+# Construye el artefacto de producción FUERA de la VM.
+#
+# La caja de despliegue es una VM.Standard.E2.1.Micro (1 OCPU / 1 GB) y no
+# puede correr `next build` ni `tsup` (picos de 1–2 GB de heap). Los runners de
+# GitHub son linux-x64 — la misma arquitectura que la micro (AMD EPYC, x86_64) —
+# así que lo que se compila acá corre tal cual allá.
+#
+# Publica un GitHub Release con tag `release-<sha12>` y el asset
+# `marketplace-release.tar.gz` (+ su .sha256). En la VM, `deploy.sh` lo baja con
+# `infra/scripts/fetch-release.sh`.
+
+on:
+  push:
+    # `main` es la rama a desplegar. `fase-5-frontend-y-avisos` queda mientras
+    # la VM siga con esa rama en su checkout: se saca cuando la VM pase a `main`.
+    branches: [main, fase-5-frontend-y-avisos]
+    # SIN filtro de rutas, a proposito. deploy.sh exige un release para el SHA
+    # EXACTO de HEAD; con un filtro, cualquier commit que solo toque infra/ o
+    # deploy.sh deja a la rama sin artefacto y el despliegue aborta. Filtrar
+    # ahorra minutos de CI y rompe la propiedad que hace confiable al deploy:
+    # que el binario corresponde exactamente al commit desplegado.
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # linux-x64 == VM.Standard.E2.1.Micro
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      - name: prisma generate
+        # `prisma generate` no se conecta a ninguna base: genera el cliente a
+        # partir del schema. Pero prisma.config.ts resuelve DATABASE_URL al
+        # cargarse y aborta si falta, así que en CI se le pasa un valor de
+        # relleno. No apunta a nada y nunca se usa para conectar; el
+        # DATABASE_URL real vive solo en la VM, en un archivo 0600.
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+        run: pnpm --filter @marketplace/db db:generate
+
+      - name: build de los paquetes del workspace
+        # `shared-types` y `domain` declaran `main`/`types` apuntando a dist/, y
+        # dist está en .gitignore. En una máquina de desarrollo suele existir de
+        # alguna compilación anterior, así que el typecheck pasa; en un checkout
+        # limpio no existe y `@marketplace/shared-types` no resuelve. Hay que
+        # construirlos antes de cualquier paso que los importe por su nombre.
+        # `-r` saltea los paquetes que no declaran build (db, api-contract).
+        run: pnpm -r --filter "./packages/*" build
+
+      - name: typecheck (hard gate)
+        run: pnpm --filter @marketplace/api typecheck
+
+      - name: build API (bundle ESM tsup)
+        run: pnpm --filter @marketplace/api build
+
+      - name: build web (next build, output standalone)
+        run: pnpm --filter web build
+
+      - name: assemble release
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+
+          # El server standalone sirve estáticos y /public relativos a su propio
+          # dir; hay que copiarlos adentro (Next no lo hace por diseño).
+          STANDALONE="apps/web/.next/standalone/apps/web"
+          test -f "${STANDALONE}/server.js" || {
+            echo "::error::no está ${STANDALONE}/server.js — ¿cambió el layout del standalone en el monorepo?"
+            find apps/web/.next/standalone -maxdepth 3 -name server.js || true
+            exit 1
+          }
+          cp -r apps/web/.next/static "${STANDALONE}/.next/static"
+          if [ -d apps/web/public ]; then cp -r apps/web/public "${STANDALONE}/public"; fi
+
+          mkdir -p release/apps/api release/apps/web/.next
+          cp -r apps/api/dist              release/apps/api/dist
+          cp -r apps/web/.next/standalone  release/apps/web/.next/standalone
+          printf '%s\n' "$SHA" > release/RELEASE_SHA
+
+          tar czf marketplace-release.tar.gz -C release .
+          sha256sum marketplace-release.tar.gz | tee marketplace-release.tar.gz.sha256
+          ls -lh marketplace-release.tar.gz
+
+      - name: publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          TAG="release-${SHA:0:12}"
+          NOTES="Artefacto de build para ${SHA}. Lo consume deploy.sh en la VM."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              marketplace-release.tar.gz marketplace-release.tar.gz.sha256 --clobber
+          else
+            gh release create "$TAG" \
+              marketplace-release.tar.gz marketplace-release.tar.gz.sha256 \
+              --title "$TAG" --notes "$NOTES" --target "$SHA"
+          fi

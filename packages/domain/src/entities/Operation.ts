@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
+import { SettlementQuote } from '../value-objects/SettlementQuote';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type OperationStatus =
@@ -37,6 +38,31 @@ export interface Negotiation {
 
 const COMMISSION_RATE = 5; // 5% a cada parte
 
+
+/**
+ * Constancia de que el vendedor cedió el control del activo.
+ *
+ * Es la única transición del escrow que la plataforma no puede ejecutar ni
+ * verificar en el momento: la hace el vendedor en la plataforma del activo.
+ * Por eso lo que queda registrado es su declaración —quién, cuándo, a qué
+ * cuenta— y no una comprobación nuestra. La comprobación viene después, y es
+ * de otro: `confirmAssetCustody()`.
+ */
+export interface TransferInitiation {
+    declaredBy: UniqueEntityID;
+    declaredAt: Date;
+    /** El vendedor afirma haber cedido el control del activo. */
+    controlCeded: boolean;
+    /**
+     * Copia congelada de la cuenta de custodia vigente al declarar. Opcional
+     * porque una constancia de acceso anterior a `asset-custody-identity` no
+     * nombra ninguna cuenta, y afirmar una que nadie registró sería inventarla.
+     */
+    custodyAccountId?: UniqueEntityID;
+    notes?: string;
+}
+
+export type TransferInitiationInput = Omit<TransferInitiation, 'declaredAt'>;
 
 /**
  * Constancia de qué verificó la plataforma al tomar el activo en custodia.
@@ -170,8 +196,15 @@ export interface OperationProps {
     buyerPays?: Money;
     sellerReceives?: Money;
     platformEarns?: Money;
+    transferInitiation?: TransferInitiation;
     custodyVerification?: CustodyVerification;
     payment?: PaymentRecord;
+    /**
+     * Cotizaciones en pesos emitidas, de la más vieja a la más nueva; solo
+     * existen en operaciones no ARS. Es un historial que solo crece: un link de
+     * pago generado bajo una cotización anterior puede cobrarse después.
+     */
+    settlementQuotes?: SettlementQuote[];
     recipientIdentity?: RecipientIdentity;
     deliveryVerification?: DeliveryVerification;
     completedAt?: Date;
@@ -277,6 +310,21 @@ export class Operation extends Entity<OperationProps> {
 
     public get platformEarns(): Money | undefined {
         return this.props.platformEarns;
+    }
+
+    /** El vendedor de la operación: a quien se le cobra por cuenta propia en el split. */
+    public get sellerId(): UniqueEntityID {
+        return this.props.sellerId;
+    }
+
+    /** La última cotización emitida, que es la vigente para generar links nuevos. */
+    public get settlementQuote(): SettlementQuote | undefined {
+        return this.props.settlementQuotes?.at(-1);
+    }
+
+    /** Todas las cotizaciones emitidas, de la más vieja a la más nueva. */
+    public get settlementQuotes(): ReadonlyArray<SettlementQuote> {
+        return [...(this.props.settlementQuotes ?? [])];
     }
 
     /** Historial completo de ofertas y contraofertas */
@@ -461,10 +509,41 @@ export class Operation extends Entity<OperationProps> {
         this.props.status = 'contract_signed';
     }
 
-    public initiateTransfer(): void {
+    /**
+     * El vendedor declara haber cedido el control del activo.
+     *
+     * Es la única transición del escrow que la plataforma no puede ejecutar
+     * ni verificar en el momento, así que lo que exige es una declaración
+     * atribuida y positiva, no una comprobación propia — esa llega después,
+     * en `confirmAssetCustody()`.
+     *
+     * La guarda de pertenencia (`assertIsSeller` sobre `data.declaredBy`) va
+     * antes que la de estado a propósito: un tercero no debería poder deducir
+     * en qué etapa está una operación ajena por el tipo de error que recibe.
+     * Se omite si `declaredBy` todavía no llegó —el payload puede estar mal
+     * formado pese a que el tipo lo declara obligatorio— y en ese caso la
+     * guarda de presencia, más abajo, es la que responde.
+     */
+    public initiateTransfer(data: TransferInitiationInput): void {
+        if (data.declaredBy) {
+            this.assertIsSeller(data.declaredBy.toString());
+        }
+
         if (this.props.status !== 'contract_signed') {
             throw new InvalidStateError('El contrato debe estar firmado para iniciar la transferencia');
         }
+
+        if (!data.declaredBy) {
+            throw new ValidationError('Falta registrar quién declaró la cesión.');
+        }
+
+        if (data.controlCeded !== true) {
+            throw new InvalidStateError(
+                'Para iniciar la transferencia tenés que declarar que ya cediste el control del activo.'
+            );
+        }
+
+        this.props.transferInitiation = { ...data, declaredAt: new Date() };
         this.props.status = 'transfer_in_progress';
     }
 
@@ -507,6 +586,11 @@ export class Operation extends Entity<OperationProps> {
 
     public get custodyVerification(): CustodyVerification | undefined {
         return this.props.custodyVerification;
+    }
+
+    /** La declaración del vendedor de haber cedido el control del activo. */
+    public get transferInitiation(): TransferInitiation | undefined {
+        return this.props.transferInitiation;
     }
 
     /** Dónde declaró el comprador que quiere recibir el activo. */
@@ -558,6 +642,44 @@ export class Operation extends Entity<OperationProps> {
     }
 
     /**
+     * Congela la liquidación en pesos de una operación en otra moneda.
+     *
+     * Agrega la cotización al historial sin pisar las anteriores: cada vez que
+     * vence y se genera un link nuevo la vigente es la última, pero el pago de
+     * un link viejo igual tiene que poder conciliarse. Una cotización idéntica
+     * a la última no se repite. Solo con el activo en custodia, que es cuando
+     * corresponde cobrar.
+     */
+    public quoteSettlement(quote: SettlementQuote): void {
+        if (this.props.status !== 'asset_in_custody') {
+            throw new InvalidStateError('Solo se cotiza el cobro con el activo en custodia de la plataforma.');
+        }
+        if (!this.props.buyerPays) {
+            throw new InvalidStateError('La operación todavía no tiene un precio acordado.');
+        }
+        if (this.props.buyerPays.getCurrency() === quote.currency) {
+            throw new InvalidStateError('La operación ya está en pesos: no necesita cotización.');
+        }
+
+        const latest = this.settlementQuote;
+        if (latest && Operation.isSameQuote(latest, quote)) return;
+
+        this.props.settlementQuotes = [...(this.props.settlementQuotes ?? []), quote];
+    }
+
+    private static isSameQuote(a: SettlementQuote, b: SettlementQuote): boolean {
+        return (
+            a.rate === b.rate &&
+            a.rateDate === b.rateDate &&
+            a.currency === b.currency &&
+            a.buyerPaysCents === b.buyerPaysCents &&
+            a.sellerReceivesCents === b.sellerReceivesCents &&
+            a.platformFeeCents === b.platformFeeCents &&
+            a.expiresAt.getTime() === b.expiresAt.getTime()
+        );
+    }
+
+    /**
      * Confirma el pago del comprador con la constancia de por dónde entró.
      *
      * El monto tiene que coincidir exactamente con lo que el comprador debía.
@@ -575,15 +697,38 @@ export class Operation extends Entity<OperationProps> {
         if (datos.provider !== 'transferencia' && !datos.externalId) {
             throw new ValidationError('Falta el identificador del pago en la pasarela.');
         }
-        if (datos.currency !== this.props.buyerPays.getCurrency()) {
-            throw new ValidationError(
-                `El pago llegó en ${datos.currency} y la operación es en ${this.props.buyerPays.getCurrency()}.`,
-            );
-        }
-        if (datos.amountCents !== this.props.buyerPays.getCents()) {
-            throw new ValidationError(
-                'El monto pagado no coincide con el total de la operación.',
-            );
+        // Con cotizaciones emitidas, lo que tiene que llegar es lo cotizado en
+        // pesos en cualquiera de ellas: un link generado bajo una cotización
+        // anterior cobra por ese monto y la plata ya entró. Que la cotización
+        // haya vencido tampoco importa: vence la preferencia de pago, no el pago.
+        // Las cotizaciones valen solo para lo que cobra la pasarela: una
+        // transferencia llega en la moneda original de la operación, aunque el
+        // comprador haya visto antes una cotización.
+        const quotes = datos.provider === 'mercadopago' ? (this.props.settlementQuotes ?? []) : [];
+
+        if (quotes.length > 0) {
+            if (!quotes.some((q) => q.currency === datos.currency)) {
+                throw new ValidationError(
+                    `El pago llegó en ${datos.currency} y la operación es en ${quotes[0].currency}.`,
+                );
+            }
+            if (!quotes.some((q) => q.currency === datos.currency && q.buyerPaysCents === datos.amountCents)) {
+                throw new ValidationError(
+                    'El monto pagado no coincide con el total de la operación.',
+                );
+            }
+        } else {
+            const expectedCurrency = this.props.buyerPays.getCurrency();
+            if (datos.currency !== expectedCurrency) {
+                throw new ValidationError(
+                    `El pago llegó en ${datos.currency} y la operación es en ${expectedCurrency}.`,
+                );
+            }
+            if (datos.amountCents !== this.props.buyerPays.getCents()) {
+                throw new ValidationError(
+                    'El monto pagado no coincide con el total de la operación.',
+                );
+            }
         }
 
         this.props.payment = { ...datos, confirmedAt: new Date() };

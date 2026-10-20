@@ -9,7 +9,7 @@ import { money, fieldValue, nicheLabel } from '@/lib/format';
  *
  * Qué métricas resumen el activo lo decide su tipo, no la tarjeta: acá había
  * un `switch` que sabía que un canal se resume con suscriptores y un sitio con
- * autoridad de dominio, duplicando lo que la estrategia ya declara. El
+ * ingreso mensual, duplicando lo que la estrategia ya declara. El
  * descriptor llega desde la página, que lo pide una vez para toda la grilla.
  */
 export function ListingCard({

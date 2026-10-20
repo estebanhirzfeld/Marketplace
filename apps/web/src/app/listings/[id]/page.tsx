@@ -99,7 +99,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                     <Panel title="DATOS DEL ACTIVO">
                         <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
                             {listing.descriptor.fields
-                                .filter((f) => f.key in listing.assetData)
+                                .filter((f) => f.key in listing.assetData && !f.internal)
                                 .map((f) => (
                                     <div key={f.key} className="flex items-center justify-between py-3 text-[14px]">
                                         <span className="text-[var(--color-tenue)]">{f.label}</span>
@@ -141,7 +141,7 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         <TransferStatus
                             transferable={listing.transferable}
                             transferableFrom={listing.transferableFrom}
-                            waitingNotice={listing.descriptor.waitingNotice}
+                            now={new Date().toISOString()}
                         />
 
                         {actor?.role === UserRole.ADMIN && (

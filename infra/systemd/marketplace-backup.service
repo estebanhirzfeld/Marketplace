@@ -1,0 +1,21 @@
+# marketplace-backup — dump lógico diario de Postgres.
+#
+# La dispara marketplace-backup.timer. No la habilites como servicio suelto.
+#
+# Instalar:
+#   sudo cp infra/systemd/marketplace-backup.service /etc/systemd/system/
+#   sudo cp infra/systemd/marketplace-backup.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marketplace-backup.timer
+[Unit]
+Description=Marketplace DB backup (pg_dump)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/marketplace
+ExecStart=/srv/marketplace/infra/scripts/backup-db.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -15,6 +15,7 @@ export class NotificationMapper {
             listingId: raw.listingId ? new UniqueEntityID(raw.listingId) : undefined,
             amountCents: raw.amountCents ?? undefined,
             currency: raw.currency ?? undefined,
+            occursAt: raw.occursAt ?? undefined,
             readAt: raw.readAt ?? undefined,
         };
 
@@ -32,6 +33,7 @@ export class NotificationMapper {
             listingId: props.listingId?.toString() ?? null,
             amountCents: props.amountCents ?? null,
             currency: props.currency ?? null,
+            occursAt: props.occursAt ?? null,
             readAt: props.readAt ?? null,
             createdAt,
         };

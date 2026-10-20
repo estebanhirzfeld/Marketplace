@@ -31,8 +31,28 @@ export function shortMoney(m: MoneyDto): string {
     return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(m.cents / 100);
 }
 
+/**
+ * El monto exacto, con centavos cuando los hay. `money` redondea a enteros y
+ * sirve para precios; acá se usa donde la persona tiene que transferir
+ * exactamente esa cifra y un redondeo la haría fallar la conciliación.
+ */
+export function exactMoney(m: MoneyDto): string {
+    const simbolo = SIMBOLOS[m.currency] ?? m.currency;
+    const conCentavos = m.cents % 100 !== 0;
+    const numero = new Intl.NumberFormat('es-AR', {
+        minimumFractionDigits: conCentavos ? 2 : 0,
+        maximumFractionDigits: conCentavos ? 2 : 0,
+    }).format(m.cents / 100);
+    return `${simbolo} ${numero}`;
+}
+
 export function formatNumber(n: number): string {
     return new Intl.NumberFormat('es-AR').format(n);
+}
+
+/** «1 suscriptor» / «N suscriptores»: el singular solo con exactamente uno. */
+export function subscribersLabel(n: number): string {
+    return `${formatNumber(n)} ${n === 1 ? 'suscriptor' : 'suscriptores'}`;
 }
 
 export function percentage(n: number): string {
@@ -49,6 +69,20 @@ export function fechaLarga(iso: string): string {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
+    });
+}
+
+/**
+ * «18 de octubre»: la fecha larga sin el año cuando es el actual, que es lo
+ * que se dice en voz alta. Con otro año lo conserva para no ser ambigua.
+ */
+export function fechaSinAnioActual(iso: string, now: Date = new Date()): string {
+    const fecha = new Date(iso);
+    const mismoAnio = fecha.getFullYear() === now.getFullYear();
+    return fecha.toLocaleDateString('es-AR', {
+        day: 'numeric',
+        month: 'long',
+        ...(mismoAnio ? {} : { year: 'numeric' }),
     });
 }
 
@@ -86,9 +120,16 @@ export function nicheLabel(niche: unknown): string {
  * en el descriptor y acá queda únicamente el formato, que sí es de la vista.
  */
 export function fieldValue(kind: AssetFieldKindDto, value: unknown): string {
-    if (value === undefined || value === null || value === '') return '—';
+    // `null` es un dato que la fuente no informó (p. ej. el país que Google no
+    // da): se dice, no se esconde detrás de un guion como un campo vacío.
+    if (value === null) return 'Sin datos';
+    if (value === undefined || value === '') return '—';
 
     switch (kind) {
+        case 'date':
+            return typeof value === 'string' && !Number.isNaN(new Date(value).getTime())
+                ? fechaLarga(value)
+                : String(value);
         case 'money':
             return typeof value === 'number' ? money({ cents: value, currency: 'USD' }) : String(value);
         case 'number':

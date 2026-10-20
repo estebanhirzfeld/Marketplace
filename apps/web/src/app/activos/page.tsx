@@ -7,26 +7,11 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { ButtonLink, Heading, EmptyState } from '@/components/ui';
 import { money, nicheLabel } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
+import { findOwnershipResult } from '@/lib/ownershipResults';
+import { ChannelAvatar } from '@/components/ChannelAvatar';
+import { channelIdFromUrl, thumbnailsByChannelId } from '@/lib/youtubeChannel';
 
 export const metadata = { title: 'Mis activos · Traspaso' };
-
-/**
- * El resultado de la vuelta del consentimiento de Google. Llega por la
- * dirección porque la vuelta la maneja un route handler, que redirige acá: la
- * verificación se dispara desde un activo, así que corresponde volver al
- * catálogo y no al formulario de publicación.
- */
-const RESULTADOS: Record<string, { text: string; ok: boolean }> = {
-    ok: { text: 'Listo: quedó comprobado que controlás el activo.', ok: true },
-    'sin-control': {
-        text: 'Esa cuenta de Google no controla el activo que publicaste. Si es un canal con Cuenta de Marca, elegila al iniciar sesión.',
-        ok: false,
-    },
-    cancelada: { text: 'Cancelaste la verificación. Podés volver a intentarla cuando quieras.', ok: false },
-    'no-configurada': { text: 'La verificación con Google todavía no está configurada.', ok: false },
-    invalida: { text: 'No pudimos identificar qué activo se estaba verificando.', ok: false },
-    error: { text: 'No pudimos completar la verificación. Probá de nuevo.', ok: false },
-};
 
 /** Los estados que agrupamos en la barra de filtros. */
 const GRUPOS = {
@@ -49,7 +34,7 @@ export default async function MisActivos(props: {
     const nombreDeTipo = await assetTypeLabeller();
     const params = await props.searchParams;
 
-    const resultado = RESULTADOS[params.verificacion ?? ''];
+    const resultado = findOwnershipResult(params.verificacion);
     const grupo = esGrupo(params.estado) ? params.estado : undefined;
 
     let todos: MyListingDto[] = [];
@@ -57,6 +42,16 @@ export default async function MisActivos(props: {
         todos = await api().misListings();
     } catch {
         todos = [];
+    }
+
+    // Un solo pedido para todo el listado. Si falla, se dibuja igual sin fotos.
+    let fotos = new Map<string, string>();
+    if (todos.some((l) => channelIdFromUrl(l.channelUrl))) {
+        try {
+            fotos = thumbnailsByChannelId(await api().youTubeConnections());
+        } catch {
+            fotos = thumbnailsByChannelId(undefined);
+        }
     }
 
     const visibles = grupo
@@ -134,7 +129,17 @@ export default async function MisActivos(props: {
                                     href={`/activos/${l.id}`}
                                     className="flex flex-wrap items-start justify-between gap-5 rounded-[var(--radius-medio)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-5 transition-colors hover:border-[var(--color-borde-fuerte)]"
                                 >
-                                    <div className="flex min-w-[260px] flex-grow flex-col gap-2.5">
+                                    <div className="flex min-w-[260px] flex-grow items-start gap-4">
+                                    {/* Solo un canal conectado tiene foto: el resto
+                                        mantiene la fila como estaba, sin hueco. */}
+                                    {(() => {
+                                        const id = channelIdFromUrl(l.channelUrl);
+                                        const foto = id ? fotos.get(id) : undefined;
+                                        return foto ? (
+                                            <ChannelAvatar src={foto} name={l.assetName ?? 'Canal'} shape="square" />
+                                        ) : null;
+                                    })()}
+                                    <div className="flex min-w-0 flex-grow flex-col gap-2.5">
                                         <div className="flex flex-wrap items-center gap-2.5">
                                             <ListingStatusBadge state={l.status} />
                                             {l.transferable && (
@@ -175,6 +180,7 @@ export default async function MisActivos(props: {
                                                 Rechazado: {l.rejectionReason}
                                             </span>
                                         )}
+                                    </div>
                                     </div>
 
                                     <div className="text-right">

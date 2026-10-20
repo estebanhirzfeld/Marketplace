@@ -1,0 +1,36 @@
+# marketplace-web — frontend Next (apps/web) en modo producción.
+#
+# Instalar:
+#   sudo cp infra/systemd/marketplace-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marketplace-web
+#
+# Arranca DESPUÉS de la API.
+#
+# La caja de 1 GB no puede correr `next build`: el build se hace en CI y a la VM
+# llega SOLO `.next/standalone` (bundle autocontenido, trae su propio
+# node_modules mínimo). Por eso NO se usa `next start` sino el server.js del
+# standalone. Con `outputFileTracingRoot` apuntando a la raíz del monorepo, el
+# layout del standalone replica esa raíz: el entrypoint queda en
+# `.next/standalone/apps/web/server.js`.
+#
+# El server.js del standalone lee PORT y HOSTNAME del entorno. HOSTNAME=127.0.0.1
+# lo deja solo en loopback: Caddy hace de reverse proxy, nadie llega de afuera.
+[Unit]
+Description=Marketplace Web (Next.js standalone)
+After=network-online.target marketplace-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/marketplace/apps/web/.next/standalone/apps/web
+EnvironmentFile=/etc/marketplace/web.env
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node /srv/marketplace/apps/web/.next/standalone/apps/web/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

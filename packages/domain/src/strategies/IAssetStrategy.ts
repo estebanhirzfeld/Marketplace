@@ -2,10 +2,34 @@ import { Money } from '../value-objects/Money';
 import { VerificationSource } from '../entities/Listing';
 import { AssetType } from '@marketplace/shared-types';
 
-export type MetricKey = 'followers' | 'revenue' | 'domainAuthority' | 'sessions' | 'subscribers' | 'engagement';
+export type MetricKey = 'followers' | 'revenue' | 'sessions' | 'subscribers' | 'engagement';
+
+/** Un enlace directo a la pantalla donde se hace el paso. */
+export interface TransferStepLink {
+    label: string;
+    href: string;
+}
+
+/**
+ * En qué momento de la vida del activo le toca el paso al vendedor.
+ *
+ * - `listing`: mientras está publicado. Es lo único que se le explica antes de
+ *   que haya un comprador: sumarnos con permisos mínimos, sin ceder control.
+ * - `operation`: con una venta en curso, el contrato firmado y la espera de la
+ *   plataforma del activo cumplida. Es cuando recién tiene sentido pedirle que
+ *   quite su acceso directo o que nos ceda la titularidad.
+ */
+export type TransferPhase = 'listing' | 'operation';
 
 export interface TransferStep {
     id: string;
+    /**
+     * Cuándo se le muestra el paso al vendedor. Ausente en los pasos que no son
+     * suyos —de la plataforma o del comprador— y en los del vendedor que son de
+     * la entrega y no de la cesión, que no se le piden en ninguna de las dos
+     * fases.
+     */
+    phase?: TransferPhase;
     /** Qué pasa en este paso, contado en tercera persona. */
     description: string;
     /**
@@ -18,6 +42,16 @@ export interface TransferStep {
      * a mano un texto ajeno sale mal.
      */
     instruction?: string;
+    /** Título corto del paso, para el carrusel de instrucciones. */
+    title?: string;
+    /**
+     * El detalle de `instruction` en viñetas cortas, de a una idea. Existe para
+     * que el paso no sea una pared de texto: `instruction` queda en una oración
+     * y todo lo demás —avisos incluidos— viaja acá.
+     */
+    details?: string[];
+    /** Enlaces directos a las pantallas de la plataforma del activo. */
+    links?: TransferStepLink[];
     requiredActor: 'seller' | 'buyer' | 'platform';
     automated: boolean;
 }
@@ -38,7 +72,7 @@ export interface TransferContext {
 }
 
 /** Cómo hay que interpretar el valor de un campo. El formato lo pone la vista. */
-export type AssetFieldKind = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche';
+export type AssetFieldKind = 'money' | 'number' | 'percentage' | 'text' | 'boolean' | 'niche' | 'date';
 
 export interface AssetFieldDescriptor {
     /** La clave tal como sale en `assetData`. */
@@ -48,6 +82,8 @@ export interface AssetFieldDescriptor {
     kind: AssetFieldKind;
     /** Si identifica al activo y por lo tanto queda detrás del NDA. */
     confidential: boolean;
+    /** Dato de la valuación que las vistas no muestran a vendedores ni compradores. */
+    internal?: boolean;
 }
 
 /**
@@ -97,12 +133,38 @@ export interface AssetTypeDescriptor {
     revenueNotice: string;
 }
 
+/**
+ * Largo máximo de la cuenta receptora, en caracteres.
+ *
+ * Es el límite de una dirección de correo según la RFC 5321, y el mismo que ya
+ * declara el esquema de la ruta que recibe el dato. Vive acá para que el
+ * dominio lo imponga por su cuenta y no dependa de que alguien se acuerde de
+ * repetirlo en cada capa de transporte.
+ */
+export const MAX_RECIPIENT_IDENTIFIER_LENGTH = 320;
+
 export interface IAssetStrategy {
     /**
      * Lo que este tipo de activo sabe de sí mismo, para que nadie más tenga
      * que preguntarlo ni deducirlo.
      */
     describe(): AssetTypeDescriptor;
+
+    /**
+     * Comprueba la cuenta donde el comprador quiere recibir el activo y la
+     * devuelve normalizada. Lanza `ValidationError` si no sirve.
+     *
+     * El dato no es el mismo en todos los tipos de activo: para un canal es la
+     * cuenta de Google que va a recibir la invitación, y ahí exigir el formato
+     * de una dirección de correo es correcto; para un dominio es el usuario del
+     * registrador, que cambia de proveedor a proveedor y no tiene forma
+     * canónica que se pueda comprobar. Por eso lo decide cada estrategia.
+     *
+     * Importa que sea estricto donde se puede: el identificador se copia tal
+     * cual a la constancia de entrega cuando la operación se cierra, y ahí ya
+     * no se corrige.
+     */
+    normalizeRecipientIdentifier(identifier: string): string;
 
     /**
      * Calcula el precio estimado basado en las métricas del activo

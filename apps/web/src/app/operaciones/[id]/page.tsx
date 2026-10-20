@@ -1,20 +1,21 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@marketplace/api-client';
-import type { OperationDetailDto } from '@marketplace/api-contract';
+import type { OperationDetailDto, PaymentOptionsDto } from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { Reveal } from '@/components/Reveal';
-import { SubmitButton } from '@/components/SubmitButton';
 import { Timeline } from '@/components/Timeline';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
+import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
-import { RecipientIdentityForm } from '@/components/RecipientIdentityForm';
+import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
-import { Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
+import { PaymentChoice, SellerPaymentWait, showSellerPaymentWait } from '@/components/PaymentChoice';
+import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
 import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
@@ -25,6 +26,7 @@ import {
     counterOffer,
     declareRecipientIdentity,
     goToCheckout,
+    initiateTransfer,
     signContract,
 } from '../actions';
 import { fileReport } from '../../denuncias/actions';
@@ -74,12 +76,12 @@ function queEsperar(
 
     if (status === 'contract_signed') {
         if (parte === 'seller') {
-            return 'El contrato está firmado y ya nos cediste el acceso al activo. Ahora completamos el cambio de titularidad: no necesitamos nada más de vos por ahora.';
+            return 'El contrato está firmado. Queda un último paso tuyo: cedernos el control del activo. Cuando lo hagas, declaralo acá y lo verificamos.';
         }
         if (parte === 'buyer') {
             return 'El contrato está firmado. Todavía no te toca pagar, y es a propósito: primero tomamos el activo en custodia y verificamos que lo tengamos de verdad. Si nunca llega, no pusiste un peso.';
         }
-        return 'El contrato está firmado. Falta completar el cambio de titularidad para poder declarar la custodia.';
+        return 'El contrato está firmado. Esperamos que el vendedor nos ceda el control y lo declare.';
     }
 
     if (status === 'transfer_in_progress') {
@@ -140,6 +142,18 @@ export default async function DetalleOperacion(props: {
     }
 
     const isAdmin = actor.role === UserRole.ADMIN;
+
+    // Cómo puede pagar el comprador. Solo lo piden las partes, y solo mientras
+    // el activo está en custodia. Si la consulta falla la pantalla no se rompe:
+    // se queda con lo que había antes (el botón de pagar, sin opciones).
+    let paymentOptions: PaymentOptionsDto | undefined;
+    if (!isAdmin && op.miParte && op.status === 'asset_in_custody') {
+        try {
+            paymentOptions = await api().paymentOptions(id);
+        } catch {
+            paymentOptions = undefined;
+        }
+    }
     const miTurno = op.miParte !== undefined && op.pendingResponseFrom === op.miParte;
     const negociando = op.status === 'offer_sent' || op.status === 'negotiating';
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
@@ -212,6 +226,87 @@ export default async function DetalleOperacion(props: {
 
                 <div className="flex flex-col gap-6">
                     {/*
+                      * La declaración del vendedor se guardaba y no se mostraba en
+                      * ninguna parte, así que quien la hacía no veía aparecer nada y
+                      * el paso parecía no hacer nada. Se muestra a las dos partes por
+                      * el mismo motivo que la custodia: es lo que explica por qué la
+                      * operación avanzó.
+                      *
+                      * Cuando la cuenta que el vendedor declaró no es la que después
+                      * verificó la plataforma, la diferencia se nombra. No bloquea
+                      * nada —el acceso se pudo haber vuelto a registrar en el medio
+                      * por razones legítimas— pero tiene que ser visible: son dos
+                      * copias congeladas en momentos distintos y compararlas es el
+                      * único control que hay sobre ese tramo.
+                      */}
+                    {op.transferInitiation && (
+                        <Reveal>
+                            <Panel title="DECLARACIÓN DE CESIÓN DEL VENDEDOR">
+                                <div className="flex flex-col gap-3 text-[14px]">
+                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                        Declarada el {fechaLarga(op.transferInitiation.declaredAt)}.
+                                    </p>
+
+                                    {op.transferInitiation.controlCeded && (
+                                        <ul className="flex flex-col gap-1.5">
+                                            <CheckedItem text="El vendedor declaró haber cedido el control del activo" />
+                                        </ul>
+                                    )}
+
+                                    {/*
+                                      * Se nombra la cuenta como la reconoce una
+                                      * persona —el correo que invitó—, no por su
+                                      * identificador interno. Que la cuenta ya no
+                                      * esté en el padrón no es lo mismo que no
+                                      * haber registrado ninguna, y se dicen
+                                      * distinto.
+                                      */}
+                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
+                                        <span className="text-[var(--color-tenue)]">
+                                            Cuenta de custodia declarada
+                                        </span>
+                                        <span className="font-mono text-[13px]">
+                                            {op.transferInitiation.custodyAccountIdentifier ??
+                                                (op.transferInitiation.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
+                                        </span>
+                                    </div>
+
+                                    {op.custody?.custodyAccountId &&
+                                        op.transferInitiation.custodyAccountId &&
+                                        op.custody.custodyAccountId !==
+                                            op.transferInitiation.custodyAccountId && (
+                                            <p className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/50 bg-[var(--color-alerta)]/5 p-3 text-[13px] leading-relaxed">
+                                                La cuenta que verificamos al tomar la custodia
+                                                {op.custody.custodyAccountIdentifier ? (
+                                                    <>
+                                                        {' '}(
+                                                        <span className="font-mono">
+                                                            {op.custody.custodyAccountIdentifier}
+                                                        </span>
+                                                        ){' '}
+                                                    </>
+                                                ) : (
+                                                    ' '
+                                                )}
+                                                no es la misma que estaba registrada cuando el vendedor
+                                                declaró la cesión. El acceso se volvió a registrar en el
+                                                medio. Queda asentado acá; no impide que la operación siga.
+                                            </p>
+                                        )}
+
+                                    {op.transferInitiation.notes && (
+                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            {op.transferInitiation.notes}
+                                        </p>
+                                    )}
+                                </div>
+                            </Panel>
+                        </Reveal>
+                    )}
+
+                    {/*
                       * La constancia se muestra a las dos partes. Es lo que respalda
                       * pedirle el pago al comprador: ocultársela sería al revés.
                       */}
@@ -233,6 +328,25 @@ export default async function DetalleOperacion(props: {
                                         <CheckedItem text="La plataforma es propietaria principal del activo" />
                                         <CheckedItem text="Los accesos están asegurados" />
                                     </ul>
+
+                                    {/*
+                                      * La cuenta que la plataforma verificó, al lado
+                                      * de la que el vendedor declaró en el panel de
+                                      * arriba. Sin este renglón las dos copias
+                                      * congeladas no se pueden comparar mirando la
+                                      * pantalla, que es para lo que se congelan.
+                                      */}
+                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
+                                        <span className="text-[var(--color-tenue)]">
+                                            Cuenta de custodia verificada
+                                        </span>
+                                        <span className="font-mono text-[13px]">
+                                            {op.custody.custodyAccountIdentifier ??
+                                                (op.custody.custodyAccountId
+                                                    ? 'cuenta dada de baja'
+                                                    : 'sin registrar')}
+                                        </span>
+                                    </div>
 
                                     {Object.entries(op.custody.metrics).length > 0 && (
                                         <div className="flex flex-col gap-1.5 border-t border-[var(--color-borde)] pt-3">
@@ -370,12 +484,11 @@ export default async function DetalleOperacion(props: {
                                 </p>
 
                                 {query.pago === 'no-disponible' && (
-                                    <div className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/40 p-4 text-[13px] leading-relaxed text-[var(--color-alerta)]">
-                                        No pudimos abrir el pago: la pasarela todavía no está
-                                        configurada en este entorno. El activo sigue en nuestra
-                                        custodia, así que no perdiste nada — probá de nuevo más
-                                        tarde o escribinos.
-                                    </div>
+                                    <Alert tono="alerta">
+                                        No pudimos abrir el pago. El activo sigue en custodia, así
+                                        que no perdiste nada: probá de nuevo o pagá por
+                                        transferencia.
+                                    </Alert>
                                 )}
                                 {negociando && miTurno && (
                                     <>
@@ -479,31 +592,35 @@ export default async function DetalleOperacion(props: {
                                     <RecipientIdentityForm
                                         action={declareRecipientIdentity.bind(null, id)}
                                         urgente={destinoUrgente}
+                                        assetType={op.assetType}
                                     />
                                 )}
                                 {puedeDeclararDestino && op.recipientIdentity && (
-                                    <details className="text-[13px]">
-                                        <summary className="cursor-pointer text-[var(--color-tenue)]">
-                                            Vas a recibir el activo en{' '}
-                                            <span className="font-mono">
-                                                {op.recipientIdentity.identifier}
-                                            </span>
-                                        </summary>
-                                        <div className="mt-3">
-                                            <RecipientIdentityForm
-                                                action={declareRecipientIdentity.bind(null, id)}
-                                                urgente={false}
-                                                valorActual={op.recipientIdentity.identifier}
-                                            />
-                                        </div>
-                                    </details>
+                                    <div className="flex flex-col gap-2 text-[13px]">
+                                        <RecipientIdentitySaved
+                                            identifier={op.recipientIdentity.identifier}
+                                            assetType={op.assetType}
+                                        />
+                                        <details>
+                                            <summary className="cursor-pointer text-[var(--color-tenue)]">
+                                                Cambiar la cuenta
+                                            </summary>
+                                            <div className="mt-3">
+                                                <RecipientIdentityForm
+                                                    action={declareRecipientIdentity.bind(null, id)}
+                                                    urgente={false}
+                                                    valorActual={op.recipientIdentity.identifier}
+                                                    assetType={op.assetType}
+                                                />
+                                            </div>
+                                        </details>
+                                    </div>
                                 )}
 
                                 {op.status === 'contract_signed' && op.miParte === 'seller' && (
-                                    <OperationAction
-                                        action={advanceOperation.bind(null, id, 'transfer')}
-                                        text="Iniciar la transferencia"
-                                        note="Cedés la titularidad del activo a la plataforma."
+                                    <TransferInitiationForm
+                                        action={initiateTransfer.bind(null, id)}
+                                        steps={op.handoverSteps ?? []}
                                     />
                                 )}
 
@@ -511,15 +628,20 @@ export default async function DetalleOperacion(props: {
                                     <CustodyVerificationForm action={confirmCustody.bind(null, id)} />
                                 )}
 
-                                {op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
-                                    <form action={goToCheckout.bind(null, id)}>
-                                            <SubmitButton
-                                                className="w-full"
-                                                pendingText="Preparando el pago…"
-                                            >
-                                                Pagar {op.buyerPays ? money(op.buyerPays) : ''}
-                                        </SubmitButton>
-                                    </form>
+                                {/*
+                                    Con el activo en custodia, el comprador elige cómo pagar y
+                                    el vendedor espera. Un admin ve solo su formulario de abajo.
+                                */}
+                                {!isAdmin && op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
+                                    <PaymentChoice
+                                        options={paymentOptions}
+                                        buyerPays={op.buyerPays}
+                                        checkoutAction={goToCheckout.bind(null, id)}
+                                    />
+                                )}
+
+                                {showSellerPaymentWait({ status: op.status, miParte: op.miParte, isAdmin }) && (
+                                    <SellerPaymentWait options={paymentOptions} />
                                 )}
 
                                 {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (

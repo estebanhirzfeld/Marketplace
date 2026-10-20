@@ -1,5 +1,5 @@
 import type { NotificationDto, NotificationTypeDto } from '@marketplace/api-contract';
-import { money } from './format';
+import { fechaLarga, money } from './format';
 
 /**
  * El texto de cada aviso se redacta acá y no se guarda en la base.
@@ -36,6 +36,11 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         title: 'El contrato quedó firmado',
         cuerpo: () => 'Las tres partes firmaron. Sigue la transferencia del activo.',
     },
+    cesion_pendiente: {
+        title: 'Te toca ceder el control del activo',
+        cuerpo: () =>
+            'El contrato quedó firmado. Cedenos el control del activo y declaralo desde la operación: recién ahí lo verificamos y lo tomamos en custodia.',
+    },
     activo_en_custodia: {
         title: 'El activo está en custodia',
         cuerpo: (n) => (n.amount ? `Verificamos el activo. Te toca transferir ${money(n.amount)}.` : 'Verificamos el activo. Te toca pagar.'),
@@ -70,6 +75,21 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         cuerpo: () =>
             'La otra parte abrió un reclamo sobre una de tus operaciones. Podés leer qué dice y ver la misma documentación que ella.',
     },
+    acceso_no_encontrado: {
+        title: 'No encontramos tu invitación',
+        cuerpo: () => 'No encontramos tu invitación como administrador. Revisá los pasos y avisanos de nuevo.',
+    },
+    acceso_solicitado: {
+        title: 'Un vendedor ya nos invitó',
+        cuerpo: () => 'Avisó que ya nos dio acceso a su activo. Falta verificar el acceso.',
+    },
+    acceso_confirmado: {
+        title: 'Confirmamos tu acceso',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `El ${fechaLarga(n.occursAt)} tu activo pasa a transferencia inmediata.`
+                : 'Tu activo pasa a transferencia inmediata.',
+    },
     operacion_completada: {
         title: 'Operación cerrada',
         cuerpo: () => 'El activo cambió de manos y el dinero se liquidó.',
@@ -87,6 +107,9 @@ const AL_PANEL: NotificationTypeDto[] = ['revision_pendiente'];
 
 export function linkFor(n: NotificationDto): string {
     if (AL_PANEL.includes(n.type)) return '/admin';
+    if (n.type === 'acceso_solicitado') return '/admin?bandeja=accesos';
+    if (n.type === 'acceso_confirmado' && n.listingId) return `/activos/${n.listingId}?ver=verificaciones`;
+    if (n.type === 'acceso_no_encontrado' && n.listingId) return `/activos/${n.listingId}`;
     if (n.operationId) return `/operaciones/${n.operationId}`;
     if (n.listingId) return `/listings/${n.listingId}`;
     return '/operaciones';

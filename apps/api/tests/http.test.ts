@@ -1,7 +1,32 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
-import { createContainer } from '../src/container';
+import { Container, createContainer } from '../src/container';
+import { SellerPaymentAccount } from '@marketplace/domain/src/entities/SellerPaymentAccount';
+import { ISellerPaymentAccountRepository } from '@marketplace/domain/src/ports/Repositories';
+import { IMercadoPagoOAuthClient } from '@marketplace/domain/src/ports/IMercadoPagoOAuthClient';
+import { LinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/LinkSellerPaymentAccountUseCase';
+import { GetSellerPaymentAccountStatusUseCase } from '@marketplace/domain/src/use-cases/payment-account/GetSellerPaymentAccountStatusUseCase';
+import { UnlinkSellerPaymentAccountUseCase } from '@marketplace/domain/src/use-cases/payment-account/UnlinkSellerPaymentAccountUseCase';
+import {
+    SellerTokenUnavailableError,
+    ServiceUnavailableError,
+    YouTubeAuthorizationRevokedError,
+} from '@marketplace/domain/src/errors/DomainError';
+import { ConfirmPaymentFromGatewayUseCase } from '@marketplace/domain/src/use-cases/operation/PaymentUseCases';
+import { GetPaymentOptionsUseCase } from '@marketplace/domain/src/use-cases/operation/GetPaymentOptionsUseCase';
+import { IYouTubeConnectionOAuthClient, YouTubeConnectionTokens } from '@marketplace/domain/src/ports/IYouTubeConnectionOAuthClient';
+import { IYouTubeAnalyticsReader } from '@marketplace/domain/src/ports/IYouTubeAnalyticsReader';
+import { ISecretCipher } from '@marketplace/domain/src/ports/ISecretCipher';
+import {
+    ConnectYouTubeChannelUseCase,
+    RECONNECT_CHANNEL_MESSAGE,
+} from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
+import { ListYouTubeConnectionsUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/ListYouTubeConnectionsUseCase';
+import { CreateListingFromYouTubeConnectionUseCase } from '@marketplace/domain/src/use-cases/youtube-connection/CreateListingFromYouTubeConnectionUseCase';
+import { YouTubeChannelAnalytics } from '@marketplace/domain/src/value-objects/YouTubeChannelAnalytics';
+import { REQUIRED_YOUTUBE_SCOPES } from '@marketplace/domain/src/value-objects/YouTubeScopes';
 import { prisma } from '@marketplace/db';
 import { UserRole } from '@marketplace/shared-types';
 import { User } from '@marketplace/domain/src/entities/User';
@@ -11,14 +36,27 @@ import { Email } from '@marketplace/domain/src/value-objects/Email';
 import { Money } from '@marketplace/domain/src/value-objects/Money';
 import { UniqueEntityID } from '@marketplace/domain/src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '@marketplace/domain/src/strategies/YouTubeStrategy';
+import { WebStrategy } from '@marketplace/domain/src/strategies/WebStrategy';
+import { IDnsResolver, IOwnershipChallengeIssuer } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { GetDomainOwnershipChallengeUseCase, VerifyDomainOwnershipUseCase } from '@marketplace/domain/src/use-cases/listing/VerifyOwnershipUseCases';
 import { CustodyAccount } from '@marketplace/domain/src/entities/CustodyAccount';
 import { AssetType } from '@marketplace/shared-types';
+import { GoogleOAuthClient } from '../src/adapters/GoogleOAuthClient';
+import { GoogleAuthorizer, IYouTubeCustodyAccessReader } from '@marketplace/domain/src/ports/IOwnershipReaders';
+import { IYouTubeChannelReader } from '@marketplace/domain/src/ports/IYouTubeChannelReader';
+import { RegisterPlatformAccessUseCase } from '@marketplace/domain/src/use-cases/listing/RegisterPlatformAccessUseCase';
+import {
+    StartPlatformAccessVerificationUseCase,
+    VerifyPlatformAccessUseCase,
+} from '@marketplace/domain/src/use-cases/listing/VerifyPlatformAccessUseCases';
 import { IPasswordHasher } from '@marketplace/domain/src/ports/IPasswordHasher';
 import {
     PrismaUserRepository,
     PrismaListingRepository,
     PrismaOperationRepository,
     PrismaCustodyAccountRepository,
+    PrismaYouTubeConnectionRepository,
+    PrismaYouTubeChannelListingFinder,
 } from '@marketplace/db';
 
 /**
@@ -972,6 +1010,89 @@ describe('Documento del contrato', () => {
 });
 
 /**
+ * Iniciar la transferencia dejó de ser un botón sin cuerpo: el vendedor
+ * declara haber cedido el control. Se prueba aparte del bucle de pasos por lo
+ * mismo que `/custody`: es la única de las dos que ahora lleva body.
+ */
+describe('POST /operations/:id/transfer', () => {
+    async function unaOperacionFirmada(): Promise<{ id: string; sellerEmail: string; buyerEmail: string }> {
+        const sellerEmail = `seller-transfer-${Date.now()}@test.com`;
+        const buyerEmail = `buyer-transfer-${Date.now()}@test.com`;
+        const buyer = await crearUsuario(buyerEmail, UserRole.BUYER);
+        const seller = await crearUsuario(sellerEmail, UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        await new PrismaOperationRepository().save(operation);
+
+        return { id: operation.id.toString(), sellerEmail, buyerEmail };
+    }
+
+    async function declarar(id: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/operations/${id}/transfer`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('400 por schema si falta controlCeded', async () => {
+        const { id, sellerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, {});
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('409 si controlCeded llega en false', async () => {
+        const { id, sellerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, { controlCeded: false });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    it('403 si quien declara es el comprador', async () => {
+        const { id, buyerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, buyerEmail, { controlCeded: true });
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('204 en el camino feliz, y el detalle trae la constancia', async () => {
+        const { id, sellerEmail, buyerEmail } = await unaOperacionFirmada();
+
+        const res = await declarar(id, sellerEmail, {
+            controlCeded: true,
+            notes: 'Ya promoví a la plataforma.',
+        });
+        expect(res.statusCode).toBe(204);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe(buyerEmail)}` },
+        });
+
+        const cuerpo = detalle.json();
+        expect(cuerpo.status).toBe('transfer_in_progress');
+        expect(cuerpo.transferInitiation.controlCeded).toBe(true);
+        expect(cuerpo.transferInitiation.notes).toBe('Ya promoví a la plataforma.');
+        expect(cuerpo.transferInitiation.declaredAt).toEqual(expect.any(String));
+    });
+});
+
+/**
  * Confirmar la custodia dejó de ser un botón: el admin declara qué verificó.
  * La ruta se probó aparte del resto de los pasos porque es la única con cuerpo.
  */
@@ -990,7 +1111,7 @@ describe('POST /operations/:id/custody', () => {
         });
         operation.acceptCurrentOffer('seller');
         operation.signContract();
-        operation.initiateTransfer();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
         await new PrismaOperationRepository().save(operation);
 
         return operation.id.toString();
@@ -1174,6 +1295,43 @@ describe('POST y DELETE /admin/listings/:id/acceso', () => {
  * vez de fallar con un 500, y la autorización se resuelve antes de necesitar
  * la clave para nada.
  */
+describe('Pasos de la cesión: contenido estructurado', () => {
+    async function conUnVendedor() {
+        const seller = await crearUsuario('seller-pasos@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        const token = await tokenDe('seller-pasos@test.com');
+        return { id: listing.id.toString(), headers: { authorization: `Bearer ${token}` } };
+    }
+
+    const esperado = {
+        title: expect.any(String),
+        details: expect.arrayContaining([expect.any(String)]),
+        links: expect.arrayContaining([
+            expect.objectContaining({ label: expect.any(String), href: expect.stringMatching(/^https:\/\//) }),
+        ]),
+    };
+
+    it('GET /me/listings entrega título, viñetas y enlaces de cada paso del vendedor', async () => {
+        const { headers } = await conUnVendedor();
+
+        const res = await app.inject({ method: 'GET', url: '/me/listings', headers });
+        const pasos = res.json()[0].handoverSteps;
+
+        expect(pasos.length).toBeGreaterThan(0);
+        for (const paso of pasos) expect(paso).toMatchObject(esperado);
+    });
+
+    it('GET /listings/:id entrega lo mismo al dueño', async () => {
+        const { id, headers } = await conUnVendedor();
+
+        const res = await app.inject({ method: 'GET', url: `/listings/${id}`, headers });
+        const pasos = res.json().handoverSteps;
+
+        expect(pasos.length).toBeGreaterThan(0);
+        for (const paso of pasos) expect(paso).toMatchObject(esperado);
+    });
+});
+
 describe('POST /listings/:id/verificar-metricas', () => {
     it('503 mientras la integración no esté configurada', async () => {
         const seller = await crearUsuario('seller-yt@test.com', UserRole.SELLER);
@@ -1257,6 +1415,157 @@ describe('Verificación de titularidad con Google', () => {
         const res = await app.inject({ method: 'GET', url: `/listings/${id}/autorizacion/youtube` });
 
         expect(res.statusCode).toBe(401);
+    });
+});
+
+/**
+ * Titularidad de un sitio por registro TXT. El DNS y el emisor del valor son
+ * fakes: lo que se prueba es el transporte, la autorización y que la constancia
+ * quede guardada en la base.
+ */
+describe('Titularidad de un sitio por DNS', () => {
+    const NAMESERVERS = ['dns1.p08.nsone.net', 'dns2.p08.nsone.net'];
+    const tokenFor = (listingId: string, domain: string) => `traspaso-verificacion=${listingId.slice(0, 8)}-${domain}`;
+
+    async function unSitio(email = 'seller-dns@test.com'): Promise<string> {
+        const seller = await crearUsuario(email, UserRole.SELLER);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'https://www.Ejemplo.com/inicio' }),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        });
+        await listingRepo.save(listing);
+        return listing.id.toString();
+    }
+
+    function servidor(options: { configured?: boolean; txt?: string[] } = {}) {
+        const issuer: IOwnershipChallengeIssuer = { tokenFor };
+        const resolver: IDnsResolver = {
+            nameserversOf: vi.fn(async () => NAMESERVERS),
+            txtRecordsOf: vi.fn(async () => options.txt ?? []),
+        };
+        const base = createContainer(fakeHasher);
+        const container: Container =
+            options.configured === false
+                ? { ...base, getDomainOwnershipChallenge: undefined, verifyDomainOwnership: undefined }
+                : {
+                      ...base,
+                      getDomainOwnershipChallenge: new GetDomainOwnershipChallengeUseCase(listingRepo, issuer, resolver),
+                      verifyDomainOwnership: new VerifyDomainOwnershipUseCase(listingRepo, issuer, resolver),
+                  };
+        return buildApp({ container, jwtSecret: 'secreto-de-test' });
+    }
+
+    async function como(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    it('el vendedor recibe el registro, los servidores y el proveedor deducido', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/verificacion-dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({
+            domain: 'ejemplo.com',
+            host: '@',
+            value: tokenFor(id, 'ejemplo.com'),
+            nameservers: NAMESERVERS,
+            provider: 'netlify',
+        });
+    });
+
+    it('sin el TXT publicado la comprobación responde verified: false y no guarda nada', async () => {
+        const id = await unSitio();
+        const server = await servidor({ txt: ['v=spf1 -all'] });
+
+        const res = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ verified: false });
+        expect((await listingRepo.findById(id))!.isOwnershipVerified()).toBe(false);
+    });
+
+    it('con el TXT publicado responde verified: true y el activo queda con titularidad comprobada', async () => {
+        const id = await unSitio();
+        const server = await servidor({ txt: [tokenFor(id, 'ejemplo.com')] });
+
+        const res = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ verified: true });
+
+        const guardado = await listingRepo.findById(id);
+        expect(guardado!.isOwnershipVerified()).toBe(true);
+        expect(guardado!.ownershipVerification).toMatchObject({ source: 'dns', assetId: 'ejemplo.com' });
+    });
+
+    it('403 si lo pide alguien que no es el vendedor ni admin', async () => {
+        const id = await unSitio();
+        await crearUsuario('intruso-dns@test.com', UserRole.SELLER);
+        const server = await servidor();
+
+        const get = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/verificacion-dns`,
+            headers: await como('intruso-dns@test.com'),
+        });
+        const post = await server.inject({
+            method: 'POST',
+            url: `/listings/${id}/verificar/dns`,
+            headers: await como('intruso-dns@test.com'),
+        });
+
+        expect(get.statusCode).toBe(403);
+        expect(post.statusCode).toBe(403);
+    });
+
+    it('la autorización de Google rechaza la fuente dns en vez de tratarla como YouTube', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({
+            method: 'GET',
+            url: `/listings/${id}/autorizacion/dns`,
+            headers: await como('seller-dns@test.com'),
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('401 sin sesión', async () => {
+        const id = await unSitio();
+        const server = await servidor();
+
+        const res = await server.inject({ method: 'GET', url: `/listings/${id}/verificacion-dns` });
+
+        expect(res.statusCode).toBe(401);
+    });
+
+    it('503 en las dos rutas cuando falta DNS_CHALLENGE_SECRET', async () => {
+        const id = await unSitio();
+        const server = await servidor({ configured: false });
+        const headers = await como('seller-dns@test.com');
+
+        const get = await server.inject({ method: 'GET', url: `/listings/${id}/verificacion-dns`, headers });
+        const post = await server.inject({ method: 'POST', url: `/listings/${id}/verificar/dns`, headers });
+
+        expect(get.statusCode).toBe(503);
+        expect(post.statusCode).toBe(503);
+        expect(get.json().message).toMatch(/DNS/);
     });
 });
 
@@ -1438,6 +1747,169 @@ describe('POST /webhooks/mercadopago', () => {
     });
 });
 
+/**
+ * El cobrador que figura en el aviso (`user_id`) es una pista para elegir con
+ * qué token consultar el pago, nunca una prueba: se pasa tal cual al caso de
+ * uso y lo que no parece un identificador de Mercado Pago se ignora.
+ */
+describe('POST /webhooks/mercadopago — pista del cobrador', () => {
+    async function armarWebhook() {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        const ejecutar = vi.spyOn(confirmar, 'execute').mockResolvedValue(undefined);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return { servidor, ejecutar };
+    }
+
+    function aviso(extra: Record<string, unknown>) {
+        return {
+            action: 'payment.created',
+            api_version: 'v1',
+            data: { id: '555' },
+            date_created: '2026-10-05T12:00:00Z',
+            id: 1,
+            live_mode: false,
+            type: 'payment',
+            ...extra,
+        };
+    }
+
+    it('pasa el user_id numérico como pista, en texto', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: 2_863_117_439 }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '2863117439' });
+    });
+
+    it('pasa el user_id en texto como pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: '987654' }),
+        });
+
+        expect(ejecutar).toHaveBeenCalledWith('555', { collectorMpUserId: '987654' });
+    });
+
+    it('un aviso sin user_id sigue funcionando, sin pista', async () => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({}),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+
+    it.each([
+        ['un objeto', {}],
+        ['un booleano', true],
+        ['un arreglo', ['1']],
+        ['un texto vacío', ''],
+        ['un texto que no es numérico', 'abc'],
+        ['un número negativo', -5],
+        ['un número con decimales', 1.5],
+        ['null', null],
+    ])('ignora un user_id mal formado (%s)', async (_nombre, valor) => {
+        const { servidor, ejecutar } = await armarWebhook();
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso({ user_id: valor }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(ejecutar).toHaveBeenCalledWith('555', undefined);
+    });
+});
+
+/**
+ * Si el pago de un vendedor con split no se puede consultar porque su token no
+ * está disponible, se responde 503 para que Mercado Pago reintente el aviso;
+ * cualquier otro fallo sigue respondiendo 200.
+ */
+describe('POST /webhooks/mercadopago — token del vendedor no disponible', () => {
+    async function armarWebhook(resultado: () => Promise<void>) {
+        const confirmar = new ConfirmPaymentFromGatewayUseCase(new PrismaOperationRepository(), {
+            createCheckout: vi.fn(),
+            fetchPayment: vi.fn(),
+        });
+        vi.spyOn(confirmar, 'execute').mockImplementation(resultado);
+        const servidor = await buildApp({
+            container: {
+                ...createContainer(fakeHasher),
+                confirmarPagoDePasarela: confirmar,
+                mercadoPagoWebhookSecret: undefined,
+            },
+            jwtSecret: 'secreto-de-test',
+        });
+        return servidor;
+    }
+
+    const aviso = { type: 'payment', data: { id: '555' }, user_id: 987654 };
+
+    it('responde 503 para que Mercado Pago reintente', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new SellerTokenUnavailableError();
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('responde 200 ante cualquier otro fallo', async () => {
+        const servidor = await armarWebhook(async () => {
+            throw new Error('falla inesperada');
+        });
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('responde 200 cuando se procesa bien', async () => {
+        const servidor = await armarWebhook(async () => undefined);
+
+        const res = await servidor.inject({
+            method: 'POST',
+            url: '/webhooks/mercadopago',
+            payload: aviso,
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+});
+
 describe('POST /operations/:id/checkout', () => {
     it('503 mientras MercadoPago no esté configurado', async () => {
         const seller = await crearUsuario('seller-mp@test.com', UserRole.SELLER);
@@ -1459,6 +1931,883 @@ describe('POST /operations/:id/checkout', () => {
         });
 
         expect(res.statusCode).toBe(503);
+    });
+});
+
+describe('GET /operations/:id/payment-options', () => {
+    async function unaOperacionEnCustodia() {
+        const buyer = await crearUsuario('buyer-opts@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts@test.com', UserRole.SELLER);
+        await crearUsuario('admin-opts@test.com', UserRole.ADMIN);
+        await crearUsuario('extrano-opts@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({
+            verifiedBy: new UniqueEntityID(),
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+        });
+        await new PrismaOperationRepository().save(operation);
+        return operation.id.toString();
+    }
+
+    async function pedir(id: string, email?: string) {
+        return app.inject({
+            method: 'GET',
+            url: `/operations/${id}/payment-options`,
+            headers: email ? { authorization: `Bearer ${await tokenDe(email)}` } : {},
+        });
+    }
+
+    it('401 sin sesión', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id)).statusCode).toBe(401);
+    });
+
+    it('403 para quien no es parte ni admin', async () => {
+        const id = await unaOperacionEnCustodia();
+        expect((await pedir(id, 'extrano-opts@test.com')).statusCode).toBe(403);
+    });
+
+    it('404 si la operación no existe', async () => {
+        await crearUsuario('buyer-opts-404@test.com', UserRole.BUYER);
+        const res = await pedir(new UniqueEntityID().toString(), 'buyer-opts-404@test.com');
+        expect(res.statusCode).toBe(404);
+    });
+
+    it('409 si el activo todavía no está en custodia', async () => {
+        const buyer = await crearUsuario('buyer-opts2@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-opts2@test.com', UserRole.SELLER);
+        const listing = await crearListingPublicado(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1000000, 'ARS'),
+        });
+        await new PrismaOperationRepository().save(operation);
+
+        const res = await pedir(operation.id.toString(), 'buyer-opts2@test.com');
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe('INVALID_STATE');
+    });
+
+    describe('con el contenedor sin pasarela ni textos de transferencia', () => {
+        it('responde la forma completa al comprador, al vendedor y al admin', async () => {
+            const id = await unaOperacionEnCustodia();
+
+            // El contenedor lee estas variables al armarse. Se vacían para que
+            // el resultado no dependa del entorno de quien corre el test: una
+            // máquina con las credenciales de Mercado Pago o el texto de
+            // transferencia cargados no tiene que cambiarlo.
+            for (const nombre of [
+                'MERCADOPAGO_ACCESS_TOKEN',
+                'MERCADOPAGO_SPLIT_ENABLED',
+                'EXCHANGE_RATE_ENABLED',
+                'TRANSFER_INSTRUCTIONS_ARS',
+                'TRANSFER_INSTRUCTIONS_USD',
+            ]) {
+                vi.stubEnv(nombre, '');
+            }
+
+            try {
+                const servidor = await buildApp({
+                    container: createContainer(fakeHasher),
+                    jwtSecret: 'secreto-de-test',
+                });
+
+                for (const email of ['buyer-opts@test.com', 'seller-opts@test.com', 'admin-opts@test.com']) {
+                    const res = await servidor.inject({
+                        method: 'GET',
+                        url: `/operations/${id}/payment-options`,
+                        headers: { authorization: `Bearer ${await tokenDe(email)}` },
+                    });
+
+                    expect(res.statusCode).toBe(200);
+                    expect(res.json()).toEqual({
+                        currency: 'ARS',
+                        amount: { cents: 1050000, currency: 'ARS' },
+                        mercadopago: {
+                            available: false,
+                            reason: 'not_configured',
+                            chargedIn: 'ARS',
+                            converted: false,
+                        },
+                        transfer: { available: false, reference: id },
+                    });
+                }
+            } finally {
+                vi.unstubAllEnvs();
+            }
+        });
+    });
+
+    describe('con el contenedor con textos de transferencia', () => {
+        async function pedirComo(email: string) {
+            const id = await unaOperacionEnCustodia();
+            const container: Container = {
+                ...createContainer(fakeHasher),
+                paymentOptions: new GetPaymentOptionsUseCase(new PrismaOperationRepository(), {
+                    mercadoPagoEnabled: true,
+                    splitEnabled: false,
+                    transferInstructions: { ARS: 'Banco Ejemplo\nCBU 000' },
+                }),
+            };
+            const servidor = await buildApp({ container, jwtSecret: 'secreto-de-test' });
+
+            const res = await servidor.inject({
+                method: 'GET',
+                url: `/operations/${id}/payment-options`,
+                headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            });
+            return { res, id };
+        }
+
+        it('incluye las instrucciones para el comprador', async () => {
+            const { res, id } = await pedirComo('buyer-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().mercadopago).toEqual({ available: true, chargedIn: 'ARS', converted: false });
+            expect(res.json().transfer).toEqual({
+                available: true,
+                instructions: 'Banco Ejemplo\nCBU 000',
+                reference: id,
+            });
+        });
+
+        // El vendedor no paga ni confirma: no recibe los datos bancarios de la plataforma.
+        it('al vendedor le dice que hay transferencia pero no le manda las instrucciones', async () => {
+            const { res, id } = await pedirComo('seller-opts@test.com');
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().transfer).toEqual({ available: true, reference: id });
+        });
+    });
+});
+
+/**
+ * La cuenta de Mercado Pago del vendedor. Los usuarios y la sesión son reales;
+ * el repositorio de cuentas y el cliente de OAuth se inyectan en memoria para
+ * no necesitar la clave de cifrado ni salir a la red. Con `configurada: false`
+ * el contenedor queda como cuando faltan las variables de entorno.
+ */
+describe('Cuenta de Mercado Pago del vendedor — /me/mercadopago', () => {
+    const TOKENS_SECRETOS = ['APP_USR-acceso-secreto', 'TG-refresco-secreto'];
+
+    function armarApp(configurada: boolean) {
+        const filas = new Map<string, SellerPaymentAccount>();
+        const repo: ISellerPaymentAccountRepository = {
+            findByUserId: async (userId) => filas.get(userId) ?? null,
+            findByMpUserId: async (mpUserId) =>
+                [...filas.values()].find((cuenta) => cuenta.mpUserId === mpUserId) ?? null,
+            existsByUserId: async (userId) => filas.has(userId),
+            save: async (account) => {
+                filas.set(account.userId.toString(), account);
+            },
+            deleteByUserId: async (userId) => {
+                filas.delete(userId);
+            },
+        };
+        const oauth: IMercadoPagoOAuthClient = {
+            authorizationUrl: vi.fn(
+                ({ state, codeChallenge }) =>
+                    `https://auth.mercadopago.com.ar/authorization?state=${state}&code_challenge=${codeChallenge}`,
+            ),
+            exchangeCode: vi.fn().mockResolvedValue({
+                accessToken: TOKENS_SECRETOS[0],
+                refreshToken: TOKENS_SECRETOS[1],
+                expiresInSeconds: 15_552_000,
+                mpUserId: '987654',
+                scope: 'offline_access read write',
+            }),
+            refresh: vi.fn(),
+        };
+
+        const base = createContainer(fakeHasher);
+        const container: Container = configurada
+            ? {
+                  ...base,
+                  mercadoPagoOAuth: oauth,
+                  linkSellerPaymentAccount: new LinkSellerPaymentAccountUseCase(repo, oauth),
+                  getSellerPaymentAccountStatus: new GetSellerPaymentAccountStatusUseCase(repo),
+                  unlinkSellerPaymentAccount: new UnlinkSellerPaymentAccountUseCase(repo),
+              }
+            : {
+                  ...base,
+                  mercadoPagoOAuth: undefined,
+                  linkSellerPaymentAccount: undefined,
+                  getSellerPaymentAccountStatus: undefined,
+                  unlinkSellerPaymentAccount: undefined,
+              };
+
+        return { oauth, filas, appMp: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    const VERIFICADOR = 'v'.repeat(43);
+    const DESAFIO = 'abcDEF123-_abcDEF123-_abcDEF123-_abcDEF123-_';
+
+    async function conSesion(email: string, role: UserRole = UserRole.SELLER) {
+        await crearUsuario(email, role);
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('sin configurar', () => {
+        it('503 en las cuatro rutas', async () => {
+            const { appMp } = armarApp(false);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-503@test.com');
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago', headers }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    headers,
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    headers,
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([503, 503, 503, 503]);
+        });
+    });
+
+    describe('configurada', () => {
+        it('401 sin sesión en las cuatro rutas', async () => {
+            const servidor = await armarApp(true).appMp;
+
+            const respuestas = await Promise.all([
+                servidor.inject({ method: 'GET', url: '/me/mercadopago' }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/authorization',
+                    payload: { state: 'estado', codeChallenge: DESAFIO },
+                }),
+                servidor.inject({
+                    method: 'POST',
+                    url: '/me/mercadopago/link',
+                    payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+                }),
+                servidor.inject({ method: 'DELETE', url: '/me/mercadopago' }),
+            ]);
+
+            expect(respuestas.map((r) => r.statusCode)).toEqual([401, 401, 401, 401]);
+        });
+
+        it('GET informa linked: false si no vinculó nada', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-st0@test.com');
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('vincular y consultar: el estado no trae tokens', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-link@test.com');
+
+            const vinculo = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(vinculo.statusCode).toBe(204);
+            expect(vinculo.body).toBe('');
+            expect(estado.statusCode).toBe(200);
+            expect(estado.json()).toMatchObject({ linked: true, mpUserId: '987654', expired: false });
+            expect(typeof estado.json().linkedAt).toBe('string');
+            expect(typeof estado.json().expiresAt).toBe('string');
+            for (const secreto of TOKENS_SECRETOS) {
+                expect(estado.body).not.toContain(secreto);
+                expect(vinculo.body).not.toContain(secreto);
+            }
+        });
+
+        it('vincular pasa el código y el verificador al cliente', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-args@test.com');
+
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(oauth.exchangeCode).toHaveBeenCalledWith({ code: 'codigo', codeVerifier: VERIFICADOR });
+        });
+
+        it('un canje rechazado por Mercado Pago responde 400 sin filtrar secretos', async () => {
+            const { appMp, oauth } = armarApp(true);
+            vi.mocked(oauth.exchangeCode).mockRejectedValue(new Error('invalid_grant client_secret=SECRETO'));
+            const servidor = await appMp;
+            const headers = await conSesion('mp-rechazo@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+            expect(res.body).not.toContain('SECRETO');
+        });
+
+        it('un admin no puede vincular: 403', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-admin@test.com', UserRole.ADMIN);
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('desvincular borra la cuenta y es idempotente', async () => {
+            const servidor = await armarApp(true).appMp;
+            const headers = await conSesion('mp-unlink@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const primera = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const segunda = await servidor.inject({ method: 'DELETE', url: '/me/mercadopago', headers });
+            const estado = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers });
+
+            expect(primera.statusCode).toBe(204);
+            expect(segunda.statusCode).toBe(204);
+            expect(estado.json()).toEqual({ linked: false });
+        });
+
+        it('cada usuario ve solo su propia cuenta', async () => {
+            const servidor = await armarApp(true).appMp;
+            const conCuenta = await conSesion('mp-uno@test.com');
+            const sinCuenta = await conSesion('mp-dos@test.com');
+            await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/link',
+                headers: conCuenta,
+                payload: { code: 'codigo', codeVerifier: VERIFICADOR },
+            });
+
+            const res = await servidor.inject({ method: 'GET', url: '/me/mercadopago', headers: sinCuenta });
+
+            expect(res.json()).toEqual({ linked: false });
+        });
+
+        it('authorization devuelve la dirección con el state y el desafío', async () => {
+            const { appMp, oauth } = armarApp(true);
+            const servidor = await appMp;
+            const headers = await conSesion('mp-auth@test.com');
+
+            const res = await servidor.inject({
+                method: 'POST',
+                url: '/me/mercadopago/authorization',
+                headers,
+                payload: { state: 'estado-123', codeChallenge: DESAFIO },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json().url).toContain('state=estado-123');
+            expect(oauth.authorizationUrl).toHaveBeenCalledWith({ state: 'estado-123', codeChallenge: DESAFIO });
+        });
+
+        describe('validación de los cuerpos', () => {
+            async function post(url: string, payload: unknown) {
+                const servidor = await armarApp(true).appMp;
+                const headers = await conSesion(`mp-val-${Math.random().toString(36).slice(2)}@test.com`);
+                return servidor.inject({ method: 'POST', url, headers, payload: payload as object });
+            }
+
+            it.each([
+                ['sin state', { codeChallenge: DESAFIO }],
+                ['state vacío', { state: '', codeChallenge: DESAFIO }],
+                ['state demasiado largo', { state: 'x'.repeat(513), codeChallenge: DESAFIO }],
+                ['sin desafío', { state: 'estado' }],
+                ['desafío vacío', { state: 'estado', codeChallenge: '' }],
+                ['desafío que no es base64url', { state: 'estado', codeChallenge: 'no es base64url!!' }],
+                ['desafío demasiado largo', { state: 'estado', codeChallenge: 'a'.repeat(129) }],
+            ])('authorization: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/authorization', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it.each([
+                ['sin code', { codeVerifier: VERIFICADOR }],
+                ['code vacío', { code: '', codeVerifier: VERIFICADOR }],
+                ['code demasiado largo', { code: 'x'.repeat(513), codeVerifier: VERIFICADOR }],
+                ['sin verificador', { code: 'codigo' }],
+                ['verificador corto (42)', { code: 'codigo', codeVerifier: 'v'.repeat(42) }],
+                ['verificador largo (129)', { code: 'codigo', codeVerifier: 'v'.repeat(129) }],
+            ])('link: 400 %s', async (_nombre, payload) => {
+                const res = await post('/me/mercadopago/link', payload);
+
+                expect(res.statusCode).toBe(400);
+            });
+
+            it('link acepta un verificador de 128 caracteres', async () => {
+                const res = await post('/me/mercadopago/link', { code: 'codigo', codeVerifier: 'v'.repeat(128) });
+
+                expect(res.statusCode).toBe(204);
+            });
+        });
+    });
+});
+
+describe('Conexión de canal de YouTube — /me/youtube', () => {
+    const CHANNEL_ID = 'UCq-Fj5jknLsUf-MWSy4_brA';
+    const NOW = new Date('2026-10-09T12:00:00.000Z');
+    const PLAIN_REFRESH_TOKEN = 'refresco-secreto-en-claro';
+    const PLAIN_ACCESS_TOKEN = 'acceso-secreto-en-claro';
+
+    const cipher: ISecretCipher = {
+        encrypt: (plain) => `enc:${Buffer.from(plain).toString('base64')}`,
+        decrypt: (payload) => Buffer.from(payload.slice(4), 'base64').toString('utf8'),
+    };
+
+    function reading(channelId = CHANNEL_ID) {
+        return YouTubeChannelAnalytics.create({
+            channelId,
+            title: 'Canal de prueba',
+            subscribers: 12_000,
+            views12Months: 480_000,
+            revenue12MonthsCents: 360_000,
+            monthly: ['2026-07', '2026-08', '2026-09'].map((month) => ({
+                month,
+                views: 40_000,
+                subscribersGained: 300,
+                subscribersLost: 20,
+                revenueCents: 30_000,
+            })),
+            topCountry: 'US',
+            periodStart: new Date('2025-10-01T00:00:00.000Z'),
+            periodEnd: new Date('2026-09-30T00:00:00.000Z'),
+            readAt: NOW,
+        });
+    }
+
+    function tokens(overrides: Partial<YouTubeConnectionTokens> = {}): YouTubeConnectionTokens {
+        return {
+            accessToken: PLAIN_ACCESS_TOKEN,
+            refreshToken: PLAIN_REFRESH_TOKEN,
+            grantedScopes: [...REQUIRED_YOUTUBE_SCOPES],
+            ...overrides,
+        };
+    }
+
+    /** Google simulado; la base y los repositorios son los de verdad. */
+    function buildTestApp(
+        options: {
+            configured?: boolean;
+            exchange?: () => Promise<YouTubeConnectionTokens>;
+            read?: () => Promise<YouTubeChannelAnalytics | null>;
+        } = {},
+    ) {
+        const oauth: IYouTubeConnectionOAuthClient = {
+            authorizationUrl: vi.fn(({ state }) => `https://accounts.google.com/o/oauth2/v2/auth?state=${state}`),
+            exchangeCode: vi.fn(options.exchange ?? (async () => tokens())),
+        };
+        const reader: IYouTubeAnalyticsReader = { read: vi.fn(options.read ?? (async () => reading())) };
+        const connections = new PrismaYouTubeConnectionRepository();
+        const base = createContainer(fakeHasher);
+
+        const container: Container =
+            options.configured === false
+                ? {
+                      ...base,
+                      youtubeConnectionOAuth: undefined,
+                      connectYouTubeChannel: undefined,
+                      listYouTubeConnections: undefined,
+                      createListingFromYouTubeConnection: undefined,
+                  }
+                : {
+                      ...base,
+                      youtubeConnectionOAuth: oauth,
+                      connectYouTubeChannel: new ConnectYouTubeChannelUseCase(connections, oauth, reader, cipher, () => NOW),
+                      listYouTubeConnections: new ListYouTubeConnectionsUseCase(connections),
+                      createListingFromYouTubeConnection: new CreateListingFromYouTubeConnectionUseCase(
+                          connections,
+                          listingRepo,
+                          new PrismaYouTubeChannelListingFinder(),
+                      ),
+                  };
+
+        return { oauth, reader, server: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    async function withSession(email: string, role: UserRole = UserRole.SELLER) {
+        await crearUsuario(email, role);
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    const LISTING_BODY = {
+        niche: 'gaming',
+        hasNoFaceContent: true,
+        askingPrice: { cents: 1_500_000, currency: 'USD' },
+    };
+
+    describe('sin configurar', () => {
+        it('503 en las cuatro rutas', async () => {
+            const server = await buildTestApp({ configured: false }).server;
+            const headers = await withSession('yt-503@test.com');
+
+            const responses = await Promise.all([
+                server.inject({ method: 'POST', url: '/me/youtube/authorization', headers, payload: { state: 'estado' } }),
+                server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'codigo' } }),
+                server.inject({ method: 'GET', url: '/me/youtube/connections', headers }),
+                server.inject({
+                    method: 'POST',
+                    url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                    headers,
+                    payload: LISTING_BODY,
+                }),
+            ]);
+
+            expect(responses.map((r) => r.statusCode)).toEqual([503, 503, 503, 503]);
+        });
+    });
+
+    describe('configurada', () => {
+        it('401 sin sesión en las cuatro rutas', async () => {
+            const server = await buildTestApp().server;
+
+            const responses = await Promise.all([
+                server.inject({ method: 'POST', url: '/me/youtube/authorization', payload: { state: 'estado' } }),
+                server.inject({ method: 'POST', url: '/me/youtube/connect', payload: { code: 'codigo' } }),
+                server.inject({ method: 'GET', url: '/me/youtube/connections' }),
+                server.inject({
+                    method: 'POST',
+                    url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                    payload: LISTING_BODY,
+                }),
+            ]);
+
+            expect(responses.map((r) => r.statusCode)).toEqual([401, 401, 401, 401]);
+        });
+
+        it('la dirección de autorización lleva el state que armó el cliente', async () => {
+            const { server: pendingServer, oauth } = buildTestApp();
+            const server = await pendingServer;
+            const headers = await withSession('yt-url@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/authorization',
+                headers,
+                payload: { state: 'estado-aleatorio' },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toEqual({ url: 'https://accounts.google.com/o/oauth2/v2/auth?state=estado-aleatorio' });
+            expect(oauth.authorizationUrl).toHaveBeenCalledWith({ state: 'estado-aleatorio' });
+        });
+
+        it.each([
+            ['sin state', {}],
+            ['con state vacío', { state: '' }],
+            ['con state larguísimo', { state: 'x'.repeat(513) }],
+        ])('400 al pedir la dirección %s', async (_label, payload) => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-url400@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/authorization', headers, payload });
+
+            expect(res.statusCode).toBe(400);
+        });
+
+        it('conectar guarda la conexión y devuelve un resumen sin tokens', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-connect@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/connect',
+                headers,
+                payload: { code: 'codigo' },
+            });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.json()).toMatchObject({
+                channelId: CHANNEL_ID,
+                channelTitle: 'Canal de prueba',
+                subscribers: 12_000,
+                views12Months: 480_000,
+                monthlyRevenueCents: 30_000,
+                isMonetized: true,
+                topCountry: 'US',
+                periodStart: '2025-10-01T00:00:00.000Z',
+                readAt: NOW.toISOString(),
+            });
+            expect(res.body).not.toContain(PLAIN_REFRESH_TOKEN);
+            expect(res.body).not.toContain(PLAIN_ACCESS_TOKEN);
+            expect(res.body).not.toContain(cipher.encrypt(PLAIN_REFRESH_TOKEN));
+
+            // En la base, el token está cifrado.
+            const row = await prisma.youTubeConnection.findFirstOrThrow();
+            expect(row.refreshTokenCipher).toBe(cipher.encrypt(PLAIN_REFRESH_TOKEN));
+            expect(row.refreshTokenCipher).not.toContain(PLAIN_REFRESH_TOKEN);
+        });
+
+        it('400 si falta un permiso, nombrando lo que falta, y no guarda nada', async () => {
+            const server = await buildTestApp({
+                exchange: async () => tokens({ grantedScopes: [REQUIRED_YOUTUBE_SCOPES[0]] }),
+            }).server;
+            const headers = await withSession('yt-scope@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+            expect(res.json().message).toContain('las estadísticas de ingresos');
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 si Google rechaza el código', async () => {
+            const server = await buildTestApp({
+                exchange: async () => {
+                    throw new Error('invalid_grant');
+                },
+            }).server;
+            const headers = await withSession('yt-bad@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json().code).toBe('VALIDATION');
+        });
+
+        it.each([
+            [
+                'al canjear el código',
+                { exchange: async (): Promise<YouTubeConnectionTokens> => { throw new ServiceUnavailableError('Google respondió 503'); } },
+            ],
+            [
+                'al leer el canal',
+                { read: async (): Promise<YouTubeChannelAnalytics | null> => { throw new ServiceUnavailableError('cuota'); } },
+            ],
+        ])('503 con mensaje claro si Google no está disponible %s, y no guarda nada', async (_label, options) => {
+            const server = await buildTestApp(options).server;
+            const headers = await withSession('yt-down@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(503);
+            expect(res.json()).toEqual({
+                code: 'SERVICE_UNAVAILABLE',
+                message: 'No pudimos leer tu canal. No se guardó nada; probá de nuevo en unos minutos.',
+            });
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 pidiendo volver a conectar si el lector marca la autorización como revocada, y no guarda nada', async () => {
+            const server = await buildTestApp({
+                read: async () => {
+                    throw new YouTubeAuthorizationRevokedError('Google rechazó la autorización (401).');
+                },
+            }).server;
+            const headers = await withSession('yt-revoked@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.json()).toEqual({ code: 'VALIDATION', message: RECONNECT_CHANNEL_MESSAGE });
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('503 sin culpar al vendedor si el lector falla con un error desconocido', async () => {
+            const server = await buildTestApp({
+                read: async () => {
+                    throw new TypeError('respuesta inesperada');
+                },
+            }).server;
+            const headers = await withSession('yt-unknown@test.com');
+
+            const res = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            expect(res.statusCode).toBe(503);
+            expect(res.json().code).toBe('SERVICE_UNAVAILABLE');
+            expect(await prisma.youTubeConnection.count()).toBe(0);
+        });
+
+        it('400 si no viene el código, 403 si es administrador', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-nocode@test.com');
+            const admin = await withSession('yt-admin@test.com', UserRole.ADMIN);
+
+            const withoutCode = await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: {} });
+            const asAdmin = await server.inject({
+                method: 'POST',
+                url: '/me/youtube/connect',
+                headers: admin,
+                payload: { code: 'c' },
+            });
+
+            expect(withoutCode.statusCode).toBe(400);
+            expect(asAdmin.statusCode).toBe(403);
+        });
+
+        it('lista solo las conexiones del vendedor, como resúmenes', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-list@test.com');
+            const other = await withSession('yt-list2@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            const own = await server.inject({ method: 'GET', url: '/me/youtube/connections', headers });
+            const foreign = await server.inject({ method: 'GET', url: '/me/youtube/connections', headers: other });
+
+            expect(own.statusCode).toBe(200);
+            expect(own.json()).toHaveLength(1);
+            expect(own.json()[0]).toMatchObject({ channelId: CHANNEL_ID, channelTitle: 'Canal de prueba' });
+            expect(own.body).not.toContain(PLAIN_REFRESH_TOKEN);
+            expect(own.body).not.toContain('enc:');
+            expect(foreign.json()).toEqual([]);
+        });
+
+        it('crear el activo desde la conexión devuelve 201 con el id y la valuación', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-create@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(201);
+            const { listingId, estimatedPriceCents } = res.json();
+            expect(typeof listingId).toBe('string');
+            expect(estimatedPriceCents).toBeGreaterThan(0);
+
+            const row = await prisma.listing.findUniqueOrThrow({ where: { id: listingId } });
+            expect(row.status).toBe('draft');
+            expect(row.assetData).toMatchObject({
+                subscribers: 12_000,
+                channelUrl: `https://www.youtube.com/channel/${CHANNEL_ID}`,
+                verifiedFromYouTubeAt: NOW.toISOString(),
+            });
+            expect(row.ownershipCheck).toMatchObject({ assetId: CHANNEL_ID, source: 'youtube' });
+        });
+
+        it('409 si el canal ya está publicado: con el id del activo si es propio', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-dup@test.com');
+            await server.inject({ method: 'POST', url: '/me/youtube/connect', headers, payload: { code: 'c' } });
+            const first = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(res.json()).toMatchObject({ code: 'INVALID_STATE', listingId: first.json().listingId });
+            expect(await prisma.listing.count()).toBe(1);
+        });
+
+        it('409 sin revelar el activo si el canal lo publicó otro vendedor', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-own1@test.com');
+            const other = await withSession('yt-own2@test.com');
+            for (const h of [headers, other]) {
+                await server.inject({ method: 'POST', url: '/me/youtube/connect', headers: h, payload: { code: 'c' } });
+            }
+            const first = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers: other,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(res.json().listingId).toBeUndefined();
+            expect(res.body).not.toContain(first.json().listingId);
+        });
+
+        it('404 si ese canal no está conectado a la cuenta', async () => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-404@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload: LISTING_BODY,
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+
+        it.each([
+            ['sin precio', { niche: 'gaming', hasNoFaceContent: true }],
+            ['con moneda inválida', { ...LISTING_BODY, askingPrice: { cents: 100, currency: 'EUR' } }],
+            ['con precio decimal', { ...LISTING_BODY, askingPrice: { cents: 10.5, currency: 'USD' } }],
+            ['con precio en cero', { ...LISTING_BODY, askingPrice: { cents: 0, currency: 'USD' } }],
+            ['con precio negativo', { ...LISTING_BODY, askingPrice: { cents: -500, currency: 'USD' } }],
+            ['con un rubro fuera del catálogo', { ...LISTING_BODY, niche: 'rubro-inventado' }],
+            ['con un rubro larguísimo', { ...LISTING_BODY, niche: 'a'.repeat(10_000) }],
+            ['sin el dato de contenido sin rostro', { niche: 'gaming', askingPrice: LISTING_BODY.askingPrice }],
+        ])('400 al crear el activo %s', async (_label, payload) => {
+            const server = await buildTestApp().server;
+            const headers = await withSession('yt-body@test.com');
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/me/youtube/connections/${CHANNEL_ID}/listing`,
+                headers,
+                payload,
+            });
+
+            expect(res.statusCode).toBe(400);
+        });
     });
 });
 
@@ -1521,5 +2870,694 @@ describe('ABM de cuentas de custodia — solo admin', () => {
         expect(lista.statusCode).toBe(200);
         expect(lista.json()).toHaveLength(1);
         expect(lista.json()[0].heldAssets).toBe(0);
+    });
+});
+
+describe('Publicación directa, edición y borrado de un listing', () => {
+    async function crearBorrador(sellerId: UniqueEntityID, conTitularidad: boolean): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        if (conTitularidad) {
+            listing.registerOwnershipVerification({
+                verifiedBy: sellerId,
+                assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+                source: 'youtube',
+            });
+        }
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    describe('POST /listings/:id/publish', () => {
+        it('204 y queda publicado sin pasar por revisión cuando la titularidad está comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('published');
+        });
+
+        it('409 sin titularidad comprobada', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('draft');
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, true);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/publish`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/publish' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+
+    describe('PATCH /listings/:id', () => {
+        it('204 edita rubro, sin rostro y precio de un borrador', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: {
+                    niche: 'gaming',
+                    hasNoFaceContent: true,
+                    askingPrice: { cents: 2000000, currency: 'ARS' },
+                },
+            });
+
+            expect(res.statusCode).toBe(204);
+            const guardado = (await listingRepo.findById(listing.id.toString()))!;
+            expect(guardado.askingPrice.getCents()).toBe(2000000);
+            expect(guardado.askingPrice.getCurrency()).toBe('ARS');
+            expect(guardado.assetDataFor(true).assetData.niche).toBe('gaming');
+        });
+
+        it('204 cambia el precio de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { askingPrice: { cents: 999000, currency: 'USD' } },
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect((await listingRepo.findById(listing.id.toString()))!.askingPrice.getCents()).toBe(999000);
+        });
+
+        it('409 al editar el rubro de un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('400 con un rubro desconocido', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+                payload: { niche: 'inventado' },
+            });
+
+            expect(res.statusCode).toBe(400);
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+                payload: { niche: 'gaming' },
+            });
+
+            expect(res.statusCode).toBe(403);
+        });
+    });
+
+    describe('DELETE /listings/:id', () => {
+        it('204 borra un borrador del dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect(await listingRepo.findById(listing.id.toString())).toBeNull();
+        });
+
+        it('409 y no borra un publicado', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearListingPublicado(seller.id);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearBorrador(seller.id, false);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${listing.id.toString()}`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(await listingRepo.findById(listing.id.toString())).not.toBeNull();
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'DELETE',
+                url: `/listings/${new UniqueEntityID().toString()}`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+    });
+});
+
+describe('Publicar un activo rechazado y pedir la verificación del acceso', () => {
+    async function crearCanal(sellerId: UniqueEntityID): Promise<Listing> {
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        listing.registerOwnershipVerification({
+            verifiedBy: sellerId,
+            assetId: 'UCq-Fj5jknLsUf-MWSy4_brA',
+            source: 'youtube',
+        });
+        await listingRepo.save(listing);
+        return listing;
+    }
+
+    async function headersDe(email: string) {
+        return { authorization: `Bearer ${await tokenDe(email)}` };
+    }
+
+    it('POST /listings/:id/publish responde 409 a un rechazado: tiene que volver a revisión', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        const listing = await crearCanal(seller.id);
+        listing.submitForReview();
+        listing.reject('Faltan datos');
+        await listingRepo.save(listing);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/publish`,
+            headers: await headersDe('seller@test.com'),
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect((await listingRepo.findById(listing.id.toString()))!.status).toBe('rejected');
+    });
+
+    describe('POST /listings/:id/acceso-solicitado', () => {
+        it('204 y el activo pasa a «verificando» en el listado del vendedor y en el del admin', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('admin@test.com', UserRole.ADMIN);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+            const publicado = await crearCanal(seller.id);
+            publicado.publish();
+            await listingRepo.save(publicado);
+
+            const antes = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const propio = (id: string, cuerpo: { id: string }[]) => cuerpo.find((l) => l.id === id) as {
+                platformAccessStatus: string;
+                platformAccessRequestedAt?: string;
+            };
+            expect(propio(publicado.id.toString(), antes.json()).platformAccessStatus).toBe('pending');
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            expect(res.statusCode).toBe(204);
+
+            const despues = await app.inject({
+                method: 'GET',
+                url: '/me/listings',
+                headers: await headersDe('seller@test.com'),
+            });
+            const dto = propio(publicado.id.toString(), despues.json());
+            expect(dto.platformAccessStatus).toBe('verifying');
+            expect(typeof dto.platformAccessRequestedAt).toBe('string');
+
+            const admin = await app.inject({
+                method: 'GET',
+                url: '/admin/listings',
+                headers: await headersDe('admin@test.com'),
+            });
+            expect(admin.statusCode).toBe(200);
+            const enCola = admin.json().find((l: { id: string }) => l.id === listing.id.toString());
+            expect(enCola.platformAccessStatus).toBe('pending');
+
+            // Le avisa a la plataforma, y solo la primera vez.
+            await app.inject({
+                method: 'POST',
+                url: `/listings/${publicado.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+            const avisos = await prisma.notification.findMany({ where: { type: 'acceso_solicitado' } });
+            expect(avisos).toHaveLength(1);
+            expect(avisos[0].listingId).toBe(publicado.id.toString());
+        });
+
+        it('403 si no es el dueño', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            await crearUsuario('otro@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('otro@test.com'),
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect((await listingRepo.findById(listing.id.toString()))!.platformAccessRequestedAt).toBeUndefined();
+        });
+
+        it('409 en un activo en revisión', async () => {
+            const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+            const listing = await crearCanal(seller.id);
+            listing.submitForReview();
+            await listingRepo.save(listing);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${listing.id.toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('404 si no existe', async () => {
+            await crearUsuario('seller@test.com', UserRole.SELLER);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/listings/${new UniqueEntityID().toString()}/acceso-solicitado`,
+                headers: await headersDe('seller@test.com'),
+            });
+
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('401 sin autenticar', async () => {
+            const res = await app.inject({ method: 'POST', url: '/listings/x/acceso-solicitado' });
+            expect(res.statusCode).toBe(401);
+        });
+    });
+});
+
+describe('Verificación del acceso de la plataforma con la cuenta de custodia', () => {
+    const CHANNEL_ID = 'UCq-Fj5jknLsUf-MWSy4_brA';
+    const OTHER_CHANNEL_ID = 'UC00000000000000000000aa';
+    const CUSTODY_IDENTIFIER = 'custodia-oauth@traspaso.com';
+    const OAUTH_CONFIG = {
+        clientId: 'cliente',
+        clientSecret: 'secreto',
+        redirectUri: 'http://localhost:3000/api/youtube/callback',
+    };
+
+    async function seedVerifyingChannel(): Promise<{ id: string; seller: User }> {
+        const seller = await crearUsuario('seller-vf@test.com', UserRole.SELLER);
+        await crearUsuario('admin-vf@test.com', UserRole.ADMIN);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                subscribers: 55000,
+                isMonetized: true,
+                channelUrl: `https://www.youtube.com/channel/${CHANNEL_ID}`,
+            }),
+            askingPrice: Money.fromCents(1500000, 'USD'),
+        });
+        listing.registerOwnershipVerification({ verifiedBy: seller.id, assetId: CHANNEL_ID, source: 'youtube' });
+        listing.publish();
+        listing.requestPlatformAccess(new Date());
+        await listingRepo.save(listing);
+        await new PrismaCustodyAccountRepository().save(
+            CustodyAccount.create({
+                label: 'Custodia OAuth',
+                identifier: CUSTODY_IDENTIFIER,
+                assetType: AssetType.YOUTUBE,
+            }),
+        );
+        return { id: listing.id.toString(), seller };
+    }
+
+    function buildTestApp(
+        options: { configured?: boolean; channels?: string[]; authorizer?: GoogleAuthorizer | null } = {},
+    ) {
+        const base = createContainer(fakeHasher);
+        const custodyRepo = new PrismaCustodyAccountRepository();
+        const authorizer: GoogleAuthorizer | null =
+            options.authorizer === undefined
+                ? { email: CUSTODY_IDENTIFIER, emailVerified: true, subject: 'sub-custodia' }
+                : options.authorizer;
+        const reader: IYouTubeCustodyAccessReader = {
+            authorizedChannelsOf: vi.fn(async () => ({
+                authorizer,
+                channels: (options.channels ?? [CHANNEL_ID]).map((channelId) => ({ channelId, title: 'Canal' })),
+            })),
+        };
+        const channelReader: IYouTubeChannelReader = { read: vi.fn(async () => null) };
+        const container: Container =
+            options.configured === false
+                ? { ...base, googleOAuth: undefined, startPlatformAccessVerification: undefined, verifyPlatformAccess: undefined }
+                : {
+                      ...base,
+                      googleOAuth: new GoogleOAuthClient(OAUTH_CONFIG),
+                      startPlatformAccessVerification: new StartPlatformAccessVerificationUseCase(listingRepo, custodyRepo),
+                      verifyPlatformAccess: new VerifyPlatformAccessUseCase(
+                          listingRepo,
+                          custodyRepo,
+                          reader,
+                          channelReader,
+                          new RegisterPlatformAccessUseCase(listingRepo, custodyRepo),
+                      ),
+                  };
+        return { reader, server: buildApp({ container, jwtSecret: 'secreto-de-test' }) };
+    }
+
+    async function asAdmin() {
+        return { authorization: `Bearer ${await tokenDe('admin-vf@test.com')}` };
+    }
+
+    it('GET /admin/listings/acceso-pendiente lista los activos en «verificando» y es solo para admin', async () => {
+        const { id } = await seedVerifyingChannel();
+        const server = await buildTestApp().server;
+
+        const res = await server.inject({ method: 'GET', url: '/admin/listings/acceso-pendiente', headers: await asAdmin() });
+        expect(res.statusCode).toBe(200);
+        const body: { id: string; platformAccessStatus: string; sellerName?: string }[] = res.json();
+        expect(body.map((l) => l.id)).toEqual([id]);
+        expect(body[0].platformAccessStatus).toBe('verifying');
+        expect(body[0].sellerName).toEqual(expect.any(String));
+
+        const asSeller = await server.inject({
+            method: 'GET',
+            url: '/admin/listings/acceso-pendiente',
+            headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+        });
+        expect(asSeller.statusCode).toBe(403);
+    });
+
+    describe('POST /admin/listings/:id/acceso/rechazar', () => {
+        it('204: vuelve a pending y avisa al vendedor', async () => {
+            const { id, seller } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+
+            expect(res.statusCode).toBe(204);
+            const listing = (await listingRepo.findById(id))!;
+            expect(listing.platformAccessStatus()).toBe('pending');
+            const avisos = await prisma.notification.findMany({ where: { userId: seller.id.toString() } });
+            expect(avisos.map((a) => a.type)).toEqual(['acceso_no_encontrado']);
+        });
+
+        it('403 para quien no es admin, 404 si no existe y 409 si no estaba verificando', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const asSeller = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+            });
+            expect(asSeller.statusCode).toBe(403);
+
+            const missing = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${randomUUID()}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(missing.statusCode).toBe(404);
+
+            const listing = (await listingRepo.findById(id))!;
+            listing.rejectPlatformAccessRequest();
+            await listingRepo.save(listing);
+            const again = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/rechazar`,
+                headers: await asAdmin(),
+            });
+            expect(again.statusCode).toBe(409);
+        });
+    });
+
+    describe('POST /admin/listings/:id/acceso/autorizacion', () => {
+        it('devuelve la dirección de Google con youtube.readonly e identidad (openid email), el selector de canales, la cuenta de custodia sugerida y sin acceso offline', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: `acceso:${id}:abc` },
+            });
+
+            expect(res.statusCode).toBe(200);
+            const url = new URL(res.json().url);
+            expect(url.searchParams.get('scope')).toBe(
+                'https://www.googleapis.com/auth/youtube.readonly openid email',
+            );
+            expect(url.searchParams.get('enable_yt_permissions')).toBe('true');
+            expect(url.searchParams.get('login_hint')).toBe(CUSTODY_IDENTIFIER);
+            // Con `consent` Google vuelve a mostrar el selector de canal en cada
+            // intento: sin él, recuerda el canal elegido la vez anterior.
+            expect(url.searchParams.get('prompt')).toBe('select_account consent');
+            expect(url.searchParams.get('access_type')).toBe('online');
+            expect(url.searchParams.get('state')).toBe(`acceso:${id}:abc`);
+        });
+
+        it('409 si el vendedor todavía no avisó que invitó a la plataforma', async () => {
+            const { id } = await seedVerifyingChannel();
+            const listing = (await listingRepo.findById(id))!;
+            listing.revokePlatformAccess();
+            await listingRepo.save(listing);
+            const server = await buildTestApp().server;
+
+            const res = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: 'x' },
+            });
+
+            expect(res.statusCode).toBe(409);
+        });
+
+        it('403 para quien no es admin y 503 sin configurar', async () => {
+            const { id } = await seedVerifyingChannel();
+            const server = await buildTestApp().server;
+            const asSeller = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+                payload: { state: 'x' },
+            });
+            expect(asSeller.statusCode).toBe(403);
+
+            const unconfigured = await buildTestApp({ configured: false }).server;
+            const res = await unconfigured.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/autorizacion`,
+                headers: await asAdmin(),
+                payload: { state: 'x' },
+            });
+            expect(res.statusCode).toBe(503);
+        });
+    });
+
+    describe('POST /admin/listings/:id/acceso/verificar', () => {
+        it('204 y registra el acceso cuando la cuenta elegida administra el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server, reader } = buildTestApp();
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(204);
+            expect(reader.authorizedChannelsOf).toHaveBeenCalledWith('codigo-de-google');
+            const listing = (await listingRepo.findById(id))!;
+            expect(listing.platformAccess?.notes).toBe(
+                `Verificado por OAuth de la cuenta de custodia ${CUSTODY_IDENTIFIER} (sub sub-custodia)`,
+            );
+            expect(listing.platformAccessStatus()).not.toBe('verifying');
+        });
+
+        it('403 y no registra nada cuando la cuenta elegida no administra el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({ channels: [OTHER_CHANNEL_ID] });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toContain('Elegiste «Canal» y el activo es');
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 con otra cuenta de Google y no registra nada, aunque administre el canal', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({
+                authorizer: { email: 'otra@gmail.com', emailVerified: true, subject: 'sub-otra' },
+            });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toBe(
+                `Ingresaste con otra cuenta de Google. Usá la cuenta de custodia (${CUSTODY_IDENTIFIER}).`,
+            );
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('403 si Google no informa quién inició sesión', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp({ authorizer: null });
+
+            const res = await (await server).inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'codigo-de-google' },
+            });
+
+            expect(res.statusCode).toBe(403);
+            expect(res.json().message).toContain('Google no informó quién inició sesión');
+            expect((await listingRepo.findById(id))!.platformAccess).toBeUndefined();
+        });
+
+        it('409 si el acceso ya estaba registrado', async () => {
+            const { id } = await seedVerifyingChannel();
+            const { server } = buildTestApp();
+            const call = async () =>
+                (await server).inject({
+                    method: 'POST',
+                    url: `/admin/listings/${id}/acceso/verificar`,
+                    headers: await asAdmin(),
+                    payload: { code: 'codigo-de-google' },
+                });
+
+            expect((await call()).statusCode).toBe(204);
+            expect((await call()).statusCode).toBe(409);
+        });
+
+        it('503 sin configurar, 403 para quien no es admin y 400 sin código', async () => {
+            const { id } = await seedVerifyingChannel();
+            const unconfigured = await buildTestApp({ configured: false }).server;
+            const res503 = await unconfigured.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: { code: 'c' },
+            });
+            expect(res503.statusCode).toBe(503);
+
+            const server = await buildTestApp().server;
+            const res403 = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: { authorization: `Bearer ${await tokenDe('seller-vf@test.com')}` },
+                payload: { code: 'c' },
+            });
+            expect(res403.statusCode).toBe(403);
+
+            const res400 = await server.inject({
+                method: 'POST',
+                url: `/admin/listings/${id}/acceso/verificar`,
+                headers: await asAdmin(),
+                payload: {},
+            });
+            expect(res400.statusCode).toBe(400);
+        });
     });
 });

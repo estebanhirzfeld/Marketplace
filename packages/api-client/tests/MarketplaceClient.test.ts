@@ -196,3 +196,169 @@ describe('MarketplaceClient — errores', () => {
         expect(error.status).toBe(502);
     });
 });
+
+describe('MarketplaceClient — opciones de pago', () => {
+    it('consulta las opciones de pago de una operación con GET', async () => {
+        const opciones = {
+            currency: 'ARS',
+            amount: { cents: 1050, currency: 'ARS' },
+            mercadopago: { available: true, chargedIn: 'ARS', converted: false },
+            transfer: { available: false, reference: 'op/1' },
+        };
+        const { impl, llamadas } = fetchQueDevuelve(200, opciones);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client.paymentOptions('op/1');
+
+        expect(respuesta).toEqual(opciones);
+        expect(llamadas[0][0]).toBe('http://api.test/operations/op%2F1/payment-options');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+});
+
+describe('MarketplaceClient — cuenta de Mercado Pago del vendedor', () => {
+    it('consulta el estado de la vinculación', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { linked: false });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const estado = await client.paymentAccountStatus();
+
+        expect(estado).toEqual({ linked: false });
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('pide la dirección de autorización con el state y el desafío PKCE', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { url: 'https://auth.mercadopago.com.ar/x' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client.mercadoPagoAuthorizationUrl({ state: 's', codeChallenge: 'c' });
+
+        expect(respuesta.url).toBe('https://auth.mercadopago.com.ar/x');
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago/authorization');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ state: 's', codeChallenge: 'c' });
+    });
+
+    it('vincula con el código y el verificador, y resuelve ante el 204', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(204);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.linkMercadoPago({ code: 'cod', codeVerifier: 'ver' })).resolves.toBeUndefined();
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago/link');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ code: 'cod', codeVerifier: 'ver' });
+    });
+
+    it('desvincula con DELETE', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(204);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.unlinkMercadoPago()).resolves.toBeUndefined();
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/mercadopago');
+        expect(llamadas[0][1]?.method).toBe('DELETE');
+    });
+});
+
+describe('MarketplaceClient — conexión de canal de YouTube', () => {
+    it('pide la dirección de autorización con el state', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { url: 'https://accounts.google.com/x' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const response = await client.youTubeAuthorizationUrl({ state: 's' });
+
+        expect(response.url).toBe('https://accounts.google.com/x');
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/authorization');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ state: 's' });
+    });
+
+    it('conecta el canal con el código y devuelve el summary', async () => {
+        const summary = { connectionId: 'c1', channelId: 'UC1', channelTitle: 'Canal' };
+        const { impl, llamadas } = fetchQueDevuelve(200, summary);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const connection = await client.connectYouTubeChannel({ code: 'cod' });
+
+        expect(connection).toEqual(summary);
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connect');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual({ code: 'cod' });
+    });
+
+    it('lista las conexiones', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, []);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        await expect(client.youTubeConnections()).resolves.toEqual([]);
+
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connections');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('crea el activo desde una conexión, codificando el id del canal en la ruta', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(201, { listingId: 'l1', estimatedPriceCents: 500 });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+        const body = { niche: 'gaming', hasNoFaceContent: false, askingPrice: { cents: 100, currency: 'USD' as const } };
+
+        const created = await client.createListingFromYouTubeConnection('UC/raro', body);
+
+        expect(created).toEqual({ listingId: 'l1', estimatedPriceCents: 500 });
+        expect(llamadas[0][0]).toBe('http://api.test/me/youtube/connections/UC%2Fraro/listing');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(llamadas[0][1]?.body as string)).toEqual(body);
+    });
+
+    it('un 503 conserva el code y el id del activo existente llega en un 409', async () => {
+        const unavailable = fetchQueDevuelve(503, { code: 'SERVICE_UNAVAILABLE', message: 'Probá más tarde.' });
+        const down = (await new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: unavailable.impl })
+            .connectYouTubeChannel({ code: 'c' })
+            .catch((e: unknown) => e)) as ApiError;
+        expect(down.code).toBe('SERVICE_UNAVAILABLE');
+        expect(down.status).toBe(503);
+
+        const conflict = fetchQueDevuelve(409, { code: 'INVALID_STATE', message: 'Ese canal ya está publicado.', listingId: 'l9' });
+        const dup = (await new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: conflict.impl })
+            .createListingFromYouTubeConnection('UC1', {
+                niche: 'gaming',
+                hasNoFaceContent: false,
+                askingPrice: { cents: 100, currency: 'USD' },
+            })
+            .catch((e: unknown) => e)) as ApiError;
+        expect(dup.listingId).toBe('l9');
+    });
+});
+
+describe('MarketplaceClient — titularidad de un sitio por DNS', () => {
+    it('pide el registro TXT con GET, codificando el id del activo', async () => {
+        const desafio = {
+            domain: 'ejemplo.com',
+            host: '@',
+            value: 'traspaso-verificacion=abc',
+            nameservers: ['a.nsone.net'],
+            provider: 'netlify',
+        };
+        const { impl, llamadas } = fetchQueDevuelve(200, desafio);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const res = await client.domainOwnershipChallenge('l/1');
+
+        expect(res).toEqual(desafio);
+        expect(llamadas[0][0]).toBe('http://api.test/listings/l%2F1/verificacion-dns');
+        expect(llamadas[0][1]?.method).toBe('GET');
+    });
+
+    it('comprueba el registro con POST y sin código', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { verified: false });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const res = await client.verifyDomainOwnership('l-1');
+
+        expect(res).toEqual({ verified: false });
+        expect(llamadas[0][0]).toBe('http://api.test/listings/l-1/verificar/dns');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(llamadas[0][1]?.body).toBeUndefined();
+    });
+});
