@@ -1086,7 +1086,13 @@ export type NotificationTypeDto =
     | 'acceso_no_encontrado'
     /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
     | 'acceso_solicitado'
-    | 'acceso_confirmado';
+    | 'acceso_confirmado'
+    /** A la plataforma: la invitación de traslado del dominio vence en `occursAt`. */
+    | 'traspaso_recordatorio'
+    /** A la plataforma: la invitación de traslado del dominio venció en `occursAt`. */
+    | 'traspaso_vencido'
+    /** A la plataforma: el dominio del sitio llegó a su cuenta; falta declarar la custodia. */
+    | 'dominio_en_custodia';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

@@ -72,6 +72,12 @@ enum NotificationType {
   // A los administradores: un vendedor avisó que ya invitó a la plataforma.
   acceso_solicitado
   acceso_confirmado
+  // A los administradores, durante el traslado del dominio de un sitio a la
+  // cuenta de la plataforma: la invitación está por vencer, venció, o el
+  // dominio ya llegó.
+  traspaso_recordatorio
+  traspaso_vencido
+  dominio_en_custodia
 }
 
 enum ContractType {

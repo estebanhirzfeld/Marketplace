@@ -556,6 +556,8 @@ export function createContainer(
                   listingRepo,
                   new PrismaTransferStepProgressRepository(),
                   domainRegistrar,
+                  undefined,
+                  avisosDePlataforma,
               )
             : undefined,
         crearCheckout: mercadoPago

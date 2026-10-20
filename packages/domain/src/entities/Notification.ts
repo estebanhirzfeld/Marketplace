@@ -40,7 +40,15 @@ export type NotificationType =
     /** A la plataforma: un vendedor avisó que ya la invitó a su activo. */
     | 'acceso_solicitado'
     /** Al vendedor: la plataforma confirmó su acceso; `occursAt` es cuándo pasa a transferencia inmediata. */
-    | 'acceso_confirmado';
+    | 'acceso_confirmado'
+    /*
+     * A la plataforma, durante el traslado del dominio de un sitio a su cuenta
+     * de Hostinger. `occursAt` es cuándo vence la invitación de traslado.
+     */
+    | 'traspaso_recordatorio'
+    | 'traspaso_vencido'
+    /** A la plataforma: el dominio llegó a su cartera; falta declarar la custodia. */
+    | 'dominio_en_custodia';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

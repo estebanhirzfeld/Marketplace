@@ -3,6 +3,7 @@ import { IUserRepository } from '../ports/Repositories';
 import { Notification, NotificationType } from '../entities/Notification';
 import { Listing } from '../entities/Listing';
 import { Operation } from '../entities/Operation';
+import { TransferStepProgress } from '../entities/TransferStepProgress';
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -71,6 +72,39 @@ export class PlatformNotifier {
             listingId: props.listingId,
             amountCents: operation.sellerReceives?.getCents(),
             currency: operation.sellerReceives?.getCurrency(),
+        });
+    }
+
+    /**
+     * La invitación de traslado del dominio está por vencer y todavía falta
+     * confirmar el mail de Hostinger, que le llega a la plataforma.
+     */
+    async transferStepReminder(operation: Operation, step: TransferStepProgress): Promise<void> {
+        await this.avisarPaso('traspaso_recordatorio', operation, step);
+    }
+
+    /** La invitación venció sin cumplirse: el vendedor tiene que volver a iniciar el traslado. */
+    async transferStepExpired(operation: Operation, step: TransferStepProgress): Promise<void> {
+        await this.avisarPaso('traspaso_vencido', operation, step);
+    }
+
+    /** El dominio del sitio ya está en la cartera de la plataforma: falta declarar la custodia. */
+    async domainInCustody(operation: Operation): Promise<void> {
+        await this.avisar('dominio_en_custodia', {
+            operationId: operation.id,
+            listingId: operation.listingId,
+        });
+    }
+
+    private async avisarPaso(
+        type: NotificationType,
+        operation: Operation,
+        step: TransferStepProgress,
+    ): Promise<void> {
+        await this.avisar(type, {
+            operationId: operation.id,
+            listingId: operation.listingId,
+            occursAt: step.deadlineAt,
         });
     }
 

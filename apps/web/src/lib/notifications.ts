@@ -90,6 +90,24 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
                 ? `El ${fechaLarga(n.occursAt)} tu activo pasa a transferencia inmediata.`
                 : 'Tu activo pasa a transferencia inmediata.',
     },
+    traspaso_recordatorio: {
+        title: 'Un traslado de dominio está por vencer',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `La invitación de Hostinger vence el ${fechaLarga(n.occursAt)}. Falta confirmar el traslado desde el mail.`
+                : 'La invitación de Hostinger está por vencer. Falta confirmar el traslado desde el mail.',
+    },
+    traspaso_vencido: {
+        title: 'Venció un traslado de dominio',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `La invitación de Hostinger venció el ${fechaLarga(n.occursAt)}. El vendedor tiene que iniciar el traslado de nuevo.`
+                : 'La invitación de Hostinger venció. El vendedor tiene que iniciar el traslado de nuevo.',
+    },
+    dominio_en_custodia: {
+        title: 'El dominio ya está en nuestra cuenta',
+        cuerpo: () => 'Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.',
+    },
     operacion_completada: {
         title: 'Operación cerrada',
         cuerpo: () => 'El activo cambió de manos y el dinero se liquidó.',

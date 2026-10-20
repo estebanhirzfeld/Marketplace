@@ -25,6 +25,11 @@ import {
     ServiceUnavailableError,
     ValidationError,
 } from '../../../src/errors/DomainError';
+import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
+import { Notification } from '../../../src/entities/Notification';
+import { User } from '../../../src/entities/User';
+import { Email } from '../../../src/value-objects/Email';
+import { UserRole } from '@marketplace/shared-types';
 
 const DOMAIN = 'ejemplo.com';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -179,7 +184,30 @@ function setup(options: {
     };
     const registrar = aRegistrar(registrarState);
     const clock = { now: NOW };
-    const useCase = new CheckDomainCustodyUseCase(operationRepo, listingRepo, progressRepo, registrar, () => clock.now);
+    const sent: Notification[] = [];
+    const admin = User.create({
+        email: Email.create('admin@custodia.com'),
+        fullName: 'Admin',
+        passwordHash: 'x'.repeat(60),
+        role: UserRole.ADMIN,
+    });
+    const platformNotifier = new PlatformNotifier(
+        { notify: vi.fn(async (ns: Notification[]) => { sent.push(...ns); }) },
+        {
+            findById: vi.fn().mockResolvedValue(null),
+            findByEmail: vi.fn().mockResolvedValue(null),
+            findByRole: vi.fn(async (role) => (role === UserRole.ADMIN ? [admin] : [])),
+            save: vi.fn(),
+        },
+    );
+    const useCase = new CheckDomainCustodyUseCase(
+        operationRepo,
+        listingRepo,
+        progressRepo,
+        registrar,
+        () => clock.now,
+        platformNotifier,
+    );
     const id = operation.id.toString();
     const row = () => progressRepo.rows.get(`operation:${id}:domain-to-platform`);
     const snapshot = () => ({
@@ -189,7 +217,7 @@ function setup(options: {
         startedAt: row()?.startedAt,
     });
 
-    return { useCase, id, registrar, registrarState, clock, progressRepo, row, snapshot };
+    return { useCase, id, registrar, registrarState, clock, progressRepo, row, snapshot, sent };
 }
 
 describe('CheckDomainCustodyUseCase', () => {
@@ -368,6 +396,30 @@ describe('CheckDomainCustodyUseCase', () => {
             await expect(useCase.execute(id)).rejects.toThrow(DomainRegistrarRejectedError);
 
             expect(progressRepo.saves).toBe(0);
+        });
+    });
+
+    describe('aviso de dominio en custodia', () => {
+        it('avisa a la plataforma cuando el dominio llega a la cartera, una sola vez', async () => {
+            const { useCase, id, registrarState, sent } = setup({ incoming: aMove('activating') });
+            await useCase.execute(id);
+            expect(sent).toHaveLength(0);
+
+            registrarState.portfolio = anEntry();
+            await useCase.execute(id);
+            await useCase.execute(id);
+
+            expect(sent).toHaveLength(1);
+            expect(sent[0].type).toBe('dominio_en_custodia');
+            expect(sent[0].toSnapshot().props.operationId?.toString()).toBe(id);
+        });
+
+        it('sin el dominio en la cartera no avisa nada', async () => {
+            const { useCase, id, sent } = setup({ incoming: aMove('initiated') });
+
+            await useCase.execute(id);
+
+            expect(sent).toHaveLength(0);
         });
     });
 });

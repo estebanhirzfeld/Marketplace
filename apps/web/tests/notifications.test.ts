@@ -58,3 +58,44 @@ describe('aviso de acceso confirmado', () => {
         expect(linkFor(confirmado)).toBe('/activos/l1?ver=verificaciones');
     });
 });
+
+describe('avisos del traslado del dominio a la plataforma', () => {
+    const occursAt = '2026-10-28T09:00:00.000Z';
+    const delTraslado: NotificationDto = { ...aviso, operationId: 'o1', occursAt };
+
+    it('recuerda que la invitación de Hostinger está por vencer y qué falta', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'traspaso_recordatorio' });
+
+        expect(title).toBe('Un traslado de dominio está por vencer');
+        expect(cuerpo).toBe(`La invitación de Hostinger vence el ${fechaLarga(occursAt)}. Falta confirmar el traslado desde el mail.`);
+    });
+
+    it('avisa que la invitación venció y que el vendedor tiene que iniciarlo de nuevo', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'traspaso_vencido' });
+
+        expect(title).toBe('Venció un traslado de dominio');
+        expect(cuerpo).toBe(`La invitación de Hostinger venció el ${fechaLarga(occursAt)}. El vendedor tiene que iniciar el traslado de nuevo.`);
+    });
+
+    it('sin fecha, no inventa una', () => {
+        expect(textFor({ ...delTraslado, type: 'traspaso_recordatorio', occursAt: undefined }).cuerpo).toBe(
+            'La invitación de Hostinger está por vencer. Falta confirmar el traslado desde el mail.',
+        );
+        expect(textFor({ ...delTraslado, type: 'traspaso_vencido', occursAt: undefined }).cuerpo).toBe(
+            'La invitación de Hostinger venció. El vendedor tiene que iniciar el traslado de nuevo.',
+        );
+    });
+
+    it('avisa que el dominio llegó a la cuenta de la plataforma y falta declarar la custodia', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'dominio_en_custodia' });
+
+        expect(title).toBe('El dominio ya está en nuestra cuenta');
+        expect(cuerpo).toBe('Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.');
+    });
+
+    it('los tres llevan a la operación', () => {
+        for (const type of ['traspaso_recordatorio', 'traspaso_vencido', 'dominio_en_custodia'] as const) {
+            expect(linkFor({ ...delTraslado, type })).toBe('/operaciones/o1');
+        }
+    });
+});

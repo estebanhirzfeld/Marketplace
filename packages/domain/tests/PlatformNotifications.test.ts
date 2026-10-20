@@ -10,6 +10,7 @@ import { Email } from '../src/value-objects/Email';
 import { Money } from '../src/value-objects/Money';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
 import { WebStrategy } from '../src/strategies/WebStrategy';
+import { TransferStepProgress } from '../src/entities/TransferStepProgress';
 import { AssetNiche, UserRole } from '@marketplace/shared-types';
 
 /*
@@ -155,5 +156,57 @@ describe('PlatformNotifier', () => {
         await avisos.listingSubmitted(unActivo());
 
         expect(enviadas).toHaveLength(0);
+    });
+
+    describe('traspaso del dominio de un sitio', () => {
+        const DEADLINE = new Date('2026-10-28T09:00:00Z');
+
+        function unPaso(operation: Operation) {
+            return TransferStepProgress.start({
+                scope: 'operation',
+                scopeId: operation.id.toString(),
+                stepKey: 'domain-to-platform',
+                startedAt: new Date('2026-10-18T09:00:00Z'),
+                deadlineAt: DEADLINE,
+            });
+        }
+
+        it('recuerda a los administradores que la invitación de traslado está por vencer, con el plazo', async () => {
+            const operation = unaOperacion();
+            const { avisos, enviadas } = armar(admin('uno@traspaso.com'), admin('dos@traspaso.com'));
+
+            await avisos.transferStepReminder(operation, unPaso(operation));
+
+            expect(enviadas).toHaveLength(2);
+            const { props } = enviadas[0].toSnapshot();
+            expect(enviadas[0].type).toBe('traspaso_recordatorio');
+            expect(props.operationId?.toString()).toBe(operation.id.toString());
+            expect(props.listingId?.toString()).toBe(operation.listingId.toString());
+            expect(props.occursAt).toEqual(DEADLINE);
+        });
+
+        it('avisa a los administradores que la invitación venció, con el plazo', async () => {
+            const operation = unaOperacion();
+            const { avisos, enviadas } = armar(admin('uno@traspaso.com'));
+
+            await avisos.transferStepExpired(operation, unPaso(operation));
+
+            expect(enviadas).toHaveLength(1);
+            expect(enviadas[0].type).toBe('traspaso_vencido');
+            expect(enviadas[0].toSnapshot().props.occursAt).toEqual(DEADLINE);
+            expect(enviadas[0].toSnapshot().props.operationId?.toString()).toBe(operation.id.toString());
+        });
+
+        it('avisa a los administradores que el dominio llegó a la cuenta de la plataforma', async () => {
+            const operation = unaOperacion();
+            const { avisos, enviadas } = armar(admin('uno@traspaso.com'));
+
+            await avisos.domainInCustody(operation);
+
+            expect(enviadas).toHaveLength(1);
+            expect(enviadas[0].type).toBe('dominio_en_custodia');
+            expect(enviadas[0].toSnapshot().props.operationId?.toString()).toBe(operation.id.toString());
+            expect(enviadas[0].toSnapshot().props.listingId?.toString()).toBe(operation.listingId.toString());
+        });
     });
 });

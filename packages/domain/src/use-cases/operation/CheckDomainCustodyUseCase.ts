@@ -10,6 +10,7 @@ import {
 } from '../../entities/TransferStepProgress';
 import { DomainName } from '../../value-objects/DomainName';
 import { isWebListing, websiteDomainOf } from '../../services/WebCustody';
+import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { InvalidStateError, NotFoundError, ServiceUnavailableError, ValidationError } from '../../errors/DomainError';
 
 /** La `key` del paso de `WebStrategy` que comprueba este caso de uso. */
@@ -66,6 +67,8 @@ export class CheckDomainCustodyUseCase {
         private readonly registrar: IDomainRegistrar,
         /** El reloj entra por acá para poder fijarlo en los tests. */
         private readonly now: () => Date = () => new Date(),
+        /** Opcional: sin él, el paso se cumple igual y nadie se entera. */
+        private readonly platformNotifier?: PlatformNotifier,
     ) {}
 
     async execute(operationId: string): Promise<TransferStepProgressStatus> {
@@ -106,6 +109,8 @@ export class CheckDomainCustodyUseCase {
                     evidence: { inPortfolio: true, portfolioStatus: entry.status },
                 });
                 await this.progressRepo.save(progress);
+                // Un paso cumplido no vuelve a llegar acá, así que el aviso sale una vez.
+                await this.platformNotifier?.domainInCustody(operation);
                 return progress.status;
             }
 

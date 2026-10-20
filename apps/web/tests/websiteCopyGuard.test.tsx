@@ -237,6 +237,9 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
             acceso_no_encontrado: true,
             acceso_solicitado: true,
             acceso_confirmado: true,
+            traspaso_recordatorio: true,
+            traspaso_vencido: true,
+            dominio_en_custodia: true,
         };
         for (const type of Object.keys(types) as NotificationTypeDto[]) {
             const aviso: NotificationDto = {

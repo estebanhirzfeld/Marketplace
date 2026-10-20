@@ -80,6 +80,26 @@ describe("PrismaNotificationRepository", () => {
         expect(recuperado!.toSnapshot().props.occursAt).toEqual(occursAt);
     });
 
+    it.each(["traspaso_recordatorio", "traspaso_vencido", "dominio_en_custodia"] as const)(
+        "persiste y recupera el aviso de traspaso %s con su plazo",
+        async (type) => {
+            const user = await crearUsuario(`admin-${type}@test.com`);
+            const occursAt = new Date("2026-10-28T09:00:00.000Z");
+            const aviso = Notification.create({
+                userId: user.id,
+                type,
+                operationId: new UniqueEntityID(),
+                listingId: new UniqueEntityID(),
+                occursAt,
+            });
+            await repo.save(aviso);
+
+            const recuperado = await repo.findById(aviso.id.toString());
+            expect(recuperado!.type).toBe(type);
+            expect(recuperado!.toSnapshot().props.occursAt).toEqual(occursAt);
+        },
+    );
+
     it("persiste y recupera un aviso con todos sus campos", async () => {
         const user = await crearUsuario("uno@test.com");
 
