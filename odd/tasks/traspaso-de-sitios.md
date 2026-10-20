@@ -55,6 +55,8 @@ Otros registradores y `.ar`; señales automáticas de hosting, GA4 y foto de DNS
 
 T1 hecha (`5529e4c`). `automated` se reemplazó por `key` + `check` en `TransferStep`; `HandoverStepDto` suma `key` y `check` opcionales (aditivo) y las rutas `me.ts` y `listings.ts` los serializan. `WebStrategy` pasa a: tener el dominio en Hostinger (listing), `domain-to-platform`, `hosting`, `code`, `accounts` (operation) y `domain-to-buyer` (plataforma). Pendiente para T4: `GetOperationDetailsUseCase` sigue exigiendo `listing.isReadyToTransfer()`, o sea `platformAccess` registrado; un sitio sin él seguirá recibiendo lista vacía hasta que T4 resuelva la custodia web sin `platformAccess`. `apps/api` no se ejecutó (`tsc` falla por Prisma sin generar, previo a este cambio; `http.test.ts` necesita base).
 
+Corrección del padre en T1: el paso `domain-to-buyer` ofrecía el código EPP para llevar el dominio a otro registrador, pero el traslado a la cuenta de la plataforma ya activó el bloqueo de 60 días, así que durante la custodia esa mudanza está trabada. Ahora la entrega es siempre a la cuenta de Hostinger del comprador y el texto explica que mudarlo a otro registrador espera 60 días. RED visto (1 test), luego dominio 69 archivos / 1100 tests, `tsc` sin errores y guarda de textos de web 14 tests, todo verificado por el padre.
+
 ## Próximo paso
 
 T2.

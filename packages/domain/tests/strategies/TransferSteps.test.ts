@@ -218,11 +218,15 @@ describe('WebStrategy.getTransferSteps', () => {
         }
     });
 
-    it('el paso hacia el comprador explica el bloqueo de 60 días si lo quiere en otro registrador', () => {
+    it('el paso hacia el comprador entrega en Hostinger y explica que mudarlo a otro registrador espera 60 días', () => {
         const haciaElComprador = web().getTransferSteps().find((p) => p.key === 'domain-to-buyer')!;
         const texto = `${haciaElComprador.description} ${haciaElComprador.instruction ?? ''} ${(haciaElComprador.details ?? []).join(' ')}`;
 
-        expect(texto).toMatch(/EPP/);
+        // El traslado a la cuenta de la plataforma ya activó el bloqueo: durante
+        // la custodia no se puede mudar a otro registrador, así que no se ofrece
+        // el código EPP como alternativa de entrega.
+        expect(texto).not.toMatch(/EPP/);
+        expect(texto).toMatch(/Hostinger/);
         expect(texto).toMatch(/60 días/);
     });
 

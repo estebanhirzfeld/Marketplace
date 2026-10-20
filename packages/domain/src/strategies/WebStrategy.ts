@@ -184,9 +184,11 @@ export class WebStrategy implements IAssetStrategy {
                 /*
                  * El comprador no inicia nada en su registrador: la plataforma
                  * ya es titular y le traslada el dominio a su cuenta de
-                 * Hostinger. Si lo prefiere en otro registrador se le pasa el
-                 * código EPP, pero entonces corre el bloqueo de 60 días de la
-                 * ICANN que impide mudarlo otra vez, y hay que decírselo.
+                 * Hostinger. No se ofrece el código EPP como alternativa: el
+                 * traslado a la cuenta de la plataforma ya activó el bloqueo
+                 * de 60 días de la ICANN, así que durante la custodia no se
+                 * puede mudar a otro registrador. Si el comprador lo quiere en
+                 * otro lado, lo muda él cuando termine el bloqueo.
                  */
                 key: 'domain-to-buyer',
                 check: 'automatic',
@@ -194,9 +196,9 @@ export class WebStrategy implements IAssetStrategy {
                     ? `La plataforma traslada el dominio a la cuenta de Hostinger del comprador (${comprador})`
                     : 'La plataforma traslada el dominio a la cuenta de Hostinger del comprador',
                 title: 'Recibí el dominio',
-                instruction: 'Te trasladamos el dominio a tu cuenta de Hostinger; si lo preferís en otro registrador, te damos el código EPP.',
+                instruction: 'Te trasladamos el dominio a tu cuenta de Hostinger. Si no tenés una, creala antes con el mail que nos indicaste.',
                 details: [
-                    'Si lo querés en otro registrador, el cambio de titular activa un bloqueo de 60 días de la ICANN: durante ese plazo no vas a poder mudarlo de nuevo.',
+                    'Si lo querés en otro registrador, vas a tener que esperar: después de cada cambio de titular, la ICANN bloquea por 60 días la mudanza a otro registrador. Mientras tanto el dominio es tuyo y funciona desde tu cuenta de Hostinger.',
                 ],
                 requiredActor: 'platform',
             },
