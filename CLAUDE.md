@@ -49,7 +49,7 @@ Hexagonal / DDD. Dependency direction is strictly `apps/*` → `packages/db` →
 - `machines/` — xstate v5 machines for `Listing` and `Operation`. They document the lifecycles; the entities enforce them independently.
 - Tests live in `packages/domain/tests/`, mirroring `src/use-cases/` with **one test file per flow**, not per use case.
 
-**`packages/db`** — Prisma v7 with the `prisma-client` generator (output: `generated/prisma`, gitignored-ish generated code) over the `@prisma/adapter-pg` driver adapter. Note `schema.prisma`'s `datasource` block has **no `url`** — Prisma v7 takes it from `prisma.config.ts`. Money columns are `Int` cents; `assetData` and `signatures` are `Json`. Consumed as raw TypeScript (`main: src/index.ts`), no build step.
+**`packages/db`** — Prisma v7 with the `prisma-client` generator (output: `generated/prisma`, gitignored-ish generated code) over the `@prisma/adapter-pg` driver adapter. Note `schema.prisma`'s `datasource` block has **no `url`** — Prisma v7 takes it from `prisma.config.ts`. Money columns are `BigInt` cents (the domain stays in `number`; the conversion lives in `packages/db/src/mappers/moneyColumns.ts`); `assetData` and `signatures` are `Json`. Consumed as raw TypeScript (`main: src/index.ts`), no build step.
 
 **`packages/shared-types`** — cross-boundary enums (`AssetType`, `UserRole`).
 

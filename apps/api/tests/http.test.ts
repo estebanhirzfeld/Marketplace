@@ -421,6 +421,123 @@ describe('GET /listings — no filtra datos confidenciales', () => {
     });
 });
 
+// Un precio de $45.555.554,97 ARS (4555555497 centavos) no entraba en el Int de
+// 32 bits de Postgres y devolvía 500. El tope de la API (`MAX_MONEY_CENTS`)
+// hace que un valor absurdo sea un 400 y no un 500.
+describe('Montos grandes', () => {
+    const TOPE = 10_000_000_000_000; // MAX_MONEY_CENTS de la API
+    const ABSURDO = TOPE + 1;
+
+    it('POST /listings acepta 4555555497 centavos en pesos', async () => {
+        await crearUsuario('seller@test.com', UserRole.SELLER);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/listings',
+            headers: { authorization: `Bearer ${await tokenDe('seller@test.com')}` },
+            payload: {
+                assetType: 'youtube',
+                assetData: {
+                    monthlyRevenueUsdCents: 120000,
+                    currency: 'USD',
+                    subscribers: 55000,
+                    isMonetized: true,
+                },
+                askingPrice: { cents: 4_555_555_497, currency: 'ARS' },
+            },
+        });
+
+        expect(res.statusCode).toBe(201);
+        expect(res.json().askingPrice).toEqual({ cents: 4_555_555_497, currency: 'ARS' });
+    });
+
+    it('GET /listings?maxPrice=12312312300 responde 200', async () => {
+        const res = await app.inject({
+            method: 'GET',
+            url: '/listings?currency=ARS&maxPrice=12312312300',
+        });
+
+        expect(res.statusCode).toBe(200);
+    });
+
+    it('GET /listings responde 400 si el filtro de precio supera el tope', async () => {
+        const maxPrice = await app.inject({
+            method: 'GET',
+            url: `/listings?currency=ARS&maxPrice=${ABSURDO}`,
+        });
+        const minPrice = await app.inject({
+            method: 'GET',
+            url: `/listings?currency=ARS&minPrice=${ABSURDO}`,
+        });
+
+        expect(maxPrice.statusCode).toBe(400);
+        expect(minPrice.statusCode).toBe(400);
+    });
+
+    it('POST /listings responde 400 si askingPrice supera el tope', async () => {
+        await crearUsuario('seller@test.com', UserRole.SELLER);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/listings',
+            headers: { authorization: `Bearer ${await tokenDe('seller@test.com')}` },
+            payload: {
+                assetType: 'youtube',
+                assetData: {
+                    monthlyRevenueUsdCents: 120000,
+                    currency: 'USD',
+                    subscribers: 55000,
+                    isMonetized: true,
+                },
+                askingPrice: { cents: ABSURDO, currency: 'ARS' },
+            },
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /listings/:id/offers responde 400 si la oferta supera el tope', async () => {
+        const seller = await crearUsuario('seller@test.com', UserRole.SELLER);
+        await crearUsuario('buyer@test.com', UserRole.BUYER);
+        const listing = await crearListingPublicado(seller.id);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/listings/${listing.id.toString()}/offers`,
+            headers: { authorization: `Bearer ${await tokenDe('buyer@test.com')}` },
+            payload: { offerPrice: { cents: ABSURDO, currency: 'USD' } },
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /operations/:id/counter responde 400 si el precio supera el tope', async () => {
+        await crearUsuario('seller@test.com', UserRole.SELLER);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/operations/x/counter',
+            headers: { authorization: `Bearer ${await tokenDe('seller@test.com')}` },
+            payload: { price: { cents: ABSURDO, currency: 'USD' } },
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /operations/:id/payment responde 400 si amountCents supera el tope', async () => {
+        await crearUsuario('admin@test.com', UserRole.ADMIN);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/operations/x/payment',
+            headers: { authorization: `Bearer ${await tokenDe('admin@test.com')}` },
+            payload: { method: 'transferencia', amountCents: ABSURDO, currency: 'USD' },
+        });
+
+        expect(res.statusCode).toBe(400);
+    });
+});
+
 describe('GET /listings — filtros', () => {
     it('filtra por tipo de activo', async () => {
         const seller = await crearUsuario('seller@test.com', UserRole.SELLER);

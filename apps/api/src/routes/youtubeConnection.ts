@@ -10,6 +10,7 @@ import type {
 import type { YouTubeConnectionSummary } from '@marketplace/domain/src/use-cases/youtube-connection/ConnectYouTubeChannelUseCase';
 import { ASSET_NICHES } from '@marketplace/shared-types';
 import { Container } from '../container';
+import { MAX_MONEY_CENTS } from './moneyLimits';
 import { authenticate, actorOf } from '../plugins/authenticate';
 
 /**
@@ -126,7 +127,7 @@ export function registerYouTubeConnectionRoutes(app: FastifyInstance, c: Contain
                             required: ['cents', 'currency'],
                             additionalProperties: false,
                             properties: {
-                                cents: { type: 'integer', minimum: 1 },
+                                cents: { type: 'integer', minimum: 1, maximum: MAX_MONEY_CENTS },
                                 currency: { type: 'string', enum: ['ARS', 'USD'] },
                             },
                         },

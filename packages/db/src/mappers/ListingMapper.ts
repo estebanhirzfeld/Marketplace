@@ -10,6 +10,7 @@ import {
 } from "@marketplace/domain/src/entities/Listing";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
+import { centsToColumn, columnToCents } from "./moneyColumns";
 // El mapeo assetType -> strategy vive en el dominio: saber qué tipos de
 // activo existen es regla de negocio, no detalle de persistencia.
 import { createAssetStrategy } from "@marketplace/domain/src/strategies/AssetStrategyFactory";
@@ -136,7 +137,7 @@ export class ListingMapper {
             sellerId: new UniqueEntityID(raw.sellerId),
             assetStrategy: strategy,
             status: raw.status as ListingStatus,
-            askingPrice: Money.fromCents(raw.askingPrice, raw.currency),
+            askingPrice: Money.fromCents(columnToCents(raw.askingPrice), raw.currency),
             publishedAt: raw.publishedAt ?? undefined,
             rejectionReason: raw.rejectionReason ?? undefined,
             platformAccess: parseAcceso(raw.platformAccess, raw.custodyAccountId),
@@ -161,7 +162,7 @@ export class ListingMapper {
             assetType,
             assetData,
             status: props.status,
-            askingPrice: props.askingPrice.getCents(),
+            askingPrice: centsToColumn(props.askingPrice.getCents()),
             currency: props.askingPrice.getCurrency(),
             publishedAt: props.publishedAt ?? null,
             rejectionReason: props.rejectionReason ?? null,
