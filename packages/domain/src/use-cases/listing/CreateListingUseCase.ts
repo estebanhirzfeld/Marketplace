@@ -4,8 +4,9 @@ import { Listing } from '../../entities/Listing';
 import { Money } from '../../value-objects/Money';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { createAssetStrategy } from '../../strategies/AssetStrategyFactory';
-import { ForbiddenError, NotFoundError } from '../../errors/DomainError';
-import { UserRole } from '@marketplace/shared-types';
+import { DomainName } from '../../value-objects/DomainName';
+import { ForbiddenError, NotFoundError, ValidationError } from '../../errors/DomainError';
+import { AssetType, UserRole } from '@marketplace/shared-types';
 
 export interface CreateListingInput {
     assetType: string;
@@ -41,6 +42,19 @@ export class CreateListingUseCase {
         const seller = await this.userRepo.findById(actor.id);
         if (!seller) {
             throw new NotFoundError('Vendedor no encontrado');
+        }
+
+        // Por ahora no se admiten dominios .ar: NIC.ar no permite custodiar el
+        // dominio y faltan las pruebas en TAD. La regla vive solo al crear: el
+        // factory también rehidrata filas y sirve a la estimación en vivo.
+        if (input.assetType === AssetType.WEB) {
+            const domain = input.assetData['domain'];
+            if (typeof domain === 'string' && domain.trim() !== '' && DomainName.parse(domain).isArgentine()) {
+                throw new ValidationError(
+                    'Por ahora solo admitimos dominios genéricos (como .com o .net). ' +
+                    'Los dominios .ar todavía no se pueden publicar.',
+                );
+            }
         }
 
         // Lanza ValidationError si el tipo o los campos del activo no cierran.

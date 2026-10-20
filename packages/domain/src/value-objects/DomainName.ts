@@ -82,6 +82,14 @@ export class DomainName {
         }
     }
 
+    /**
+     * Si la extensión es `.ar` (`.com.ar`, `.ar`, etc.). Se mira solo la última
+     * etiqueta ya normalizada, así que no hace falta una lista de sufijos.
+     */
+    public isArgentine(): boolean {
+        return this.value.split('.').at(-1) === 'ar';
+    }
+
     public equals(other: DomainName): boolean {
         return this.value === other.value;
     }

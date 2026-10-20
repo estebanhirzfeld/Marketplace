@@ -575,6 +575,30 @@ describe('POST /listings', () => {
         expect(res.json().estimatedPrice.cents).toBeGreaterThan(0);
     });
 
+    it('400 ante un sitio con dominio .ar', async () => {
+        await crearUsuario('seller@test.com', UserRole.SELLER);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: '/listings',
+            headers: { authorization: `Bearer ${await tokenDe('seller@test.com')}` },
+            payload: {
+                assetType: 'web',
+                assetData: {
+                    monthlyRevenueUsdCents: 25000,
+                    domain: 'mi-sitio.com.ar',
+                    niche: 'lifestyle',
+                    name: 'Sitio de prueba',
+                },
+                askingPrice: { cents: 1500000, currency: 'USD' },
+            },
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().code).toBe('VALIDATION');
+        expect(res.json().message).toMatch(/dominios \.ar/);
+    });
+
     it('400 ante un tipo de activo desconocido', async () => {
         await crearUsuario('seller@test.com', UserRole.SELLER);
 

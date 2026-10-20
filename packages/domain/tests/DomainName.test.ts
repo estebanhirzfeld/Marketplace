@@ -100,3 +100,22 @@ describe('DomainName — entradas inválidas', () => {
         expect(() => DomainName.parse('localhost')).toThrow(/dominio/i);
     });
 });
+
+describe('DomainName — dominios argentinos', () => {
+    it.each([
+        'mi-sitio.com.ar',
+        'sitio.ar',
+        'HTTPS://WWW.Mi-Sitio.COM.AR/ruta',
+        'niño.com.ar',
+        'niño.ar',
+    ])('reconoce %s como argentino', (entrada) => {
+        expect(DomainName.parse(entrada).isArgentine()).toBe(true);
+    });
+
+    it.each(['ejemplo.com', 'sitio.online', 'ar.com', 'sitio.com.ar.com', 'ejemplo.net'])(
+        'no considera argentino a %s',
+        (entrada) => {
+            expect(DomainName.parse(entrada).isArgentine()).toBe(false);
+        },
+    );
+});

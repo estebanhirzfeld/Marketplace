@@ -401,7 +401,7 @@ async function main() {
     // USD 16.000: cualquier activo más caro no se puede publicar en pesos.
     const nicheStore = seedListing({
         sellerId: seller2.id,
-        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(25000, "USD"), domain: "decoclub.com.ar", niche: AssetNiche.LIFESTYLE, name: "DecoClub" }),
+        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(25000, "USD"), domain: "decoclub.com", niche: AssetNiche.LIFESTYLE, name: "DecoClub" }),
         askingPrice: Money.fromCents(975000000, "ARS"), // $9.750.000
         createdDaysAgo: 35,
         publishedDaysAgo: 30,

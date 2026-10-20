@@ -11,7 +11,7 @@ import {
     ISellerPaymentAccountRepository,
 } from '../../../src/ports/Repositories';
 import { Actor } from '../../../src/ports/Actor';
-import { ForbiddenError, InvalidStateError } from '../../../src/errors/DomainError';
+import { ForbiddenError, InvalidStateError, ValidationError } from '../../../src/errors/DomainError';
 import { User } from '../../../src/entities/User';
 import { Listing } from '../../../src/entities/Listing';
 import { Contract } from '../../../src/entities/Contract';
@@ -19,7 +19,7 @@ import { Email } from '../../../src/value-objects/Email';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
-import { UserRole } from '@marketplace/shared-types';
+import { AssetNiche, AssetType, UserRole } from '@marketplace/shared-types';
 
 // ── Mock Factories ───────────────────────────────────────
 
@@ -133,6 +133,52 @@ describe('CreateListingUseCase', () => {
         }, actorDe('nonexistent-id'))).rejects.toThrow('Vendedor no encontrado');
 
         expect(listingRepo.save).not.toHaveBeenCalled();
+    });
+});
+
+describe('CreateListingUseCase — dominios .ar', () => {
+    const seller = createTestSeller();
+
+    function crearSitio(domain: string) {
+        const userRepo = createMockUserRepo({ findById: vi.fn().mockResolvedValue(seller) });
+        const listingRepo = createMockListingRepo();
+        const useCase = new CreateListingUseCase(listingRepo, userRepo);
+        const input = {
+            assetType: AssetType.WEB,
+            assetData: {
+                monthlyRevenueUsdCents: 25000,
+                domain,
+                niche: AssetNiche.LIFESTYLE,
+                name: 'Sitio de prueba',
+            },
+            askingPrice: { cents: 1000000, currency: 'USD' },
+        };
+        return { listingRepo, run: () => useCase.execute(input, actorDe(seller.id)) };
+    }
+
+    it.each(['mi-sitio.com.ar', 'HTTPS://WWW.Mi-Sitio.COM.AR/ruta', 'sitio.ar'])(
+        'rechaza un sitio con el dominio %s',
+        async (domain) => {
+            const { listingRepo, run } = crearSitio(domain);
+
+            await expect(run()).rejects.toThrow(ValidationError);
+            await expect(run()).rejects.toThrow(/dominios \.ar/);
+            expect(listingRepo.save).not.toHaveBeenCalled();
+        },
+    );
+
+    it('admite un sitio con un dominio genérico', async () => {
+        const { listingRepo, run } = crearSitio('mi-sitio.com');
+
+        await expect(run()).resolves.toBeDefined();
+        expect(listingRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('admite un sitio sin dominio todavía', async () => {
+        const { listingRepo, run } = crearSitio('');
+
+        await expect(run()).resolves.toBeDefined();
+        expect(listingRepo.save).toHaveBeenCalledOnce();
     });
 });
 
