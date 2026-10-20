@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
 import { assertIsAdmin } from '@marketplace/domain/src/ports/Actor';
+import { ValidationError } from '@marketplace/domain/src/errors/DomainError';
 import type {
     CheckoutDto,
     CompleteOperationRequest,
@@ -18,6 +19,9 @@ import type {
 
 interface IdParams { id: string }
 interface StepParams { id: string; key: string }
+
+/** El mismo límite que las notas de las demás constancias. */
+const MAX_NOTES_LENGTH = 2000;
 
 const priceSchema = {
     body: {
@@ -129,25 +133,22 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
      * El admin da por cumplido un paso declarado de la entrega (hosting, código,
      * cuentas asociadas). Los pasos que se comprueban solos no pasan por acá.
      */
-    app.post<{ Params: StepParams; Body: AttestTransferStepRequest; Reply: TransferStepAttestationDto }>(
+    // Sin schema de cuerpo a propósito: las notas son opcionales y Fastify
+    // rechaza con 400 un POST sin cuerpo si declara uno de tipo objeto.
+    app.post<{ Params: StepParams; Body: AttestTransferStepRequest | undefined; Reply: TransferStepAttestationDto }>(
         '/admin/operations/:id/steps/:key/attest',
-        {
-            preHandler: [authenticate],
-            schema: {
-                body: {
-                    type: 'object',
-                    properties: {
-                        notes: { type: 'string', maxLength: 2000 },
-                    },
-                },
-            },
-        },
+        { preHandler: [authenticate] },
         async (request, reply) => {
+            const notes = request.body?.notes;
+            if (notes !== undefined && (typeof notes !== 'string' || notes.length > MAX_NOTES_LENGTH)) {
+                throw new ValidationError(`Las notas tienen que ser un texto de hasta ${MAX_NOTES_LENGTH} caracteres.`);
+            }
+
             const status = await c.attestTransferStep.execute(
                 request.params.id,
                 request.params.key,
                 actorOf(request),
-                request.body?.notes,
+                notes,
             );
             return reply.send({ status });
         },

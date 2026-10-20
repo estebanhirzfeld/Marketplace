@@ -194,6 +194,40 @@ describe('AttestTransferStepUseCase', () => {
         expect(progressRepo.saves).toBe(0);
     });
 
+    it('con la operación cerrada tampoco: el mensaje no culpa al vendedor', async () => {
+        const listing = aWebListing();
+        const cancelada = Operation.create({
+            listingId: listing.id,
+            buyerId: new UniqueEntityID(),
+            sellerId: SELLER_ID,
+            offerPrice: Money.fromCents(200000, 'USD'),
+        });
+        cancelada.cancel();
+        const useCase = new AttestTransferStepUseCase(
+            {
+                findById: vi.fn(async () => cancelada),
+                findByListing: vi.fn(),
+                findByParty: vi.fn(),
+                findByStatuses: vi.fn(),
+                save: vi.fn(),
+            },
+            {
+                findById: vi.fn(async () => listing),
+                findPublished: vi.fn(),
+                findBySeller: vi.fn(),
+                findByStatus: vi.fn(),
+                findHeldBy: vi.fn(),
+                save: vi.fn(),
+            },
+            new InMemoryProgressRepo(),
+            () => NOW,
+        );
+
+        await expect(useCase.execute(cancelada.id.toString(), 'hosting', ADMIN)).rejects.toThrow(
+            'La operación ya está cerrada: no hay entrega que atestiguar.',
+        );
+    });
+
     it('un canal no tiene esos pasos', async () => {
         const { useCase, id } = setup({ listing: aYouTubeListing() });
 

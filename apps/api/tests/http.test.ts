@@ -1387,6 +1387,29 @@ describe('POST /admin/operations/:id/steps/:key/attest', () => {
         expect(fila?.evidence).toEqual({ notes: 'Vi el panel del hosting' });
     });
 
+    it('sin cuerpo también anda: las notas son opcionales', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        const server = await buildApp({ container: createContainer(fakeHasher), jwtSecret: 'secreto-de-test' });
+
+        const res = await server.inject({
+            method: 'POST',
+            url: `/admin/operations/${id}/steps/code/attest`,
+            headers: { authorization: `Bearer ${await tokenDe('admin-att@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: 'done' });
+    });
+
+    it('400 con notas de más de 2000 caracteres, y no queda nada escrito', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(id, 'hosting', 'admin-att@test.com', { notes: 'x'.repeat(2001) });
+
+        expect(res.statusCode).toBe(400);
+        expect(await new PrismaTransferStepProgressRepository().find('operation', id, 'hosting')).toBeNull();
+    });
+
     it('403 si quien atestigua no es admin', async () => {
         const id = await unaOperacionWebEnTransferencia();
 

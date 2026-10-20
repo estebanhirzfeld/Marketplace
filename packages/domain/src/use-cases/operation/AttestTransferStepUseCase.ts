@@ -10,6 +10,7 @@ import { InvalidStateError, NotFoundError, ValidationError } from '../../errors/
 
 /** Desde que el vendedor cedió el activo hasta antes de cerrar: es cuando se entregan esas cosas. */
 const ATTESTABLE_IN: OperationStatus[] = ['transfer_in_progress', 'asset_in_custody', 'payment_received'];
+const CLOSED: OperationStatus[] = ['completed', 'cancelled'];
 
 /**
  * Un admin da por cumplido un paso declarado de la entrega.
@@ -64,7 +65,9 @@ export class AttestTransferStepUseCase {
 
         if (!ATTESTABLE_IN.includes(operation.status)) {
             throw new InvalidStateError(
-                'Todavía no hay entrega que atestiguar: el vendedor no cedió el activo.',
+                CLOSED.includes(operation.status)
+                    ? 'La operación ya está cerrada: no hay entrega que atestiguar.'
+                    : 'Todavía no hay entrega que atestiguar: el vendedor no cedió el activo.',
             );
         }
 
