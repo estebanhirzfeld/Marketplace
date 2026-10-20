@@ -837,6 +837,16 @@ export interface PaymentRecordDto {
     confirmedAt: string;
 }
 
+/** Cómo quedó el paso de trasladar el dominio a la plataforma tras comprobarlo. */
+export interface DomainCustodyCheckDto {
+    status: 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
+}
+
+/** Cómo quedó el paso de trasladar el dominio a la plataforma tras comprobarlo. */
+export interface DomainCustodyCheckDto {
+    status: 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
+}
+
 /** El link al que hay que mandar al comprador para que pague. */
 export interface CheckoutDto {
     url: string;

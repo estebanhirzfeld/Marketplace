@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
+import { assertIsAdmin } from '@marketplace/domain/src/ports/Actor';
 import type {
     CheckoutDto,
     CompleteOperationRequest,
@@ -8,6 +9,7 @@ import type {
     ConfirmPaymentRequest,
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
+    DomainCustodyCheckDto,
     InitiateTransferRequest,
     PaymentOptionsDto,
 } from '@marketplace/api-contract';
@@ -93,6 +95,30 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
         async (request, reply) => {
             await c.confirmCustody.execute(request.params.id, request.body, actorOf(request));
             return reply.code(204).send();
+        },
+    );
+
+    /**
+     * El admin dispara la comprobación del dominio de un sitio: si el traslado
+     * a la cuenta de la plataforma llegó se acepta, y si el dominio ya está en
+     * custodia el paso se da por cumplido. Es lo mismo que hará el job
+     * periódico; mientras no exista, es la forma de avanzar el paso a mano.
+     */
+    app.post<{ Params: IdParams; Reply: DomainCustodyCheckDto }>(
+        '/admin/operations/:id/check-domain-custody',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            assertIsAdmin(actorOf(request));
+
+            if (!c.checkDomainCustody) {
+                return reply.code(503).send({
+                    code: 'INTERNAL',
+                    message: 'El registrador de dominios todavía no está configurado.',
+                } as never);
+            }
+
+            const status = await c.checkDomainCustody.execute(request.params.id);
+            return reply.send({ status });
         },
     );
 

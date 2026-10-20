@@ -22,6 +22,7 @@ export { PrismaCustodyAccountRepository } from "./repositories/PrismaCustodyAcco
 export { PrismaSellerPaymentAccountRepository } from "./repositories/PrismaSellerPaymentAccountRepository";
 export { PrismaYouTubeConnectionRepository } from "./repositories/PrismaYouTubeConnectionRepository";
 export { PrismaYouTubeChannelListingFinder } from "./repositories/PrismaYouTubeChannelListingFinder";
+export { PrismaTransferStepProgressRepository } from "./repositories/PrismaTransferStepProgressRepository";
 
 // Unit of Work
 export { PrismaUnitOfWork } from "./PrismaUnitOfWork";

@@ -10,6 +10,7 @@ import {
     PrismaSellerPaymentAccountRepository,
     PrismaYouTubeConnectionRepository,
     PrismaYouTubeChannelListingFinder,
+    PrismaTransferStepProgressRepository,
 } from '@marketplace/db';
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
@@ -88,6 +89,7 @@ import {
 import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
 import { BcraExchangeRateProvider } from './adapters/BcraExchangeRateProvider';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
+import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
 import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
@@ -228,6 +230,8 @@ export interface Container {
     documentoDelContrato: GetContractDocumentUseCase;
     initiateTransfer: InitiateTransferUseCase;
     confirmCustody: ConfirmCustodyUseCase;
+    /** Ausente sin registrador: ver `domainRegistrar`. */
+    checkDomainCustody?: CheckDomainCustodyUseCase;
     /**
      * Ausentes mientras no haya credenciales de MercadoPago. La API arranca
      * igual y las rutas lo informan: los pagos por transferencia siguen
@@ -544,8 +548,16 @@ export function createContainer(
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
         signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
 
-        initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma),
-        confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos),
+        initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma, custodyRepo),
+        confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos, custodyRepo, domainRegistrar),
+        checkDomainCustody: domainRegistrar
+            ? new CheckDomainCustodyUseCase(
+                  operationRepo,
+                  listingRepo,
+                  new PrismaTransferStepProgressRepository(),
+                  domainRegistrar,
+              )
+            : undefined,
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(
                   operationRepo,

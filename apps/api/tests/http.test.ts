@@ -57,7 +57,11 @@ import {
     PrismaCustodyAccountRepository,
     PrismaYouTubeConnectionRepository,
     PrismaYouTubeChannelListingFinder,
+    PrismaTransferStepProgressRepository,
 } from '@marketplace/db';
+import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
+import { IDomainRegistrar } from '@marketplace/domain/src/ports/IDomainRegistrar';
+import { DomainName } from '@marketplace/domain/src/value-objects/DomainName';
 
 /**
  * Tests HTTP end-to-end contra la base real, sin levantar un servidor:
@@ -123,6 +127,7 @@ async function limpiar() {
     await prisma.report.deleteMany();
     await prisma.notification.deleteMany();
     await prisma.contract.deleteMany();
+    await prisma.transferStepProgress.deleteMany();
     await prisma.operation.deleteMany();
     await prisma.listing.deleteMany();
     await prisma.custodyAccount.deleteMany();
@@ -1207,6 +1212,125 @@ describe('POST /operations/:id/custody', () => {
         const res = await confirmar(id, 'seller-cust@test.com', verificacion);
 
         expect(res.statusCode).toBe(403);
+    });
+});
+
+/**
+ * La comprobación del dominio de un sitio en custodia: la dispara un admin y
+ * habla con el registrador (acá, un fake; nunca Hostinger real).
+ */
+describe('POST /admin/operations/:id/check-domain-custody', () => {
+    async function unaOperacionWebEnTransferencia(): Promise<string> {
+        const buyer = await crearUsuario('buyer-dom@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-dom@test.com', UserRole.SELLER);
+        await crearUsuario('admin-dom@test.com', UserRole.ADMIN);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        await listingRepo.save(listing);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(6_000_000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        await new PrismaOperationRepository().save(operation);
+
+        return operation.id.toString();
+    }
+
+    function registrarConTraslado(): IDomainRegistrar {
+        const ahora = new Date();
+        return {
+            getPortfolioEntry: vi.fn(async () => null),
+            getIncomingMove: vi.fn(async () => ({
+                domain: DomainName.parse('ejemplo.com'),
+                status: 'activating' as const,
+                createdAt: ahora,
+                updatedAt: ahora,
+            })),
+            acceptIncomingMove: vi.fn(),
+            getOutgoingMove: vi.fn(),
+            startOutgoingMove: vi.fn(),
+            cancelOutgoingMove: vi.fn(),
+            getAuthCode: vi.fn(),
+        };
+    }
+
+    async function servidorCon(registrar?: IDomainRegistrar) {
+        const base = createContainer(fakeHasher);
+        const container: Container = {
+            ...base,
+            checkDomainCustody: registrar
+                ? new CheckDomainCustodyUseCase(
+                      new PrismaOperationRepository(),
+                      listingRepo,
+                      new PrismaTransferStepProgressRepository(),
+                      registrar,
+                  )
+                : undefined,
+        };
+        return buildApp({ container, jwtSecret: 'secreto-de-test' });
+    }
+
+    async function comprobar(server: FastifyInstance, id: string, email: string) {
+        return server.inject({
+            method: 'POST',
+            url: `/admin/operations/${id}/check-domain-custody`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+        });
+    }
+
+    it('el admin comprueba el dominio y el paso queda en waiting', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        const server = await servidorCon(registrarConTraslado());
+
+        const res = await comprobar(server, id, 'admin-dom@test.com');
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: 'waiting' });
+        const fila = await new PrismaTransferStepProgressRepository().find('operation', id, 'domain-to-platform');
+        expect(fila?.status).toBe('waiting');
+    });
+
+    it('403 si quien comprueba no es admin', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        const server = await servidorCon(registrarConTraslado());
+
+        const res = await comprobar(server, id, 'seller-dom@test.com');
+
+        expect(res.statusCode).toBe(403);
+    });
+
+    it('503 si el registrador no está configurado', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        const server = await servidorCon(undefined);
+
+        const res = await comprobar(server, id, 'admin-dom@test.com');
+
+        expect(res.statusCode).toBe(503);
+    });
+
+    it('409 si la operación no tiene la transferencia en curso', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        const operacion = (await new PrismaOperationRepository().findById(id))!;
+        operacion.confirmAssetCustody({ verifiedBy: new UniqueEntityID(), isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        await new PrismaOperationRepository().save(operacion);
+        const registrar = registrarConTraslado();
+        const server = await servidorCon(registrar);
+
+        const res = await comprobar(server, id, 'admin-dom@test.com');
+
+        expect(res.statusCode).toBe(409);
+        expect(registrar.getIncomingMove).not.toHaveBeenCalled();
     });
 });
 
