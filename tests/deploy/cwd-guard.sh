@@ -27,7 +27,7 @@ check() {
 	local tmp out code
 	tmp="$(mktemp -d)"
 	set +e
-	out="$(cd "$tmp" && bash "$path" fase-5-frontend-y-avisos 2>&1)"
+	out="$(cd "$tmp" && bash "$path" main 2>&1)"
 	code=$?
 	set -e
 	rm -rf "$tmp"

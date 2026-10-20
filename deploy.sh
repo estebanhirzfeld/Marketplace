@@ -3,7 +3,7 @@
 # Despliegue continuo del marketplace en la VM. Idempotente: correrlo de nuevo
 # sobre el mismo ref no cambia nada observable.
 #
-#   ./deploy.sh [<ref>]        # ref por defecto: fase-5-frontend-y-avisos
+#   ./deploy.sh [<ref>]        # ref por defecto: main
 #
 # La caja es una VM.Standard.E2.1.Micro (1 OCPU / 1 GB). NO puede correr
 # `next build` ni `tsup` (picos de 1–2 GB de heap): esos builds se hacen en
@@ -30,7 +30,7 @@ if [[ "$(pwd -P)" != "$EXPECTED_ROOT" ]]; then
 	exit 1
 fi
 
-REF="${1:-fase-5-frontend-y-avisos}"
+REF="${1:-main}"
 SMOKE_PORT="${DEPLOY_SMOKE_PORT:-3099}"
 WEB_URL="http://127.0.0.1:3000/"
 API_HEALTH_URL="http://127.0.0.1:3001/health"

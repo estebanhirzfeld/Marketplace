@@ -10,7 +10,7 @@ Valores fijos de este despliegue:
 | Cosa | Valor |
 |---|---|
 | Hostname | `traspaso.forzalabs.online` |
-| Rama a desplegar | `fase-5-frontend-y-avisos` |
+| Rama a desplegar | `main` |
 | Región / AD | `sa-saopaulo-1` / `ofEW:SA-SAOPAULO-1-AD-1` |
 | Shape | `VM.Standard.E2.1.Micro`, **x86_64**, 1 OCPU / 1 GB (`launch-instance.sh --micro`) |
 | Shape alternativa | `VM.Standard.A1.Flex` aarch64 2/12 (default del script; A1 sin capacidad hoy) |
@@ -111,7 +111,7 @@ idempotente: correrlo dos veces no crea un segundo swapfile.
 # en la VM
 sudo git clone <URL-del-repo> /srv/marketplace
 cd /srv/marketplace
-sudo git checkout fase-5-frontend-y-avisos
+sudo git checkout main
 ```
 
 Generá los secretos frescos (no reuses los de dev):
@@ -197,7 +197,7 @@ sudo systemctl reload caddy
 
 **Prerrequisito: el artefacto de build tiene que estar publicado.** La micro de
 1 GB no construye nada — eso lo hace GitHub Actions (`.github/workflows/release.yml`)
-en cada push a `fase-5-frontend-y-avisos`. Antes de desplegar, confirmá que el
+en cada push a `main`. Antes de desplegar, confirmá que el
 release del commit existe:
 
 ```bash
@@ -208,7 +208,7 @@ gh release view "release-$(git -C /srv/marketplace rev-parse HEAD | cut -c1-12)"
 
 ```bash
 # en la VM, en /srv/marketplace
-sudo ./deploy.sh fase-5-frontend-y-avisos
+sudo ./deploy.sh main
 ```
 
 Corre: `sync-checkout` → `pnpm install` (filtrado a API + db) → `db:generate` →
@@ -285,7 +285,7 @@ security list está en `infra/provision/launch.log`.
 ## Redeploy y rollback
 
 ```bash
-sudo ./deploy.sh fase-5-frontend-y-avisos      # redeploy (idempotente)
+sudo ./deploy.sh main      # redeploy (idempotente)
 sudo ./rollback.sh last-good                   # volver al último SHA que sirvió
 sudo ./rollback.sh <sha>                       # volver a un commit puntual
 ```

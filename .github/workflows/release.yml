@@ -13,7 +13,9 @@ name: release
 
 on:
   push:
-    branches: [fase-5-frontend-y-avisos]
+    # `main` es la rama a desplegar. `fase-5-frontend-y-avisos` queda mientras
+    # la VM siga con esa rama en su checkout: se saca cuando la VM pase a `main`.
+    branches: [main, fase-5-frontend-y-avisos]
     # SIN filtro de rutas, a proposito. deploy.sh exige un release para el SHA
     # EXACTO de HEAD; con un filtro, cualquier commit que solo toque infra/ o
     # deploy.sh deja a la rama sin artefacto y el despliegue aborta. Filtrar

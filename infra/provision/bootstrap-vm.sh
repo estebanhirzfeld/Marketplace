@@ -223,9 +223,9 @@ step "listo"
 cat <<'NEXT'
 bootstrap OK. Siguiente (operador):
   1. git clone <repo> /srv/marketplace  &&  cd /srv/marketplace
-     git checkout fase-5-frontend-y-avisos
+     git checkout main
   2. Crear /etc/marketplace/{api,web,db}.env  (0600) y packages/db/.env  (ver infra/README.md)
   3. docker compose -f docker-compose.prod.yml up -d
   4. Instalar las units de systemd y el Caddyfile (ver infra/README.md)
-  5. ./deploy.sh fase-5-frontend-y-avisos
+  5. ./deploy.sh main
 NEXT

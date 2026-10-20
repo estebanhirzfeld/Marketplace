@@ -33,7 +33,7 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER
 
 ORIGIN="${WORK}/origin.git"
 CLONE="${WORK}/clone"
-REF="fase-5-frontend-y-avisos"
+REF="main"
 
 git init -q --bare "$ORIGIN"
 
