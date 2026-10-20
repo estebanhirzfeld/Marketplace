@@ -54,6 +54,8 @@ import {
 } from '@marketplace/domain/src/use-cases/listing/VerifyOwnershipUseCases';
 import { HmacOwnershipChallengeIssuer } from './adapters/HmacOwnershipChallengeIssuer';
 import { NodeDnsResolver } from './adapters/NodeDnsResolver';
+import { HostingerDomainRegistrar } from './adapters/HostingerDomainRegistrar';
+import { IDomainRegistrar } from '@marketplace/domain/src/ports/IDomainRegistrar';
 import { ApproveListingUseCase } from '@marketplace/domain/src/use-cases/listing/ApproveListingUseCase';
 import { RejectListingUseCase } from '@marketplace/domain/src/use-cases/listing/RejectListingUseCase';
 import { GetListingDetailsUseCase } from '@marketplace/domain/src/use-cases/listing/GetListingDetailsUseCase';
@@ -198,6 +200,12 @@ export interface Container {
      */
     getDomainOwnershipChallenge?: GetDomainOwnershipChallengeUseCase;
     verifyDomainOwnership?: VerifyDomainOwnershipUseCase;
+    /**
+     * Cuenta de Hostinger de la plataforma, donde los dominios entran en
+     * custodia. Ausente mientras falte `HOSTINGER_API_TOKEN` o
+     * `HOSTINGER_WHOIS_PROFILE_ID`.
+     */
+    domainRegistrar?: IDomainRegistrar;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
     rejectPlatformAccessRequest: RejectPlatformAccessRequestUseCase;
@@ -366,6 +374,14 @@ export function createContainer(
               resolver: new NodeDnsResolver(),
           }
         : undefined;
+    const hostingerToken = process.env.HOSTINGER_API_TOKEN?.trim();
+    const hostingerWhoisProfile = process.env.HOSTINGER_WHOIS_PROFILE_ID?.trim();
+    const domainRegistrar =
+        hostingerToken && hostingerWhoisProfile
+            ? new HostingerDomainRegistrar({
+                  token: hostingerToken,
+                  whoisProfileId: Number(hostingerWhoisProfile),              })
+            : undefined;
     const reportRepo = new PrismaReportRepository();
     // La conexión de canales necesita el OAuth completo Y la clave que cifra
     // el token de actualización (la misma de Mercado Pago). El adaptador de
@@ -480,6 +496,7 @@ export function createContainer(
         verifyDomainOwnership: dnsOwnership
             ? new VerifyDomainOwnershipUseCase(listingRepo, dnsOwnership.issuer, dnsOwnership.resolver)
             : undefined,
+        domainRegistrar,
         registerPlatformAccess,
         listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo, userRepo),
         // Con las mismas credenciales de Google que la verificación de titularidad.

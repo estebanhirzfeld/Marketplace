@@ -92,3 +92,16 @@ export class ChannelAlreadyListedError extends InvalidStateError {
         super(message);
     }
 }
+
+/**
+ * El registrador de dominios rechazó el pedido: lo entendió, pero los datos no
+ * son válidos o el dominio está en un estado que no lo admite. Reintentar igual
+ * no sirve. El mensaje nunca incluye la respuesta original.
+ */
+export class DomainRegistrarRejectedError extends InvalidStateError {}
+
+/**
+ * El registrador exige un paso manual adicional (protección premium) antes de
+ * operar este dominio. No es transitorio ni se resuelve reintentando.
+ */
+export class DomainPremiumProtectionError extends InvalidStateError {}
