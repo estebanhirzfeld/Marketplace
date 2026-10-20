@@ -17,6 +17,7 @@ import { Listing, HandoverStep } from '../../entities/Listing';
 import { TransferContext } from '../../strategies/IAssetStrategy';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
+import { isWebListing } from '../../services/WebCustody';
 import { NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 
@@ -222,8 +223,10 @@ export class GetOperationDetailsUseCase {
             const firmada = !['offer_sent', 'negotiating', 'contract_pending', 'cancelled'].includes(
                 operation.status,
             );
+            // Un sitio no necesita `platformAccess` para recibir los pasos: su
+            // custodia ocurre en la operación, no al publicar.
             handoverSteps =
-                firmada && listing.isReadyToTransfer()
+                firmada && (listing.isReadyToTransfer() || isWebListing(listing))
                     ? listing.handoverSteps(contexto, 'operation')
                     : [];
         }
