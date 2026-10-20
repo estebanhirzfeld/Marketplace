@@ -3,6 +3,8 @@ import { Actor, assertIsAdmin } from '../../ports/Actor';
 import { NotFoundError } from '../../errors/DomainError';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
+import { isWebListing } from '../../services/WebCustody';
+import type { CheckDomainDeliveryUseCase } from './DomainDeliveryUseCases';
 
 /**
  * Lo que la plataforma atestigua al entregar. `deliveredToIdentifier` no está:
@@ -29,6 +31,12 @@ export class CompleteOperationUseCase {
         private readonly operationRepo: IOperationRepository,
         private readonly listingRepo: IListingRepository,
         private readonly avisos?: NegotiationNotifier,
+        /**
+         * Si está cableada, la propiedad principal del comprador en un sitio la
+         * dice el registrador (el dominio llegó a su cuenta) y no el admin: es
+         * la única señal que se puede comprobar. Igual que la custodia.
+         */
+        private readonly deliveryCheck?: Pick<CheckDomainDeliveryUseCase, 'execute'>,
     ) {}
 
     async execute(operationId: string, input: CompleteOperationInput, actor: Actor): Promise<void> {
@@ -39,19 +47,25 @@ export class CompleteOperationUseCase {
             throw new NotFoundError('Operación no encontrada');
         }
 
+        const listing = await this.listingRepo.findById(operation.listingId.toString());
+
+        // Un error del registrador sube sin cerrar nada.
+        const buyerIsPrimaryOwner =
+            this.deliveryCheck && listing && isWebListing(listing)
+                ? (await this.deliveryCheck.execute(operationId)) === 'done'
+                : input.buyerIsPrimaryOwner;
+
         // La entidad valida el estado, la identidad receptora declarada y la
         // constancia (propiedad principal, accesos cedidos).
         operation.complete({
             verifiedBy: new UniqueEntityID(actor.id),
-            buyerIsPrimaryOwner: input.buyerIsPrimaryOwner,
+            buyerIsPrimaryOwner,
             accessTransferred: input.accessTransferred,
             sellerRemoved: input.sellerRemoved,
             notes: input.notes,
         });
         await this.operationRepo.save(operation);
 
-        const { props } = operation.toSnapshot();
-        const listing = await this.listingRepo.findById(props.listingId.toString());
         if (listing && listing.status === 'in_operation') {
             listing.markSold();
             await this.listingRepo.save(listing);

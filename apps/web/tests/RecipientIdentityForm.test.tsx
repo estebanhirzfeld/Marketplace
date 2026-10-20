@@ -66,20 +66,21 @@ describe('RecipientIdentityForm — canal de YouTube', () => {
 });
 
 describe('RecipientIdentityForm — dominio', () => {
-    it('pide el usuario del registrador y lo explica', () => {
+    it('pide el mail de la cuenta de Hostinger y avisa que la cuenta tiene que existir', () => {
         const t = texto(formulario({ assetType: 'web' }));
 
-        expect(t).toMatch(/usuario/i);
-        expect(t).toMatch(/registrador/i);
-        expect(t).toMatch(/empresa donde registrás/i);
-        expect(t).not.toMatch(/Google/i);
+        expect(t).toContain('El mail de tu cuenta de Hostinger');
+        expect(t).toContain(
+            'Indicá el mail de tu cuenta de Hostinger: cuando cerremos la operación, te trasladamos el dominio a esa cuenta. Si todavía no tenés una, creala antes con ese mail. Podés cambiarlo mientras la operación no se haya cerrado.',
+        );
+        expect(t).not.toMatch(/Google|registrador/i);
     });
 
-    it('el ejemplo del campo no es un correo de Gmail', () => {
+    it('el ejemplo del campo es un mail, pero no de Gmail', () => {
         const html = formulario({ assetType: 'web' });
 
         expect(html).not.toContain('gmail.com');
-        expect(html).toContain('placeholder="tu-usuario"');
+        expect(html).toContain('placeholder="tunombre@correo.com"');
     });
 
     it('nunca habla de días de espera: para un dominio no existen', () => {
@@ -91,7 +92,7 @@ describe('RecipientIdentityForm — dominio', () => {
         const t = texto(formulario({ assetType: 'web', urgente: true }));
 
         expect(t).toMatch(/PENDIENTE/);
-        expect(t).toMatch(/dominio ya está en custodia/i);
+        expect(t).toContain('El dominio ya está en custodia. Sin el mail de tu cuenta de Hostinger no podemos hacerte la entrega.');
         expect(t).not.toMatch(/invitaci/i);
     });
 });
@@ -109,9 +110,10 @@ describe('RecipientIdentityForm — tipo desconocido', () => {
 
 describe('RecipientIdentityForm — corrección', () => {
     it('precarga la cuenta declarada y ofrece guardar el cambio', () => {
-        const html = formulario({ assetType: 'web', valorActual: 'mi-usuario' });
+        const html = formulario({ assetType: 'web', valorActual: 'yo@correo.com' });
 
-        expect(html).toContain('value="mi-usuario"');
+        expect(html).toContain('value="yo@correo.com"');
+        expect(texto(html)).toContain('Corregir el mail donde recibís el dominio');
         expect(texto(html)).toMatch(/Corregir/);
         expect(texto(html)).toContain('Guardar el cambio');
         expect(texto(html)).not.toMatch(/PENDIENTE/);
@@ -147,11 +149,11 @@ describe('RecipientIdentitySaved — ya declarada', () => {
             renderToStaticMarkup(<RecipientIdentitySaved identifier="yo@correo.com" assetType="youtube" />),
         );
         const dominio = texto(
-            renderToStaticMarkup(<RecipientIdentitySaved identifier="mi-usuario" assetType="web" />),
+            renderToStaticMarkup(<RecipientIdentitySaved identifier="yo@correo.com" assetType="web" />),
         );
 
         expect(youtube).toContain('Vas a recibir el canal en yo@correo.com');
-        expect(dominio).toContain('Vas a recibir el dominio en mi-usuario');
+        expect(dominio).toContain('Vas a recibir el dominio en yo@correo.com');
     });
 
     it('sin tipo conocido habla del activo', () => {

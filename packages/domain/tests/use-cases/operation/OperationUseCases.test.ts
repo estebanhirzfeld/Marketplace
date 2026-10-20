@@ -9,6 +9,8 @@ import { Listing } from '../../../src/entities/Listing';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
+import { TransferStepProgressStatus } from '../../../src/entities/TransferStepProgress';
 import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
 import { Actor } from '../../../src/ports/Actor';
 import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
@@ -403,6 +405,76 @@ describe('CompleteOperationUseCase', () => {
 
         await expect(new CompleteOperationUseCase(repo, listingRepo).execute(op.id.toString(), ENTREGA_OK, ADMIN))
             .rejects.toThrow('El pago debe estar confirmado');
+    });
+
+    describe('un sitio: la propiedad del comprador la dice el registrador', () => {
+        function unSitioEnOperacion() {
+            const listing = Listing.create({
+                sellerId: new UniqueEntityID(),
+                assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(50000, 'USD'), domain: 'ejemplo.com' }),
+                askingPrice: Money.fromCents(1000000, 'USD'),
+            });
+            listing.submitForReview();
+            listing.approve();
+            listing.markInOperation();
+            return listing;
+        }
+
+        function armar(listing: Listing, entrega: TransferStepProgressStatus) {
+            const op = createOperationInState('payment_received');
+            op.declareRecipientIdentity('comprador@correo.com', BUYER_ID.toString());
+            const operationRepo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+            const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) });
+            const deliveryCheck = { execute: vi.fn(async () => entrega) };
+            const useCase = new CompleteOperationUseCase(operationRepo, listingRepo, undefined, deliveryCheck);
+            return { op, useCase, deliveryCheck };
+        }
+
+        it('con el dominio entregado cierra aunque el admin no lo afirme', async () => {
+            const { op, useCase, deliveryCheck } = armar(unSitioEnOperacion(), 'done');
+
+            await useCase.execute(op.id.toString(), { ...ENTREGA_OK, buyerIsPrimaryOwner: false }, ADMIN);
+
+            expect(deliveryCheck.execute).toHaveBeenCalledWith(op.id.toString());
+            expect(op.status).toBe('completed');
+            expect(op.deliveryCheck?.buyerIsPrimaryOwner).toBe(true);
+        });
+
+        it('con la entrega en curso no cierra aunque el admin diga que el comprador ya es dueño', async () => {
+            const { op, useCase } = armar(unSitioEnOperacion(), 'waiting');
+
+            await expect(useCase.execute(op.id.toString(), ENTREGA_OK, ADMIN)).rejects.toThrow(
+                'El comprador todavía no es propietario principal del activo',
+            );
+            expect(op.status).toBe('payment_received');
+        });
+
+        it('un canal sigue usando lo que declara el admin, sin consultar la entrega del dominio', async () => {
+            const op = createOperationInState('payment_received');
+            op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
+            const canal = Listing.create({
+                sellerId: new UniqueEntityID(),
+                assetStrategy: new YouTubeStrategy({
+                    monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                    subscribers: 10000,
+                    growthFactor: 1.2,
+                    isMonetized: true,
+                }),
+                askingPrice: Money.fromCents(1000000, 'USD'),
+            });
+            const deliveryCheck = { execute: vi.fn(async (): Promise<TransferStepProgressStatus> => 'pending') };
+            const useCase = new CompleteOperationUseCase(
+                createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) }),
+                createMockListingRepo({ findById: vi.fn().mockResolvedValue(canal) }),
+                undefined,
+                deliveryCheck,
+            );
+
+            await useCase.execute(op.id.toString(), ENTREGA_OK, ADMIN);
+
+            expect(deliveryCheck.execute).not.toHaveBeenCalled();
+            expect(op.status).toBe('completed');
+        });
     });
 });
 

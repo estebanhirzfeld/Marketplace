@@ -11,6 +11,7 @@ import {
 } from './IAssetStrategy';
 import { ValidationError } from '../errors/DomainError';
 import { Money } from '../value-objects/Money';
+import { Email } from '../value-objects/Email';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 export interface WebStrategyProps {
@@ -221,29 +222,32 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     /**
-     * Un dominio se recibe en una cuenta de registrador, y cada registrador
-     * nombra a sus usuarios como quiere: algunos usan la dirección de correo,
-     * otros un alias propio. No hay forma canónica que comprobar sin decidir
-     * por el comprador cuál es su proveedor, así que acá solo se exige que el
-     * dato exista y quepa. Las mayúsculas se respetan: en varios registradores
-     * el usuario las distingue.
+     * Un dominio se entrega siempre en una cuenta de Hostinger, y Hostinger
+     * traslada un dominio a otra cuenta por el mail de esa cuenta. Antes se
+     * aceptaba cualquier usuario de registrador porque se contemplaban varios;
+     * con Hostinger como único registrador, un dato que no es un mail es uno
+     * con el que no se puede entregar.
+     *
+     * Solo se puede comprobar el formato: la API de Hostinger no permite
+     * preguntar si un mail tiene cuenta. Eso se sabe recién al iniciar el
+     * traslado, que Hostinger rechaza si la cuenta no existe.
      */
     public normalizeRecipientIdentifier(identifier: string): string {
         const limpio = (identifier ?? '').trim();
 
-        if (limpio === '') {
-            throw new ValidationError(
-                'Indicá el usuario del registrador donde querés recibir el dominio.',
-            );
-        }
-
         if (limpio.length > MAX_RECIPIENT_IDENTIFIER_LENGTH) {
             throw new ValidationError(
-                `El usuario del registrador no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
+                `El mail de tu cuenta de Hostinger no puede superar los ${MAX_RECIPIENT_IDENTIFIER_LENGTH} caracteres.`,
             );
         }
 
-        return limpio;
+        try {
+            return Email.create(limpio).getValue();
+        } catch {
+            throw new ValidationError(
+                'Indicá el mail de tu cuenta de Hostinger: es a donde te trasladamos el dominio.',
+            );
+        }
     }
 
     public toJSON(): { assetType: AssetType; assetData: Record<string, any> } {

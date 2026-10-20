@@ -13,8 +13,8 @@ type State = { error?: string; ok?: boolean; message?: string };
  * su explicación, el nombre del campo y su ejemplo.
  *
  * No se repite la regla de validación: para un canal el dominio acepta
- * cualquier correo con formato válido y para un dominio cualquier usuario del
- * registrador. Lo que el dominio rechaza vuelve con su propio mensaje, que se
+ * cualquier correo con formato válido y para un dominio el mail de una cuenta
+ * de Hostinger. Lo que el dominio rechaza vuelve con su propio mensaje, que se
  * muestra tal cual.
  */
 export interface RecipientCopy {
@@ -46,13 +46,13 @@ const COPY_BY_TYPE: Record<string, RecipientCopy> = {
     web: {
         asset: 'dominio',
         title: 'Declarar dónde recibir el dominio',
-        correctionTitle: 'Corregir el usuario donde recibís el dominio',
+        correctionTitle: 'Corregir el mail donde recibís el dominio',
         explanation:
-            'Indicá tu usuario en el registrador: la empresa donde registrás y administrás tus dominios. Cuando cerremos la operación, el dominio pasa a ese usuario. Podés cambiarlo mientras la operación no se haya cerrado.',
-        label: 'Tu usuario en el registrador',
-        placeholder: 'tu-usuario',
+            'Indicá el mail de tu cuenta de Hostinger: cuando cerremos la operación, te trasladamos el dominio a esa cuenta. Si todavía no tenés una, creala antes con ese mail. Podés cambiarlo mientras la operación no se haya cerrado.',
+        label: 'El mail de tu cuenta de Hostinger',
+        placeholder: 'tunombre@correo.com',
         urgentNotice:
-            'El dominio ya está en custodia. Sin tu usuario del registrador no podemos hacerte la entrega.',
+            'El dominio ya está en custodia. Sin el mail de tu cuenta de Hostinger no podemos hacerte la entrega.',
     },
 };
 

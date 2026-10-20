@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     RunTransferStepChecksUseCase,
     DomainCustodyCheck,
+    DomainDeliveryCheck,
     TransferStepNotifier,
 } from '../../../src/use-cases/operation/RunTransferStepChecksUseCase';
 import {
@@ -72,6 +73,16 @@ function anOperationInTransfer(listing: Listing): Operation {
     return op;
 }
 
+function pagar(op: Operation): void {
+    op.confirmAssetCustody({ verifiedBy: new UniqueEntityID(), isPrimaryOwner: true, accessSecured: true, metrics: {} });
+    op.confirmBuyerPayment({
+        provider: 'transferencia',
+        method: 'transferencia_bancaria',
+        amountCents: op.buyerPays!.getCents(),
+        currency: op.buyerPays!.getCurrency(),
+    });
+}
+
 /** Como el repositorio real: `findOpen` trae pendientes, en espera y vencidos sin escalar. */
 class InMemoryProgressRepo implements ITransferStepProgressRepository {
     readonly rows = new Map<string, TransferStepProgress>();
@@ -131,6 +142,7 @@ function setup(entries: { listing: Listing }[], options: { withCheck?: boolean }
     };
     const progressRepo = new InMemoryProgressRepo();
     const check: DomainCustodyCheck = { execute: vi.fn(async () => 'pending' as const) };
+    const deliveryCheck: DomainDeliveryCheck = { execute: vi.fn(async () => 'waiting' as const) };
     const notifier: TransferStepNotifier = {
         transferStepReminder: vi.fn(async () => {}),
         transferStepExpired: vi.fn(async () => {}),
@@ -142,10 +154,11 @@ function setup(entries: { listing: Listing }[], options: { withCheck?: boolean }
         progressRepo,
         notifier,
         options.withCheck === false ? undefined : check,
+        options.withCheck === false ? undefined : deliveryCheck,
         () => clock.now,
     );
 
-    return { useCase, operations, progressRepo, check, notifier, clock };
+    return { useCase, operations, progressRepo, check, deliveryCheck, notifier, clock };
 }
 
 describe('RunTransferStepChecksUseCase', () => {
@@ -184,6 +197,34 @@ describe('RunTransferStepChecksUseCase', () => {
 
             expect(check.execute).toHaveBeenCalledTimes(2);
             expect(summary.checked).toBe(1);
+            expect(summary.failures).toEqual([
+                { operationId: operations[0].id.toString(), error: 'Hostinger no responde' },
+            ]);
+        });
+
+        it('con el pago confirmado comprueba la entrega del dominio y no la custodia', async () => {
+            const { useCase, operations, check, deliveryCheck } = setup([{ listing: aWebListing() }]);
+            pagar(operations[0]);
+
+            const summary = await useCase.execute();
+
+            expect(deliveryCheck.execute).toHaveBeenCalledWith(operations[0].id.toString());
+            expect(check.execute).not.toHaveBeenCalled();
+            expect(summary.checked).toBe(1);
+        });
+
+        it('un error en la entrega de un dominio no corta el recorrido', async () => {
+            const { useCase, operations, deliveryCheck } = setup([
+                { listing: aWebListing('uno.com') },
+                { listing: aWebListing('dos.com') },
+            ]);
+            pagar(operations[0]);
+            pagar(operations[1]);
+            vi.mocked(deliveryCheck.execute).mockRejectedValueOnce(new Error('Hostinger no responde'));
+
+            const summary = await useCase.execute();
+
+            expect(deliveryCheck.execute).toHaveBeenCalledTimes(2);
             expect(summary.failures).toEqual([
                 { operationId: operations[0].id.toString(), error: 'Hostinger no responde' },
             ]);
@@ -271,6 +312,23 @@ describe('RunTransferStepChecksUseCase', () => {
             await useCase.execute();
 
             expect(notifier.transferStepReminder).toHaveBeenCalledTimes(1);
+        });
+
+        it('los plazos de la entrega al comprador no usan los avisos del traslado a la plataforma', async () => {
+            const { useCase, operations, progressRepo, notifier } = setup([{ listing: aWebListing() }]);
+            const entrega = TransferStepProgress.start({
+                scope: 'operation',
+                scopeId: operations[0].id.toString(),
+                stepKey: 'domain-to-buyer',
+                startedAt: new Date(NOW.getTime() - 9 * DAY_MS),
+                deadlineAt: new Date(NOW.getTime() + DAY_MS),
+            });
+            await progressRepo.save(entrega);
+
+            await useCase.execute();
+
+            expect(notifier.transferStepReminder).not.toHaveBeenCalled();
+            expect(entrega.remindedAt).toBeUndefined();
         });
 
         it('un paso cuya operación ya no existe se saltea sin cortar el recorrido', async () => {

@@ -319,15 +319,28 @@ describe('DeclareRecipientIdentityUseCase', () => {
         expect(op.recipientIdentity?.identifier).toBe('comprador@gmail.com');
     });
 
-    it('un sitio web acepta un usuario de registrador, que no es una dirección de correo', async () => {
+    it('un sitio web se recibe en el mail de la cuenta de Hostinger, normalizado', async () => {
         const op = operacionEn('contract_pending');
 
         await new DeclareRecipientIdentityUseCase(mockOpRepo(op), mockListingRepo(listingWeb())).execute(
             op.id.toString(),
-            { identifier: 'mi-usuario-namecheap' },
+            { identifier: ' Comprador@Hostinger-Mail.com ' },
             { id: BUYER.toString(), role: UserRole.BUYER },
         );
 
-        expect(op.recipientIdentity?.identifier).toBe('mi-usuario-namecheap');
+        expect(op.recipientIdentity?.identifier).toBe('comprador@hostinger-mail.com');
+    });
+
+    it('un sitio web ya no acepta un usuario de registrador que no es un mail', async () => {
+        const op = operacionEn('contract_pending');
+
+        await expect(
+            new DeclareRecipientIdentityUseCase(mockOpRepo(op), mockListingRepo(listingWeb())).execute(
+                op.id.toString(),
+                { identifier: 'mi-usuario-namecheap' },
+                { id: BUYER.toString(), role: UserRole.BUYER },
+            ),
+        ).rejects.toThrow('Indicá el mail de tu cuenta de Hostinger: es a donde te trasladamos el dominio.');
+        expect(op.recipientIdentity).toBeUndefined();
     });
 });

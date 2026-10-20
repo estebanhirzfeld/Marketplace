@@ -63,19 +63,21 @@ describe('YouTubeStrategy.normalizeRecipientIdentifier', () => {
     });
 });
 
+/*
+ * Un dominio se entrega siempre en una cuenta de Hostinger, y Hostinger
+ * traslada un dominio a otra cuenta por su mail. Antes, cuando se contemplaban
+ * varios registradores, se aceptaba cualquier usuario; con Hostinger como único
+ * registrador eso dejaba pasar datos con los que no se puede entregar.
+ */
 describe('WebStrategy.normalizeRecipientIdentifier', () => {
-    it('acepta un usuario de registrador, que no es una dirección de correo', () => {
-        expect(web().normalizeRecipientIdentifier('  mi-usuario-namecheap  ')).toBe(
-            'mi-usuario-namecheap',
+    it('acepta el mail de la cuenta de Hostinger y lo devuelve normalizado', () => {
+        expect(web().normalizeRecipientIdentifier('  Yo@MiDominio.com  ')).toBe('yo@midominio.com');
+    });
+
+    it('rechaza un usuario que no es un mail, con un mensaje que nombra a Hostinger', () => {
+        expect(() => web().normalizeRecipientIdentifier('mi-usuario-namecheap')).toThrow(
+            'Indicá el mail de tu cuenta de Hostinger: es a donde te trasladamos el dominio.',
         );
-    });
-
-    it('acepta también una dirección de correo, porque algunos registradores la usan', () => {
-        expect(web().normalizeRecipientIdentifier('yo@midominio.com')).toBe('yo@midominio.com');
-    });
-
-    it('no fuerza minúsculas: un usuario de registrador puede distinguirlas', () => {
-        expect(web().normalizeRecipientIdentifier('MiUsuario')).toBe('MiUsuario');
     });
 
     it('rechaza una cadena vacía', () => {

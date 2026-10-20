@@ -92,6 +92,10 @@ import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operati
 import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
 import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import { AttestTransferStepUseCase } from '@marketplace/domain/src/use-cases/operation/AttestTransferStepUseCase';
+import {
+    CheckDomainDeliveryUseCase,
+    StartDomainDeliveryUseCase,
+} from '@marketplace/domain/src/use-cases/operation/DomainDeliveryUseCases';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
 import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
@@ -240,6 +244,9 @@ export interface Container {
      */
     runTransferStepChecks: RunTransferStepChecksUseCase;
     attestTransferStep: AttestTransferStepUseCase;
+    /** Ausentes sin registrador: ver `domainRegistrar`. */
+    startDomainDelivery?: StartDomainDeliveryUseCase;
+    checkDomainDelivery?: CheckDomainDeliveryUseCase;
     /**
      * Ausentes mientras no haya credenciales de MercadoPago. La API arranca
      * igual y las rutas lo informan: los pagos por transferencia siguen
@@ -264,6 +271,8 @@ export interface Container {
 
 export function createContainer(
     hasher: IPasswordHasher = new BcryptPasswordHasher(),
+    /** Solo para tests: un registrador fake en lugar del que arma el entorno. */
+    domainRegistrarOverride?: IDomainRegistrar,
 ): Container {
     const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
 
@@ -389,11 +398,12 @@ export function createContainer(
     const hostingerToken = process.env.HOSTINGER_API_TOKEN?.trim();
     const hostingerWhoisProfile = process.env.HOSTINGER_WHOIS_PROFILE_ID?.trim();
     const domainRegistrar =
-        hostingerToken && hostingerWhoisProfile
+        domainRegistrarOverride ??
+        (hostingerToken && hostingerWhoisProfile
             ? new HostingerDomainRegistrar({
                   token: hostingerToken,
                   whoisProfileId: Number(hostingerWhoisProfile),              })
-            : undefined;
+            : undefined);
     const reportRepo = new PrismaReportRepository();
     // La conexión de canales necesita el OAuth completo Y la clave que cifra
     // el token de actualización (la misma de Mercado Pago). El adaptador de
@@ -435,6 +445,11 @@ export function createContainer(
               undefined,
               avisosDePlataforma,
           )
+        : undefined;
+    // La entrega al comprador: la inicia el admin, la comprueban la ruta, el
+    // job y el cierre de la operación.
+    const checkDomainDelivery = domainRegistrar
+        ? new CheckDomainDeliveryUseCase(operationRepo, listingRepo, transferStepProgressRepo, domainRegistrar)
         : undefined;
 
     return {
@@ -578,8 +593,13 @@ export function createContainer(
             transferStepProgressRepo,
             avisosDePlataforma,
             checkDomainCustody,
+            checkDomainDelivery,
         ),
         attestTransferStep: new AttestTransferStepUseCase(operationRepo, listingRepo, transferStepProgressRepo),
+        startDomainDelivery: domainRegistrar
+            ? new StartDomainDeliveryUseCase(operationRepo, listingRepo, transferStepProgressRepo, domainRegistrar)
+            : undefined,
+        checkDomainDelivery,
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(
                   operationRepo,
@@ -612,7 +632,7 @@ export function createContainer(
             userRepo,
         ),
         confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
-        completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos),
+        completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos, checkDomainDelivery),
         declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo, listingRepo),
         crearCuentaCustodia: new CreateCustodyAccountUseCase(custodyRepo),
         editarCuentaCustodia: new UpdateCustodyAccountUseCase(custodyRepo, listingRepo),

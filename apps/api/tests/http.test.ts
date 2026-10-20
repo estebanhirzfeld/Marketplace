@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { Container, createContainer } from '../src/container';
@@ -60,7 +60,7 @@ import {
     PrismaTransferStepProgressRepository,
 } from '@marketplace/db';
 import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
-import { IDomainRegistrar } from '@marketplace/domain/src/ports/IDomainRegistrar';
+import { IDomainRegistrar, RegistrarMove } from '@marketplace/domain/src/ports/IDomainRegistrar';
 import { DomainName } from '@marketplace/domain/src/value-objects/DomainName';
 
 /**
@@ -1410,6 +1410,14 @@ describe('POST /admin/operations/:id/steps/:key/attest', () => {
         expect(await new PrismaTransferStepProgressRepository().find('operation', id, 'hosting')).toBeNull();
     });
 
+    it('403 antes que 400: a quien no es admin no se le validan las notas', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(id, 'hosting', 'seller-att@test.com', { notes: 'x'.repeat(2001) });
+
+        expect(res.statusCode).toBe(403);
+    });
+
     it('403 si quien atestigua no es admin', async () => {
         const id = await unaOperacionWebEnTransferencia();
 
@@ -1433,6 +1441,134 @@ describe('POST /admin/operations/:id/steps/:key/attest', () => {
         const res = await atestiguar(new UniqueEntityID().toString(), 'hosting', 'admin-att@test.com');
 
         expect(res.statusCode).toBe(404);
+    });
+});
+
+/**
+ * La entrega del dominio de un sitio al comprador: la inicia un admin y la
+ * comprueba el registrador (acá, un fake; nunca Hostinger real).
+ */
+describe('POST /admin/operations/:id/deliver-domain y check-domain-delivery', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    async function unaOperacionWebPagada(): Promise<string> {
+        const buyer = await crearUsuario('buyer-ent@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-ent@test.com', UserRole.SELLER);
+        await crearUsuario('admin-ent@test.com', UserRole.ADMIN);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'entregado.com' }),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        await listingRepo.save(listing);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(6_000_000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.declareRecipientIdentity('comprador@correo.com', buyer.id.toString());
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: new UniqueEntityID(), isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        operation.confirmBuyerPayment({
+            provider: 'transferencia',
+            method: 'transferencia_bancaria',
+            amountCents: operation.buyerPays!.getCents(),
+            currency: operation.buyerPays!.getCurrency(),
+        });
+        await new PrismaOperationRepository().save(operation);
+
+        return operation.id.toString();
+    }
+
+    function registrarConElDominio(): IDomainRegistrar {
+        const ahora = new Date();
+        let saliente: RegistrarMove | null = null;
+        return {
+            getPortfolioEntry: vi.fn(async () => ({
+                domain: DomainName.parse('entregado.com'),
+                status: 'active' as const,
+                isLocked: false,
+                sixtyDayLockExpiresAt: null,
+                registeredAt: null,
+                expiresAt: null,
+            })),
+            getIncomingMove: vi.fn(async () => null),
+            acceptIncomingMove: vi.fn(),
+            getOutgoingMove: vi.fn(async () => saliente),
+            startOutgoingMove: vi.fn(async () => {
+                saliente = { domain: DomainName.parse('entregado.com'), status: 'initiated', createdAt: ahora, updatedAt: ahora };
+            }),
+            cancelOutgoingMove: vi.fn(),
+            getAuthCode: vi.fn(),
+        };
+    }
+
+    async function servidorCon(registrar?: IDomainRegistrar) {
+        vi.stubEnv('HOSTINGER_API_TOKEN', '');
+        const base = createContainer(fakeHasher, registrar);
+        return buildApp({ container: base, jwtSecret: 'secreto-de-test' });
+    }
+
+    async function llamar(server: FastifyInstance, id: string, accion: string, email: string) {
+        return server.inject({
+            method: 'POST',
+            url: `/admin/operations/${id}/${accion}`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+        });
+    }
+
+    it('el admin inicia la entrega: el traslado sale al mail del comprador y el paso queda esperando', async () => {
+        const id = await unaOperacionWebPagada();
+        const registrar = registrarConElDominio();
+        const server = await servidorCon(registrar);
+
+        const res = await llamar(server, id, 'deliver-domain', 'admin-ent@test.com');
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: 'waiting' });
+        expect(vi.mocked(registrar.startOutgoingMove).mock.calls[0][1].getValue()).toBe('comprador@correo.com');
+        const fila = await new PrismaTransferStepProgressRepository().find('operation', id, 'domain-to-buyer');
+        expect(fila?.status).toBe('waiting');
+        expect(fila?.evidence).toEqual({ recipientEmail: 'comprador@correo.com' });
+    });
+
+    it('comprobar la entrega con el traslado en curso sigue esperando', async () => {
+        const id = await unaOperacionWebPagada();
+        const server = await servidorCon(registrarConElDominio());
+        await llamar(server, id, 'deliver-domain', 'admin-ent@test.com');
+
+        const res = await llamar(server, id, 'check-domain-delivery', 'admin-ent@test.com');
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: 'waiting' });
+    });
+
+    it('403 si quien entrega no es admin, y no se inicia nada', async () => {
+        const id = await unaOperacionWebPagada();
+        const registrar = registrarConElDominio();
+        const server = await servidorCon(registrar);
+
+        const res = await llamar(server, id, 'deliver-domain', 'buyer-ent@test.com');
+
+        expect(res.statusCode).toBe(403);
+        expect(registrar.startOutgoingMove).not.toHaveBeenCalled();
+    });
+
+    it.each(['deliver-domain', 'check-domain-delivery'])('503 en %s si el registrador no está configurado', async (accion) => {
+        const id = await unaOperacionWebPagada();
+        const server = await servidorCon(undefined);
+
+        const res = await llamar(server, id, accion, 'admin-ent@test.com');
+
+        expect(res.statusCode).toBe(503);
     });
 });
 

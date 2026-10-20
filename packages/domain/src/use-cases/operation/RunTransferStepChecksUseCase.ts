@@ -5,11 +5,15 @@ import {
 } from '../../ports/Repositories';
 import { TransferStepProgress } from '../../entities/TransferStepProgress';
 import { isWebListing } from '../../services/WebCustody';
-import { CheckDomainCustodyUseCase } from './CheckDomainCustodyUseCase';
+import { CheckDomainCustodyUseCase, DOMAIN_TO_PLATFORM_STEP_KEY } from './CheckDomainCustodyUseCase';
+import type { CheckDomainDeliveryUseCase } from './DomainDeliveryUseCases';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
 
 /** Lo único que el job necesita de la comprobación del dominio. */
 export type DomainCustodyCheck = Pick<CheckDomainCustodyUseCase, 'execute'>;
+
+/** Lo único que el job necesita de la comprobación de la entrega al comprador. */
+export type DomainDeliveryCheck = Pick<CheckDomainDeliveryUseCase, 'execute'>;
 
 /** Lo único que el job necesita de los avisos de la plataforma. */
 export type TransferStepNotifier = Pick<PlatformNotifier, 'transferStepReminder' | 'transferStepExpired'>;
@@ -34,11 +38,15 @@ export interface TransferStepChecksSummary {
  * Hostinger no tiene webhooks, así que alguien tiene que preguntar. Cada
  * corrida hace dos cosas:
  *
- * 1. Comprueba el dominio de cada operación de un sitio con la transferencia
- *    en curso (`CheckDomainCustodyUseCase`): ahí se acepta el traslado entrante
- *    y se cumple el paso cuando el dominio llega a la cartera.
- * 2. Vigila los plazos de los pasos abiertos: recuerda cuando falta poco y,
- *    vencido el plazo, marca el paso como vencido y lo escala a la plataforma.
+ * 1. Comprueba el dominio de cada operación de un sitio: con la transferencia
+ *    en curso, si llegó a la cartera de la plataforma
+ *    (`CheckDomainCustodyUseCase`, que también acepta el traslado entrante);
+ *    con el pago confirmado, si llegó a la cuenta del comprador
+ *    (`CheckDomainDeliveryUseCase`).
+ * 2. Vigila los plazos de los pasos abiertos del traslado a la plataforma:
+ *    recuerda cuando falta poco y, vencido el plazo, marca el paso como
+ *    vencido y lo escala a la plataforma. Los avisos de la entrega al
+ *    comprador son otros y todavía no salen de acá.
  *
  * Es idempotente: el recordatorio y la escalada se anotan en el paso y no se
  * repiten, y el paso se guarda ANTES de avisar, así que una corrida que se
@@ -56,6 +64,7 @@ export class RunTransferStepChecksUseCase {
         private readonly progressRepo: ITransferStepProgressRepository,
         private readonly notifier: TransferStepNotifier,
         private readonly custodyCheck?: DomainCustodyCheck,
+        private readonly deliveryCheck?: DomainDeliveryCheck,
         /** El reloj entra por acá para poder fijarlo en los tests. */
         private readonly now: () => Date = () => new Date(),
     ) {}
@@ -64,7 +73,10 @@ export class RunTransferStepChecksUseCase {
         const summary: TransferStepChecksSummary = { checked: 0, failures: [], reminded: 0, escalated: 0 };
 
         if (this.custodyCheck) {
-            await this.checkDomains(this.custodyCheck, summary);
+            await this.checkDomains('transfer_in_progress', this.custodyCheck, summary);
+        }
+        if (this.deliveryCheck) {
+            await this.checkDomains('payment_received', this.deliveryCheck, summary);
         }
 
         // Un solo instante para toda la pasada de plazos: que dos pasos con el
@@ -72,6 +84,8 @@ export class RunTransferStepChecksUseCase {
         const now = this.now();
         for (const step of await this.progressRepo.findOpen()) {
             if (step.scope !== 'operation') continue;
+            // Los textos de estos avisos son los del traslado a la plataforma.
+            if (step.stepKey !== DOMAIN_TO_PLATFORM_STEP_KEY) continue;
             try {
                 await this.watchDeadline(step, now, summary);
             } catch (error) {
@@ -82,8 +96,12 @@ export class RunTransferStepChecksUseCase {
         return summary;
     }
 
-    private async checkDomains(check: DomainCustodyCheck, summary: TransferStepChecksSummary): Promise<void> {
-        const operations = await this.operationRepo.findByStatuses(['transfer_in_progress']);
+    private async checkDomains(
+        status: 'transfer_in_progress' | 'payment_received',
+        check: DomainCustodyCheck | DomainDeliveryCheck,
+        summary: TransferStepChecksSummary,
+    ): Promise<void> {
+        const operations = await this.operationRepo.findByStatuses([status]);
 
         for (const operation of operations) {
             const operationId = operation.id.toString();
