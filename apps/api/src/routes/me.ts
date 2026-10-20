@@ -90,8 +90,10 @@ function aMyListingDto(
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, description, instruction, title, details, links, phase, afterPlatformStarts }) => ({
+        handoverSteps: pasos.map(({ id, key, check, description, instruction, title, details, links, phase, afterPlatformStarts }) => ({
             id,
+            key,
+            check,
             description,
             instruction,
             title,

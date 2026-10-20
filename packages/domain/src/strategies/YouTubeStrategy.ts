@@ -298,7 +298,8 @@ export class YouTubeStrategy implements IAssetStrategy {
           { label: 'Transferir el canal', href: YOUTUBE_LINKS.advancedSettings },
         ],
         requiredActor: 'seller',
-        automated: false,
+        key: 'brand-account',
+        check: 'declared',
       },
       {
         /*
@@ -325,7 +326,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         ],
         links: [{ label: 'Administrar permisos', href: YOUTUBE_LINKS.brandAccounts }],
         requiredActor: 'seller',
-        automated: false,
+        key: 'invite-platform',
+        check: 'declared',
       },
       {
         // Aceptar la invitación es lo que convierte a la plataforma en
@@ -334,7 +336,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // verificado.
         description: 'La plataforma acepta la invitación como administradora desde la cuenta de custodia',
         requiredActor: 'platform',
-        automated: false,
+        key: 'platform-accepts',
+        check: 'admin',
       },
       {
         // Verificar la titularidad por API es posible con un OAuth del
@@ -342,7 +345,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // implementado: hasta que lo esté, esto lo hace una persona.
         description: 'La plataforma verifica la titularidad, los accesos de recuperación y toma una foto de las métricas',
         requiredActor: 'platform',
-        automated: false,
+        key: 'verify-ownership',
+        check: 'admin',
       },
       {
         // Informativo: a los 7 días se cumple el requisito de Google, pero no
@@ -350,7 +354,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // vendedor, y es el paso siguiente.
         description: 'Pasados 7 días como administradora, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
-        automated: false,
+        key: 'seven-day-wait',
+        check: 'automatic',
       },
       {
         // Mientras el vendedor conserve permisos de canal heredados en YouTube
@@ -368,7 +373,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         ],
         links: [{ label: 'Abrir YouTube Studio', href: YOUTUBE_LINKS.studio }],
         requiredActor: 'seller',
-        automated: false,
+        key: 'leave-channel-permissions',
+        check: 'declared',
       },
       {
         /*
@@ -390,36 +396,42 @@ export class YouTubeStrategy implements IAssetStrategy {
         ],
         links: [{ label: 'Promover a propietario principal', href: YOUTUBE_LINKS.brandAccounts }],
         requiredActor: 'seller',
-        automated: false,
+        key: 'promote-platform-owner',
+        check: 'declared',
       },
       {
         description: 'El comprador transfiere el dinero, que queda retenido por la plataforma',
         requiredActor: 'buyer',
-        automated: false,
+        key: 'buyer-pays',
+        check: 'automatic',
       },
       {
         description: comprador
           ? `La plataforma invita al comprador (${comprador}) como propietario del canal`
           : 'La plataforma invita al comprador como propietario del canal',
         requiredActor: 'platform',
-        automated: false,
+        key: 'invite-buyer',
+        check: 'admin',
       },
       {
         description: 'El comprador acepta la invitación e inicia su propia espera de 7 días',
         requiredActor: 'buyer',
-        automated: false,
+        key: 'buyer-accepts',
+        check: 'declared',
       },
       {
         description: 'El comprador se convierte en propietario principal y asegura sus accesos (correos, teléfonos, AdSense)',
         requiredActor: 'buyer',
-        automated: false,
+        key: 'buyer-secures-access',
+        check: 'declared',
       },
       {
         // Quitar a un propietario se hace a mano en la interfaz de Cuentas de
         // Marca: no hay endpoint.
         description: 'La plataforma quita al vendedor del canal, le liquida su parte y cierra la operación',
         requiredActor: 'platform',
-        automated: false,
+        key: 'remove-seller',
+        check: 'admin',
       },
     ];
 

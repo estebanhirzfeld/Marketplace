@@ -93,7 +93,7 @@ describe('YouTubeStrategy.getTransferSteps: avisos de la prueba real', () => {
         expect(iAceptacion).toBeGreaterThan(iInvitacion);
         expect(iAceptacion).toBeLessThan(iVerificacion);
         expect(pasos[iAceptacion].requiredActor).toBe('platform');
-        expect(pasos[iAceptacion].automated).toBe(false);
+        expect(pasos[iAceptacion].check).toBe('admin');
     });
 
     it('la invitación del vendedor pide no elegir el rol Propietario', () => {
@@ -166,10 +166,73 @@ describe('WebStrategy.getTransferSteps', () => {
         expect(pasos.some((p) => mencionaPermisosDeCanal(p.description))).toBe(false);
     });
 
-    it('nombra el identificador del comprador en el paso de la transferencia de dominio', () => {
+    it('nombra el identificador del comprador en el paso en que la plataforma le traslada el dominio', () => {
         const pasos = web().getTransferSteps({ recipientIdentifier: 'comprador@gmail.com' });
-        const delComprador = pasos.find((p) => p.requiredActor === 'buyer')!;
-        expect(delComprador.description).toContain('comprador@gmail.com');
+        const haciaElComprador = pasos.find((p) => p.key === 'domain-to-buyer')!;
+
+        expect(haciaElComprador.requiredActor).toBe('platform');
+        expect(haciaElComprador.check).toBe('automatic');
+        expect(haciaElComprador.description).toContain('comprador@gmail.com');
+    });
+
+    it('nombra la cuenta de custodia en el paso en que el vendedor traslada el dominio a la plataforma', () => {
+        const pasos = web().getTransferSteps({ custodyAccountIdentifier: 'custodia@marketplace.com' });
+        const haciaLaPlataforma = pasos.find((p) => p.key === 'domain-to-platform')!;
+
+        expect(haciaLaPlataforma.requiredActor).toBe('seller');
+        expect(haciaLaPlataforma.phase).toBe('operation');
+        expect(haciaLaPlataforma.check).toBe('automatic');
+        expect(haciaLaPlataforma.instruction).toContain('custodia@marketplace.com');
+    });
+
+    it('el comprador ya no inicia el traslado en su registrador: el dominio va de la plataforma al comprador', () => {
+        const pasos = web().getTransferSteps();
+        const iALaPlataforma = pasos.findIndex((p) => p.key === 'domain-to-platform');
+        const iAlComprador = pasos.findIndex((p) => p.key === 'domain-to-buyer');
+
+        expect(pasos.some((p) => p.requiredActor === 'buyer')).toBe(false);
+        expect(iALaPlataforma).toBeGreaterThanOrEqual(0);
+        expect(iAlComprador).toBeGreaterThan(iALaPlataforma);
+    });
+
+    it('antes de la venta se le pide al vendedor tener el dominio en Hostinger y se le avisa de los 60 días', () => {
+        const [previo, ...resto] = web().getTransferSteps().filter((p) => p.phase === 'listing');
+
+        expect(resto).toHaveLength(0);
+        expect(previo.requiredActor).toBe('seller');
+        expect(previo.check).toBe('declared');
+        expect(`${previo.instruction} ${(previo.details ?? []).join(' ')}`).toMatch(/Hostinger/);
+        expect(`${previo.instruction} ${(previo.details ?? []).join(' ')}`).toMatch(/60 días/);
+    });
+
+    it('en la operación el vendedor traslada el dominio y declara hosting, código y cuentas', () => {
+        const delVendedor = web()
+            .getTransferSteps()
+            .filter((p) => p.phase === 'operation');
+
+        expect(delVendedor.map((p) => p.key)).toEqual(['domain-to-platform', 'hosting', 'code', 'accounts']);
+        expect(delVendedor.filter((p) => p.key !== 'domain-to-platform').every((p) => p.check === 'declared')).toBe(true);
+        for (const paso of delVendedor) {
+            expect(paso.title).toBeTruthy();
+            expect(paso.instruction).toBeTruthy();
+        }
+    });
+
+    it('el paso hacia el comprador explica el bloqueo de 60 días si lo quiere en otro registrador', () => {
+        const haciaElComprador = web().getTransferSteps().find((p) => p.key === 'domain-to-buyer')!;
+        const texto = `${haciaElComprador.description} ${haciaElComprador.instruction ?? ''} ${(haciaElComprador.details ?? []).join(' ')}`;
+
+        expect(texto).toMatch(/EPP/);
+        expect(texto).toMatch(/60 días/);
+    });
+
+    it('ningún texto de los pasos insinúa que la plataforma retiene la plata', () => {
+        const todo = web()
+            .getTransferSteps()
+            .map((p) => [p.title, p.description, p.instruction, ...(p.details ?? [])].join(' '))
+            .join(' ');
+
+        expect(todo).not.toMatch(/retien|dinero|fondos/i);
     });
 
     it('los pasos del vendedor antes de la venta llevan título, dicho al vendedor', () => {
@@ -188,7 +251,7 @@ describe('WebStrategy.getTransferSteps', () => {
     it('ningún paso habla de canales, de YouTube ni de la espera de 7 días', () => {
         const todo = web()
             .getTransferSteps()
-            .map((p) => [p.title, p.description, p.instruction].join(' '))
+            .map((p) => [p.title, p.description, p.instruction, ...(p.details ?? [])].join(' '))
             .join(' ');
 
         expect(todo).not.toMatch(/canal|youtube|7 días/i);
@@ -305,5 +368,44 @@ describe('YouTubeStrategy.getTransferSteps: contenido estructurado del vendedor'
             expect(paso.links).toBeUndefined();
             expect(paso.details).toBeUndefined();
         }
+    });
+});
+
+/**
+ * `key` y `check` reemplazan al `automated` que nadie leía: la clave es estable
+ * para poder guardar el progreso de cada paso, y el tipo de comprobación dice
+ * quién da fe de que se cumplió.
+ */
+describe.each([
+    ['YouTubeStrategy', youtube],
+    ['WebStrategy', web],
+])('%s.getTransferSteps: clave y tipo de comprobación', (_nombre, estrategia) => {
+    it('cada paso declara una clave única y no vacía', () => {
+        const claves = estrategia().getTransferSteps().map((p) => p.key);
+
+        expect(claves.every((k) => typeof k === 'string' && k.length > 0)).toBe(true);
+        expect(new Set(claves).size).toBe(claves.length);
+    });
+
+    it('cada paso declara un tipo de comprobación válido y ninguno conserva automated', () => {
+        for (const paso of estrategia().getTransferSteps()) {
+            expect(['automatic', 'declared', 'admin']).toContain(paso.check);
+            expect(Object.keys(paso)).not.toContain('automated');
+        }
+    });
+
+    it('las claves no cambian con el contexto', () => {
+        const sin = estrategia().getTransferSteps().map((p) => p.key);
+        const con = estrategia()
+            .getTransferSteps({ custodyAccountIdentifier: 'c@x.com', recipientIdentifier: 'r@x.com' })
+            .map((p) => p.key);
+
+        expect(con).toEqual(sin);
+    });
+});
+
+describe('WebStrategy.getTransferSteps: pasos de la operación', () => {
+    it('hay pasos de fase operación, que es lo que muestra el detalle de la operación', () => {
+        expect(web().getTransferSteps().some((p) => p.phase === 'operation')).toBe(true);
     });
 });

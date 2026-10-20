@@ -148,24 +148,20 @@ const PASOS_DE_ACCESO: HandoverStepDto[] = [
     },
 ];
 
-/** Los dos pasos de antes de la venta de un sitio: sin maqueta de Google, se leen como texto. */
+/** El paso de antes de la venta de un sitio: sin maqueta de Google, se lee como texto. */
 const PASOS_DE_ACCESO_WEB: HandoverStepDto[] = [
     {
         id: '1',
+        key: 'domain-at-hostinger',
+        check: 'declared',
         phase: 'listing',
-        description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
-        title: 'Eximite del bloqueo de 60 días',
+        description: 'El vendedor tiene el dominio en Hostinger, o planea mudarlo con el código EPP antes de vender',
+        title: 'Tené el dominio en Hostinger',
         instruction:
-            'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede.',
+            'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger: si hoy está en otro registrador, pedí el código EPP y mudalo antes de recibir ofertas.',
+        details: ['Si lo registraste o lo mudaste hace menos de 60 días, puede que todavía no se pueda mover.'],
     },
-    {
-        id: '2',
-        phase: 'listing',
-        description: 'El vendedor entrega el código de autorización (EPP) del dominio',
-        title: 'Pasanos el código de autorización',
-        instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo',
-    },
-];
+]
 
 /** Un canal y un sitio esperando que verifiquemos el acceso, uno de hoy y otro de ayer. */
 const ACCESOS_DE_MUESTRA = [

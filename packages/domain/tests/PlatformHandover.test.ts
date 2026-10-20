@@ -37,6 +37,15 @@ function webListing() {
     });
 }
 
+describe('Listing.handoverSteps de un sitio', () => {
+    it('en la fase de operación entrega los pasos del traslado del dominio, con su clave', () => {
+        const pasos = webListing().handoverSteps(undefined, 'operation');
+
+        expect(pasos.map((p) => p.key)).toContain('domain-to-platform');
+        expect(pasos.every((p) => p.afterPlatformStarts)).toBe(true);
+    });
+});
+
 describe('Listing.handoverSteps', () => {
     it('antes de la venta le pide al vendedor solo la cuenta de marca y la invitación', () => {
         const pasos = youtubeListing().handoverSteps();
@@ -89,14 +98,19 @@ describe('Listing.handoverSteps', () => {
     it('debería devolver lo que le toca al vendedor de un sitio antes de cederlo', () => {
         const pasos = webListing().handoverSteps();
 
-        // Eximirse del bloqueo de 60 días y entregar el código: los dos van
-        // antes de que el comprador aparezca. Lo posterior —migrar el hosting,
-        // ceder las cuentas afiliadas— es de la entrega y no se le pide acá.
-        expect(pasos).toHaveLength(2);
-        expect(pasos[0].description).toContain('60 días');
-        expect(pasos[1].description).toContain('EPP');
+        // Antes de la venta solo se le pide tener el dominio en Hostinger. El
+        // traslado a la plataforma, el hosting, el código y las cuentas son
+        // de la operación y se le piden recién con el contrato firmado.
+        expect(pasos).toHaveLength(1);
+        expect(pasos[0].key).toBe('domain-at-hostinger');
+        expect(pasos[0].description).toContain('Hostinger');
         expect(pasos.every((p) => p.phase === 'listing')).toBe(true);
-        expect(webListing().handoverSteps(undefined, 'operation')).toEqual([]);
+        expect(webListing().handoverSteps(undefined, 'operation').map((p) => p.key)).toEqual([
+            'domain-to-platform',
+            'hosting',
+            'code',
+            'accounts',
+        ]);
     });
 
     it('no debería incluir pasos de otras partes', () => {

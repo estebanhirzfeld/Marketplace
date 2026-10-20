@@ -68,12 +68,14 @@ export class WebStrategy implements IAssetStrategy {
             /*
              * No hay espera para transferir, pero sí algo que avisar.
              *
-             * Cambiar el titular de un dominio activa el bloqueo de 60 días de
-             * la ICANN, que impide moverlo a OTRO registrador — no cambiar de
-             * titular dentro del mismo, que es como funciona el traspaso. La
-             * propiedad no se ve afectada, pero es una limitación real sobre
-             * algo que el comprador acaba de comprar, y callarla sería
-             * venderle una libertad que no tiene.
+             * El dominio entra a la cuenta de Hostinger de la plataforma y de
+             * ahí sale hacia el comprador. Cada cambio de titular o de
+             * registrador activa el bloqueo de 60 días de la ICANN, que impide
+             * moverlo a OTRO registrador — no entregárselo a una cuenta de
+             * Hostinger, que es como funciona el traspaso. La propiedad no se
+             * ve afectada, pero es una limitación real sobre algo que el
+             * comprador acaba de comprar, y callarla sería venderle una
+             * libertad que no tiene.
              */
             waitingNotice:
                 'Un sitio se transfiere de inmediato, pero cambiar el titular de un dominio activa un bloqueo de 60 días de la ICANN para moverlo a otro registrador. No afecta la propiedad —el dominio es tuyo desde el traspaso— pero durante ese plazo no vas a poder llevártelo a un registrador distinto.',
@@ -94,45 +96,113 @@ export class WebStrategy implements IAssetStrategy {
     }
 
     /**
-     * Adopta la firma con contexto y nombra al comprador en el paso de la
-     * transferencia de dominio. NO suma ningún paso de custodia: que el sitio
-     * pase por la plataforma antes de llegar al comprador es el defecto
-     * preexistente que la propuesta manda a `web-escrow-transfer-steps`, y
-     * arreglarlo exige investigar el traspaso real de dominios (código EPP,
-     * bloqueo ICANN de 60 días). Ignorar `custodyAccountIdentifier` acá no es
-     * un olvido: es la ausencia que ese cambio va a llenar.
+     * El dominio pasa por la plataforma antes de llegar al comprador: la
+     * plataforma es titular temporal en su cuenta de Hostinger, el único
+     * registrador del MVP. Entra en custodia DURANTE la operación, con el
+     * contrato firmado, y no al publicar: así la custodia dura lo que dura la
+     * entrega. Sin ese paso intermedio el vendedor conserva un veto sobre la
+     * entrega, que es justo lo que la custodia existe para evitar.
+     *
+     * Hosting, código y cuentas asociadas no tienen señal que los compruebe:
+     * son declarados por el vendedor y los respalda el admin.
+     *
+     * Con `context`, el traslado a la plataforma nombra la cuenta de custodia
+     * y el traslado al comprador nombra su cuenta; sin él, la variante del
+     * catálogo.
      */
     public getTransferSteps(context?: TransferContext): TransferStep[] {
+        const custodia = context?.custodyAccountIdentifier?.trim();
+        const aQuienTraslada = custodia ? custodia : 'la plataforma';
         const comprador = context?.recipientIdentifier?.trim();
 
-        return [
+        // Los `id` son posicionales: se arman al final para que agregar o mover
+        // un paso no obligue a renumerar a mano. Lo estable es `key`.
+        const pasos: Omit<TransferStep, 'id'>[] = [
             {
                 /*
-                 * Va antes de ceder el dominio y no después: la política de la
-                 * ICANN permite que el titular se exima del bloqueo de 60 días
-                 * ANTES del cambio, si su registrador lo ofrece, y prohíbe
-                 * expresamente eximirse una vez empezado.
+                 * Va antes de la venta porque trasladar un dominio entre
+                 * registradores no es inmediato: el código EPP se pide con
+                 * anticipación y la ICANN bloquea 60 días el traslado de un
+                 * dominio recién registrado o recién mudado. Enterarse recién
+                 * con el contrato firmado deja a la operación trabada.
                  */
-                id: '1',
+                key: 'domain-at-hostinger',
+                check: 'declared',
                 phase: 'listing',
-                description: 'El vendedor se exime del bloqueo de 60 días, si su registrador lo permite',
-                title: 'Eximite del bloqueo de 60 días',
-                instruction: 'Antes de cedernos el dominio, fijate si tu registrador te deja eximirte del bloqueo de 60 días de la ICANN. Después del traspaso ya no se puede, y el comprador queda sin poder mover el dominio durante ese plazo.',
+                description: 'El vendedor tiene el dominio en Hostinger, o planea mudarlo con el código EPP antes de vender',
+                title: 'Tené el dominio en Hostinger',
+                instruction: 'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger: si hoy está en otro registrador, pedí el código EPP y mudalo antes de recibir ofertas.',
+                details: [
+                    'Hostinger es el único registrador con el que trabajamos: desde ahí podemos recibir el dominio y entregárselo al comprador.',
+                    'Si lo registraste o lo mudaste hace menos de 60 días, puede que todavía no se pueda mover: la ICANN lo bloquea durante ese plazo.',
+                    'Conviene hacerlo con tiempo, porque el traslado entre registradores puede tardar varios días.',
+                ],
                 requiredActor: 'seller',
-                automated: false,
             },
-            { id: '2', phase: 'listing', description: 'El vendedor entrega el código de autorización (EPP) del dominio', title: 'Pasanos el código de autorización', instruction: 'Pedile a tu registrador el código de autorización (EPP) del dominio y pasánoslo', requiredActor: 'seller', automated: false },
             {
-                id: '3',
-                description: comprador
-                    ? `El comprador (${comprador}) inicia la transferencia del dominio en su registrador`
-                    : 'El comprador inicia la transferencia del dominio en su registrador',
-                requiredActor: 'buyer',
-                automated: false,
+                key: 'domain-to-platform',
+                check: 'automatic',
+                phase: 'operation',
+                description: `El vendedor traslada el dominio a la cuenta de Hostinger de ${aQuienTraslada}`,
+                title: 'Trasladá el dominio a nuestra cuenta',
+                instruction: `Con el contrato firmado, trasladá el dominio a la cuenta de Hostinger de ${aQuienTraslada}.`,
+                details: [
+                    'Desde tu cuenta de Hostinger, iniciá el traslado del dominio hacia esa cuenta.',
+                    'Lo vamos a ver llegar solos y lo aceptamos; después Hostinger te va a mandar un correo para que confirmes.',
+                    'El dominio queda a nuestro nombre solo hasta entregárselo al comprador.',
+                ],
+                requiredActor: 'seller',
             },
-            { id: '4', description: 'Migrar base de datos y archivos de hosting', requiredActor: 'seller', automated: false },
-            { id: '5', description: 'Transferir cuentas afiliadas / AdSense asociadas', requiredActor: 'seller', automated: false },
+            {
+                key: 'hosting',
+                check: 'declared',
+                phase: 'operation',
+                description: 'El vendedor deja el hosting y los archivos del sitio listos para entregar',
+                title: 'Dejá el hosting y los archivos listos',
+                instruction: 'Dejá el hosting y los archivos del sitio listos para entregarle al comprador.',
+                requiredActor: 'seller',
+            },
+            {
+                key: 'code',
+                check: 'declared',
+                phase: 'operation',
+                description: 'El vendedor deja el código y la base de datos listos para entregar',
+                title: 'Dejá el código y la base de datos listos',
+                instruction: 'Dejá el código y la base de datos del sitio listos para entregarle al comprador.',
+                requiredActor: 'seller',
+            },
+            {
+                key: 'accounts',
+                check: 'declared',
+                phase: 'operation',
+                description: 'El vendedor deja listas las cuentas asociadas: analítica, afiliados o tienda',
+                title: 'Dejá listas las cuentas asociadas',
+                instruction: 'Dejá listas las cuentas asociadas al sitio, como la analítica, los programas de afiliados o la tienda, para cederlas al comprador.',
+                requiredActor: 'seller',
+            },
+            {
+                /*
+                 * El comprador no inicia nada en su registrador: la plataforma
+                 * ya es titular y le traslada el dominio a su cuenta de
+                 * Hostinger. Si lo prefiere en otro registrador se le pasa el
+                 * código EPP, pero entonces corre el bloqueo de 60 días de la
+                 * ICANN que impide mudarlo otra vez, y hay que decírselo.
+                 */
+                key: 'domain-to-buyer',
+                check: 'automatic',
+                description: comprador
+                    ? `La plataforma traslada el dominio a la cuenta de Hostinger del comprador (${comprador})`
+                    : 'La plataforma traslada el dominio a la cuenta de Hostinger del comprador',
+                title: 'Recibí el dominio',
+                instruction: 'Te trasladamos el dominio a tu cuenta de Hostinger; si lo preferís en otro registrador, te damos el código EPP.',
+                details: [
+                    'Si lo querés en otro registrador, el cambio de titular activa un bloqueo de 60 días de la ICANN: durante ese plazo no vas a poder mudarlo de nuevo.',
+                ],
+                requiredActor: 'platform',
+            },
         ];
+
+        return pasos.map((paso, i) => ({ ...paso, id: String(i + 1) }));
     }
 
     public getPublicFields(): string[] {

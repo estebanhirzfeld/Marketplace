@@ -21,8 +21,24 @@ export interface TransferStepLink {
  */
 export type TransferPhase = 'listing' | 'operation';
 
+/**
+ * Quién da fe de que un paso se cumplió.
+ *
+ * - `automatic`: lo comprueba el sistema solo, con una señal externa o el paso
+ *   del tiempo.
+ * - `declared`: lo declara la parte que lo hace y el admin lo respalda.
+ * - `admin`: lo hace y lo atestigua una persona de la plataforma.
+ */
+export type TransferStepCheck = 'automatic' | 'declared' | 'admin';
+
 export interface TransferStep {
     id: string;
+    /**
+     * Clave estable del paso, única dentro de la estrategia. A diferencia de
+     * `id`, que es posicional, no cambia si se agrega o se mueve un paso: es lo
+     * que permite guardar el progreso de cada uno.
+     */
+    key: string;
     /**
      * Cuándo se le muestra el paso al vendedor. Ausente en los pasos que no son
      * suyos —de la plataforma o del comprador— y en los del vendedor que son de
@@ -53,7 +69,8 @@ export interface TransferStep {
     /** Enlaces directos a las pantallas de la plataforma del activo. */
     links?: TransferStepLink[];
     requiredActor: 'seller' | 'buyer' | 'platform';
-    automated: boolean;
+    /** Quién da fe de que el paso se cumplió. */
+    check: TransferStepCheck;
 }
 
 /**

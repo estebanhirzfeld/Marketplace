@@ -319,6 +319,43 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
         ]);
     });
 
+    it('un sitio con la venta firmada recibe los pasos de la operación, con la cuenta de custodia en el traslado', async () => {
+        const cuenta = CustodyAccount.create({
+            label: 'Custodia web',
+            identifier: 'custodia-web@traspaso.com',
+            assetType: AssetType.WEB,
+        });
+        const listing = Listing.create({
+            sellerId: SELLER_ID,
+            assetStrategy: new WebStrategy({
+                monthlyRevenueUsd: Money.fromCents(210000, 'USD'),
+                domain: 'ejemplo.com',
+            }),
+            askingPrice: Money.fromCents(6800000, 'USD'),
+        });
+        listing.registerPlatformAccess({
+            verifiedBy: new UniqueEntityID(),
+            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+            custodyAccountId: cuenta.id,
+            heldRole: 'owner',
+        });
+        const op = unaOperacionFirmada();
+        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+
+        const vista = await armarConCustodia(op, listing, custodyRepo).execute(
+            op.id.toString(),
+            actorDe(SELLER_ID, UserRole.SELLER),
+        );
+
+        expect(vista.handoverSteps!.map((p) => p.key)).toEqual([
+            'domain-to-platform',
+            'hosting',
+            'code',
+            'accounts',
+        ]);
+        expect(vista.handoverSteps![0].instruction).toContain('custodia-web@traspaso.com');
+    });
+
     it('sin contrato firmado todavía no hay pasos de operación', async () => {
         const cuenta = CustodyAccount.create({
             label: 'Custodia YT',
@@ -512,7 +549,7 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
         expect(promocion?.description).toContain('activa@traspaso.com');
     });
 
-    it('para un listing web, handoverSteps queda vacío sin romper', async () => {
+    it('para un listing web sin cuenta de custodia, los pasos de la operación usan la variante genérica', async () => {
         const listing = Listing.create({
             sellerId: SELLER_ID,
             assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(120000, 'USD') }),
@@ -532,7 +569,8 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
             actorDe(SELLER_ID, UserRole.SELLER),
         );
 
-        expect(vista.handoverSteps).toEqual([]);
+        expect(vista.handoverSteps!.map((p) => p.key)).toContain('domain-to-platform');
+        expect(vista.handoverSteps![0].instruction).toContain('la plataforma');
     });
 
     it('sin custodyRepo, handoverSteps queda indefinido', async () => {

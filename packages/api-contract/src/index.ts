@@ -636,8 +636,15 @@ export type TransferPhaseDto = 'listing' | 'operation';
 /** Dónde está el acceso de la plataforma al activo, visto desde el vendedor. */
 export type PlatformAccessStatusDto = 'pending' | 'verifying' | 'waiting' | 'immediate';
 
+/** Quién da fe de que un paso se cumplió: el sistema, quien lo declara o el admin. */
+export type TransferStepCheckDto = 'automatic' | 'declared' | 'admin';
+
 export interface HandoverStepDto {
     id: string;
+    /** Clave estable del paso dentro de su tipo de activo. Ausente en respuestas anteriores. */
+    key?: string;
+    /** Quién da fe del paso. Ausente en respuestas anteriores. */
+    check?: TransferStepCheckDto;
     /** Cuándo se le pide. Los pasos de la fase `operation` aparecen recién con la venta firmada. */
     phase?: TransferPhaseDto;
     /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
