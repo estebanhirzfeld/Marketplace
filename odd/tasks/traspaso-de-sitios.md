@@ -59,6 +59,8 @@ Corrección del padre en T1: el paso `domain-to-buyer` ofrecía el código EPP p
 
 T2 hecha (`6070aee`). Entidad con transiciones validadas, `isOverdue`/`needsReminder` (3 días antes por defecto, configurable)/`needsEscalation` con reloj inyectado, y recordatorio y escalada de una sola vez. Puerto `ITransferStepProgressRepository` (`findByScope`, `find`, `findOpen`, `save` con upsert por `(scope, scopeId, stepKey)`). `findOpen` trae `pending`, `waiting` y `expired` sin escalar. Tabla `transfer_step_progress` sin clave foránea (`scopeId` apunta a activo u operación) y migración `20261020190000_add_transfer_step_progress`. No se integró al `PrismaUnitOfWork`: hoy solo tiene los cuatro repositorios transaccionales del flujo de venta. Pendiente: correr los tests de db contra `marketplace_test` cuando el Postgres esté arriba.
 
+Verificado por el padre el 20/10/2026 contra `marketplace_test` (Postgres del docker-compose, puerto 5434): `packages/db` 8 archivos / 135 tests en verde, incluido el repositorio nuevo; `apps/api` 20 archivos / 499 tests en verde (3 omitidos), incluido `POST /listings` con `.com.ar` → 400 de `feat/rechazar-dominios-ar`, que hasta ahora no se había ejecutado.
+
 ## Próximo paso
 
 T3: puerto `IDomainRegistrar` y adaptador `HostingerDomainRegistrar`.
