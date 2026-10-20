@@ -47,8 +47,10 @@ fi
 [[ -f "$ARTIFACT" ]] || fail "no se generó $ARTIFACT (¿el build no es un bundle ESM?)"
 
 # El artefacto no debe referenciar archivos .ts en tiempo de ejecución: los
-# paquetes de workspace se inlinan en el bundle.
-if grep -Eq "(require\(|from *)['\"][^'\"]*\.ts['\"]" "$ARTIFACT"; then
+# paquetes de workspace se inlinan en el bundle. Se revisa todo dist/ y no solo
+# server.mjs: con dos entradas (la API y el job periódico) tsup parte el código
+# compartido en chunk-*.mjs, que es donde vive casi todo.
+if grep -rEq --include='*.mjs' "(require\(|from *)['\"][^'\"]*\.ts['\"]" "$(dirname "$ARTIFACT")"; then
     fail "el bundle referencia archivos .ts — no es autocontenido"
 fi
 
