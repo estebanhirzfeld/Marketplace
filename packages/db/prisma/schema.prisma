@@ -319,3 +319,32 @@ model YouTubeConnection {
   @@unique([sellerId, channelId])
   @@map("youtube_connections")
 }
+
+/// Progreso de un paso del traspaso de un activo o de una operación. `scopeId`
+/// apunta a un activo o a una operación según `scope`, por eso no lleva clave
+/// foránea. Sin fila, el paso está pendiente y sin plazo.
+model TransferStepProgress {
+  id            String    @id @default(uuid())
+  /// `listing` u `operation`; el mapper valida el valor al leer.
+  scope         String
+  scopeId       String
+  /// La `key` estable del paso en la estrategia del activo.
+  stepKey       String
+  /// `pending`, `waiting`, `done`, `expired` o `rejected`; el mapper valida el valor al leer.
+  status        String    @default("pending")
+  startedAt     DateTime
+  deadlineAt    DateTime?
+  lastCheckedAt DateTime?
+  remindedAt    DateTime?
+  escalatedAt   DateTime?
+  /// Lo observado al comprobar el paso; el mapper valida que sea un objeto.
+  evidence      Json      @default("{}")
+  /// Id del usuario que declaró cumplido el paso; sin relación, como `scopeId`.
+  attestedBy    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([scope, scopeId, stepKey])
+  @@index([status])
+  @@map("transfer_step_progress")
+}

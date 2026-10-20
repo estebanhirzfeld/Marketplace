@@ -6,6 +6,7 @@ import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
 import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
 import { YouTubeConnection } from '../entities/YouTubeConnection';
+import { TransferStepProgress, TransferStepScope } from '../entities/TransferStepProgress';
 import { ListingStatus } from '../entities/Listing';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
@@ -187,4 +188,18 @@ export interface IYouTubeConnectionRepository {
     findBySeller(sellerId: string): Promise<YouTubeConnection[]>;
     /** Alta o actualización de la conexión de ese vendedor con ese canal. */
     save(connection: YouTubeConnection): Promise<void>;
+}
+
+/**
+ * El progreso persistido de los pasos del traspaso. Una fila por paso y
+ * alcance: `(scope, scopeId, stepKey)` es único. Sin fila, el paso está
+ * pendiente y sin plazo.
+ */
+export interface ITransferStepProgressRepository {
+    findByScope(scope: TransferStepScope, scopeId: string): Promise<TransferStepProgress[]>;
+    find(scope: TransferStepScope, scopeId: string, stepKey: string): Promise<TransferStepProgress | null>;
+    /** Pasos que el job periódico debe revisar: en curso, o vencidos sin escalar. */
+    findOpen(): Promise<TransferStepProgress[]>;
+    /** Alta o actualización del paso de ese alcance. */
+    save(progress: TransferStepProgress): Promise<void>;
 }
