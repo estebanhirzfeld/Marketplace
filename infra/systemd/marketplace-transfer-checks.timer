@@ -1,0 +1,13 @@
+# marketplace-transfer-checks.timer — corre la pasada del traspaso de sitios cada hora.
+#
+# Persistent=true: si la VM estuvo apagada a la hora prevista, corre al volver.
+[Unit]
+Description=Marketplace transfer step checks cada hora
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=marketplace-transfer-checks.service
+
+[Install]
+WantedBy=timers.target

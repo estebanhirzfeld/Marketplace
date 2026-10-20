@@ -183,6 +183,8 @@ sudo docker compose -f docker-compose.prod.yml ps   # db healthy
 sudo cp infra/systemd/marketplace-*.service infra/systemd/marketplace-*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now marketplace-backup.timer
+# Cada hora: comprueba los dominios de los sitios en traspaso y vigila sus plazos.
+sudo systemctl enable --now marketplace-transfer-checks.timer
 # marketplace-api y marketplace-web los arranca deploy.sh; habilitalos para el boot:
 sudo systemctl enable marketplace-api marketplace-web
 

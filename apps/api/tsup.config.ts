@@ -20,7 +20,8 @@ import { defineConfig } from 'tsup';
  * `tsx` en desarrollo.
  */
 export default defineConfig({
-    entry: ['src/server.ts'],
+    // El job periódico va en su propio archivo: lo corre systemd con un timer.
+    entry: ['src/server.ts', 'src/jobs/run-transfer-checks.ts'],
     platform: 'node',
     target: 'node20',
     format: ['esm'],

@@ -90,6 +90,7 @@ import { MercadoPagoGateway } from './adapters/MercadoPagoGateway';
 import { BcraExchangeRateProvider } from './adapters/BcraExchangeRateProvider';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
+import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
 import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
@@ -232,6 +233,11 @@ export interface Container {
     confirmCustody: ConfirmCustodyUseCase;
     /** Ausente sin registrador: ver `domainRegistrar`. */
     checkDomainCustody?: CheckDomainCustodyUseCase;
+    /**
+     * La pasada periódica del traspaso de sitios (`src/jobs/run-transfer-checks.ts`).
+     * Siempre presente: sin registrador no comprueba dominios, pero vigila los plazos.
+     */
+    runTransferStepChecks: RunTransferStepChecksUseCase;
     /**
      * Ausentes mientras no haya credenciales de MercadoPago. La API arranca
      * igual y las rutas lo informan: los pagos por transferencia siguen
@@ -416,6 +422,19 @@ export function createContainer(
     // armado divergiera entre firmar y leer, los hashes no coincidirían.
     const armador = new ContractDataBuilder(userRepo, listingRepo, operationRepo);
 
+    // La misma comprobación la usan la ruta del admin y el job periódico.
+    const transferStepProgressRepo = new PrismaTransferStepProgressRepository();
+    const checkDomainCustody = domainRegistrar
+        ? new CheckDomainCustodyUseCase(
+              operationRepo,
+              listingRepo,
+              transferStepProgressRepo,
+              domainRegistrar,
+              undefined,
+              avisosDePlataforma,
+          )
+        : undefined;
+
     return {
         listingRepo,
         sellerPaymentAccounts: paymentAccountRepo,
@@ -550,16 +569,14 @@ export function createContainer(
 
         initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma, custodyRepo),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos, custodyRepo, domainRegistrar),
-        checkDomainCustody: domainRegistrar
-            ? new CheckDomainCustodyUseCase(
-                  operationRepo,
-                  listingRepo,
-                  new PrismaTransferStepProgressRepository(),
-                  domainRegistrar,
-                  undefined,
-                  avisosDePlataforma,
-              )
-            : undefined,
+        checkDomainCustody,
+        runTransferStepChecks: new RunTransferStepChecksUseCase(
+            operationRepo,
+            listingRepo,
+            transferStepProgressRepo,
+            avisosDePlataforma,
+            checkDomainCustody,
+        ),
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(
                   operationRepo,

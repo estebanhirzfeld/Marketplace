@@ -1,0 +1,31 @@
+# marketplace-transfer-checks — pasada periódica del traspaso de sitios.
+#
+# Comprueba el dominio de cada operación de un sitio con la transferencia en
+# curso (Hostinger no tiene webhooks) y vigila los plazos de los pasos:
+# recordatorio antes de vencer y escalada a la plataforma al vencer.
+#
+# La dispara marketplace-transfer-checks.timer. No la habilites como servicio suelto.
+#
+# Instalar:
+#   sudo cp infra/systemd/marketplace-transfer-checks.service /etc/systemd/system/
+#   sudo cp infra/systemd/marketplace-transfer-checks.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marketplace-transfer-checks.timer
+#
+# Sale con 1 si falló algún dominio, así aparece en `systemctl --failed`.
+# El detalle: journalctl -u marketplace-transfer-checks (una línea JSON por evento).
+[Unit]
+Description=Marketplace transfer step checks
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/marketplace/apps/api
+EnvironmentFile=/etc/marketplace/api.env
+ExecStart=/usr/bin/node /srv/marketplace/apps/api/dist/jobs/run-transfer-checks.mjs
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
