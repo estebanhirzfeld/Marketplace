@@ -9,12 +9,15 @@ import type {
     ConfirmPaymentRequest,
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
+    AttestTransferStepRequest,
     DomainCustodyCheckDto,
     InitiateTransferRequest,
     PaymentOptionsDto,
+    TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
+interface StepParams { id: string; key: string }
 
 const priceSchema = {
     body: {
@@ -118,6 +121,34 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
             }
 
             const status = await c.checkDomainCustody.execute(request.params.id);
+            return reply.send({ status });
+        },
+    );
+
+    /**
+     * El admin da por cumplido un paso declarado de la entrega (hosting, código,
+     * cuentas asociadas). Los pasos que se comprueban solos no pasan por acá.
+     */
+    app.post<{ Params: StepParams; Body: AttestTransferStepRequest; Reply: TransferStepAttestationDto }>(
+        '/admin/operations/:id/steps/:key/attest',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    properties: {
+                        notes: { type: 'string', maxLength: 2000 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const status = await c.attestTransferStep.execute(
+                request.params.id,
+                request.params.key,
+                actorOf(request),
+                request.body?.notes,
+            );
             return reply.send({ status });
         },
     );

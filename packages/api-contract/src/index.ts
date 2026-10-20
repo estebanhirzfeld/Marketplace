@@ -842,9 +842,14 @@ export interface DomainCustodyCheckDto {
     status: 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
 }
 
-/** Cómo quedó el paso de trasladar el dominio a la plataforma tras comprobarlo. */
-export interface DomainCustodyCheckDto {
-    status: 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
+/** Lo que el admin anota al dar por cumplido un paso declarado de la entrega. */
+export interface AttestTransferStepRequest {
+    notes?: string;
+}
+
+/** Cómo quedó el paso después de atestiguarlo. */
+export interface TransferStepAttestationDto {
+    status: DomainCustodyCheckDto['status'];
 }
 
 /** El link al que hay que mandar al comprador para que pague. */

@@ -91,6 +91,7 @@ import { BcraExchangeRateProvider } from './adapters/BcraExchangeRateProvider';
 import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmCustodyUseCase';
 import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
 import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
+import { AttestTransferStepUseCase } from '@marketplace/domain/src/use-cases/operation/AttestTransferStepUseCase';
 import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
 import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
@@ -238,6 +239,7 @@ export interface Container {
      * Siempre presente: sin registrador no comprueba dominios, pero vigila los plazos.
      */
     runTransferStepChecks: RunTransferStepChecksUseCase;
+    attestTransferStep: AttestTransferStepUseCase;
     /**
      * Ausentes mientras no haya credenciales de MercadoPago. La API arranca
      * igual y las rutas lo informan: los pagos por transferencia siguen
@@ -577,6 +579,7 @@ export function createContainer(
             avisosDePlataforma,
             checkDomainCustody,
         ),
+        attestTransferStep: new AttestTransferStepUseCase(operationRepo, listingRepo, transferStepProgressRepo),
         crearCheckout: mercadoPago
             ? new CreateCheckoutUseCase(
                   operationRepo,

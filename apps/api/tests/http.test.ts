@@ -1334,6 +1334,85 @@ describe('POST /admin/operations/:id/check-domain-custody', () => {
     });
 });
 
+/** Un admin da por cumplido un paso declarado de la entrega de un sitio. */
+describe('POST /admin/operations/:id/steps/:key/attest', () => {
+    async function unaOperacionWebEnTransferencia(): Promise<string> {
+        const buyer = await crearUsuario('buyer-att@test.com', UserRole.BUYER);
+        const seller = await crearUsuario('seller-att@test.com', UserRole.SELLER);
+        await crearUsuario('admin-att@test.com', UserRole.ADMIN);
+        const listing = Listing.create({
+            sellerId: seller.id,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'atestiguado.com' }),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        await listingRepo.save(listing);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(6_000_000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        await new PrismaOperationRepository().save(operation);
+
+        return operation.id.toString();
+    }
+
+    async function atestiguar(id: string, key: string, email: string, payload: object = {}) {
+        const server = await buildApp({ container: createContainer(fakeHasher), jwtSecret: 'secreto-de-test' });
+        return server.inject({
+            method: 'POST',
+            url: `/admin/operations/${id}/steps/${key}/attest`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('el admin da por cumplido el hosting y queda la constancia', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(id, 'hosting', 'admin-att@test.com', { notes: 'Vi el panel del hosting' });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ status: 'done' });
+        const admin = await new PrismaUserRepository().findByEmail('admin-att@test.com');
+        const fila = await new PrismaTransferStepProgressRepository().find('operation', id, 'hosting');
+        expect(fila?.status).toBe('done');
+        expect(fila?.attestedBy).toBe(admin!.id.toString());
+        expect(fila?.evidence).toEqual({ notes: 'Vi el panel del hosting' });
+    });
+
+    it('403 si quien atestigua no es admin', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(id, 'hosting', 'seller-att@test.com');
+
+        expect(res.statusCode).toBe(403);
+        expect(await new PrismaTransferStepProgressRepository().find('operation', id, 'hosting')).toBeNull();
+    });
+
+    it('400 si el paso se comprueba solo', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(id, 'domain-to-platform', 'admin-att@test.com');
+
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('404 si la operación no existe', async () => {
+        await unaOperacionWebEnTransferencia();
+
+        const res = await atestiguar(new UniqueEntityID().toString(), 'hosting', 'admin-att@test.com');
+
+        expect(res.statusCode).toBe(404);
+    });
+});
+
 /**
  * El acceso de la plataforma al activo: lo único que habilita firmar el
  * tripartito, y lo único de todo el flujo que ninguna API puede comprobar.
