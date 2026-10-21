@@ -147,8 +147,13 @@ export async function completeOperation(
     return { ok: true, message: 'Cerramos la operación. El comprador tiene el activo y el vendedor cobró su parte.' };
 }
 
+/**
+ * La moneda llega ligada desde la página: es la de la negociación. Si alguien
+ * la cambiara, el dominio rechaza una contraoferta en otra moneda.
+ */
 export async function counterOffer(
     operationId: string,
+    currency: string,
     _estado: ActionState,
     form: FormData,
 ): Promise<ActionState> {
@@ -158,10 +163,9 @@ export async function counterOffer(
         return { error: 'Ingresá un monto válido.' };
     }
 
+    const price = { cents: Math.round(amount * 100), currency };
     try {
-        await api().counterOffer(operationId, {
-            price: { cents: Math.round(amount * 100), currency: 'USD' },
-        });
+        await api().counterOffer(operationId, { price });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
         return { error: 'No pudimos registrar la contraoferta.' };
@@ -170,7 +174,7 @@ export async function counterOffer(
     revalidatePath(`/operaciones/${operationId}`);
     return {
         ok: true,
-        message: `Propusiste ${money({ cents: Math.round(amount * 100), currency: 'USD' })}. Ahora le toca responder a la otra parte.`,
+        message: `Propusiste ${money(price)}. Ahora le toca responder a la otra parte.`,
     };
 }
 

@@ -504,7 +504,8 @@ export default async function DetalleOperacion(props: {
                                         />
                                         <div className="border-t border-[var(--color-borde)] pt-5">
                                             <CounterOfferForm
-                                                action={counterOffer.bind(null, id)}
+                                                action={counterOffer.bind(null, id, op.currentOfferPrice.currency)}
+                                                currency={op.currentOfferPrice.currency}
                                                 precioActual={Math.round(op.currentOfferPrice.cents / 100)}
                                                 miParte={op.miParte!}
                                                 miUltima={

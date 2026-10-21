@@ -18,18 +18,21 @@ export function CounterOfferForm({
     precioActual,
     miParte,
     miUltima,
+    currency,
 }: {
     action: (state: State, form: FormData) => Promise<State>;
     precioActual: number;
     miParte: NegotiatingPartyDto;
     /** Mi propuesta anterior, si ya hice una. */
     miUltima?: number;
+    /** La moneda de la negociación. */
+    currency: string;
 }) {
     const [state, submit, pending] = useActionState(action, {});
     const [money, setMonto] = useState(precioActual);
 
     const fmt = (n: number) =>
-        new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+        new Intl.NumberFormat('es-AR', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
 
     const esComprador = miParte === 'buyer';
     const limite = miUltima;
@@ -37,7 +40,7 @@ export function CounterOfferForm({
     return (
         <form action={submit} className="flex flex-col gap-4">
             <Field
-                label="Tu contraoferta (USD)"
+                label={`Tu contraoferta (${currency})`}
                 name="money"
                 type="number"
                 required

@@ -26,7 +26,7 @@ TDD: activado. Runners: `corepack pnpm --filter @marketplace/domain exec vitest 
 | T1 | Docs y decisiones (OpenSpec, `CLAUDE.md`, este documento) | S1–S13 | inline | hecha | pendiente |
 | T2 | Investigación del split y de R2 | S6, S10 | inline | hecha (en `explore.md`) | con T1 |
 | T3 | Borrar las máquinas xstate | S13 | inline | hecha: `git grep` sin importadores, typecheck de dominio y API, 1238 tests del dominio | ver Log L5 |
-| T4 | Contraoferta en la moneda de la operación | S13 | inline | pendiente | |
+| T4 | Contraoferta en la moneda de la operación | S13 | inline | hecha: RED 3 de 4 en `apps/web/tests/counterOffer.test.tsx`, GREEN 4/4, 561 tests de la web | ver Log L5 |
 | T5 | Listo para firmar, RDAP, guarda de la firma, sin `acceso_pendiente` en sitios | S4 | inline | pendiente | |
 | T6 | Restos de YouTube fuera de los sitios | S4 | inline | pendiente | |
 | T7 | Modelo de pasos completo | S12 | inline | pendiente | |
@@ -51,3 +51,4 @@ Ruta: inline por defecto; ninguna unidad tiene hoy un motivo de escritor delegad
 - **L2** (21/10/2026): antecedente, la prueba local con `deliaorrego.online` se cortó con «imposible asi, hay que saltear esto e ir directo a la siguiente fase con planning y artifacts, no se puede asi». La exploración está en `openspec/changes/handover-journey/explore.md`.
 - **L3** (21/10/2026): investigación, «la investigacion para ahora». El split 1:1 no deja demorar el cobro del vendedor por la API pública; recibir el total por transferencia sería retener fondos de terceros. Decisiones: «Como hoy y consultar a MP» y «Cada uno recibe lo suyo».
 - **L4** (21/10/2026): plan aprobado. T1 escrita: el cambio `website-handover-journey` pasa a `handover-journey` y cubre los dos tipos. Cadena elegida: «feature-branch-chain (Recommended)». Espejo de Engram pendiente: la escritura falló por varias sesiones activas del proyecto. Siguiente: T3.
+- **L5** (21/10/2026): T3 (commit «chore(domain): se borran las máquinas xstate»): nadie importaba `packages/domain/src/machines/`; se quitó la dependencia `xstate`. T4 (commit «fix(web): la contraoferta va en la moneda de la operación»): la acción y el formulario tenían `USD` fijo, y en un activo en pesos toda contraoferta chocaba con «La contraoferta debe estar en ARS, la moneda de la negociación». Siguiente: T5.
