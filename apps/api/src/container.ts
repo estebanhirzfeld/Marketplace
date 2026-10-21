@@ -210,8 +210,7 @@ export interface Container {
     verifyDomainOwnership?: VerifyDomainOwnershipUseCase;
     /**
      * Cuenta de Hostinger de la plataforma, donde los dominios entran en
-     * custodia. Ausente mientras falte `HOSTINGER_API_TOKEN` o
-     * `HOSTINGER_WHOIS_PROFILE_ID`.
+     * custodia. Ausente mientras falte `HOSTINGER_API_TOKEN`.
      */
     domainRegistrar?: IDomainRegistrar;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
@@ -396,14 +395,11 @@ export function createContainer(
           }
         : undefined;
     const hostingerToken = process.env.HOSTINGER_API_TOKEN?.trim();
-    const hostingerWhoisProfile = process.env.HOSTINGER_WHOIS_PROFILE_ID?.trim();
+    // El perfil WHOIS no se configura: el adaptador lo busca por la terminación
+    // de cada dominio al aceptar un traslado.
     const domainRegistrar =
         domainRegistrarOverride ??
-        (hostingerToken && hostingerWhoisProfile
-            ? new HostingerDomainRegistrar({
-                  token: hostingerToken,
-                  whoisProfileId: Number(hostingerWhoisProfile),              })
-            : undefined);
+        (hostingerToken ? new HostingerDomainRegistrar({ token: hostingerToken }) : undefined);
     const reportRepo = new PrismaReportRepository();
     // La conexión de canales necesita el OAuth completo Y la clave que cifra
     // el token de actualización (la misma de Mercado Pago). El adaptador de

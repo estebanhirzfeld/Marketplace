@@ -34,11 +34,6 @@ const MOVE_STATUSES: readonly RegistrarMoveStatus[] = ['initiated', 'activating'
 export interface HostingerDomainRegistrarOptions {
     /** Token de la API (esquema `apiToken`, Bearer). Nunca se registra ni viaja en un error. */
     token: string;
-    /**
-     * Perfil WHOIS de la cuenta de la plataforma. Hostinger pide los cuatro
-     * contactos al aceptar un traslado; la plataforma usa el mismo para todos.
-     */
-    whoisProfileId: number;
     baseUrl?: string;
     fetchImpl?: typeof fetch;
     timeoutMs?: number;
@@ -107,7 +102,6 @@ function retryDelayMs(header: string | null): number {
  */
 export class HostingerDomainRegistrar implements IDomainRegistrar {
     private readonly token: string;
-    private readonly whoisProfileId: number;
     private readonly baseUrl: string;
     private readonly fetchImpl: typeof fetch;
     private readonly timeoutMs: number;
@@ -116,12 +110,8 @@ export class HostingerDomainRegistrar implements IDomainRegistrar {
     constructor(options: HostingerDomainRegistrarOptions) {
         const token = options.token.trim();
         if (token === '') throw new Error('Falta el token de la API de Hostinger.');
-        if (!Number.isInteger(options.whoisProfileId) || options.whoisProfileId <= 0) {
-            throw new Error('El perfil WHOIS de Hostinger debe ser un entero positivo.');
-        }
 
         this.token = token;
-        this.whoisProfileId = options.whoisProfileId;
         this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
         this.fetchImpl = options.fetchImpl ?? fetch;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -149,11 +139,41 @@ export class HostingerDomainRegistrar implements IDomainRegistrar {
         return this.readMove(domain, `/api/domains/v1/move/incoming/${this.name(domain)}`);
     }
 
+    /**
+     * Hostinger pide los cuatro contactos WHOIS al aceptar, y cada perfil de
+     * la cuenta vale para una sola terminación (`.com`, `.online`…). Por eso
+     * el perfil se busca en el momento, por la terminación del dominio, en vez
+     * de configurarse uno fijo: uno de `.com` no sirve para un `.online`.
+     */
     async acceptIncomingMove(domain: DomainName): Promise<void> {
-        const id = this.whoisProfileId;
+        const id = await this.whoisProfileFor(domain);
         await this.send('PUT', `/api/domains/v1/move/incoming/${this.name(domain)}`, {
             domain_contacts: { owner_id: id, admin_id: id, billing_id: id, tech_id: id },
         });
+    }
+
+    /**
+     * El perfil WHOIS de la plataforma para la terminación del dominio: el
+     * marcado por defecto si hay varios, si no el primero. Sin ninguno, no se
+     * acepta y se dice qué crear; la app no crea perfiles por su cuenta.
+     */
+    private async whoisProfileFor(domain: DomainName): Promise<number> {
+        const tld = domain.toString().split('.').at(-1) ?? '';
+        const reply = await this.send('GET', `/api/domains/v1/whois?tld=${encodeURIComponent(tld)}`);
+        const body = reply.found ? reply.body : [];
+        if (!Array.isArray(body)) throw unavailable(new Error('respuesta inesperada'));
+
+        const profiles = body.filter(
+            (p): p is Record<string, unknown> & { id: number } =>
+                isRecord(p) && p.tld === tld && Number.isInteger(p.id) && Number(p.id) > 0,
+        );
+        const chosen = profiles.find((p) => p.is_default === true) ?? profiles[0];
+        if (!chosen) {
+            throw new DomainRegistrarRejectedError(
+                `Falta un perfil WHOIS para .${tld} en la cuenta de Hostinger de la plataforma: crealo y volvé a comprobar.`,
+            );
+        }
+        return chosen.id;
     }
 
     async getOutgoingMove(domain: DomainName): Promise<RegistrarMove | null> {

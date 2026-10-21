@@ -28,14 +28,12 @@ function aJob(result: TransferStepChecksSummary | Error) {
 describe('Contenedor — job de comprobaciones del traspaso', () => {
     it('lo arma aunque no haya registrador: los plazos se vigilan igual', () => {
         vi.stubEnv('HOSTINGER_API_TOKEN', '');
-        vi.stubEnv('HOSTINGER_WHOIS_PROFILE_ID', '');
 
         expect(createContainer().runTransferStepChecks).toBeInstanceOf(RunTransferStepChecksUseCase);
     });
 
     it('con registrador también lo arma', () => {
         vi.stubEnv('HOSTINGER_API_TOKEN', 'tok_de_prueba');
-        vi.stubEnv('HOSTINGER_WHOIS_PROFILE_ID', '614698');
 
         expect(createContainer().runTransferStepChecks).toBeInstanceOf(RunTransferStepChecksUseCase);
     });

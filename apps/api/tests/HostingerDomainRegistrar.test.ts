@@ -56,7 +56,6 @@ function setup(steps: Step[], options: { timeoutMs?: number } = {}) {
 
     const registrar = new HostingerDomainRegistrar({
         token: TOKEN,
-        whoisProfileId: 614698,
         fetchImpl,
         sleep: async (ms) => {
             sleeps.push(ms);
@@ -74,6 +73,11 @@ async function failureOf(work: Promise<unknown>): Promise<Error> {
         if (error instanceof Error) return error;
     }
     throw new Error('se esperaba un error');
+}
+
+/** Un perfil WHOIS como lo lista `GET /api/domains/v1/whois`, con lo que el adaptador lee. */
+function whoisProfile(id: number, tld: string, isDefault: boolean) {
+    return { id, tld, country: 'AR', entity_type: 'individual', is_default: isDefault, whois_details: {}, tld_details: {} };
 }
 
 const moveBody = {
@@ -179,17 +183,64 @@ describe('HostingerDomainRegistrar — lecturas', () => {
 });
 
 describe('HostingerDomainRegistrar — escrituras', () => {
-    it('acepta el traslado entrante con los cuatro contactos iguales', async () => {
-        const { registrar, calls } = setup([json(200, { message: 'Request accepted' })]);
+    it('acepta el traslado entrante con el perfil WHOIS de la terminación del dominio en los cuatro contactos', async () => {
+        const { registrar, calls } = setup([
+            json(200, [whoisProfile(16296262, 'com', false)]),
+            json(200, { message: 'Request accepted' }),
+        ]);
 
         await registrar.acceptIncomingMove(domain);
 
-        expect(calls[0]!.method).toBe('PUT');
-        expect(calls[0]!.url).toBe(`${BASE_URL}/api/domains/v1/move/incoming/ejemplo.com`);
-        expect(calls[0]!.headers.get('content-type')).toBe('application/json');
-        expect(calls[0]!.body).toEqual({
-            domain_contacts: { owner_id: 614698, admin_id: 614698, billing_id: 614698, tech_id: 614698 },
+        expect(calls[0]!.method).toBe('GET');
+        expect(calls[0]!.url).toBe(`${BASE_URL}/api/domains/v1/whois?tld=com`);
+        expect(calls[1]!.method).toBe('PUT');
+        expect(calls[1]!.url).toBe(`${BASE_URL}/api/domains/v1/move/incoming/ejemplo.com`);
+        expect(calls[1]!.headers.get('content-type')).toBe('application/json');
+        expect(calls[1]!.body).toEqual({
+            domain_contacts: { owner_id: 16296262, admin_id: 16296262, billing_id: 16296262, tech_id: 16296262 },
         });
+    });
+
+    it('con varios perfiles para la misma terminación usa el marcado por defecto', async () => {
+        const { registrar, calls } = setup([
+            json(200, [whoisProfile(1, 'online', false), whoisProfile(2, 'online', true)]),
+            json(200, { message: 'Request accepted' }),
+        ]);
+
+        await registrar.acceptIncomingMove(DomainName.parse('deliaorrego.online'));
+
+        expect(calls[0]!.url).toBe(`${BASE_URL}/api/domains/v1/whois?tld=online`);
+        expect(calls[1]!.body).toEqual({ domain_contacts: { owner_id: 2, admin_id: 2, billing_id: 2, tech_id: 2 } });
+    });
+
+    it('ignora perfiles de otra terminación aunque Hostinger los devuelva', async () => {
+        const { registrar, calls } = setup([
+            json(200, [whoisProfile(9, 'online', true), whoisProfile(3, 'com', false)]),
+            json(200, { message: 'Request accepted' }),
+        ]);
+
+        await registrar.acceptIncomingMove(domain);
+
+        expect(calls[1]!.body).toEqual({ domain_contacts: { owner_id: 3, admin_id: 3, billing_id: 3, tech_id: 3 } });
+    });
+
+    it('sin perfil WHOIS para la terminación no acepta y dice qué falta', async () => {
+        const { registrar, calls } = setup([json(200, [])]);
+
+        const error = await failureOf(registrar.acceptIncomingMove(DomainName.parse('ejemplo.net')));
+
+        expect(error).toBeInstanceOf(DomainRegistrarRejectedError);
+        expect(error.message).toBe(
+            'Falta un perfil WHOIS para .net en la cuenta de Hostinger de la plataforma: crealo y volvé a comprobar.',
+        );
+        expect(calls).toHaveLength(1);
+    });
+
+    it('una lista de perfiles que no es una lista se trata como servicio no disponible', async () => {
+        const { registrar, calls } = setup([json(200, { unexpected: true })]);
+
+        await expect(registrar.acceptIncomingMove(domain)).rejects.toBeInstanceOf(ServiceUnavailableError);
+        expect(calls).toHaveLength(1);
     });
 
     it('inicia el traslado saliente con el correo del destinatario', async () => {
@@ -222,7 +273,7 @@ describe('HostingerDomainRegistrar — escrituras', () => {
     });
 
     it('404 al aceptar un traslado que no existe es un rechazo', async () => {
-        const { registrar } = setup([json(404, { message: 'Not found' })]);
+        const { registrar } = setup([json(200, [whoisProfile(1, 'com', true)]), json(404, { message: 'Not found' })]);
 
         await expect(registrar.acceptIncomingMove(domain)).rejects.toBeInstanceOf(DomainRegistrarRejectedError);
     });
@@ -347,7 +398,6 @@ describe('HostingerDomainRegistrar — dominio y configuración', () => {
         const calls: string[] = [];
         const registrar = new HostingerDomainRegistrar({
             token: TOKEN,
-            whoisProfileId: 1,
             baseUrl: 'https://registrar.test/',
             fetchImpl: async (input) => {
                 calls.push(String(input));
@@ -360,11 +410,7 @@ describe('HostingerDomainRegistrar — dominio y configuración', () => {
         expect(calls).toEqual(['https://registrar.test/api/domains/v1/portfolio/ejemplo.com']);
     });
 
-    it.each([
-        ['token vacío', { token: '  ', whoisProfileId: 1 }],
-        ['perfil cero', { token: 'x', whoisProfileId: 0 }],
-        ['perfil decimal', { token: 'x', whoisProfileId: 1.5 }],
-    ])('rechaza una configuración inválida: %s', (_name, options) => {
-        expect(() => new HostingerDomainRegistrar(options)).toThrow();
+    it('rechaza un token vacío', () => {
+        expect(() => new HostingerDomainRegistrar({ token: '  ' })).toThrow('Falta el token de la API de Hostinger.');
     });
 });

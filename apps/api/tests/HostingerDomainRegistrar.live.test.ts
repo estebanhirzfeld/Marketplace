@@ -14,8 +14,7 @@ const token = process.env.HOSTINGER_API_TOKEN;
 const domain = DomainName.parse(process.env.HOSTINGER_LIVE_DOMAIN ?? 'deliaorrego.online');
 
 describe.skipIf(!token)('HostingerDomainRegistrar contra la API real', { timeout: 30_000 }, () => {
-    // El perfil WHOIS solo se usa al aceptar un traslado, que acá no se hace.
-    const registrar = new HostingerDomainRegistrar({ token: token ?? 'sin-token', whoisProfileId: 1 });
+    const registrar = new HostingerDomainRegistrar({ token: token ?? 'sin-token' });
 
     it('lee el dominio del portfolio, o null si no está en la cuenta', async () => {
         const entry = await registrar.getPortfolioEntry(domain);
