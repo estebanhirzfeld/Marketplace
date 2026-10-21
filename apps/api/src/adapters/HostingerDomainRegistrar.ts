@@ -143,10 +143,10 @@ export class HostingerDomainRegistrar implements IDomainRegistrar {
     }
 
     /**
-     * Hostinger pide los cuatro contactos WHOIS al aceptar, y cada perfil de
-     * la cuenta vale para una sola terminación (`.com`, `.online`…). Por eso
-     * el perfil se busca en el momento, por la terminación del dominio, en vez
-     * de configurarse uno fijo: uno de `.com` no sirve para un `.online`.
+     * Hostinger pide los cuatro contactos WHOIS al aceptar. El perfil se busca
+     * en el momento en vez de configurarse uno fijo: cada perfil de la cuenta
+     * está etiquetado con una terminación (`.com`, `.online`…), y se prefiere
+     * el de la misma terminación del dominio.
      */
     async acceptIncomingMove(domain: DomainName): Promise<void> {
         const id = await this.whoisProfileFor(domain);
@@ -156,24 +156,32 @@ export class HostingerDomainRegistrar implements IDomainRegistrar {
     }
 
     /**
-     * El perfil WHOIS de la plataforma para la terminación del dominio: el
-     * marcado por defecto si hay varios, si no el primero. Sin ninguno, no se
-     * acepta y se dice qué crear; la app no crea perfiles por su cuenta.
+     * El perfil WHOIS de la plataforma para el dominio, en este orden: el de
+     * la misma terminación (el marcado por defecto si hay varios); si no hay,
+     * el marcado por defecto de cualquier terminación; si tampoco, el primero
+     * de la cuenta. Hostinger acepta un perfil de otra terminación: así quedó
+     * deliaorrego.online, un `.online` con el perfil de `.com` (21/10/2026).
+     * Sin ningún perfil no se acepta y se dice qué crear; la app no los crea.
      */
     private async whoisProfileFor(domain: DomainName): Promise<number> {
         const tld = domain.toString().split('.').at(-1) ?? '';
-        const reply = await this.send('GET', `/api/domains/v1/whois?tld=${encodeURIComponent(tld)}`);
+        const reply = await this.send('GET', '/api/domains/v1/whois');
         const body = reply.found ? reply.body : [];
         if (!Array.isArray(body)) throw unavailable(new Error('respuesta inesperada'));
 
         const profiles = body.filter(
             (p): p is Record<string, unknown> & { id: number } =>
-                isRecord(p) && p.tld === tld && Number.isInteger(p.id) && Number(p.id) > 0,
+                isRecord(p) && Number.isInteger(p.id) && Number(p.id) > 0,
         );
-        const chosen = profiles.find((p) => p.is_default === true) ?? profiles[0];
+        const sameTld = profiles.filter((p) => p.tld === tld);
+        const chosen =
+            sameTld.find((p) => p.is_default === true) ??
+            sameTld[0] ??
+            profiles.find((p) => p.is_default === true) ??
+            profiles[0];
         if (!chosen) {
             throw new DomainRegistrarRejectedError(
-                `Falta un perfil WHOIS para .${tld} en la cuenta de Hostinger de la plataforma: crealo y volvé a comprobar.`,
+                'La cuenta de Hostinger de la plataforma no tiene ningún perfil WHOIS: creá uno y volvé a comprobar.',
             );
         }
         return chosen.id;
