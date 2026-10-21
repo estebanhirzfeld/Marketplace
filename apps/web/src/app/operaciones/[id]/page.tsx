@@ -20,15 +20,20 @@ import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
     advanceOperation,
+    attestTransferStepAction,
+    checkDomainCustodyAction,
+    checkDomainDeliveryAction,
     completeOperation,
     confirmBankTransfer,
     confirmCustody,
     counterOffer,
     declareRecipientIdentity,
+    deliverDomainAction,
     goToCheckout,
     initiateTransfer,
     signContract,
 } from '../actions';
+import { AdminDomainTransferPanel, DomainDeliveryStatus, TransferStepsList } from '@/components/TransferSteps';
 import { fileReport } from '../../denuncias/actions';
 
 /**
@@ -623,6 +628,53 @@ export default async function DetalleOperacion(props: {
                                         steps={op.handoverSteps ?? []}
                                     />
                                 )}
+
+                                {/*
+                                    El traspaso de un sitio paso a paso, desde que el vendedor
+                                    cedió el activo: él ve qué le falta; el admin, además, los
+                                    botones que lo hacen avanzar.
+                                */}
+                                {op.assetType === 'web' &&
+                                    (isAdmin || op.miParte === 'seller') &&
+                                    ['transfer_in_progress', 'asset_in_custody', 'payment_received', 'completed'].includes(
+                                        op.status,
+                                    ) &&
+                                    (op.handoverSteps?.length ?? 0) > 0 && (
+                                        <div className="flex flex-col gap-3">
+                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
+                                                PASOS DEL TRASPASO
+                                            </span>
+                                            <TransferStepsList
+                                                steps={op.handoverSteps ?? []}
+                                                progress={op.stepProgress ?? []}
+                                            />
+                                        </div>
+                                    )}
+
+                                {isAdmin && op.assetType === 'web' && (
+                                    <AdminDomainTransferPanel
+                                        status={op.status}
+                                        steps={op.handoverSteps ?? []}
+                                        progress={op.stepProgress ?? []}
+                                        actions={{
+                                            checkCustody: checkDomainCustodyAction.bind(null, id),
+                                            attest: (stepKey) => attestTransferStepAction.bind(null, id, stepKey),
+                                            deliver: deliverDomainAction.bind(null, id),
+                                            checkDelivery: checkDomainDeliveryAction.bind(null, id),
+                                        }}
+                                    />
+                                )}
+
+                                {!isAdmin &&
+                                    op.miParte === 'buyer' &&
+                                    op.assetType === 'web' &&
+                                    op.recipientIdentity &&
+                                    ['payment_received', 'completed'].includes(op.status) && (
+                                        <DomainDeliveryStatus
+                                            recipient={op.recipientIdentity.identifier}
+                                            progress={op.stepProgress?.find((p) => p.stepKey === 'domain-to-buyer')}
+                                        />
+                                    )}
 
                                 {isAdmin && op.status === 'transfer_in_progress' && (
                                     <CustodyVerificationForm action={confirmCustody.bind(null, id)} />

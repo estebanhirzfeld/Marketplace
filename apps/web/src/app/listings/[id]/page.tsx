@@ -9,6 +9,7 @@ import { NdaPanel } from '@/components/NdaPanel';
 import { TransferStatus } from '@/components/Transferability';
 import { PlatformAccessForm } from '@/components/PlatformAccessForm';
 import { OfferForm } from '@/components/OfferForm';
+import { DomainLockNotice } from '@/components/TransferSteps';
 import { ButtonLink, Panel } from '@/components/ui';
 import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { LockIcon } from '@/components/LockIcon';
@@ -195,10 +196,14 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                         ) : (
                             <Panel title="HACER UNA OFERTA">
                                 {actor ? (
-                                    <OfferForm
-                                        action={makeOffer.bind(null, id)}
-                                        askingPrice={Math.round(listing.askingPrice.cents / 100)}
-                                    />
+                                    <div className="flex flex-col gap-4">
+                                        {/* Se dice antes de ofertar: después de recibirlo ya no hay vuelta atrás. */}
+                                        {listing.descriptor.assetType === 'web' && <DomainLockNotice />}
+                                        <OfferForm
+                                            action={makeOffer.bind(null, id)}
+                                            askingPrice={Math.round(listing.askingPrice.cents / 100)}
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="flex flex-col gap-4">
                                         <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">

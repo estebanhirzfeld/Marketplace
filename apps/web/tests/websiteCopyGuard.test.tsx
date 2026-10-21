@@ -18,6 +18,12 @@ import { listingDraftNotice } from '@/lib/listingDraftCopy';
 import { DNS_CHOICES } from '@/lib/dnsProviders';
 import { ownershipSourceLabel } from '@/lib/ownershipSource';
 import { textFor } from '@/lib/notifications';
+import {
+    AdminDomainTransferPanel,
+    DomainDeliveryStatus,
+    DomainLockNotice,
+    TransferStepsList,
+} from '@/components/TransferSteps';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }));
 
@@ -209,6 +215,41 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
                 </AssetSummaryCard>,
             ),
         );
+    });
+
+    it('el traspaso del sitio: pasos, entrega, botones del admin y el aviso de los 60 días', () => {
+        const pasos = [
+            { id: '2', key: 'domain-to-platform', check: 'automatic' as const, description: 'd', title: 'Trasladá el dominio a nuestra cuenta' },
+            { id: '3', key: 'hosting', check: 'declared' as const, description: 'd', title: 'Dejá el hosting y los archivos listos' },
+        ];
+        const plazo = '2026-10-30T09:00:00.000Z';
+        const accion = async () => ({});
+        const acciones = { checkCustody: accion, attest: () => accion, deliver: accion, checkDelivery: accion };
+
+        expectNoYouTube(
+            renderToStaticMarkup(
+                <TransferStepsList
+                    steps={pasos}
+                    progress={[{ stepKey: 'domain-to-platform', status: 'waiting', deadlineAt: plazo, attested: false }]}
+                />,
+            ),
+        );
+        for (const status of ['transfer_in_progress', 'payment_received'] as const) {
+            expectNoYouTube(
+                renderToStaticMarkup(<AdminDomainTransferPanel status={status} steps={pasos} progress={[]} actions={acciones} />),
+            );
+        }
+        for (const status of ['waiting', 'done', 'expired'] as const) {
+            expectNoYouTube(
+                renderToStaticMarkup(
+                    <DomainDeliveryStatus
+                        recipient="comprador@correo.com"
+                        progress={{ stepKey: 'domain-to-buyer', status, deadlineAt: plazo, attested: false }}
+                    />,
+                ),
+            );
+        }
+        expectNoYouTube(renderToStaticMarkup(<DomainLockNotice />));
     });
 
     it('el logo del sitio, grande y chico', () => {

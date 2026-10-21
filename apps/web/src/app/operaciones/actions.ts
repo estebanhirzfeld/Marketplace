@@ -304,3 +304,80 @@ export async function confirmBankTransfer(
     revalidatePath(`/operaciones/${operationId}`);
     return { ok: true, message: 'Registramos el pago. Falta entregar el activo y liquidar al vendedor.' };
 }
+
+/* ── Traspaso de un sitio (admin) ─────────────────────────*/
+
+type StepStatus = 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
+
+/** Corre una acción del traspaso y le cuenta al admin cómo quedó el paso. */
+async function domainStep(
+    operationId: string,
+    run: () => Promise<{ status: StepStatus }>,
+    messages: Partial<Record<StepStatus, string>>,
+    fallback: string,
+): Promise<ActionState> {
+    await requireSession();
+    let status: StepStatus;
+    try {
+        ({ status } = await run());
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: fallback };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: messages[status] ?? 'Listo.' };
+}
+
+export async function checkDomainCustodyAction(operationId: string, _estado: ActionState): Promise<ActionState> {
+    return domainStep(
+        operationId,
+        () => api().checkDomainCustody(operationId),
+        {
+            pending: 'Todavía no hay un traslado hacia nuestra cuenta de Hostinger.',
+            waiting: 'El traslado llegó y lo aceptamos. Falta confirmarlo desde el mail de Hostinger.',
+            done: 'El dominio ya está en nuestra cuenta. Falta declarar la custodia.',
+            expired: 'La invitación del vendedor venció. Tiene que iniciar el traslado de nuevo.',
+        },
+        'No pudimos comprobar el dominio. Probá de nuevo.',
+    );
+}
+
+export async function deliverDomainAction(operationId: string, _estado: ActionState): Promise<ActionState> {
+    return domainStep(
+        operationId,
+        () => api().deliverDomain(operationId),
+        {
+            waiting: 'Le mandamos la invitación al comprador. Tiene 10 días para aceptarla.',
+            done: 'El dominio ya está en la cuenta del comprador.',
+        },
+        'No pudimos iniciar la entrega. Probá de nuevo.',
+    );
+}
+
+export async function checkDomainDeliveryAction(operationId: string, _estado: ActionState): Promise<ActionState> {
+    return domainStep(
+        operationId,
+        () => api().checkDomainDelivery(operationId),
+        {
+            pending: 'La entrega todavía no empezó.',
+            waiting: 'El comprador todavía no aceptó la invitación.',
+            done: 'El dominio ya está en la cuenta del comprador. Ya se puede cerrar la operación.',
+            expired: 'La invitación al comprador venció. Hay que iniciar la entrega de nuevo.',
+        },
+        'No pudimos comprobar la entrega. Probá de nuevo.',
+    );
+}
+
+export async function attestTransferStepAction(
+    operationId: string,
+    stepKey: string,
+    _estado: ActionState,
+): Promise<ActionState> {
+    return domainStep(
+        operationId,
+        () => api().attestTransferStep(operationId, stepKey),
+        { done: 'Paso dado por cumplido.' },
+        'No pudimos dar el paso por cumplido. Probá de nuevo.',
+    );
+}

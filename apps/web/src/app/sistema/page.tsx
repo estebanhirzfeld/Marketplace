@@ -57,8 +57,15 @@ import type {
     HandoverStepDto,
     OperationStatusDto,
     PaymentOptionsDto,
+    StepProgressDto,
     YouTubeConnectionDto,
 } from '@marketplace/api-contract';
+import {
+    AdminDomainTransferPanel,
+    DomainDeliveryStatus,
+    DomainLockNotice,
+    TransferStepsList,
+} from '@/components/TransferSteps';
 import type { ConnectionReason } from '@/lib/youtubeConnection';
 
 /**
@@ -176,6 +183,19 @@ const ACCESOS_DE_MUESTRA = [
 }));
 
 const AHORA_DE_MUESTRA = '2026-10-13T12:00:00.000Z';
+
+/** Los pasos de la operación de un sitio, como los entrega `WebStrategy`, y su progreso. */
+const PASOS_DE_TRASPASO_WEB: HandoverStepDto[] = [
+    { id: '2', key: 'domain-to-platform', check: 'automatic', description: 'd', title: 'Trasladá el dominio a nuestra cuenta' },
+    { id: '3', key: 'hosting', check: 'declared', description: 'd', title: 'Dejá el hosting y los archivos listos' },
+    { id: '4', key: 'code', check: 'declared', description: 'd', title: 'Dejá el código y la base de datos listos' },
+    { id: '5', key: 'accounts', check: 'declared', description: 'd', title: 'Dejá listas las cuentas asociadas' },
+];
+const PLAZO_DE_MUESTRA = '2026-10-23T12:00:00.000Z';
+const PROGRESO_DE_MUESTRA: StepProgressDto[] = [
+    { stepKey: 'domain-to-platform', status: 'waiting', deadlineAt: PLAZO_DE_MUESTRA, attested: false },
+    { stepKey: 'hosting', status: 'done', attested: true },
+];
 
 const PASOS_DE_MUESTRA: HandoverStepDto[] = [
     {
@@ -554,6 +574,38 @@ export default function Sistema() {
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN CUSTODIA</div>
                             <Timeline actual="asset_in_custody" />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Traspaso de un sitio"
+                    note="Los pasos con su estado y su plazo, lo que ve el comprador de la entrega, los botones del admin y el aviso de los 60 días antes de ofertar."
+                >
+                    <div className="grid gap-10 lg:grid-cols-2">
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR · PASOS</div>
+                            <TransferStepsList steps={PASOS_DE_TRASPASO_WEB} progress={PROGRESO_DE_MUESTRA} />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ADMIN · TRANSFERENCIA EN CURSO</div>
+                            <AdminDomainTransferPanel
+                                status="transfer_in_progress"
+                                steps={PASOS_DE_TRASPASO_WEB}
+                                progress={PROGRESO_DE_MUESTRA}
+                                actions={{ checkCustody: noop, attest: () => noop, deliver: noop, checkDelivery: noop }}
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR · INVITACIÓN MANDADA</div>
+                            <DomainDeliveryStatus
+                                recipient="comprador@correo.com"
+                                progress={{ stepKey: 'domain-to-buyer', status: 'waiting', deadlineAt: PLAZO_DE_MUESTRA, attested: false }}
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ANTES DE OFERTAR</div>
+                            <DomainLockNotice />
                         </div>
                     </div>
                 </Section>
