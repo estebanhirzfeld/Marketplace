@@ -235,6 +235,25 @@ describe('ConfirmCustodyUseCase — sitio web', () => {
         expect(operationRepo.save).not.toHaveBeenCalled();
     });
 
+    it.each(['deleted', 'expired', 'suspended', 'pending_setup'] as const)(
+        'con el dominio en la cartera pero %s, la custodia no se confirma',
+        async (status) => {
+            const op = anOperation('transfer_in_progress');
+            const operationRepo = operationRepoWith(op);
+
+            await expect(
+                new ConfirmCustodyUseCase(
+                    operationRepo,
+                    listingRepoWith(aWebListing()),
+                    undefined,
+                    undefined,
+                    aRegistrar(async () => ({ ...inPortfolio, status })),
+                ).execute(op.id.toString(), { ...CUSTODIA, isPrimaryOwner: true }, ADMIN),
+            ).rejects.toThrow(InvalidStateError);
+            expect(operationRepo.save).not.toHaveBeenCalled();
+        },
+    );
+
     it('un error transitorio del registrador sube y no confirma nada', async () => {
         const op = anOperation('transfer_in_progress');
         const operationRepo = operationRepoWith(op);

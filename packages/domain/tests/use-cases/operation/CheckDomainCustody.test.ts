@@ -256,6 +256,21 @@ describe('CheckDomainCustodyUseCase', () => {
             expect(row()?.evidence).toMatchObject({ moveStatus: 'activating', awaitingEmailConfirmation: true });
         });
 
+        it.each(['deleted', 'expired', 'suspended', 'pending_setup'] as const)(
+            'el dominio en la cartera pero %s no cumple el paso',
+            async (portfolioStatus) => {
+                const { useCase, id, row } = setup({
+                    portfolio: { ...anEntry(), status: portfolioStatus },
+                    incoming: aMove('activating'),
+                });
+
+                const status = await useCase.execute(id);
+
+                expect(status).toBe('waiting');
+                expect(row()?.status).toBe('waiting');
+            },
+        );
+
         it('dominio en el portfolio: done con evidencia, aunque no hubiera fila', async () => {
             const { useCase, id, registrar, row } = setup({ portfolio: anEntry() });
 

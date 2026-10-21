@@ -100,6 +100,24 @@ const portfolioBody = {
 };
 
 describe('HostingerDomainRegistrar — lecturas', () => {
+    it('lee el estado aunque Hostinger lo mande con mayúscula, como hace la API real', async () => {
+        // La especificación dice `active`; la API real devolvió `Active` para
+        // deliaorrego.online el 21/10/2026.
+        const { registrar } = setup([json(200, { ...portfolioBody, status: 'Active' })]);
+
+        const entry = await registrar.getPortfolioEntry(domain);
+
+        expect(entry?.status).toBe('active');
+    });
+
+    it('lee el estado de un traslado aunque venga con mayúscula', async () => {
+        const { registrar } = setup([json(200, { ...moveBody, status: 'Completed' })]);
+
+        const move = await registrar.getIncomingMove(domain);
+
+        expect(move?.status).toBe('completed');
+    });
+
     it('lee el dominio del portfolio con Bearer y la URL codificada', async () => {
         const { registrar, calls } = setup([json(200, portfolioBody)]);
 

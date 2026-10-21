@@ -59,10 +59,10 @@ export class ConfirmCustodyUseCase {
         }
 
         // Con registrador, un sitio es propiedad principal de la plataforma si
-        // el dominio está en su cartera; lo que mande el admin en ese campo se
+        // el dominio está activo en su cartera; lo que mande el admin en ese campo se
         // ignora. Un error del registrador sube sin confirmar nada.
         const isPrimaryOwner = this.registrar && isWebListing(listing)
-            ? (await this.registrar.getPortfolioEntry(websiteDomainOf(listing))) !== null
+            ? (await this.registrar.getPortfolioEntry(websiteDomainOf(listing)))?.status === 'active'
             : input.isPrimaryOwner;
 
         // La entidad rechaza declarar custodia sin propiedad principal ni

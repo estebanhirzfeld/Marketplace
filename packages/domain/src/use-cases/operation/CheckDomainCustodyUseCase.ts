@@ -103,7 +103,10 @@ export class CheckDomainCustodyUseCase {
 
         try {
             const entry = await this.registrar.getPortfolioEntry(domain);
-            if (entry) {
+            // Solo un dominio activo está en custodia: uno borrado, vencido,
+            // suspendido o a medio configurar figura en la cartera pero no
+            // sirve para entregarlo.
+            if (entry?.status === 'active') {
                 const progress = existing ?? this.start(operationId, now);
                 progress.markDone(now, {
                     evidence: { inPortfolio: true, portfolioStatus: entry.status },

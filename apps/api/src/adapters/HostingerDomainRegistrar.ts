@@ -60,7 +60,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function oneOf<T extends string>(allowed: readonly T[], value: unknown): T {
-    const match = allowed.find((candidate) => candidate === value);
+    // Sin distinguir mayúsculas: la especificación enumera `active`, pero la
+    // API real devuelve `Active` (comprobado contra la cuenta de la plataforma).
+    const normalized = typeof value === 'string' ? value.toLowerCase() : value;
+    const match = allowed.find((candidate) => candidate === normalized);
     // Un estado fuera de la especificación no se interpreta: quien decide con
     // él (aceptar, entregar) no debe actuar a ciegas.
     if (match === undefined) throw unavailable(new Error('estado no enumerado por el registrador'));
