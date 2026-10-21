@@ -449,6 +449,22 @@ describe('CompleteOperationUseCase', () => {
             expect(op.status).toBe('payment_received');
         });
 
+        it('sin el pago confirmado el error es el de siempre, y no se consulta la entrega', async () => {
+            const op = createOperationInState('asset_in_custody');
+            const deliveryCheck = { execute: vi.fn(async (): Promise<TransferStepProgressStatus> => 'pending') };
+            const useCase = new CompleteOperationUseCase(
+                createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) }),
+                createMockListingRepo({ findById: vi.fn().mockResolvedValue(unSitioEnOperacion()) }),
+                undefined,
+                deliveryCheck,
+            );
+
+            await expect(useCase.execute(op.id.toString(), ENTREGA_OK, ADMIN)).rejects.toThrow(
+                'El pago debe estar confirmado para completar la operación',
+            );
+            expect(deliveryCheck.execute).not.toHaveBeenCalled();
+        });
+
         it('un canal sigue usando lo que declara el admin, sin consultar la entrega del dominio', async () => {
             const op = createOperationInState('payment_received');
             op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());

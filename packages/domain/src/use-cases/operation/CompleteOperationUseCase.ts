@@ -49,9 +49,11 @@ export class CompleteOperationUseCase {
 
         const listing = await this.listingRepo.findById(operation.listingId.toString());
 
-        // Un error del registrador sube sin cerrar nada.
+        // Un error del registrador sube sin cerrar nada. Solo con el pago
+        // confirmado: en otro estado decide la guarda de la entidad, con su
+        // mensaje de siempre.
         const buyerIsPrimaryOwner =
-            this.deliveryCheck && listing && isWebListing(listing)
+            this.deliveryCheck && listing && isWebListing(listing) && operation.status === 'payment_received'
                 ? (await this.deliveryCheck.execute(operationId)) === 'done'
                 : input.buyerIsPrimaryOwner;
 
