@@ -2,6 +2,7 @@ import { INotifier } from '../ports/INotifier';
 import { Notification } from '../entities/Notification';
 import { Operation, NegotiatingParty } from '../entities/Operation';
 import { Listing } from '../entities/Listing';
+import { TransferStepProgress } from '../entities/TransferStepProgress';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 
 /**
@@ -166,6 +167,24 @@ export class NegotiationNotifier {
                 listingId: props.listingId,
                 amountCents: aPagar.getCents(),
                 currency: aPagar.getCurrency(),
+            }),
+        ]);
+    }
+
+    /**
+     * La invitación para recibir el dominio está por vencer: al comprador le
+     * toca aceptarla desde su cuenta de Hostinger. `occursAt` es el plazo.
+     */
+    async deliveryReminder(operation: Operation, step: TransferStepProgress): Promise<void> {
+        const { props } = operation.toSnapshot();
+
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'entrega_recordatorio',
+                operationId: operation.id,
+                listingId: props.listingId,
+                occursAt: step.deadlineAt,
             }),
         ]);
     }

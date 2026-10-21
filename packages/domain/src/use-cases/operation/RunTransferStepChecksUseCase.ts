@@ -8,6 +8,9 @@ import { isWebListing } from '../../services/WebCustody';
 import { CheckDomainCustodyUseCase, DOMAIN_TO_PLATFORM_STEP_KEY } from './CheckDomainCustodyUseCase';
 import type { CheckDomainDeliveryUseCase } from './DomainDeliveryUseCases';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
+import { Operation } from '../../entities/Operation';
+import { DOMAIN_TO_BUYER_STEP_KEY } from './DomainDeliveryUseCases';
 
 /** Lo único que el job necesita de la comprobación del dominio. */
 export type DomainCustodyCheck = Pick<CheckDomainCustodyUseCase, 'execute'>;
@@ -15,8 +18,15 @@ export type DomainCustodyCheck = Pick<CheckDomainCustodyUseCase, 'execute'>;
 /** Lo único que el job necesita de la comprobación de la entrega al comprador. */
 export type DomainDeliveryCheck = Pick<CheckDomainDeliveryUseCase, 'execute'>;
 
-/** Lo único que el job necesita de los avisos de la plataforma. */
-export type TransferStepNotifier = Pick<PlatformNotifier, 'transferStepReminder' | 'transferStepExpired'>;
+/**
+ * Los avisos de plazo que dispara el job. Los del traslado a la plataforma y
+ * el vencimiento de la entrega van a los administradores (`PlatformNotifier`);
+ * el recordatorio de la entrega, al comprador (`NegotiationNotifier`).
+ */
+export type TransferStepNotifier = Pick<PlatformNotifier, 'transferStepReminder' | 'transferStepExpired' | 'deliveryExpired'> &
+    Pick<NegotiationNotifier, 'deliveryReminder'>;
+
+type StepNotice = (operation: Operation, step: TransferStepProgress) => Promise<void>;
 
 export interface TransferStepChecksFailure {
     operationId: string;
@@ -43,10 +53,11 @@ export interface TransferStepChecksSummary {
  *    (`CheckDomainCustodyUseCase`, que también acepta el traslado entrante);
  *    con el pago confirmado, si llegó a la cuenta del comprador
  *    (`CheckDomainDeliveryUseCase`).
- * 2. Vigila los plazos de los pasos abiertos del traslado a la plataforma:
- *    recuerda cuando falta poco y, vencido el plazo, marca el paso como
- *    vencido y lo escala a la plataforma. Los avisos de la entrega al
- *    comprador son otros y todavía no salen de acá.
+ * 2. Vigila los plazos de los pasos abiertos con invitación de Hostinger —el
+ *    traslado a la plataforma y la entrega al comprador—: recuerda cuando
+ *    falta poco y, vencido el plazo, marca el paso como vencido y lo escala a
+ *    la plataforma. Cada paso tiene sus propios avisos, porque en uno le toca
+ *    actuar a la plataforma y en el otro al comprador.
  *
  * Es idempotente: el recordatorio y la escalada se anotan en el paso y no se
  * repiten, y el paso se guarda ANTES de avisar, así que una corrida que se
@@ -84,10 +95,10 @@ export class RunTransferStepChecksUseCase {
         const now = this.now();
         for (const step of await this.progressRepo.findOpen()) {
             if (step.scope !== 'operation') continue;
-            // Los textos de estos avisos son los del traslado a la plataforma.
-            if (step.stepKey !== DOMAIN_TO_PLATFORM_STEP_KEY) continue;
+            const notices = this.noticesFor(step.stepKey);
+            if (!notices) continue;
             try {
-                await this.watchDeadline(step, now, summary);
+                await this.watchDeadline(step, notices, now, summary);
             } catch (error) {
                 summary.failures.push({ operationId: step.scopeId, error: messageOf(error) });
             }
@@ -117,8 +128,26 @@ export class RunTransferStepChecksUseCase {
         }
     }
 
+    /** Qué avisos le corresponden a cada paso con plazo; `null` para los que no se vigilan. */
+    private noticesFor(stepKey: string): { reminder: StepNotice; expired: StepNotice } | null {
+        if (stepKey === DOMAIN_TO_PLATFORM_STEP_KEY) {
+            return {
+                reminder: (o, s) => this.notifier.transferStepReminder(o, s),
+                expired: (o, s) => this.notifier.transferStepExpired(o, s),
+            };
+        }
+        if (stepKey === DOMAIN_TO_BUYER_STEP_KEY) {
+            return {
+                reminder: (o, s) => this.notifier.deliveryReminder(o, s),
+                expired: (o, s) => this.notifier.deliveryExpired(o, s),
+            };
+        }
+        return null;
+    }
+
     private async watchDeadline(
         step: TransferStepProgress,
+        notices: { reminder: StepNotice; expired: StepNotice },
         now: Date,
         summary: TransferStepChecksSummary,
     ): Promise<void> {
@@ -129,7 +158,7 @@ export class RunTransferStepChecksUseCase {
         if (step.needsReminder(now)) {
             step.markReminded(now);
             await this.progressRepo.save(step);
-            await this.notifier.transferStepReminder(operation, step);
+            await notices.reminder(operation, step);
             summary.reminded += 1;
             return;
         }
@@ -142,7 +171,7 @@ export class RunTransferStepChecksUseCase {
         if (step.needsEscalation(now)) {
             step.markEscalated(now);
             await this.progressRepo.save(step);
-            await this.notifier.transferStepExpired(operation, step);
+            await notices.expired(operation, step);
             summary.escalated += 1;
             return;
         }

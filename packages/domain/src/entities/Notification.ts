@@ -48,7 +48,11 @@ export type NotificationType =
     | 'traspaso_recordatorio'
     | 'traspaso_vencido'
     /** A la plataforma: el dominio llegó a su cartera; falta declarar la custodia. */
-    | 'dominio_en_custodia';
+    | 'dominio_en_custodia'
+    /** Al comprador: tiene que aceptar el dominio en su cuenta de Hostinger; `occursAt` es cuándo vence la invitación. */
+    | 'entrega_recordatorio'
+    /** A la plataforma: venció la invitación al comprador sin aceptarse; `occursAt` es cuándo venció. */
+    | 'entrega_vencida';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

@@ -77,6 +77,37 @@ describe("PrismaTransferStepProgressRepository", () => {
         expect(all[0]?.remindedAt).toEqual(new Date(DEADLINE_AT.getTime() - DAY_MS));
     });
 
+    it("reiniciar un paso vencido y escalado deja la fila como nueva: sin recordatorio ni escalada", async () => {
+        // Es lo que hace la entrega de un dominio cuando vence la invitación y
+        // el admin la vuelve a iniciar: si la fila conservara `remindedAt` y
+        // `escalatedAt`, el paso reiniciado nunca volvería a avisar.
+        const vencido = startStep();
+        vencido.markReminded(new Date(DEADLINE_AT.getTime() - DAY_MS));
+        const despues = new Date(DEADLINE_AT.getTime() + DAY_MS);
+        vencido.markExpired(despues);
+        vencido.markEscalated(despues);
+        await repo.save(vencido);
+
+        const nuevoPlazo = new Date(despues.getTime() + 10 * DAY_MS);
+        const reiniciado = TransferStepProgress.start({
+            scope: "operation",
+            scopeId: "operation-1",
+            stepKey: vencido.stepKey,
+            startedAt: despues,
+            deadlineAt: nuevoPlazo,
+        });
+        reiniciado.markWaiting(despues, { recipientEmail: "comprador@correo.com" });
+        await repo.save(reiniciado);
+
+        const fila = await repo.find("operation", "operation-1", vencido.stepKey);
+        expect(fila?.status).toBe("waiting");
+        expect(fila?.startedAt).toEqual(despues);
+        expect(fila?.deadlineAt).toEqual(nuevoPlazo);
+        expect(fila?.remindedAt).toBeUndefined();
+        expect(fila?.escalatedAt).toBeUndefined();
+        expect(fila?.evidence).toEqual({ recipientEmail: "comprador@correo.com" });
+    });
+
     it("findByScope lista solo los pasos de ese alcance y activo", async () => {
         await repo.save(startStep({ stepKey: "hosting" }));
         await repo.save(startStep({ stepKey: "code" }));

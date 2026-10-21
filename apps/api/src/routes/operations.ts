@@ -12,6 +12,7 @@ import type {
     DeclareRecipientIdentityRequest,
     AttestTransferStepRequest,
     DomainCustodyCheckDto,
+    DomainDeliveryCheckDto,
     InitiateTransferRequest,
     PaymentOptionsDto,
     TransferStepAttestationDto,
@@ -130,14 +131,10 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
     );
 
     /**
-     * El admin da por cumplido un paso declarado de la entrega (hosting, código,
-     * cuentas asociadas). Los pasos que se comprueban solos no pasan por acá.
-     */
-    /**
      * El admin inicia la entrega del dominio de un sitio: un traslado saliente
      * de la cuenta de Hostinger de la plataforma a la del comprador.
      */
-    app.post<{ Params: IdParams; Reply: DomainCustodyCheckDto }>(
+    app.post<{ Params: IdParams; Reply: DomainDeliveryCheckDto }>(
         '/admin/operations/:id/deliver-domain',
         { preHandler: [authenticate] },
         async (request, reply) => {
@@ -156,7 +153,7 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
     );
 
     /** Si el dominio ya llegó a la cuenta del comprador. También lo pregunta el job periódico. */
-    app.post<{ Params: IdParams; Reply: DomainCustodyCheckDto }>(
+    app.post<{ Params: IdParams; Reply: DomainDeliveryCheckDto }>(
         '/admin/operations/:id/check-domain-delivery',
         { preHandler: [authenticate] },
         async (request, reply) => {
@@ -174,8 +171,13 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
         },
     );
 
-    // Sin schema de cuerpo a propósito: las notas son opcionales y Fastify
-    // rechaza con 400 un POST sin cuerpo si declara uno de tipo objeto.
+    /**
+     * El admin da por cumplido un paso declarado de la entrega (hosting, código,
+     * cuentas asociadas). Los pasos que se comprueban solos no pasan por acá.
+     *
+     * Sin schema de cuerpo a propósito: las notas son opcionales y Fastify
+     * rechaza con 400 un POST sin cuerpo si declara uno de tipo objeto.
+     */
     app.post<{ Params: StepParams; Body: AttestTransferStepRequest | undefined; Reply: TransferStepAttestationDto }>(
         '/admin/operations/:id/steps/:key/attest',
         { preHandler: [authenticate] },

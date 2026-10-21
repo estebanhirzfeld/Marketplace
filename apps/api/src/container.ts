@@ -591,7 +591,14 @@ export function createContainer(
             operationRepo,
             listingRepo,
             transferStepProgressRepo,
-            avisosDePlataforma,
+            // Los avisos de plazo van a la plataforma, salvo el recordatorio de
+            // la entrega, que es del comprador.
+            {
+                transferStepReminder: (o, s) => avisosDePlataforma.transferStepReminder(o, s),
+                transferStepExpired: (o, s) => avisosDePlataforma.transferStepExpired(o, s),
+                deliveryExpired: (o, s) => avisosDePlataforma.deliveryExpired(o, s),
+                deliveryReminder: (o, s) => avisos.deliveryReminder(o, s),
+            },
             checkDomainCustody,
             checkDomainDelivery,
         ),

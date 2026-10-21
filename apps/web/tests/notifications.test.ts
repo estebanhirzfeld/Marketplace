@@ -93,8 +93,34 @@ describe('avisos del traslado del dominio a la plataforma', () => {
         expect(cuerpo).toBe('Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.');
     });
 
+    it('le recuerda al comprador que acepte el dominio desde su cuenta de Hostinger, con el plazo', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'entrega_recordatorio' });
+
+        expect(title).toBe('Aceptá el dominio en Hostinger');
+        expect(cuerpo).toBe(`La invitación para recibir el dominio vence el ${fechaLarga(occursAt)}. Aceptala desde tu cuenta de Hostinger.`);
+        expect(textFor({ ...delTraslado, type: 'entrega_recordatorio', occursAt: undefined }).cuerpo).toBe(
+            'Tenés una invitación para recibir el dominio. Aceptala desde tu cuenta de Hostinger.',
+        );
+    });
+
+    it('le avisa a la plataforma que venció la entrega y que hay que iniciarla de nuevo', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'entrega_vencida' });
+
+        expect(title).toBe('Venció la entrega de un dominio');
+        expect(cuerpo).toBe(`La invitación al comprador venció el ${fechaLarga(occursAt)} sin aceptarse. Hay que volver a iniciar la entrega.`);
+        expect(textFor({ ...delTraslado, type: 'entrega_vencida', occursAt: undefined }).cuerpo).toBe(
+            'La invitación al comprador venció sin aceptarse. Hay que volver a iniciar la entrega.',
+        );
+    });
+
     it('los tres llevan a la operación', () => {
-        for (const type of ['traspaso_recordatorio', 'traspaso_vencido', 'dominio_en_custodia'] as const) {
+        for (const type of [
+            'traspaso_recordatorio',
+            'traspaso_vencido',
+            'dominio_en_custodia',
+            'entrega_recordatorio',
+            'entrega_vencida',
+        ] as const) {
             expect(linkFor({ ...delTraslado, type })).toBe('/operaciones/o1');
         }
     });

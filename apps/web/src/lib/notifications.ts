@@ -108,6 +108,20 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
         title: 'El dominio ya está en nuestra cuenta',
         cuerpo: () => 'Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.',
     },
+    entrega_recordatorio: {
+        title: 'Aceptá el dominio en Hostinger',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `La invitación para recibir el dominio vence el ${fechaLarga(n.occursAt)}. Aceptala desde tu cuenta de Hostinger.`
+                : 'Tenés una invitación para recibir el dominio. Aceptala desde tu cuenta de Hostinger.',
+    },
+    entrega_vencida: {
+        title: 'Venció la entrega de un dominio',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `La invitación al comprador venció el ${fechaLarga(n.occursAt)} sin aceptarse. Hay que volver a iniciar la entrega.`
+                : 'La invitación al comprador venció sin aceptarse. Hay que volver a iniciar la entrega.',
+    },
     operacion_completada: {
         title: 'Operación cerrada',
         cuerpo: () => 'El activo cambió de manos y el dinero se liquidó.',

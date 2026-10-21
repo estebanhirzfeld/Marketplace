@@ -240,6 +240,8 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
             traspaso_recordatorio: true,
             traspaso_vencido: true,
             dominio_en_custodia: true,
+            entrega_recordatorio: true,
+            entrega_vencida: true,
         };
         for (const type of Object.keys(types) as NotificationTypeDto[]) {
             const aviso: NotificationDto = {

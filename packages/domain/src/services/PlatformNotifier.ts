@@ -88,6 +88,11 @@ export class PlatformNotifier {
         await this.avisarPaso('traspaso_vencido', operation, step);
     }
 
+    /** Venció la invitación de entrega al comprador: hay que volver a iniciar la entrega. */
+    async deliveryExpired(operation: Operation, step: TransferStepProgress): Promise<void> {
+        await this.avisarPaso('entrega_vencida', operation, step);
+    }
+
     /** El dominio del sitio ya está en la cartera de la plataforma: falta declarar la custodia. */
     async domainInCustody(operation: Operation): Promise<void> {
         await this.avisar('dominio_en_custodia', {

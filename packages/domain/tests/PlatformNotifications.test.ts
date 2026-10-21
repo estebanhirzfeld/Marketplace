@@ -197,6 +197,18 @@ describe('PlatformNotifier', () => {
             expect(enviadas[0].toSnapshot().props.operationId?.toString()).toBe(operation.id.toString());
         });
 
+        it('avisa a los administradores que venció la entrega del dominio al comprador, con el plazo', async () => {
+            const operation = unaOperacion();
+            const { avisos, enviadas } = armar(admin('uno@traspaso.com'), admin('dos@traspaso.com'));
+
+            await avisos.deliveryExpired(operation, unPaso(operation));
+
+            expect(enviadas).toHaveLength(2);
+            expect(enviadas[0].type).toBe('entrega_vencida');
+            expect(enviadas[0].toSnapshot().props.occursAt).toEqual(DEADLINE);
+            expect(enviadas[0].toSnapshot().props.operationId?.toString()).toBe(operation.id.toString());
+        });
+
         it('avisa a los administradores que el dominio llegó a la cuenta de la plataforma', async () => {
             const operation = unaOperacion();
             const { avisos, enviadas } = armar(admin('uno@traspaso.com'));

@@ -78,6 +78,10 @@ enum NotificationType {
   traspaso_recordatorio
   traspaso_vencido
   dominio_en_custodia
+  // La entrega del dominio al comprador: a él, que acepte la invitación de
+  // Hostinger antes de que venza; a los administradores, que venció.
+  entrega_recordatorio
+  entrega_vencida
 }
 
 enum ContractType {

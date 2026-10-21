@@ -146,6 +146,8 @@ function setup(entries: { listing: Listing }[], options: { withCheck?: boolean }
     const notifier: TransferStepNotifier = {
         transferStepReminder: vi.fn(async () => {}),
         transferStepExpired: vi.fn(async () => {}),
+        deliveryReminder: vi.fn(async () => {}),
+        deliveryExpired: vi.fn(async () => {}),
     };
     const clock = { now: NOW };
     const useCase = new RunTransferStepChecksUseCase(
@@ -314,21 +316,62 @@ describe('RunTransferStepChecksUseCase', () => {
             expect(notifier.transferStepReminder).toHaveBeenCalledTimes(1);
         });
 
-        it('los plazos de la entrega al comprador no usan los avisos del traslado a la plataforma', async () => {
+        function unaEntrega(operation: Operation, deadlineAt: Date): TransferStepProgress {
+            return TransferStepProgress.start({
+                scope: 'operation',
+                scopeId: operation.id.toString(),
+                stepKey: 'domain-to-buyer',
+                startedAt: new Date(deadlineAt.getTime() - 10 * DAY_MS),
+                deadlineAt,
+            });
+        }
+
+        it('la entrega al comprador le recuerda a él, con su propio aviso, una sola vez', async () => {
             const { useCase, operations, progressRepo, notifier } = setup([{ listing: aWebListing() }]);
-            const entrega = TransferStepProgress.start({
+            const entrega = unaEntrega(operations[0], new Date(NOW.getTime() + DAY_MS));
+            await progressRepo.save(entrega);
+
+            const first = await useCase.execute();
+            await useCase.execute();
+
+            expect(notifier.deliveryReminder).toHaveBeenCalledTimes(1);
+            expect(notifier.deliveryReminder).toHaveBeenCalledWith(operations[0], entrega);
+            expect(notifier.transferStepReminder).not.toHaveBeenCalled();
+            expect(entrega.remindedAt).toEqual(NOW);
+            expect(first.reminded).toBe(1);
+        });
+
+        it('vencida la entrega, se escala a la plataforma con su propio aviso, una sola vez', async () => {
+            const { useCase, operations, progressRepo, notifier } = setup([{ listing: aWebListing() }]);
+            const entrega = unaEntrega(operations[0], new Date(NOW.getTime() - DAY_MS));
+            await progressRepo.save(entrega);
+
+            const first = await useCase.execute();
+            await useCase.execute();
+
+            expect(entrega.status).toBe('expired');
+            expect(notifier.deliveryExpired).toHaveBeenCalledTimes(1);
+            expect(notifier.deliveryExpired).toHaveBeenCalledWith(operations[0], entrega);
+            expect(notifier.transferStepExpired).not.toHaveBeenCalled();
+            expect(first.escalated).toBe(1);
+        });
+
+        it('un paso que no es del traslado ni de la entrega no avisa nada', async () => {
+            const { useCase, operations, progressRepo, notifier } = setup([{ listing: aWebListing() }]);
+            const otro = TransferStepProgress.start({
                 scope: 'operation',
                 scopeId: operations[0].id.toString(),
-                stepKey: 'domain-to-buyer',
+                stepKey: 'hosting',
                 startedAt: new Date(NOW.getTime() - 9 * DAY_MS),
                 deadlineAt: new Date(NOW.getTime() + DAY_MS),
             });
-            await progressRepo.save(entrega);
+            await progressRepo.save(otro);
 
             await useCase.execute();
 
             expect(notifier.transferStepReminder).not.toHaveBeenCalled();
-            expect(entrega.remindedAt).toBeUndefined();
+            expect(notifier.deliveryReminder).not.toHaveBeenCalled();
+            expect(otro.remindedAt).toBeUndefined();
         });
 
         it('un paso cuya operación ya no existe se saltea sin cortar el recorrido', async () => {

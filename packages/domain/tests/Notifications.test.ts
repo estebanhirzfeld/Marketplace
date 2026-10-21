@@ -5,6 +5,7 @@ import { INotifier } from '../src/ports/INotifier';
 import { NegotiationNotifier } from '../src/services/NegotiationNotifier';
 import { Operation } from '../src/entities/Operation';
 import { Money } from '../src/value-objects/Money';
+import { TransferStepProgress } from '../src/entities/TransferStepProgress';
 
 /**
  * Los avisos existen porque la negociación tiene turnos y, sin ellos, saber
@@ -188,5 +189,27 @@ describe('NegotiationNotifier', () => {
         await expect(
             new NegotiationNotifier(roto).offerReceived(unaOperacion()),
         ).resolves.toBeUndefined();
+    });
+
+    it('le recuerda al comprador, y solo a él, que acepte el dominio antes de que venza la invitación', async () => {
+        const notifier = unNotificadorFalso();
+        const op = unaOperacion();
+        const deadlineAt = new Date('2026-11-04T12:00:00Z');
+        const paso = TransferStepProgress.start({
+            scope: 'operation',
+            scopeId: op.id.toString(),
+            stepKey: 'domain-to-buyer',
+            startedAt: new Date('2026-10-25T12:00:00Z'),
+            deadlineAt,
+        });
+
+        await new NegotiationNotifier(notifier).deliveryReminder(op, paso);
+
+        expect(notifier.enviadas).toHaveLength(1);
+        const { props } = notifier.enviadas[0].toSnapshot();
+        expect(notifier.enviadas[0].type).toBe('entrega_recordatorio');
+        expect(props.userId.toString()).toBe(BUYER.toString());
+        expect(props.operationId?.toString()).toBe(op.id.toString());
+        expect(props.occursAt).toEqual(deadlineAt);
     });
 });

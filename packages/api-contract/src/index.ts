@@ -842,6 +842,11 @@ export interface DomainCustodyCheckDto {
     status: 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';
 }
 
+/** Cómo quedó el paso de entregar el dominio al comprador. */
+export interface DomainDeliveryCheckDto {
+    status: DomainCustodyCheckDto['status'];
+}
+
 /** Lo que el admin anota al dar por cumplido un paso declarado de la entrega. */
 export interface AttestTransferStepRequest {
     notes?: string;
@@ -1097,7 +1102,11 @@ export type NotificationTypeDto =
     /** A la plataforma: la invitación de traslado del dominio venció en `occursAt`. */
     | 'traspaso_vencido'
     /** A la plataforma: el dominio del sitio llegó a su cuenta; falta declarar la custodia. */
-    | 'dominio_en_custodia';
+    | 'dominio_en_custodia'
+    /** Al comprador: la invitación para recibir el dominio vence en `occursAt`. */
+    | 'entrega_recordatorio'
+    /** A la plataforma: la invitación de entrega al comprador venció en `occursAt`. */
+    | 'entrega_vencida';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia
