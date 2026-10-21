@@ -783,7 +783,22 @@ export interface OperationDetailDto {
      * arma el DTO no resolvió cuenta de custodia.
      */
     handoverSteps?: HandoverStepDto[];
+    /**
+     * Cómo va cada paso del traspaso que ya tiene progreso: estado, plazo y si
+     * lo dio por cumplido una persona. Un paso que no aparece está pendiente y
+     * sin plazo. Ausente si la API no lo resolvió.
+     */
+    stepProgress?: StepProgressDto[];
     createdAt: string;
+}
+
+/** El progreso de un paso del traspaso, por su `key` estable. */
+export interface StepProgressDto {
+    stepKey: string;
+    status: DomainCustodyCheckDto['status'];
+    /** ISO. Hasta cuándo vale la invitación de Hostinger, si el paso tiene una. */
+    deadlineAt?: string;
+    attested: boolean;
 }
 
 /** Dónde el comprador quiere recibir el activo. */

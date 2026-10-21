@@ -54,6 +54,10 @@ import {
     YouTubeConnectionDto,
     CreateListingFromYouTubeRequest,
     CreatedYouTubeListingDto,
+    DomainCustodyCheckDto,
+    DomainDeliveryCheckDto,
+    AttestTransferStepRequest,
+    TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
 
@@ -392,6 +396,34 @@ export class MarketplaceClient {
 
     confirmCustody(operationId: string, body: ConfirmCustodyRequest): Promise<void> {
         return this.operationStep(operationId, 'custody', body);
+    }
+
+    /** Admin: pregunta al registrador si el dominio del sitio ya llegó a la cuenta de la plataforma. */
+    checkDomainCustody(operationId: string): Promise<DomainCustodyCheckDto> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/check-domain-custody`);
+    }
+
+    /** Admin: inicia el traslado del dominio a la cuenta de Hostinger del comprador. */
+    deliverDomain(operationId: string): Promise<DomainDeliveryCheckDto> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/deliver-domain`);
+    }
+
+    /** Admin: pregunta si el dominio ya llegó a la cuenta del comprador. */
+    checkDomainDelivery(operationId: string): Promise<DomainDeliveryCheckDto> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/check-domain-delivery`);
+    }
+
+    /** Admin: da por cumplido un paso declarado de la entrega. */
+    attestTransferStep(
+        operationId: string,
+        stepKey: string,
+        body: AttestTransferStepRequest = {},
+    ): Promise<TransferStepAttestationDto> {
+        return this.request(
+            'POST',
+            `/admin/operations/${encodeURIComponent(operationId)}/steps/${encodeURIComponent(stepKey)}/attest`,
+            { body },
+        );
     }
 
     /** Pide el link de pago. Solo con el activo en custodia. */

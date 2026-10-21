@@ -543,7 +543,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, custodyAccountNames } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, stepProgress, custodyAccountNames } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -608,6 +608,12 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     notes: operation.transferInitiation.notes,
                 },
                 handoverSteps,
+                stepProgress: stepProgress?.map((step) => ({
+                    stepKey: step.stepKey,
+                    status: step.status,
+                    deadlineAt: step.deadlineAt?.toISOString(),
+                    attested: step.attested,
+                })),
                 createdAt: createdAt.toISOString(),
             };
 

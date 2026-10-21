@@ -561,7 +561,14 @@ export function createContainer(
         listingsParaRevisar: new GetListingsForReviewUseCase(listingRepo),
         tableroDePlataforma: new GetPlatformDashboardUseCase(listingRepo, operationRepo, reportRepo, userRepo),
         misOperaciones: new GetMyOperationsUseCase(operationRepo, listingRepo, contractRepo),
-        detalleOperacion: new GetOperationDetailsUseCase(operationRepo, contractRepo, userRepo, listingRepo, custodyRepo),
+        detalleOperacion: new GetOperationDetailsUseCase(
+            operationRepo,
+            contractRepo,
+            userRepo,
+            listingRepo,
+            custodyRepo,
+            transferStepProgressRepo,
+        ),
         paymentOptions: new GetPaymentOptionsUseCase(operationRepo, {
             mercadoPagoEnabled: Boolean(mercadoPago),
             splitEnabled,

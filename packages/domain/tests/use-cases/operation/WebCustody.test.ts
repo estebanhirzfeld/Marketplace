@@ -7,8 +7,10 @@ import {
     ICustodyAccountRepository,
     IListingRepository,
     IOperationRepository,
+    ITransferStepProgressRepository,
     IUserRepository,
 } from '../../../src/ports/Repositories';
+import { TransferStepProgress } from '../../../src/entities/TransferStepProgress';
 import { IDomainRegistrar, RegistrarPortfolioEntry } from '../../../src/ports/IDomainRegistrar';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation } from '../../../src/entities/Operation';
@@ -322,5 +324,74 @@ describe('GetOperationDetailsUseCase — pasos de operación sin platformAccess'
         );
 
         expect(vista.handoverSteps).toEqual([]);
+    });
+});
+
+describe('GetOperationDetailsUseCase — progreso de los pasos', () => {
+    const usuariosVacios: IUserRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+    const contratos: IContractRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByOperation: vi.fn().mockResolvedValue([]),
+        findByListingAndSigner: vi.fn().mockResolvedValue(null),
+        findAllByListing: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+    const DEADLINE = new Date('2026-10-30T09:00:00Z');
+
+    function progressRepoWith(rows: TransferStepProgress[]): ITransferStepProgressRepository {
+        return {
+            findByScope: vi.fn(async (scope, scopeId) => rows.filter((r) => r.scope === scope && r.scopeId === scopeId)),
+            find: vi.fn(),
+            findOpen: vi.fn(),
+            save: vi.fn(),
+        };
+    }
+
+    it('trae el estado, el plazo y si fue atestiguado, por paso', async () => {
+        const op = anOperation('transfer_in_progress');
+        const id = op.id.toString();
+        const traslado = TransferStepProgress.start({
+            scope: 'operation',
+            scopeId: id,
+            stepKey: 'domain-to-platform',
+            startedAt: new Date('2026-10-20T09:00:00Z'),
+            deadlineAt: DEADLINE,
+        });
+        traslado.markWaiting(new Date('2026-10-20T10:00:00Z'), { awaitingEmailConfirmation: true });
+        const hosting = TransferStepProgress.start({ scope: 'operation', scopeId: id, stepKey: 'hosting', startedAt: new Date() });
+        hosting.markDone(new Date(), { attestedBy: 'admin-id' });
+
+        const vista = await new GetOperationDetailsUseCase(
+            operationRepoWith(op),
+            contratos,
+            usuariosVacios,
+            listingRepoWith(aWebListing()),
+            custodyRepoWith([anAccount(AssetType.WEB, 'custodia-web@traspaso.com')]),
+            progressRepoWith([traslado, hosting]),
+        ).execute(id, SELLER);
+
+        expect(vista.stepProgress).toEqual([
+            { stepKey: 'domain-to-platform', status: 'waiting', deadlineAt: DEADLINE, attested: false },
+            { stepKey: 'hosting', status: 'done', deadlineAt: undefined, attested: true },
+        ]);
+    });
+
+    it('sin repositorio de progreso el campo no existe, como hasta ahora', async () => {
+        const op = anOperation('transfer_in_progress');
+
+        const vista = await new GetOperationDetailsUseCase(
+            operationRepoWith(op),
+            contratos,
+            usuariosVacios,
+            listingRepoWith(aWebListing()),
+            custodyRepoWith([]),
+        ).execute(op.id.toString(), SELLER);
+
+        expect(vista.stepProgress).toBeUndefined();
     });
 });

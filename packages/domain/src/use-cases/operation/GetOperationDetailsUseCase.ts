@@ -3,9 +3,11 @@ import {
     ICustodyAccountRepository,
     IListingRepository,
     IOperationRepository,
+    ITransferStepProgressRepository,
     IUserRepository,
 } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
+import { TransferStepProgressStatus } from '../../entities/TransferStepProgress';
 import {
     Operation,
     NegotiatingParty,
@@ -65,6 +67,15 @@ export interface OperationAsset {
     transferableFrom?: Date;
 }
 
+/** Cómo va un paso del traspaso, para mostrarlo con su estado y su plazo. */
+export interface StepProgressView {
+    stepKey: string;
+    status: TransferStepProgressStatus;
+    deadlineAt?: Date;
+    /** Lo dio por cumplido una persona, y no una señal automática. */
+    attested: boolean;
+}
+
 export interface OperationDetailView {
     operation: Operation;
     /** Ausente si el activo ya no está; la operación sigue siendo válida. */
@@ -85,6 +96,13 @@ export interface OperationDetailView {
      * use case sin él.
      */
     handoverSteps?: HandoverStep[];
+    /**
+     * Cómo va cada paso del traspaso que ya tiene progreso guardado: el
+     * traslado del dominio, la entrega, los pasos atestiguados. Un paso sin
+     * fila no aparece: está pendiente y sin plazo. No dice quién atestiguó,
+     * porque nadie decide nada con ese dato.
+     */
+    stepProgress?: StepProgressView[];
     /**
      * Cómo se llaman las cuentas de custodia que las constancias congelaron.
      *
@@ -119,6 +137,8 @@ export class GetOperationDetailsUseCase {
          * cuenta a nombrar, así que `handoverSteps` queda `undefined`.
          */
         private readonly custodyRepo?: ICustodyAccountRepository,
+        /** Opcional por la misma razón: sin él, `stepProgress` queda `undefined`. */
+        private readonly progressRepo?: ITransferStepProgressRepository,
     ) {}
 
     /**
@@ -240,6 +260,17 @@ export class GetOperationDetailsUseCase {
             custodyAccountNames = { declared, verified };
         }
 
+        const stepProgress = this.progressRepo
+            ? (await this.progressRepo.findByScope('operation', operation.id.toString())).map(
+                  (step): StepProgressView => ({
+                      stepKey: step.stepKey,
+                      status: step.status,
+                      deadlineAt: step.deadlineAt,
+                      attested: step.attestedBy !== undefined,
+                  }),
+              )
+            : undefined;
+
         return {
             operation,
             asset,
@@ -250,6 +281,7 @@ export class GetOperationDetailsUseCase {
             recipientIdentity: operation.recipientIdentity,
             deliveryCheck: operation.deliveryCheck,
             handoverSteps,
+            stepProgress,
             custodyAccountNames,
         };
     }

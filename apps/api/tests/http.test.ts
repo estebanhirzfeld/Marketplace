@@ -1387,6 +1387,21 @@ describe('POST /admin/operations/:id/steps/:key/attest', () => {
         expect(fila?.evidence).toEqual({ notes: 'Vi el panel del hosting' });
     });
 
+    it('el detalle de la operación trae el progreso del paso atestiguado', async () => {
+        const id = await unaOperacionWebEnTransferencia();
+        await atestiguar(id, 'hosting', 'admin-att@test.com');
+        const server = await buildApp({ container: createContainer(fakeHasher), jwtSecret: 'secreto-de-test' });
+
+        const res = await server.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe('seller-att@test.com')}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.json().stepProgress).toEqual([{ stepKey: 'hosting', status: 'done', attested: true }]);
+    });
+
     it('sin cuerpo también anda: las notas son opcionales', async () => {
         const id = await unaOperacionWebEnTransferencia();
         const server = await buildApp({ container: createContainer(fakeHasher), jwtSecret: 'secreto-de-test' });

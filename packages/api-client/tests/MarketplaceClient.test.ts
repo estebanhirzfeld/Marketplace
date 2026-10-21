@@ -362,3 +362,32 @@ describe('MarketplaceClient — titularidad de un sitio por DNS', () => {
         expect(llamadas[0][1]?.body).toBeUndefined();
     });
 });
+
+describe('MarketplaceClient — traspaso de un sitio (admin)', () => {
+    it.each([
+        ['checkDomainCustody', 'check-domain-custody'],
+        ['deliverDomain', 'deliver-domain'],
+        ['checkDomainDelivery', 'check-domain-delivery'],
+    ] as const)('%s hace POST a /admin/operations/:id/%s y devuelve el estado', async (metodo, ruta) => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { status: 'waiting' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client[metodo]('op/1');
+
+        expect(respuesta).toEqual({ status: 'waiting' });
+        expect(llamadas[0][0]).toBe(`http://api.test/admin/operations/op%2F1/${ruta}`);
+        expect(llamadas[0][1]?.method).toBe('POST');
+    });
+
+    it('atestigua un paso con sus notas', async () => {
+        const { impl, llamadas } = fetchQueDevuelve(200, { status: 'done' });
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', fetchImpl: impl });
+
+        const respuesta = await client.attestTransferStep('op/1', 'hosting', { notes: 'Vi el panel' });
+
+        expect(respuesta).toEqual({ status: 'done' });
+        expect(llamadas[0][0]).toBe('http://api.test/admin/operations/op%2F1/steps/hosting/attest');
+        expect(llamadas[0][1]?.method).toBe('POST');
+        expect(JSON.parse(String(llamadas[0][1]?.body))).toEqual({ notes: 'Vi el panel' });
+    });
+});
