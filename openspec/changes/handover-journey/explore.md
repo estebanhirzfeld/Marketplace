@@ -1,6 +1,9 @@
-# Exploración — website-handover-journey
+# Exploración — handover-journey
 
-Recorrido de la venta de un sitio para el vendedor, el comprador y el admin, de punta a punta.
+Recorrido de la venta de un activo (sitio o canal de YouTube) para el vendedor, el comprador y el
+admin, de punta a punta. Empezó como el recorrido de un sitio (`website-handover-journey`) y se
+extendió a los dos tipos el 21/10/2026, cuando el usuario pidió que el rediseño fuera «tanto para web
+como para yt».
 Sale de la prueba local del 21/10/2026 con `deliaorrego.online` (operación en `marketplace_dev`),
 que el usuario cortó con «imposible asi, hay que saltear esto e ir directo a la siguiente fase con
 planning y artifacts». Las rutas son relativas a la raíz del repo; «la página de la operación» es
@@ -89,3 +92,58 @@ El motor de la fase 20: el progreso por paso, la comprobación del dominio contr
 activa, traslado entrante y saliente), la entrega por traslado saliente, el job horario con
 recordatorios y vencimientos, y la búsqueda del perfil WHOIS. Lo que falla es el recorrido que se
 arma encima, no la comprobación.
+
+## Problemas del recorrido de un canal de YouTube
+
+1. **El comprador no ve sus pasos.** `Listing.handoverSteps()` filtra por `phase` y los pasos del
+   comprador en `YouTubeStrategy` (`buyer-pays`, `buyer-accepts`, `buyer-secures-access`;
+   `packages/domain/src/strategies/YouTubeStrategy.ts:405-433`) no la declaran, así que se descartan.
+2. **Se puede cerrar con el vendedor dentro del canal.** `sellerRemoved` viaja como casilla del
+   formulario de cierre (`CompleteOperationUseCase.ts:18,66`) y `Operation.complete()` no la exige
+   (`Operation.ts:147`): la garantía de que el vendedor ya no tiene poder sobre el activo depende de que
+   el admin la marque.
+3. **El cierre no exige que el vendedor haya cobrado.** Con el split de Mercado Pago cobra solo; con
+   transferencia bancaria solo existe el aviso `liquidacion_pendiente`.
+
+## Problemas de la maquinaria común
+
+1. **Las máquinas xstate están muertas.** `packages/domain/src/machines/` no lo importa ningún archivo
+   de `apps/` ni `packages/`; documentan un ciclo que las entidades ya imponen.
+2. **El NDA del vendedor no se pide nunca.** `Contract` tiene el tipo `seller_nda`, pero ninguna
+   pantalla ni requisito de publicación lo usa.
+3. **La contraoferta tiene la moneda fija.** `apps/web/src/app/operaciones/actions.ts:163` arma el
+   `Money` en `'USD'` sea cual sea la moneda de la operación.
+4. **No hay plazos que destraben.** Un vendedor que firma y no cede, o un comprador que no paga con el
+   activo en custodia, dejan la operación abierta para siempre: después de firmar no se puede cancelar.
+
+## Investigación
+
+### Demorar el cobro del vendedor con el split de Mercado Pago
+
+- En el split 1:1 la liberación del dinero la define la cuenta del vendedor; por la API pública solo se
+  fija la comisión (`marketplace_fee`), y la fecha de liberación de la comisión se arregla con un
+  ejecutivo comercial
+  ([prerrequisitos](https://www.mercadopago.com/developers/es/docs/split-payments/split-1-1/prerequisites)).
+- `capture: false` reserva el monto, pero en Argentina vence a los 7 días y solo sirve con tarjeta
+  ([captura](https://www.mercadopago.com.ar/developers/es/docs/checkout-api-payments/payment-management/capture-authorized-payment)).
+  No alcanza para un traspaso que puede durar más.
+- Un contracargo retiene el monto disputado en la cuenta del vendedor mientras dura la disputa
+  ([contracargos](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/chargebacks)).
+
+Conclusión: el split queda como hoy y el usuario consulta al equipo comercial por fechas de liberación
+o pagos avanzados. Lo no verificable lo cubren el reclamo y el contracargo.
+
+### Recibir el total por transferencia y pagarle después al vendedor
+
+Recibir el pago del comprador en una cuenta de la plataforma y transferirle luego su parte al vendedor
+es retener fondos de terceros: encuadra en la «cuenta de pago» que define el BCRA para los
+proveedores de servicios de pago (Comunicación "A" 8454, §1.4.1) y vuelve a la plataforma sujeto
+obligado ante la UIF (Resolución 200/2024). La fase 20 ya lo había descartado. Por eso la transferencia
+bancaria se divide como el split: el comprador le transfiere `sellerReceives` al vendedor y
+`platformEarns` a la plataforma.
+
+### Almacenamiento de comprobantes en Cloudflare R2
+
+Nivel gratuito por mes: 10 GB, 1 millón de operaciones de clase A, 10 millones de clase B, egreso sin
+cargo ([precios](https://developers.cloudflare.com/r2/pricing/)). Para dos comprobantes por venta el
+costo es prácticamente nulo.

@@ -78,6 +78,16 @@ It touches four places and will fail at runtime if you miss the mapper:
 - **Blind listings**: when `Listing.isBlind` and the requester has no fully-signed `buyer_nda`, `GetListingDetailsUseCase` filters `assetData` down to the strategy's `getPublicFields()` and returns `hiddenFields[]` so the frontend knows what to blur.
 - `SignContractUseCase` auto-transitions the Operation to `contract_signed` once a tripartite contract reaches full signature.
 
+### Decided for fase 21, being implemented (`openspec/changes/handover-journey/`)
+
+These override the rules above as each unit lands; `odd/tasks/recorrido-del-traspaso.md` tracks which ones are live.
+
+- **Deadline cancellation** is the only exception to "committed after signing": a seller who does not hand over within their deadline cancels the operation and the listing returns to the market; a buyer who does not pay with the asset in custody cancels it and the platform returns the asset to the seller. Manual cancellation after signing stays illegal.
+- **Ready to sign** is decided per strategy (`transferReadiness`): YouTube needs the platform's 7-day manager access; a website needs its domain at Hostinger, active and 45+ days from expiry (RDAP). A website never needs `platformAccess`.
+- **Bank transfer is split like Mercado Pago**: the buyer sends `sellerReceives` to the seller's own account and `platformEarns` to the platform's, uploading one receipt each; the seller confirms theirs, an admin confirms the commission. The platform never receives the seller's money (holding third-party funds would make it a PSP under BCRA rules).
+- **The buyer confirms receipt** of what cannot be verified automatically, or it is deemed received at the deadline; an open claim freezes closing. `Operation.complete()` takes no admin checkboxes and runs automatically.
+- **Publishing requires a signed `seller_nda`** (ownership declaration, confidentiality, non-circumvention for 6 months). A listing can be withdrawn only with no signed operation.
+
 ## Conventions
 
 - TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; the `packages/db` integration tests (and the API's HTTP tests) hit a real database, but never the development one: they wipe whole tables, so a `globalSetup` (`packages/db/test-support/`) points them at `marketplace_test` (derived from `DATABASE_URL`, or `TEST_DATABASE_URL` if set), creates and migrates it with `prisma migrate deploy`, and aborts the suite if the database name does not end in `_test` — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
