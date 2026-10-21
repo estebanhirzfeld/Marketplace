@@ -447,8 +447,6 @@ export class Listing extends Entity<ListingProps> {
         }
     }
 
-    // State transitions would trigger through XState machine normally,
-    // but domain logic guarantees rules before allowing transition.
     public submitForReview(): void {
         if (this.props.status !== 'draft' && this.props.status !== 'rejected') {
             throw new InvalidStateError("Solo un activo en borrador o rechazado puede enviarse a revisión.");

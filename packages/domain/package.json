@@ -15,7 +15,6 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@marketplace/shared-types": "workspace:*",
-    "xstate": "^5.13.0"
+    "@marketplace/shared-types": "workspace:*"
   }
 }

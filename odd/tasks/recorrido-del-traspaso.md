@@ -25,7 +25,7 @@ TDD: activado. Runners: `corepack pnpm --filter @marketplace/domain exec vitest 
 |----|--------|-------|------|--------|--------|
 | T1 | Docs y decisiones (OpenSpec, `CLAUDE.md`, este documento) | S1–S13 | inline | hecha | pendiente |
 | T2 | Investigación del split y de R2 | S6, S10 | inline | hecha (en `explore.md`) | con T1 |
-| T3 | Borrar las máquinas xstate | S13 | inline | pendiente | |
+| T3 | Borrar las máquinas xstate | S13 | inline | hecha: `git grep` sin importadores, typecheck de dominio y API, 1238 tests del dominio | ver Log L5 |
 | T4 | Contraoferta en la moneda de la operación | S13 | inline | pendiente | |
 | T5 | Listo para firmar, RDAP, guarda de la firma, sin `acceso_pendiente` en sitios | S4 | inline | pendiente | |
 | T6 | Restos de YouTube fuera de los sitios | S4 | inline | pendiente | |

@@ -10,9 +10,9 @@ import { InvalidStateError, ValidationError } from '../src/errors/DomainError';
  * Las contraofertas del comprador nunca bajan y las del vendedor nunca suben,
  * así el rango se cierra en cada paso.
  *
- * El motivo principal no es la equidad sino la terminación: `TIMEOUT` figura
- * en OperationMachine pero nadie lo implementa, así que sin monotonía dos
- * partes pueden oscilar para siempre y dejar el listing bloqueado.
+ * El motivo principal no es la equidad sino la terminación: la negociación no
+ * tiene plazo, así que sin monotonía dos partes pueden oscilar para siempre y
+ * dejar el listing bloqueado.
  *
  * El caso del comprador que firma el NDA y descubre algo malo no se resuelve
  * acá: cancela y vuelve a ofertar. Es explícito y deja el historial viejo
