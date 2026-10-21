@@ -88,6 +88,10 @@ El equivalente para sitios web de lo que ya se hizo con los canales de YouTube. 
 - [ ] **Números verificados de un sitio:** hoy el tráfico y los ingresos son declarados. Evaluar Search Console (tráfico) o Analytics, como se hizo con YouTube Analytics. [análisis]
 - [ ] **Prueba real de publicar un sitio en producción**, después del rediseño de «Vender»: datos, precio, comprobar la titularidad y publicar o enviar a revisión. [análisis]
 - [ ] **Pasos del traspaso de un sitio, revisados con una prueba real**, como se hizo con Pc Lover. [análisis]
+- [ ] **Recorrido del traspaso de un sitio para las tres partes** (fase siguiente a la del traspaso con custodia; decidida el 21/10/2026 tras la prueba local con `deliaorrego.online`). El flujo vendedor, comprador y admin es confuso y tiene muchas idas y vueltas. [usuario]
+  - Sacar del flujo de un sitio los restos del modelo de YouTube: el «acceso de la plataforma» y el cartel «Transferencia inmediata» no significan nada para un sitio, y aceptar una oferta por un sitio les avisa a los admins `acceso_pendiente` sin que haga falta ningún acceso. La comprobación con la API de Hostinger es para el traspaso; la de autoría para publicar sigue siendo el TXT de la fase 18. [usuario]
+  - La entrega del sitio en sí (hosting, archivos, código, base de datos y cuentas) al comprador: hoy nadie dice a quién se entrega ni cómo, y el comprador no tiene ningún paso para recibirla. Decidir cómo se entrega y escribir los pasos con instrucciones concretas. [usuario]
+  - Una pantalla por rol con una sola próxima acción clara, y los avisos pendientes: al comprador para declarar el mail de su cuenta de Hostinger y si Hostinger lo rechaza, y a la plataforma si falta un perfil WHOIS. [usuario]
 
 ## Etapa 2 · Comunicación
 
