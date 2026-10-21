@@ -110,6 +110,22 @@ describe('DomainDeliveryStatus — lo que ve el comprador', () => {
         expect(t).toBe('El dominio ya está en tu cuenta de Hostinger.');
     });
 
+    it('con la operación cerrada no le promete un traslado, aunque no haya progreso guardado', () => {
+        const t = texto(renderToStaticMarkup(<DomainDeliveryStatus recipient={MAIL} completed />));
+
+        expect(t).toBe('El dominio ya está en tu cuenta de Hostinger.');
+    });
+
+    it('con la entrega rechazada le dice que lo van a contactar, no que va a recibirlo', () => {
+        const t = texto(
+            renderToStaticMarkup(
+                <DomainDeliveryStatus recipient={MAIL} progress={{ stepKey: 'domain-to-buyer', status: 'rejected', attested: false }} />,
+            ),
+        );
+
+        expect(t).toBe('No pudimos completar la entrega del dominio. Te vamos a contactar para resolverlo.');
+    });
+
     it('con la invitación vencida le avisa que va a llegar otra', () => {
         const t = texto(
             renderToStaticMarkup(

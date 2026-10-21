@@ -68,9 +68,27 @@ export function TransferStepsList({ steps, progress }: { steps: HandoverStepDto[
 }
 
 /** Lo único que el comprador tiene que saber de la entrega: si le toca aceptar y hasta cuándo. */
-export function DomainDeliveryStatus({ recipient, progress }: { recipient: string; progress?: StepProgressDto }) {
-    if (progress?.status === 'done') {
+export function DomainDeliveryStatus({
+    recipient,
+    progress,
+    completed = false,
+}: {
+    recipient: string;
+    progress?: StepProgressDto;
+    /**
+     * La operación ya se cerró. Cerrarla exige que el comprador sea dueño, así
+     * que el dominio ya es suyo aunque no haya quedado una fila de la entrega
+     * (por ejemplo, si se cerró antes de que hubiera registrador).
+     */
+    completed?: boolean;
+}) {
+    if (completed || progress?.status === 'done') {
         return <Alert tono="listo">El dominio ya está en tu cuenta de Hostinger.</Alert>;
+    }
+    if (progress?.status === 'rejected') {
+        return (
+            <Alert tono="error">No pudimos completar la entrega del dominio. Te vamos a contactar para resolverlo.</Alert>
+        );
     }
     if (progress?.status === 'expired') {
         return <Alert tono="alerta">La invitación venció sin aceptarse. Te vamos a mandar una nueva.</Alert>;

@@ -105,6 +105,21 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
         expect(t).not.toContain('Iniciar la entrega del dominio');
     });
 
+    it('el comprador de una operación cerrada sin progreso de entrega no ve una promesa de traslado', async () => {
+        const t = await pagina(
+            unaOperacion({
+                status: 'completed',
+                miParte: 'buyer',
+                recipientIdentity: { identifier: 'comprador@correo.com', declaredAt: '2026-10-02T00:00:00.000Z' },
+                stepProgress: [],
+            }),
+            COMPRADOR,
+        );
+
+        expect(t).toContain('El dominio ya está en tu cuenta de Hostinger.');
+        expect(t).not.toContain('Vamos a trasladarte el dominio');
+    });
+
     it('un canal no muestra nada del traspaso de un sitio, ni siquiera al admin', async () => {
         const t = await pagina(unaOperacion({ assetType: 'youtube' }), ADMIN);
 

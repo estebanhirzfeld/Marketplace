@@ -673,6 +673,7 @@ export default async function DetalleOperacion(props: {
                                         <DomainDeliveryStatus
                                             recipient={op.recipientIdentity.identifier}
                                             progress={op.stepProgress?.find((p) => p.stepKey === 'domain-to-buyer')}
+                                            completed={op.status === 'completed'}
                                         />
                                     )}
 
