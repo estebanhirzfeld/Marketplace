@@ -100,6 +100,8 @@ Revisión RDD de T7b (`612cb69..d523f1a`), las cuatro lentes: `review-5f65f71fe2
 
 T7c hecha. Tipos `entrega_recordatorio` (al comprador, `NegotiationNotifier.deliveryReminder(operation, step)`) y `entrega_vencida` (a los administradores, `PlatformNotifier.deliveryExpired(operation, step)`), los dos con `occursAt` = plazo, con migración `20261021120000_add_domain_delivery_notifications`, contrato y plantillas («Aceptá el dominio en Hostinger» / «Venció la entrega de un dominio»). El job elige los avisos según el paso: `domain-to-platform` los de T5, `domain-to-buyer` los nuevos; cualquier otro paso no se vigila. `TransferStepNotifier` combina métodos de los dos notificadores y el contenedor lo arma con los dos.
 
+Verificación independiente de T7c (ítem 1, migración): sin bloqueos; la migración aplica sobre una base nueva y sobre una migrada hasta `d523f1a` (29 → 30 migraciones, filas existentes con el mismo md5), sin diferencias con `schema.prisma`. Revisión RDD de T7c (`d523f1a..7351edc`), lentes risk, readability y reliability: `review-b5d539c6abf360eb` aprobada y confirmada, 5 advertencias menores de legibilidad, para después (el test web «los tres llevan a la operación» ahora cubre cinco tipos; dos imports del mismo módulo separados; la forma de los avisos repetida en `noticesFor`).
+
 ## Próximo paso
 
 T8: UI (lista de pasos con estado y plazo, panel del admin para comprobar, atestiguar e iniciar la entrega, aviso de los 60 días antes de ofertar, `/sistema`, guarda de textos de sitios). Sigue pendiente la prueba en vivo del adaptador (necesita `HOSTINGER_API_TOKEN`) y, con ella, filtrar los estados de cartera de T4.
