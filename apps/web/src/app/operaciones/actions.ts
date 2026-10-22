@@ -363,6 +363,106 @@ export async function decideReceiptAction(
     };
 }
 
+/* ── Revisión de un comprobante rechazado ───────────────────*/
+
+/** Corre un paso de la revisión y devuelve cómo quedó, con el mensaje para quien lo hizo. */
+async function reviewStep(operationId: string, run: () => Promise<void>, message: string): Promise<ActionState> {
+    await requireSession();
+    try {
+        await run();
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos registrar la decisión. Probá de nuevo.' };
+    }
+    revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message };
+}
+
+/** El comprador pide la revisión de un comprobante rechazado, con el ID COELSA si lo tiene. */
+export async function requestReceiptReviewAction(
+    operationId: string,
+    recipient: ReceiptRecipient,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+    const bankReference = String(form.get('bankReference') ?? '').trim() || undefined;
+    return reviewStep(
+        operationId,
+        () => api().requestReceiptReview(operationId, recipient, { bankReference }),
+        'Solicitaste la revisión. La revisión es manual y puede demorar: te avisaremos cuando se resuelva.',
+    );
+}
+
+/** El comprador suma el ID COELSA a una revisión abierta. */
+export async function addReviewBankReferenceAction(
+    operationId: string,
+    recipient: ReceiptRecipient,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+    const bankReference = String(form.get('bankReference') ?? '').trim();
+    if (!bankReference) return { error: 'Decinos el ID COELSA o el número de operación.' };
+    return reviewStep(
+        operationId,
+        () => api().addReviewBankReference(operationId, recipient, bankReference),
+        'Agregamos el dato a la revisión.',
+    );
+}
+
+/** El admin revisó la coherencia: coherente pide el rastreo; si no, se rechaza con el motivo. */
+export async function resolveReceiptCoherenceAction(
+    operationId: string,
+    recipient: ReceiptRecipient,
+    coherent: boolean,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!coherent && !reason) return { error: 'Escribí por qué el comprobante no es coherente: lo leerá el comprador.' };
+    return reviewStep(
+        operationId,
+        () => api().resolveReceiptCoherence(operationId, recipient, coherent ? { coherent: true } : { coherent: false, reason }),
+        coherent
+            ? 'Registramos la coherencia. Le avisaremos al vendedor que tiene su plazo para responder.'
+            : 'Rechazaste el comprobante. El comprador recibirá el motivo.',
+    );
+}
+
+/** El admin resolvió con el rastreo bancario si el pago se acreditó. */
+export async function resolveReceiptReviewAction(
+    operationId: string,
+    recipient: ReceiptRecipient,
+    credited: boolean,
+    _estado: ActionState,
+): Promise<ActionState> {
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+    return reviewStep(
+        operationId,
+        () => api().resolveReceiptReview(operationId, recipient, { credited }),
+        'Registramos la resolución. Le avisaremos al comprador y al vendedor.',
+    );
+}
+
+/** El vendedor adjunta los movimientos de su cuenta a la revisión. */
+export async function attachSellerStatementAction(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    const file = form.get('file');
+    if (!(file instanceof File) || file.size === 0) return { error: 'Elegí los movimientos: una imagen o un PDF.' };
+    if (file.size > MAX_RECEIPT_BYTES) return { error: 'El archivo pesa más de 5 MB. Adjuntá una captura o un PDF más liviano.' };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return reviewStep(
+        operationId,
+        () => api().attachSellerStatement(operationId, bytes),
+        'Recibimos los movimientos. La revisión es manual y puede demorar: te avisaremos cuando se resuelva.',
+    );
+}
+
 /* ── Traspaso de un sitio (admin) ─────────────────────────*/
 
 type StepStatus = 'pending' | 'waiting' | 'done' | 'expired' | 'rejected';

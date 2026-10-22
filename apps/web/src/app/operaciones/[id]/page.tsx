@@ -38,7 +38,13 @@ import {
     rejectTransferAction,
     signContract,
     uploadReceiptAction,
+    requestReceiptReviewAction,
+    addReviewBankReferenceAction,
+    resolveReceiptCoherenceAction,
+    resolveReceiptReviewAction,
+    attachSellerStatementAction,
 } from '../actions';
+import { CoherenceReview, ReviewResolution, ReviewStatus, SellerReviewResponse } from '@/components/ReceiptReview';
 import { AdminDomainTransferPanel, DomainDeliveryStatus, TransferStepsList } from '@/components/TransferSteps';
 import { fileReport } from '../../denuncias/actions';
 
@@ -83,6 +89,19 @@ export default async function DetalleOperacion(props: {
         }
     }
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
+
+    // El comprobante en revisión, si lo hay, y las acciones del comprador para pedirla.
+    const reviewed = op.paymentReceipts?.find((r) => r.status === 'in_review');
+    const reviewActions = {
+        request: {
+            platform: requestReceiptReviewAction.bind(null, op.id, 'platform'),
+            seller: requestReceiptReviewAction.bind(null, op.id, 'seller'),
+        },
+        addReference: {
+            platform: addReviewBankReferenceAction.bind(null, op.id, 'platform'),
+            seller: addReviewBankReferenceAction.bind(null, op.id, 'seller'),
+        },
+    };
 
     // La cuenta donde el vendedor tuvo que recibir lo suyo, para verificarla antes de confirmar.
     const sellerDestination = paymentOptions?.transfer.destinations?.find((d) => d.recipient === 'seller');
@@ -214,6 +233,7 @@ export default async function DetalleOperacion(props: {
                             platform: uploadReceiptAction.bind(null, op.id, 'platform'),
                             seller: uploadReceiptAction.bind(null, op.id, 'seller'),
                         }}
+                        reviewActions={reviewActions}
                     />
                 );
             case 'link_payment_account':
@@ -222,6 +242,48 @@ export default async function DetalleOperacion(props: {
                 return receiptReview('seller', op.sellerReceives && exactMoney(op.sellerReceives), sellerAccount);
             case 'confirm_commission_receipt':
                 return receiptReview('platform', op.platformEarns && exactMoney(op.platformEarns), 'de la plataforma');
+            case 'respond_receipt_review':
+                return (
+                    <SellerReviewResponse
+                        fileHref={`/operaciones/${op.id}/comprobantes/seller`}
+                        amount={op.sellerReceives && exactMoney(op.sellerReceives)}
+                        account={sellerAccount}
+                        deadline={step?.kind === 'act' ? step.deadline : undefined}
+                        confirmAction={decideReceiptAction.bind(null, op.id, 'seller', true)}
+                        statementAction={attachSellerStatementAction.bind(null, op.id)}
+                    />
+                );
+            case 'review_receipt':
+                return reviewed ? (
+                    <CoherenceReview
+                        fileHref={`/operaciones/${op.id}/comprobantes/${reviewed.recipient}`}
+                        facts={{
+                            amount:
+                                reviewed.recipient === 'seller'
+                                    ? op.sellerReceives && exactMoney(op.sellerReceives)
+                                    : op.platformEarns && exactMoney(op.platformEarns),
+                            destination: reviewed.recipient === 'seller' ? sellerAccount : 'la cuenta de la plataforma',
+                            destinationTaxId:
+                                reviewed.recipient === 'seller' && sellerDestination?.recipient === 'seller'
+                                    ? sellerDestination.bankAccount.holderTaxId
+                                    : undefined,
+                            custodyDate: op.custody ? fechaLarga(op.custody.verifiedAt) : undefined,
+                            bankReference: reviewed.review?.bankReference,
+                        }}
+                        coherentAction={resolveReceiptCoherenceAction.bind(null, op.id, reviewed.recipient, true)}
+                        incoherentAction={resolveReceiptCoherenceAction.bind(null, op.id, reviewed.recipient, false)}
+                    />
+                ) : null;
+            case 'resolve_receipt_review':
+                return reviewed ? (
+                    <ReviewResolution
+                        fileHref={`/operaciones/${op.id}/comprobantes/${reviewed.recipient}`}
+                        statementHref={reviewed.review?.hasSellerStatement ? `/operaciones/${op.id}/movimientos` : undefined}
+                        bankReference={reviewed.review?.bankReference}
+                        creditedAction={resolveReceiptReviewAction.bind(null, op.id, reviewed.recipient, true)}
+                        notCreditedAction={resolveReceiptReviewAction.bind(null, op.id, reviewed.recipient, false)}
+                    />
+                ) : null;
             case 'accept_delivery':
                 return op.recipientIdentity ? (
                     <DomainDeliveryStatus
@@ -617,6 +679,16 @@ export default async function DetalleOperacion(props: {
                                 Si el vendedor declaró una cesión que no llegó, la operación
                                 vuelve a «contrato firmado» con el motivo a su vista.
                             */}
+                            {/* El comprador espera la revisión: sabe en qué está y puede sumar el ID COELSA. */}
+                            {op.miParte === 'buyer' && reviewed && (
+                                <Panel title="REVISIÓN DEL COMPROBANTE">
+                                    <ReviewStatus
+                                        hasBankReference={!!reviewed.review?.bankReference}
+                                        addReferenceAction={reviewActions.addReference[reviewed.recipient]}
+                                    />
+                                </Panel>
+                            )}
+
                             {isAdmin && op.status === 'transfer_in_progress' && (
                                 <Panel title="SI LA CESIÓN NO LLEGÓ">
                                     <RejectTransferForm action={rejectTransferAction.bind(null, id)} />

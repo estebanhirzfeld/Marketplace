@@ -2,7 +2,7 @@ import type { MoneyDto, PaymentOptionsDto, PaymentReceiptDto, ReceiptRecipientDt
 import { money } from '@/lib/format';
 import { Alert, ButtonLink } from './ui';
 import { SubmitButton } from './SubmitButton';
-import { PaymentFlow, type ReceiptUploadAction } from './PaymentFlow';
+import { PaymentFlow, type ReceiptUploadAction, type ReviewActions } from './PaymentFlow';
 
 /**
  * Cómo paga el comprador.
@@ -29,6 +29,7 @@ export function PaymentChoice({
     checkoutAction,
     receipts = [],
     uploadActions,
+    reviewActions,
     initialView,
 }: {
     /** `undefined` cuando no se pudieron consultar: se cae a lo que había antes. */
@@ -40,6 +41,8 @@ export function PaymentChoice({
     receipts?: PaymentReceiptDto[];
     /** Adjunta el comprobante de cada transferencia: una Server Action vinculada por destino. */
     uploadActions?: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+    /** Pedir la revisión de un comprobante rechazado y sumarle el ID COELSA. */
+    reviewActions?: ReviewActions;
     initialView?: 'choose' | 'mercadopago' | 'transfer-intro';
 }) {
     if (!options) {
@@ -68,6 +71,7 @@ export function PaymentChoice({
             receipts={receipts}
             checkoutAction={checkoutAction}
             uploadActions={uploadActions ?? { platform: unavailableUpload, seller: unavailableUpload }}
+            reviewActions={reviewActions}
             initialView={initialView}
         />
     );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type {
     PaymentOptionsDto,
     PaymentReceiptDto,
@@ -12,9 +12,17 @@ import { rejectionText } from '@/lib/receiptCopy';
 import { Alert, Button } from './ui';
 import { SubmitButton } from './SubmitButton';
 import { CopyValueButton } from './CopyValueButton';
+import { FileAttach } from './FileAttach';
+import { ReviewRequest, ReviewStatus } from './ReceiptReview';
 
 type State = { error?: string; ok?: boolean; message?: string };
 export type ReceiptUploadAction = (state: State, form: FormData) => Promise<State>;
+
+/** Las acciones de la revisión de un comprobante rechazado, ya vinculadas por destino. */
+export interface ReviewActions {
+    request: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+    addReference: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+}
 
 /*
  * Cómo paga el comprador, de a un paso. Primero elige el medio entre dos
@@ -51,6 +59,7 @@ export function PaymentFlow({
     receipts,
     checkoutAction,
     uploadActions,
+    reviewActions,
     initialView = 'choose',
 }: {
     options: PaymentOptionsDto;
@@ -58,6 +67,8 @@ export function PaymentFlow({
     checkoutAction: () => Promise<void>;
     /** Una Server Action ya vinculada por destino: una función común no cruza al cliente. */
     uploadActions: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+    /** Sin ellas, un comprobante rechazado solo se reemplaza. */
+    reviewActions?: ReviewActions;
     /** Para mostrar un estado en `/sistema`; en la operación siempre arranca eligiendo. */
     initialView?: 'choose' | 'mercadopago' | 'transfer-intro';
 }) {
@@ -120,7 +131,7 @@ export function PaymentFlow({
     }
 
     if (current === 'transfer') {
-        return <TransferSteps options={options} receipts={receipts} uploadActions={uploadActions} />;
+        return <TransferSteps options={options} receipts={receipts} uploadActions={uploadActions} reviewActions={reviewActions} />;
     }
 
     const mp = options.mercadopago;
@@ -174,13 +185,28 @@ function TransferSteps({
     options,
     receipts,
     uploadActions,
+    reviewActions,
 }: {
     options: PaymentOptionsDto;
     receipts: PaymentReceiptDto[];
     uploadActions: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+    reviewActions?: ReviewActions;
 }) {
     const stage = transferStage(receipts);
     const [platform, seller] = orderedDestinations(options);
+
+    // Con un comprobante en revisión no hay nada que transferir: se espera la resolución.
+    const inReview = receipts.find((r) => r.status === 'in_review');
+    if (inReview) {
+        return (
+            <section className={PANEL} aria-label="Revisión del comprobante">
+                <ReviewStatus
+                    hasBankReference={!!inReview.review?.bankReference}
+                    addReferenceAction={reviewActions?.addReference[inReview.recipient] ?? unavailable}
+                />
+            </section>
+        );
+    }
 
     if (stage === 'done') {
         return (
@@ -233,7 +259,11 @@ function TransferSteps({
 
             <AccountData destination={destination} />
 
-            <ReceiptAttach key={`${destination.recipient}-${receipt?.uploadedAt ?? 'nuevo'}`} action={uploadActions[destination.recipient]} />
+            {receipt?.status === 'rejected' && reviewActions && (
+                <ReviewRequest action={reviewActions.request[destination.recipient]} recipient={destination.recipient} />
+            )}
+
+            <FileAttach key={`${destination.recipient}-${receipt?.uploadedAt ?? 'nuevo'}`} action={uploadActions[destination.recipient]} />
         </section>
     );
 }
@@ -267,78 +297,8 @@ function AccountRow({ label, value, copy = false }: { label: string; value: stri
     );
 }
 
-/** Adjuntar el comprobante, verlo antes de enviarlo y saber que se está enviando. */
-function ReceiptAttach({ action }: { action: ReceiptUploadAction }) {
-    const [state, submit] = useActionState(action, {});
-    const [file, setFile] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
-    const previewRef = useRef<string | null>(null);
-
-    // La vista previa vive lo que vive el archivo elegido: se libera al cambiarlo y al salir.
-    useEffect(
-        () => () => {
-            if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-        },
-        [],
-    );
-
-    function choose(next: File | null) {
-        if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-        const url = next && next.type.startsWith('image/') ? URL.createObjectURL(next) : null;
-        previewRef.current = url;
-        setPreview(url);
-        setFile(next);
-    }
-
-    return (
-        <form action={submit} className="flex flex-col gap-3">
-            <input
-                id="comprobante"
-                type="file"
-                name="file"
-                accept="application/pdf,image/png,image/jpeg,image/webp"
-                required
-                className="sr-only"
-                onChange={(e) => choose(e.target.files?.[0] ?? null)}
-            />
-            {!file ? (
-                <div className="flex flex-wrap items-center gap-4">
-                    <label
-                        htmlFor="comprobante"
-                        className="inline-flex min-h-[48px] cursor-pointer items-center rounded-[var(--radius-chico)] bg-[var(--color-acento)] px-5 text-[15px] font-bold text-[var(--color-fondo)]"
-                    >
-                        Adjuntar comprobante
-                    </label>
-                    <span className="text-[13px] text-[var(--color-apagado)]">Una captura o un PDF, de hasta 5 MB.</span>
-                </div>
-            ) : (
-                <div className="flex items-center gap-4 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-3">
-                    {preview ? (
-                        // Una vista previa local del archivo elegido: no pasa por next/image.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={preview} alt="Vista previa del comprobante" className="h-24 w-[72px] flex-none rounded-sm object-cover" />
-                    ) : (
-                        <span className="flex h-24 w-[72px] flex-none items-center justify-center rounded-sm bg-[var(--color-fondo)] font-mono text-[12px] text-[var(--color-tenue)]">
-                            PDF
-                        </span>
-                    )}
-                    <span className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate text-[15px]">{file.name}</span>
-                        <span className="text-[13px] text-[var(--color-apagado)]">Verificá que el monto y la fecha sean legibles.</span>
-                        <label htmlFor="comprobante" className="min-h-[44px] cursor-pointer self-start py-2 text-[14px] text-[var(--color-acento)]">
-                            Cambiar el archivo
-                        </label>
-                    </span>
-                </div>
-            )}
-            {state.error && <Alert>{state.error}</Alert>}
-            {file && (
-                <SubmitButton className="self-start" pendingText="Enviando el comprobante…">
-                    Enviar comprobante
-                </SubmitButton>
-            )}
-        </form>
-    );
+async function unavailable(): Promise<State> {
+    return { error: 'No pudimos registrar el dato. Probá de nuevo.' };
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {

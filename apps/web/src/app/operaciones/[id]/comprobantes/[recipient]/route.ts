@@ -31,6 +31,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             },
         });
     } catch (e) {
+        // La sesión venció entre que se cargó la página y se pidió el archivo.
+        if (e instanceof ApiError && e.code === 'UNAUTHORIZED') return new NextResponse(null, { status: 401 });
         if (e instanceof ApiError && (e.code === 'NOT_FOUND' || e.code === 'FORBIDDEN')) {
             return new NextResponse(null, { status: 404 });
         }

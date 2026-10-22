@@ -5,6 +5,7 @@ import { NextStepCard } from '@/components/NextStep';
 import { BankAccountsView } from '@/components/BankAccountSection';
 import { RejectTransferForm } from '@/components/RejectTransferForm';
 import { ReceiptReviewForm } from '@/components/ReceiptForms';
+import { CoherenceReview, ReviewRequest, ReviewResolution, ReviewStatus, SellerReviewResponse } from '@/components/ReceiptReview';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
@@ -1101,6 +1102,50 @@ export default function Sistema() {
                                 expected="AR$ 1.425.000"
                                 account="ejemplo.vendedor"
                                 confirmText="Confirmar la acreditación"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — PEDIR LA REVISIÓN DE UN COMPROBANTE RECHAZADO</div>
+                            <ReviewRequest action={noop} recipient="seller" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — COMPROBANTE EN REVISIÓN, SIN EL ID COELSA</div>
+                            <ReviewStatus hasBankReference={false} addReferenceAction={noop} />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — RESPONDER LA REVISIÓN DEL PAGO</div>
+                            <SellerReviewResponse
+                                fileHref="/sistema"
+                                amount="AR$ 1.425.000"
+                                account="ejemplo.vendedor"
+                                deadline="2026-10-27T02:59:59.000Z"
+                                confirmAction={noop}
+                                statementAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PLATAFORMA — COHERENCIA DEL COMPROBANTE</div>
+                            <CoherenceReview
+                                fileHref="/sistema"
+                                facts={{
+                                    amount: 'AR$ 1.425.000',
+                                    destination: 'ejemplo.vendedor',
+                                    destinationTaxId: '20123456786',
+                                    custodyDate: '21 de octubre de 2026',
+                                    bankReference: '0AB12CD34EF56GH78IJ90K',
+                                }}
+                                coherentAction={noop}
+                                incoherentAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PLATAFORMA — RESOLVER LA REVISIÓN</div>
+                            <ReviewResolution
+                                fileHref="/sistema"
+                                statementHref="/sistema"
+                                bankReference="0AB12CD34EF56GH78IJ90K"
+                                creditedAction={noop}
+                                notCreditedAction={noop}
                             />
                         </div>
                         <div className="flex flex-col gap-3">
