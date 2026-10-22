@@ -28,10 +28,12 @@ export class Cuit {
         return new Cuit(digits);
     }
 
-    /** El CUIT que corresponde a un prefijo y un DNI. */
+    /** El CUIT que corresponde a un prefijo y un DNI. Con resto 10 no existe: AFIP cambia el prefijo. */
     public static compose(prefix: string, dni: string): string {
         const first10 = `${prefix}${dni.replace(/\D/g, '').padStart(8, '0')}`;
-        return `${first10}${checkDigit(first10)}`;
+        const digit = checkDigit(first10);
+        if (digit === 10) throw new ValidationError('Con ese prefijo no hay un CUIT posible para ese DNI.');
+        return `${first10}${digit}`;
     }
 
     /** Si es el de esa persona: el DNI va en el medio. Si el DNI se guardó como CUIT, se toma el suyo. */

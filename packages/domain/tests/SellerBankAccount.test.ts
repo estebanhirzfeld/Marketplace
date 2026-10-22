@@ -39,6 +39,11 @@ describe('Cuit', () => {
         expect(() => Cuit.create('20-12345678-5')).toThrow(new ValidationError('El CUIT o CUIL no es válido: revisá los números.'));
     });
 
+    it('no compone un CUIT imposible: con resto 10 el prefijo tiene que cambiar', () => {
+        // 27-01234567: la suma da resto 1, así que el verificador sería 10.
+        expect(() => Cuit.compose('27', '1234567')).toThrow(ValidationError);
+    });
+
     it('sabe si es el de un DNI, también de 7 dígitos', () => {
         expect(Cuit.create(SELLER_CUIT).belongsTo(SELLER_DNI)).toBe(true);
         expect(Cuit.create(SELLER_CUIT).belongsTo('12345679')).toBe(false);
@@ -113,14 +118,14 @@ describe('DeclareSellerBankAccountUseCase', () => {
 
     const SELLER = { id: new UniqueEntityID().toString(), role: UserRole.SELLER };
 
-    function users(dni: string | null = SELLER_DNI): IUserRepository {
+    function users(dni: string | null = SELLER_DNI, kycVerified = dni !== null): IUserRepository {
         const user = User.reconstitute(
             {
                 email: Email.create('delia@test.com'),
                 fullName: 'Delia Orrego',
                 dni: dni ?? undefined,
                 role: UserRole.SELLER,
-                isKycVerified: dni !== null,
+                isKycVerified: kycVerified,
                 passwordHash: 'x',
             },
             new UniqueEntityID(SELLER.id),
@@ -162,6 +167,17 @@ describe('DeclareSellerBankAccountUseCase', () => {
                 SELLER,
             ),
         ).rejects.toThrow(new ValidationError('La cuenta tiene que estar a tu nombre: el CUIT no corresponde a tu identidad verificada.'));
+        expect(r.save).not.toHaveBeenCalled();
+    });
+
+    it('un DNI cargado al registrarse no alcanza: tiene que estar verificado', async () => {
+        const r = repo();
+        await expect(
+            new DeclareSellerBankAccountUseCase(r, users(SELLER_DNI, false)).execute(
+                { cbu: VALID_CBU, holder: 'Delia', holderTaxId: SELLER_CUIT, currency: 'ARS' },
+                SELLER,
+            ),
+        ).rejects.toThrow(new ValidationError('Verificá tu identidad antes de declarar la cuenta donde cobrás.'));
         expect(r.save).not.toHaveBeenCalled();
     });
 

@@ -39,7 +39,9 @@ export class DeclareSellerBankAccountUseCase {
         if (!input.holderTaxId?.trim()) throw new ValidationError('Decinos el CUIT o CUIL del titular de la cuenta.');
         const destination = BankDestination.create(input);
 
-        const dni = (await this.users.findById(actor.id))?.toSnapshot().props.dni;
+        // El DNI cuenta solo si pasó el KYC: el que se carga al registrarse es libre y se puede pisar.
+        const user = (await this.users.findById(actor.id))?.toSnapshot().props;
+        const dni = user?.isKycVerified ? user.dni : undefined;
         if (!dni) throw new ValidationError('Verificá tu identidad antes de declarar la cuenta donde cobrás.');
         if (!Cuit.create(input.holderTaxId).belongsTo(dni)) {
             throw new ValidationError('La cuenta tiene que estar a tu nombre: el CUIT no corresponde a tu identidad verificada.');

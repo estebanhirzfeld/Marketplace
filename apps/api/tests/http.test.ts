@@ -4090,6 +4090,26 @@ describe('/me/bank-accounts', () => {
         ]);
     });
 
+    it('400 si la identidad del vendedor no está verificada, aunque haya cargado su DNI', async () => {
+        const email = `vendedor-banco-sin-kyc-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.SELLER, false);
+
+        const res = await declarar(email, { currency: 'ARS', alias: 'cuenta.propia', holder: 'Delia', holderTaxId: CUIT_HTTP });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().message).toBe('Verificá tu identidad antes de declarar la cuenta donde cobrás.');
+    });
+
+    it('400 si falta el CUIT del titular', async () => {
+        const email = `vendedor-banco-sin-cuit-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.SELLER);
+
+        const res = await declarar(email, { currency: 'ARS', alias: 'cuenta.propia', holder: 'Delia' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().message).toBe('Decinos el CUIT o CUIL del titular de la cuenta.');
+    });
+
     it('400 si el CUIT del titular no es el del vendedor', async () => {
         const email = `vendedor-banco-ajeno-${Date.now()}@test.com`;
         await crearUsuario(email, UserRole.SELLER);
