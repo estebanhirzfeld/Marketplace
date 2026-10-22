@@ -84,11 +84,12 @@ export async function declareBankAccountAction(
 
     const raw = String(form.get('destination') ?? '').trim();
     const holder = String(form.get('holder') ?? '').trim();
+    const holderTaxId = String(form.get('holderTaxId') ?? '').trim();
     const digits = raw.replace(/\s+/g, '');
     const destination = /^\d+$/.test(digits) ? { cbu: digits } : { alias: raw };
 
     try {
-        await api().declareBankAccount({ currency, ...destination, holder });
+        await api().declareBankAccount({ currency, ...destination, holder, holderTaxId });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
         return { error: 'No pudimos guardar la cuenta. Probá de nuevo.' };

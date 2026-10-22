@@ -34,6 +34,7 @@ function aBankAccountDto(account: SellerBankAccount): SellerBankAccountDto {
         ...(destination.cbu ? { cbu: destination.cbu } : {}),
         ...(destination.alias ? { alias: destination.alias } : {}),
         holder: destination.holder,
+        ...(destination.holderTaxId ? { holderTaxId: destination.holderTaxId } : {}),
         declaredAt: declaredAt.toISOString(),
     };
 }
@@ -63,6 +64,7 @@ export function registerPaymentAccountRoutes(app: FastifyInstance, c: Container)
                         cbu: { type: 'string', maxLength: 40 },
                         alias: { type: 'string', maxLength: 40 },
                         holder: { type: 'string', maxLength: 200 },
+                        holderTaxId: { type: 'string', maxLength: 20 },
                     },
                 },
             },

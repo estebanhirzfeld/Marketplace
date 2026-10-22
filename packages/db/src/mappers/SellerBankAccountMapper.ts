@@ -12,6 +12,7 @@ export class SellerBankAccountMapper {
                     cbu: raw.cbu ?? undefined,
                     alias: raw.alias ?? undefined,
                     holder: raw.holder,
+                    holderTaxId: raw.holderTaxId ?? undefined,
                     currency: raw.currency,
                 }),
                 declaredAt: raw.declaredAt,
@@ -30,6 +31,7 @@ export class SellerBankAccountMapper {
             cbu: props.destination.cbu ?? null,
             alias: props.destination.alias ?? null,
             holder: props.destination.holder,
+            holderTaxId: props.destination.holderTaxId ?? null,
             declaredAt: props.declaredAt,
         };
     }

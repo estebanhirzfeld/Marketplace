@@ -62,6 +62,7 @@ describe('declareBankAccountAction', () => {
         const f = new FormData();
         f.set('destination', destination);
         f.set('holder', holder);
+        f.set('holderTaxId', '20-12345678-6');
         return f;
     }
 
@@ -70,7 +71,12 @@ describe('declareBankAccountAction', () => {
 
         const result = await declareBankAccountAction('ARS', {}, form('0110 5995 2000 0000 0000 04', ' Delia Orrego '));
 
-        expect(declareBankAccount).toHaveBeenCalledWith({ currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego' });
+        expect(declareBankAccount).toHaveBeenCalledWith({
+            currency: 'ARS',
+            cbu: '0110599520000000000004',
+            holder: 'Delia Orrego',
+            holderTaxId: '20-12345678-6',
+        });
         expect(result.ok).toBe(true);
     });
 
@@ -79,7 +85,12 @@ describe('declareBankAccountAction', () => {
 
         await declareBankAccountAction('USD', {}, form('delia.dolares', 'Delia Orrego'));
 
-        expect(declareBankAccount).toHaveBeenCalledWith({ currency: 'USD', alias: 'delia.dolares', holder: 'Delia Orrego' });
+        expect(declareBankAccount).toHaveBeenCalledWith({
+            currency: 'USD',
+            alias: 'delia.dolares',
+            holder: 'Delia Orrego',
+            holderTaxId: '20-12345678-6',
+        });
     });
 
     it('el motivo de la API vuelve tal cual', async () => {

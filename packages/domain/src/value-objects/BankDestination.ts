@@ -1,4 +1,5 @@
 import { ValidationError } from '../errors/DomainError';
+import { Cuit } from './Cuit';
 
 export type BankCurrency = 'ARS' | 'USD';
 
@@ -39,9 +40,17 @@ export class BankDestination {
         public readonly currency: BankCurrency,
         public readonly cbu?: string,
         public readonly alias?: string,
+        /** El CUIT o CUIL del titular: el comprador lo ve en su banco antes de transferir. */
+        public readonly holderTaxId?: string,
     ) {}
 
-    public static create(input: { cbu?: string; alias?: string; holder: string; currency: string }): BankDestination {
+    public static create(input: {
+        cbu?: string;
+        alias?: string;
+        holder: string;
+        holderTaxId?: string;
+        currency: string;
+    }): BankDestination {
         const cbu = input.cbu?.replace(/\s+/g, '') || undefined;
         const alias = input.alias?.trim() || undefined;
         const holder = input.holder.trim();
@@ -60,6 +69,9 @@ export class BankDestination {
             throw new ValidationError('La cuenta es en pesos o en dólares.');
         }
 
-        return new BankDestination(holder, input.currency as BankCurrency, cbu, alias);
+        // Opcional acá: las cuentas declaradas antes de pedirlo se siguen leyendo.
+        const holderTaxId = input.holderTaxId?.trim() ? Cuit.create(input.holderTaxId).value : undefined;
+
+        return new BankDestination(holder, input.currency as BankCurrency, cbu, alias, holderTaxId);
     }
 }

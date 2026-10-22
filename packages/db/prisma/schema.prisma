@@ -331,6 +331,7 @@ model SellerBankAccount {
   cbu        String?
   alias      String?
   holder     String
+  holderTaxId String?
   declaredAt DateTime
   createdAt  DateTime @default(now())
 

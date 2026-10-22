@@ -5,13 +5,13 @@ import { Alert, Button } from './ui';
 
 type State = { error?: string; ok?: boolean; message?: string };
 
-/** Un CBU o un alias y el titular, para una moneda. */
+/** Un CBU o un alias, el titular y su CUIT, para una moneda. */
 export function BankAccountForm({
     action,
     current,
 }: {
     action: (state: State, form: FormData) => Promise<State>;
-    current?: { destination: string; holder: string };
+    current?: { destination: string; holder: string; holderTaxId?: string };
 }) {
     const [state, submit, pending] = useActionState(action, {});
 
@@ -38,6 +38,19 @@ export function BankAccountForm({
                     placeholder="Como figura en el banco"
                     className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 text-[14px] outline-none placeholder:text-[var(--color-apagado)] focus:border-[var(--color-acento)]"
                 />
+            </label>
+            <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-medium">CUIT o CUIL del titular</span>
+                <input
+                    name="holderTaxId"
+                    required
+                    inputMode="numeric"
+                    defaultValue={current?.holderTaxId}
+                    autoComplete="off"
+                    placeholder="11 números"
+                    className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 font-mono text-[14px] outline-none placeholder:text-[var(--color-apagado)] focus:border-[var(--color-acento)]"
+                />
+                <span className="text-[12px] text-[var(--color-apagado)]">La cuenta tiene que estar a tu nombre.</span>
             </label>
             {state.error && <Alert>{state.error}</Alert>}
             {state.ok && state.message && <Alert tono="listo">{state.message}</Alert>}

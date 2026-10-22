@@ -60,7 +60,7 @@ export type TransferDestination =
     | {
           recipient: 'seller';
           amount: { cents: number; currency: string };
-          bankAccount: { cbu?: string; alias?: string; holder: string };
+          bankAccount: { cbu?: string; alias?: string; holder: string; holderTaxId?: string };
       }
     | { recipient: 'platform'; amount: { cents: number; currency: string }; instructions: string };
 
@@ -152,6 +152,9 @@ export class GetPaymentOptionsUseCase {
                                       ...(sellerBank.destination.cbu ? { cbu: sellerBank.destination.cbu } : {}),
                                       ...(sellerBank.destination.alias ? { alias: sellerBank.destination.alias } : {}),
                                       holder: sellerBank.destination.holder,
+                                      ...(sellerBank.destination.holderTaxId
+                                          ? { holderTaxId: sellerBank.destination.holderTaxId }
+                                          : {}),
                                   },
                               },
                               {

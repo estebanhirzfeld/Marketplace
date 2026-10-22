@@ -42,7 +42,7 @@ export function BankAccountsView({
                                     <details>
                                         <summary className="cursor-pointer text-[13px] text-[var(--color-tenue)]">Cambiar la cuenta</summary>
                                         <div className="mt-3">
-                                            <BankAccountForm action={actionFor(currency)} current={{ destination, holder: account.holder }} />
+                                            <BankAccountForm action={actionFor(currency)} current={{ destination, holder: account.holder, holderTaxId: account.holderTaxId }} />
                                         </div>
                                     </details>
                                 </div>

@@ -358,6 +358,8 @@ export interface SellerBankAccountDto {
     cbu?: string;
     alias?: string;
     holder: string;
+    /** CUIT o CUIL del titular. Ausente en cuentas declaradas antes de pedirlo. */
+    holderTaxId?: string;
     declaredAt: string;
 }
 
@@ -367,6 +369,8 @@ export interface DeclareSellerBankAccountRequest {
     cbu?: string;
     alias?: string;
     holder: string;
+    /** CUIT o CUIL del titular: tiene que ser el del DNI verificado del vendedor. */
+    holderTaxId: string;
 }
 
 /**
@@ -1006,7 +1010,7 @@ export interface PaymentOptionsDto {
 export type ReceiptRecipientDto = 'seller' | 'platform';
 
 export type TransferDestinationDto =
-    | { recipient: 'seller'; amount: MoneyDto; bankAccount: { cbu?: string; alias?: string; holder: string } }
+    | { recipient: 'seller'; amount: MoneyDto; bankAccount: { cbu?: string; alias?: string; holder: string; holderTaxId?: string } }
     | { recipient: 'platform'; amount: MoneyDto; instructions: string };
 
 /** Quien recibió la plata confirma su comprobante, o lo rechaza con el motivo. */

@@ -1363,7 +1363,12 @@ describe("PrismaSellerBankAccountRepository", () => {
         const seller = await createPersistedUser({ email: "banco@test.com", role: UserRole.SELLER });
         const pesos = SellerBankAccount.declare({
             userId: seller.id,
-            destination: BankDestination.create({ cbu: "0110599520000000000004", holder: "Delia Orrego", currency: "ARS" }),
+            destination: BankDestination.create({
+                cbu: "0110599520000000000004",
+                holder: "Delia Orrego",
+                holderTaxId: "20-12345678-6",
+                currency: "ARS",
+            }),
         });
         const dolares = SellerBankAccount.declare({
             userId: seller.id,
@@ -1371,6 +1376,10 @@ describe("PrismaSellerBankAccountRepository", () => {
         });
         await bankRepo.save(pesos);
         await bankRepo.save(dolares);
+
+        // El CUIT del titular va y vuelve; una cuenta sin él (declarada antes) se sigue leyendo.
+        const leidas = await bankRepo.findByUser(seller.id.toString());
+        expect(leidas.map((a) => a.destination.holderTaxId)).toEqual(["20123456786", undefined]);
 
         pesos.replace(BankDestination.create({ alias: "delia.pesos", holder: "Delia Orrego", currency: "ARS" }));
         await bankRepo.save(pesos);

@@ -81,6 +81,9 @@ const listingRepo = new PrismaListingRepository();
 
 let app: FastifyInstance;
 
+/** El CUIT del DNI de los usuarios de estos tests (`20123456789`, cuyo DNI es 12345678). */
+const CUIT_HTTP = '20-12345678-6';
+
 async function crearUsuario(
     email: string,
     role: UserRole,
@@ -2532,7 +2535,7 @@ describe('GET /operations/:id/payment-options', () => {
                 method: 'PUT',
                 url: '/me/bank-accounts',
                 headers: { authorization: `Bearer ${await tokenDe('seller-opts@test.com')}` },
-                payload: { currency: 'ARS', alias: 'vendedor.opts', holder: 'Vendedor Opts' },
+                payload: { currency: 'ARS', alias: 'vendedor.opts', holder: 'Vendedor Opts', holderTaxId: CUIT_HTTP },
             });
             const container: Container = {
                 ...createContainer(fakeHasher),
@@ -2564,7 +2567,11 @@ describe('GET /operations/:id/payment-options', () => {
                 reference: id,
             });
             expect(res.json().transfer.destinations.map((d: { recipient: string }) => d.recipient)).toEqual(['seller', 'platform']);
-            expect(res.json().transfer.destinations[0].bankAccount).toEqual({ alias: 'vendedor.opts', holder: 'Vendedor Opts' });
+            expect(res.json().transfer.destinations[0].bankAccount).toEqual({
+                alias: 'vendedor.opts',
+                holder: 'Vendedor Opts',
+                holderTaxId: '20123456786',
+            });
         });
 
         // El vendedor no paga ni confirma: no recibe los datos bancarios de la plataforma.
@@ -4058,7 +4065,12 @@ describe('/me/bank-accounts', () => {
         const email = `vendedor-banco-${Date.now()}@test.com`;
         await crearUsuario(email, UserRole.SELLER);
 
-        const res = await declarar(email, { currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego' });
+        const res = await declarar(email, {
+            currency: 'ARS',
+            cbu: '0110599520000000000004',
+            holder: 'Delia Orrego',
+            holderTaxId: CUIT_HTTP,
+        });
         expect(res.statusCode).toBe(200);
         expect(res.json()).toMatchObject({ currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego' });
 
@@ -4068,15 +4080,31 @@ describe('/me/bank-accounts', () => {
             headers: { authorization: `Bearer ${await tokenDe(email)}` },
         });
         expect(lista.json()).toEqual([
-            { currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego', declaredAt: expect.any(String) },
+            {
+                currency: 'ARS',
+                cbu: '0110599520000000000004',
+                holder: 'Delia Orrego',
+                holderTaxId: '20123456786',
+                declaredAt: expect.any(String),
+            },
         ]);
+    });
+
+    it('400 si el CUIT del titular no es el del vendedor', async () => {
+        const email = `vendedor-banco-ajeno-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.SELLER);
+
+        const res = await declarar(email, { currency: 'ARS', alias: 'cuenta.ajena', holder: 'Otra persona', holderTaxId: '20-99999998-1' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().message).toBe('La cuenta tiene que estar a tu nombre: el CUIT no corresponde a tu identidad verificada.');
     });
 
     it('400 con un CBU que no valida, con el motivo', async () => {
         const email = `vendedor-banco-mal-${Date.now()}@test.com`;
         await crearUsuario(email, UserRole.SELLER);
 
-        const res = await declarar(email, { currency: 'ARS', cbu: '0110599520000000000005', holder: 'Delia Orrego' });
+        const res = await declarar(email, { currency: 'ARS', cbu: '0110599520000000000005', holder: 'Delia Orrego', holderTaxId: CUIT_HTTP });
 
         expect(res.statusCode).toBe(400);
         expect(res.json().message).toBe('El CBU no es válido: revisá los números.');

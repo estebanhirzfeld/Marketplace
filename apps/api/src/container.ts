@@ -499,7 +499,7 @@ export function createContainer(
         uploadPaymentReceipt: new UploadPaymentReceiptUseCase(operationRepo, fileStorage, avisos, avisosDePlataforma),
         decidePaymentReceipt: new DecidePaymentReceiptUseCase(operationRepo, undefined, avisos),
         getPaymentReceiptFile: new GetPaymentReceiptFileUseCase(operationRepo, fileStorage),
-        declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo),
+        declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo, userRepo),
         getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,
         mercadoPagoOAuth: paymentAccountWiring?.oauth,
