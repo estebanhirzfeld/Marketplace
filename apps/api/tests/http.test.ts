@@ -857,6 +857,10 @@ describe('Convergencia de la negociación', () => {
 
         expect(detalle.json().negotiations).toHaveLength(5);
         expect(detalle.json().currentOfferPrice.cents).toBe(1_500_000);
+        // La última contraoferta fue del comprador: le toca responder al vendedor.
+        expect(detalle.json().next.turn).toEqual(['seller']);
+        expect(detalle.json().next.byRole.seller).toEqual({ kind: 'act', id: 'respond_offer', blocking: true });
+        expect(detalle.json().next.byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['seller'] });
     });
 });
 

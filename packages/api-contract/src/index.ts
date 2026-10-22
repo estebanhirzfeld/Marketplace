@@ -746,6 +746,46 @@ export interface OperationPartyDto {
     fullName: string;
 }
 
+export type OperationRoleDto = 'buyer' | 'seller' | 'platform';
+
+export type NextActionIdDto =
+    | 'respond_offer'
+    | 'sign_contract'
+    | 'register_platform_access'
+    | 'declare_recipient'
+    | 'declare_handover'
+    | 'move_domain_to_platform'
+    | 'verify_custody'
+    | 'pay'
+    | 'enable_payment_method'
+    | 'link_payment_account'
+    | 'deliver_asset'
+    | 'accept_delivery'
+    | 'complete_operation';
+
+/**
+ * Lo que le toca a un rol: hacer algo (y si eso traba la operación), esperar a
+ * otro, o nada porque terminó.
+ */
+export type NextStepDto =
+    | { kind: 'act'; id: NextActionIdDto; blocking: boolean; deadline?: string }
+    | { kind: 'wait'; waitingOn: OperationRoleDto[]; deadline?: string }
+    | { kind: 'done' }
+    | { kind: 'cancelled' };
+
+export interface TimelineStageDto {
+    key: 'negotiation' | 'contract' | 'custody' | 'payment' | 'delivery' | 'closing';
+    state: 'done' | 'current' | 'pending';
+    at?: string;
+}
+
+/** La próxima acción de cada rol, a quién le toca y la línea de tiempo común. */
+export interface OperationNextDto {
+    byRole: Record<OperationRoleDto, NextStepDto>;
+    turn: OperationRoleDto[];
+    timeline: TimelineStageDto[];
+}
+
 export interface OperationDetailDto {
     /**
      * Con qué nombrar el activo. Campos públicos de la strategy: dicen de
@@ -804,6 +844,8 @@ export interface OperationDetailDto {
      * sin plazo. Ausente si la API no lo resolvió.
      */
     stepProgress?: StepProgressDto[];
+    /** La próxima acción de cada rol. Ausente en respuestas anteriores. */
+    next?: OperationNextDto;
     createdAt: string;
 }
 

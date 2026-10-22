@@ -17,7 +17,10 @@ import type {
     CustodyAccountDto,
     CreateCustodyAccountRequest,
     UpdateCustodyAccountRequest,
+    NextStepDto,
+    OperationNextDto,
 } from '@marketplace/api-contract';
+import { NextActionsResult, NextStep } from '@marketplace/domain/src/services/NextActions';
 import { PendingOperation } from '@marketplace/domain/src/use-cases/admin/GetPlatformDashboardUseCase';
 import { Listing } from '@marketplace/domain/src/entities/Listing';
 import { SCOPE_OPENID_EMAIL, SCOPE_YOUTUBE } from '../adapters/GoogleOAuthClient';
@@ -161,6 +164,28 @@ function aPendingOperationDto(p: PendingOperation): PendingOperationDto {
         assetType: p.assetType,
         buyerName: p.buyerName,
         sellerName: p.sellerName,
+    };
+}
+
+function aNextStepDto(step: NextStep): NextStepDto {
+    if (step.kind === 'act') {
+        return { kind: 'act', id: step.id, blocking: step.blocking, ...(step.deadline ? { deadline: step.deadline.toISOString() } : {}) };
+    }
+    if (step.kind === 'wait') {
+        return { kind: 'wait', waitingOn: step.waitingOn, ...(step.deadline ? { deadline: step.deadline.toISOString() } : {}) };
+    }
+    return step;
+}
+
+function aOperationNextDto(next: NextActionsResult): OperationNextDto {
+    return {
+        byRole: {
+            buyer: aNextStepDto(next.byRole.buyer),
+            seller: aNextStepDto(next.byRole.seller),
+            platform: aNextStepDto(next.byRole.platform),
+        },
+        turn: next.turn,
+        timeline: next.timeline.map(({ key, state, at }) => ({ key, state, ...(at ? { at: at.toISOString() } : {}) })),
     };
 }
 
@@ -546,7 +571,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, stepProgress, custodyAccountNames } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, stepProgress, custodyAccountNames, next } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -617,6 +642,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     deadlineAt: step.deadlineAt?.toISOString(),
                     attested: step.attested,
                 })),
+                next: aOperationNextDto(next),
                 createdAt: createdAt.toISOString(),
             };
 

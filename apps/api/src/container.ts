@@ -453,6 +453,18 @@ export function createContainer(
     const checkDomainDelivery = domainRegistrar
         ? new CheckDomainDeliveryUseCase(operationRepo, listingRepo, transferStepProgressRepo, domainRegistrar)
         : undefined;
+    // Los medios de pago los usa su ruta y el detalle de la operación, que los
+    // necesita para saber a quién le toca con el activo en custodia.
+    const paymentOptions = new GetPaymentOptionsUseCase(operationRepo, {
+        mercadoPagoEnabled: Boolean(mercadoPago),
+        splitEnabled,
+        paymentAccounts: paymentAccountRepo,
+        rates: exchangeRates,
+        transferInstructions: {
+            ARS: process.env.TRANSFER_INSTRUCTIONS_ARS?.trim() || undefined,
+            USD: process.env.TRANSFER_INSTRUCTIONS_USD?.trim() || undefined,
+        },
+    });
 
     return {
         listingRepo,
@@ -571,17 +583,9 @@ export function createContainer(
             listingRepo,
             custodyRepo,
             transferStepProgressRepo,
+            paymentOptions,
         ),
-        paymentOptions: new GetPaymentOptionsUseCase(operationRepo, {
-            mercadoPagoEnabled: Boolean(mercadoPago),
-            splitEnabled,
-            paymentAccounts: paymentAccountRepo,
-            rates: exchangeRates,
-            transferInstructions: {
-                ARS: process.env.TRANSFER_INSTRUCTIONS_ARS?.trim() || undefined,
-                USD: process.env.TRANSFER_INSTRUCTIONS_USD?.trim() || undefined,
-            },
-        }),
+        paymentOptions,
 
         createOffer:new CreateOfferUseCase(operationRepo, listingRepo, avisos),
         counterOffer: new CounterOfferUseCase(operationRepo, avisos),

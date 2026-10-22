@@ -83,6 +83,14 @@ export interface NextActionsResult {
     timeline: TimelineStage[];
 }
 
+const AGREED_STATUSES: readonly OperationStatus[] = [
+    'contract_pending',
+    'contract_signed',
+    'transfer_in_progress',
+    'asset_in_custody',
+    'payment_received',
+];
+
 const DOMAIN_TO_PLATFORM = 'domain-to-platform';
 const DOMAIN_TO_BUYER = 'domain-to-buyer';
 
@@ -106,6 +114,8 @@ function turnOf(role: Role, step: NextStep, waitDeadline?: Date): Record<Role, N
  */
 function withRecipientTask(byRole: Record<Role, NextStep>, input: NextActionsInput): Record<Role, NextStep> {
     if (input.recipientDeclared || byRole.buyer.kind !== 'wait') return byRole;
+    // Recién con un precio acordado hay algo que recibir.
+    if (!AGREED_STATUSES.includes(input.status)) return byRole;
     return { ...byRole, buyer: act('declare_recipient', undefined, false) };
 }
 

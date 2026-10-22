@@ -76,6 +76,12 @@ describe('NextActions — negociación', () => {
         expect(byRole.seller).toMatchObject({ kind: 'wait', waitingOn: ['buyer'] });
         expect(byRole.platform).toMatchObject({ kind: 'wait', waitingOn: ['buyer'] });
     });
+
+    it('sin acuerdo todavía, al comprador que espera no se le pide dónde recibir', () => {
+        const { byRole } = nextActions(input({ status: 'negotiating', pendingResponseFrom: 'seller' }));
+
+        expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['seller'] });
+    });
 });
 
 describe('NextActions — firma', () => {
