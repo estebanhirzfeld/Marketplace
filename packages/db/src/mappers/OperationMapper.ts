@@ -17,6 +17,7 @@ import {
     PaymentReceipt,
     RECEIPT_REJECTION_CODES,
     ReceiptRejectionCode,
+    ReceiptReview,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -341,7 +342,7 @@ function serializeSettlementQuotes(quotes?: readonly SettlementQuote[]) {
 }
 
 const RECEIPT_RECIPIENTS = ["seller", "platform"] as const;
-const RECEIPT_STATUSES = ["pending", "confirmed", "rejected"] as const;
+const RECEIPT_STATUSES = ["pending", "confirmed", "rejected", "in_review"] as const;
 
 /** Lee los comprobantes de la transferencia dividida. Una fila anterior a la columna no tiene. */
 function parsePaymentReceipts(raw: unknown): PaymentReceipt[] | undefined {
@@ -374,8 +375,38 @@ function parsePaymentReceipts(raw: unknown): PaymentReceipt[] | undefined {
                 ? (r.rejectionCode as ReceiptRejectionCode)
                 : undefined,
             rejectionReason: typeof r.rejectionReason === "string" ? r.rejectionReason : undefined,
+            rejectionCount: typeof r.rejectionCount === "number" ? r.rejectionCount : undefined,
+            confirmedBySilence: r.confirmedBySilence === true ? true : undefined,
+            review: parseReceiptReview(r.review),
         };
     });
+}
+
+/** La revisión abierta de un comprobante, si la hay. */
+function parseReceiptReview(raw: unknown): ReceiptReview | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    const v = (typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    if (
+        typeof v.requestedAt !== "string" ||
+        (v.requestedBy !== "buyer" && v.requestedBy !== "automatic") ||
+        (v.stage !== "coherence" && v.stage !== "awaiting_seller")
+    ) {
+        throw new Error("Revisión de comprobante corrupta: faltan datos obligatorios o son inválidos.");
+    }
+    const s = (typeof v.sellerStatement === "object" && v.sellerStatement !== null ? v.sellerStatement : undefined) as
+        | Record<string, unknown>
+        | undefined;
+    return {
+        requestedAt: new Date(v.requestedAt),
+        requestedBy: v.requestedBy,
+        stage: v.stage,
+        bankReference: typeof v.bankReference === "string" ? v.bankReference : undefined,
+        sellerDeadline: typeof v.sellerDeadline === "string" ? new Date(v.sellerDeadline) : undefined,
+        sellerStatement:
+            s && typeof s.fileKey === "string" && typeof s.contentType === "string" && typeof s.sizeBytes === "number" && typeof s.uploadedAt === "string"
+                ? { fileKey: s.fileKey, contentType: s.contentType, sizeBytes: s.sizeBytes, uploadedAt: new Date(s.uploadedAt) }
+                : undefined,
+    };
 }
 
 /** `undefined` sin comprobantes: nunca se borran, solo se agregan o reemplazan por destino. */
@@ -392,6 +423,20 @@ function serializePaymentReceipts(receipts?: readonly PaymentReceipt[]) {
         decidedAt: r.decidedAt?.toISOString() ?? null,
         rejectionCode: r.rejectionCode ?? null,
         rejectionReason: r.rejectionReason ?? null,
+        rejectionCount: r.rejectionCount ?? null,
+        confirmedBySilence: r.confirmedBySilence ?? null,
+        review: r.review
+            ? {
+                  requestedAt: r.review.requestedAt.toISOString(),
+                  requestedBy: r.review.requestedBy,
+                  stage: r.review.stage,
+                  bankReference: r.review.bankReference ?? null,
+                  sellerDeadline: r.review.sellerDeadline?.toISOString() ?? null,
+                  sellerStatement: r.review.sellerStatement
+                      ? { ...r.review.sellerStatement, uploadedAt: r.review.sellerStatement.uploadedAt.toISOString() }
+                      : null,
+              }
+            : null,
     }));
 }
 

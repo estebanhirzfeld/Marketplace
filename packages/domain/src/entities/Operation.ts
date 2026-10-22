@@ -235,14 +235,40 @@ export interface PaymentReceipt {
     contentType: string;
     sizeBytes: number;
     uploadedAt: Date;
-    status: 'pending' | 'confirmed' | 'rejected';
+    status: 'pending' | 'confirmed' | 'rejected' | 'in_review';
     decidedBy?: UniqueEntityID;
     decidedAt?: Date;
+    /** Se confirmó porque el vendedor no respondió a tiempo la revisión. */
+    confirmedBySilence?: boolean;
+    /** Cuántas veces se rechazó un comprobante de este destino: el segundo rechazo pasa solo a revisión. */
+    rejectionCount?: number;
+    /** La revisión de la plataforma, mientras está abierta. */
+    review?: ReceiptReview;
     /** Por qué se rechazó. Ausente en los rechazos guardados antes de elegir un motivo. */
     rejectionCode?: ReceiptRejectionCode;
     /** El detalle que escribió quien rechazó, para el comprador. */
     rejectionReason?: string;
 }
+
+/**
+ * La revisión de un comprobante rechazado. Primero la plataforma revisa la
+ * coherencia del comprobante; si es coherente, el vendedor tiene un plazo
+ * para responder, y la plataforma resuelve con el rastreo entre bancos.
+ */
+export interface ReceiptReview {
+    requestedAt: Date;
+    /** La pidió el comprador, o se abrió sola al segundo rechazo. */
+    requestedBy: 'buyer' | 'automatic';
+    /** El ID COELSA o el número de operación, para el rastreo. */
+    bankReference?: string;
+    stage: 'coherence' | 'awaiting_seller';
+    /** Hasta cuándo responde el vendedor; vencido sin respuesta, el pago se da por acreditado. */
+    sellerDeadline?: Date;
+    /** Los movimientos que adjuntó el vendedor: información, no prueba. */
+    sellerStatement?: { fileKey: string; contentType: string; sizeBytes: number; uploadedAt: Date };
+}
+
+export type CoherenceResolution = { coherent: true } | { coherent: false; reason: string };
 
 /** Por qué no llegó lo que dice el comprobante: lo que el vendedor ve en su banco. */
 export type ReceiptRejectionCode = 'not_credited' | 'amount_mismatch' | 'other';
@@ -706,10 +732,20 @@ export class Operation extends Entity<OperationProps> {
             throw new InvalidStateError('Los comprobantes se suben con el activo en custodia, que es cuando corresponde pagar.');
         }
         const receipts = this.props.paymentReceipts ?? [];
-        if (receipts.find((r) => r.recipient === recipient)?.status === 'confirmed') {
+        const previous = receipts.find((r) => r.recipient === recipient);
+        if (previous?.status === 'confirmed') {
             throw new InvalidStateError('Ese comprobante ya está confirmado.');
         }
-        const receipt: PaymentReceipt = { recipient, ...file, uploadedAt: at, status: 'pending' };
+        if (previous?.status === 'in_review') {
+            throw new InvalidStateError('El comprobante está en revisión.');
+        }
+        const receipt: PaymentReceipt = {
+            recipient,
+            ...file,
+            uploadedAt: at,
+            status: 'pending',
+            ...(previous?.rejectionCount ? { rejectionCount: previous.rejectionCount } : {}),
+        };
         this.props.paymentReceipts = [...receipts.filter((r) => r.recipient !== recipient), receipt].sort(
             (a, b) => RECIPIENT_ORDER.indexOf(a.recipient) - RECIPIENT_ORDER.indexOf(b.recipient),
         );
@@ -722,11 +758,14 @@ export class Operation extends Entity<OperationProps> {
      */
     public decideReceipt(recipient: ReceiptRecipient, decision: ReceiptDecision, by: UniqueEntityID, at: Date = new Date()): void {
         const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
-        if (!receipt || receipt.status !== 'pending') {
+        // En revisión, quien recibió la plata todavía puede reconocer que llegó; rechazar de nuevo, no.
+        const confirmingInReview = receipt?.status === 'in_review' && receipt.review?.stage === 'awaiting_seller' && decision.confirm;
+        if (!receipt || (receipt.status !== 'pending' && !confirmingInReview)) {
             throw new InvalidStateError('No hay un comprobante esperando confirmación.');
         }
         if (decision.confirm) {
-            Object.assign(receipt, { status: 'confirmed', decidedBy: by, decidedAt: at, rejectionCode: undefined, rejectionReason: undefined });
+            this.confirmReceipt(receipt, by, at);
+            return;
         } else {
             if (!RECEIPT_REJECTION_CODES.includes(decision.code)) {
                 throw new ValidationError('Elegí qué sucedió con la transferencia.');
@@ -736,8 +775,33 @@ export class Operation extends Entity<OperationProps> {
             if (decision.code === 'other' && !detail) {
                 throw new ValidationError('Contale al comprador qué sucedió: es lo que le va a permitir corregirlo.');
             }
-            Object.assign(receipt, { status: 'rejected', decidedBy: by, decidedAt: at, rejectionCode: decision.code, rejectionReason: detail });
+            const rejectionCount = (receipt.rejectionCount ?? 0) + 1;
+            Object.assign(receipt, {
+                status: 'rejected',
+                decidedBy: by,
+                decidedAt: at,
+                rejectionCode: decision.code,
+                rejectionReason: detail,
+                rejectionCount,
+            });
+            // Dos rechazos del mismo destino no se discuten más entre las partes: decide la plataforma.
+            if (rejectionCount >= 2) {
+                Object.assign(receipt, { status: 'in_review', review: { requestedAt: at, requestedBy: 'automatic', stage: 'coherence' } });
+            }
         }
+    }
+
+    /** Confirma un comprobante y, con los dos confirmados, el pago por el total. */
+    private confirmReceipt(receipt: PaymentReceipt, by: UniqueEntityID | undefined, at: Date, bySilence = false): void {
+        Object.assign(receipt, {
+            status: 'confirmed',
+            decidedBy: by,
+            decidedAt: at,
+            rejectionCode: undefined,
+            rejectionReason: undefined,
+            review: undefined,
+            ...(bySilence ? { confirmedBySilence: true } : {}),
+        });
 
         const confirmed = (this.props.paymentReceipts ?? []).filter((r) => r.status === 'confirmed');
         if (confirmed.length === RECIPIENT_ORDER.length && this.props.buyerPays) {
@@ -748,6 +812,121 @@ export class Operation extends Entity<OperationProps> {
                 currency: this.props.buyerPays.getCurrency(),
             });
         }
+    }
+
+    private receiptInReview(recipient: ReceiptRecipient, stage?: ReceiptReview['stage']): PaymentReceipt & { review: ReceiptReview } {
+        const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
+        if (!receipt || receipt.status !== 'in_review' || !receipt.review) {
+            throw new InvalidStateError('El comprobante no está en revisión.');
+        }
+        if (stage && receipt.review.stage !== stage) {
+            throw new InvalidStateError(
+                stage === 'coherence' ? 'La coherencia del comprobante ya se revisó.' : 'Primero hay que revisar la coherencia del comprobante.',
+            );
+        }
+        return receipt as PaymentReceipt & { review: ReceiptReview };
+    }
+
+    /** Si hay un comprobante en revisión: mientras dure, la operación no se cancela por plazo. */
+    public get hasOpenReceiptReview(): boolean {
+        return (this.props.paymentReceipts ?? []).some((r) => r.status === 'in_review');
+    }
+
+    /** El comprador pide que la plataforma revise un comprobante que le rechazaron. */
+    public requestReceiptReview(recipient: ReceiptRecipient, input: { bankReference?: string }, at: Date = new Date()): void {
+        const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
+        if (!receipt || receipt.status !== 'rejected') {
+            throw new InvalidStateError('Solo se puede solicitar la revisión de un comprobante rechazado.');
+        }
+        const bankReference = input.bankReference?.trim() || undefined;
+        Object.assign(receipt, {
+            status: 'in_review',
+            review: { requestedAt: at, requestedBy: 'buyer', stage: 'coherence', ...(bankReference ? { bankReference } : {}) },
+        });
+    }
+
+    /** El comprador suma el ID COELSA cuando su banco se lo da. */
+    public addReviewBankReference(recipient: ReceiptRecipient, bankReference: string): void {
+        const receipt = this.receiptInReview(recipient);
+        const reference = bankReference.trim();
+        if (!reference) throw new ValidationError('Decinos el ID COELSA o el número de operación.');
+        receipt.review.bankReference = reference;
+    }
+
+    /**
+     * La plataforma revisa la coherencia del comprobante con las cuentas y los
+     * CUIT. Incoherente, se rechaza sin pedirle nada al vendedor; coherente, el
+     * vendedor tiene hasta `sellerDeadline` para responder.
+     */
+    public resolveReceiptCoherence(
+        recipient: ReceiptRecipient,
+        resolution: CoherenceResolution,
+        by: UniqueEntityID,
+        sellerDeadline: Date,
+        at: Date = new Date(),
+    ): void {
+        const receipt = this.receiptInReview(recipient, 'coherence');
+        if (resolution.coherent) {
+            receipt.review.stage = 'awaiting_seller';
+            receipt.review.sellerDeadline = sellerDeadline;
+            return;
+        }
+        const reason = resolution.reason.trim();
+        if (!reason) throw new ValidationError('Decile al comprador por qué el comprobante no es coherente.');
+        Object.assign(receipt, {
+            status: 'rejected',
+            decidedBy: by,
+            decidedAt: at,
+            rejectionCode: 'other',
+            rejectionReason: reason,
+            review: undefined,
+        });
+    }
+
+    /** El vendedor adjunta los movimientos de su cuenta del día: se suman a la revisión. */
+    public attachSellerStatement(
+        recipient: ReceiptRecipient,
+        file: { fileKey: string; contentType: string; sizeBytes: number },
+        at: Date = new Date(),
+    ): void {
+        const receipt = this.receiptInReview(recipient, 'awaiting_seller');
+        receipt.review.sellerStatement = { ...file, uploadedAt: at };
+    }
+
+    /** La plataforma resuelve con el rastreo entre bancos si el pago se acreditó. */
+    public resolveReceiptReview(recipient: ReceiptRecipient, resolution: { credited: boolean }, by: UniqueEntityID, at: Date = new Date()): void {
+        const receipt = this.receiptInReview(recipient, 'awaiting_seller');
+        if (resolution.credited) {
+            this.confirmReceipt(receipt, by, at);
+            return;
+        }
+        Object.assign(receipt, {
+            status: 'rejected',
+            decidedBy: by,
+            decidedAt: at,
+            rejectionCode: 'not_credited',
+            rejectionReason: 'La revisión no encontró la acreditación en la cuenta del vendedor.',
+            review: undefined,
+        });
+    }
+
+    /**
+     * Las revisiones donde el vendedor no respondió a tiempo ante un
+     * comprobante coherente: el pago se da por acreditado. Con sus movimientos
+     * adjuntos no hay silencio, y decide la plataforma. Devuelve los destinos
+     * que confirmó.
+     */
+    public expireReceiptReviews(at: Date): ReceiptRecipient[] {
+        const expired = (this.props.paymentReceipts ?? []).filter(
+            (r) =>
+                r.status === 'in_review' &&
+                r.review?.stage === 'awaiting_seller' &&
+                !r.review.sellerStatement &&
+                r.review.sellerDeadline !== undefined &&
+                at.getTime() > r.review.sellerDeadline.getTime(),
+        );
+        for (const receipt of expired) this.confirmReceipt(receipt, undefined, at, true);
+        return expired.map((r) => r.recipient);
     }
 
     public get payment(): PaymentRecord | undefined {

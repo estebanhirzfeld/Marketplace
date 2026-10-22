@@ -640,6 +640,13 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     contentType: r.contentType,
                     rejectionCode: r.rejectionCode,
                     rejectionReason: r.rejectionReason,
+                    review: r.review && {
+                        stage: r.review.stage,
+                        requestedBy: r.review.requestedBy,
+                        sellerDeadline: r.review.sellerDeadline?.toISOString(),
+                        bankReference: r.review.bankReference,
+                        hasSellerStatement: !!r.review.sellerStatement,
+                    },
                 })),
                 transferInitiation: operation.transferInitiation && {
                     declaredAt: operation.transferInitiation.declaredAt.toISOString(),

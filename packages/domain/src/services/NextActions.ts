@@ -61,8 +61,8 @@ export interface PaymentAvailability {
 
 /** En qué está cada comprobante de la transferencia dividida. */
 export interface ReceiptFacts {
-    seller?: 'pending' | 'confirmed' | 'rejected';
-    platform?: 'pending' | 'confirmed' | 'rejected';
+    seller?: 'pending' | 'confirmed' | 'rejected' | 'in_review';
+    platform?: 'pending' | 'confirmed' | 'rejected' | 'in_review';
     /** Cuándo subió el comprador el del vendedor: ancla su plazo para confirmarlo. */
     sellerUploadedAt?: Date;
 }

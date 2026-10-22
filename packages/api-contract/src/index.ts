@@ -1021,7 +1021,17 @@ export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; code:
 /** En qué está un comprobante. El archivo se pide aparte, a quien le corresponde verlo. */
 export interface PaymentReceiptDto {
     recipient: ReceiptRecipientDto;
-    status: 'pending' | 'confirmed' | 'rejected';
+    status: 'pending' | 'confirmed' | 'rejected' | 'in_review';
+    /** La revisión de la plataforma, mientras está abierta. */
+    review?: {
+        stage: 'coherence' | 'awaiting_seller';
+        requestedBy: 'buyer' | 'automatic';
+        /** Hasta cuándo responde el vendedor, una vez revisada la coherencia. */
+        sellerDeadline?: string;
+        bankReference?: string;
+        /** Si el vendedor adjuntó los movimientos de su cuenta. */
+        hasSellerStatement: boolean;
+    };
     uploadedAt: string;
     /** El tipo del archivo, detectado por su contenido: una imagen tiene vista previa. */
     contentType: string;

@@ -1219,6 +1219,9 @@ describe("PrismaOperationRepository — hitos", () => {
                 decidedAt: expect.any(Date),
                 rejectionCode: "not_credited",
                 rejectionReason: "No me llegó.",
+                rejectionCount: 1,
+                confirmedBySilence: undefined,
+                review: undefined,
             },
             {
                 recipient: "platform",
@@ -1231,8 +1234,34 @@ describe("PrismaOperationRepository — hitos", () => {
                 decidedAt: undefined,
                 rejectionCode: undefined,
                 rejectionReason: undefined,
+                rejectionCount: undefined,
+                confirmedBySilence: undefined,
+                review: undefined,
             },
         ]);
+
+        // La revisión de un comprobante rechazado va y vuelve con sus fechas y los movimientos del vendedor.
+        const requestedAt = new Date("2026-10-23T13:00:00.000Z");
+        const deadline = new Date("2026-10-27T02:59:59.000Z");
+        retrieved!.requestReceiptReview("seller", { bankReference: "0AB12CD34EF56GH78IJ90K" }, requestedAt);
+        retrieved!.resolveReceiptCoherence("seller", { coherent: true }, sellerId, deadline, requestedAt);
+        retrieved!.attachSellerStatement("seller", { fileKey: "statements/x/seller.pdf", contentType: "application/pdf", sizeBytes: 3000 }, requestedAt);
+        await operationRepo.save(retrieved!);
+        const reviewed = await operationRepo.findById(operation.id.toString());
+
+        expect(reviewed!.paymentReceipts[0]).toMatchObject({
+            status: "in_review",
+            rejectionCount: 1,
+            review: {
+                requestedAt,
+                requestedBy: "buyer",
+                stage: "awaiting_seller",
+                bankReference: "0AB12CD34EF56GH78IJ90K",
+                sellerDeadline: deadline,
+                sellerStatement: { fileKey: "statements/x/seller.pdf", contentType: "application/pdf", sizeBytes: 3000, uploadedAt: requestedAt },
+            },
+        });
+        expect(reviewed!.hasOpenReceiptReview).toBe(true);
     });
 
     it("rechaza una columna corrupta", async () => {
