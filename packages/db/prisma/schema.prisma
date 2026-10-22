@@ -84,6 +84,10 @@ enum NotificationType {
   entrega_vencida
   // Al vendedor: la plataforma rechazó su declaración de cesión.
   cesion_rechazada
+  // La transferencia dividida: a quien recibe, que hay un comprobante para
+  // confirmar; al comprador, que le rechazaron uno.
+  comprobante_subido
+  comprobante_rechazado
 }
 
 enum ContractType {
@@ -246,6 +250,9 @@ model Operation {
   // El rechazo de la última declaración de cesión, con su motivo, hasta que el
   // vendedor declare de nuevo. Nullable y aditiva.
   transferRejection Json?
+  // Los comprobantes de la transferencia dividida: el último de cada destino
+  // (vendedor y plataforma), con quién lo confirmó o rechazó. Nullable y aditiva.
+  paymentReceipts  Json?
   createdAt        DateTime        @default(now())
 
   listing   Listing    @relation(fields: [listingId], references: [id])

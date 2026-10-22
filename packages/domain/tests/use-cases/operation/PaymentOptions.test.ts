@@ -5,8 +5,11 @@ import {
 } from '../../../src/use-cases/operation/GetPaymentOptionsUseCase';
 import {
     IOperationRepository,
+    ISellerBankAccountRepository,
     ISellerPaymentAccountRepository,
 } from '../../../src/ports/Repositories';
+import { SellerBankAccount } from '../../../src/entities/SellerBankAccount';
+import { BankDestination } from '../../../src/value-objects/BankDestination';
 import { ExchangeRate, IExchangeRateProvider } from '../../../src/ports/IExchangeRateProvider';
 import { Actor } from '../../../src/ports/Actor';
 import { Operation, OperationStatus } from '../../../src/entities/Operation';
@@ -74,6 +77,20 @@ function unRepoDeCuentas(linked: boolean): ISellerPaymentAccountRepository {
     };
 }
 
+/** Las cuentas bancarias que declaró el vendedor, por moneda. */
+function unRepoDeBancos(monedas: ('ARS' | 'USD')[]): ISellerBankAccountRepository {
+    const cuenta = (currency: 'ARS' | 'USD') =>
+        SellerBankAccount.declare({
+            userId: SELLER_ID,
+            destination: BankDestination.create({ alias: `delia.${currency.toLowerCase()}x`, holder: 'Delia Orrego', currency }),
+        });
+    return {
+        findByUser: vi.fn().mockResolvedValue(monedas.map(cuenta)),
+        findByUserAndCurrency: vi.fn(async (_userId: string, currency: 'ARS' | 'USD') => (monedas.includes(currency) ? cuenta(currency) : null)),
+        save: vi.fn(),
+    };
+}
+
 function unProveedor(tasa: ExchangeRate | null): IExchangeRateProvider {
     return { getUsdArsRate: vi.fn().mockResolvedValue(tasa) };
 }
@@ -84,6 +101,7 @@ function armar(operation: Operation | null, over: Partial<PaymentOptionsDeps> = 
         mercadoPagoEnabled: true,
         splitEnabled: false,
         transferInstructions: { ARS: 'Banco Ejemplo\nCBU 000', USD: 'Cuenta en dólares' },
+        bankAccounts: unRepoDeBancos(['ARS', 'USD']),
         ...over,
     };
     return { uso: new GetPaymentOptionsUseCase(operationRepo, deps), operationRepo };
@@ -288,12 +306,57 @@ describe('GetPaymentOptionsUseCase', () => {
         });
     });
 
+    /*
+     * Cada uno recibe lo suyo: el comprador le transfiere al vendedor lo que le
+     * corresponde, a su cuenta, y a la plataforma la comisión.
+     */
+    describe('transferencia dividida', () => {
+        it('al comprador le muestra los dos destinos con su monto', async () => {
+            const op = unaOperacion();
+            const { uso } = armar(op);
+
+            const { transfer } = await uso.execute('op-1', BUYER);
+
+            expect(transfer.destinations).toEqual([
+                {
+                    recipient: 'seller',
+                    amount: { cents: op.sellerReceives!.getCents(), currency: 'ARS' },
+                    bankAccount: { alias: 'delia.arsx', holder: 'Delia Orrego' },
+                },
+                {
+                    recipient: 'platform',
+                    amount: { cents: op.platformEarns!.getCents(), currency: 'ARS' },
+                    instructions: 'Banco Ejemplo\nCBU 000',
+                },
+            ]);
+        });
+
+        it('sin la cuenta del vendedor en la moneda de la operación, no hay transferencia', async () => {
+            const { uso } = armar(unaOperacion('asset_in_custody', 'USD'), { bankAccounts: unRepoDeBancos(['ARS']) });
+
+            const { transfer } = await uso.execute('op-1', BUYER);
+
+            expect(transfer.available).toBe(false);
+            expect(transfer.reason).toBe('seller_bank_missing');
+            expect(transfer.destinations).toBeUndefined();
+        });
+
+        it('el vendedor sabe que hay transferencia pero no ve los datos de nadie', async () => {
+            const { uso } = armar(unaOperacion());
+
+            const { transfer } = await uso.execute('op-1', SELLER);
+
+            expect(transfer.available).toBe(true);
+            expect(transfer.destinations).toBeUndefined();
+        });
+    });
+
     describe('transferencia', () => {
         it('usa el texto de la moneda de la operación y como referencia el id', async () => {
             const op = unaOperacion('asset_in_custody', 'ARS');
             const { uso } = armar(op);
             const { transfer } = await uso.execute('op-1', BUYER);
-            expect(transfer).toEqual({
+            expect(transfer).toMatchObject({
                 available: true,
                 instructions: 'Banco Ejemplo\nCBU 000',
                 reference: op.id.toString(),

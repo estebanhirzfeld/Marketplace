@@ -60,6 +60,8 @@ import {
     RejectTransferRequest,
     SellerBankAccountDto,
     DeclareSellerBankAccountRequest,
+    ReceiptDecisionRequest,
+    ReceiptRecipientDto,
     TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
@@ -446,6 +448,27 @@ export class MarketplaceClient {
         return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/reject-transfer`, { body });
     }
 
+    /** El comprador sube el comprobante de una de las dos transferencias. */
+    uploadReceipt(operationId: string, recipient: ReceiptRecipientDto, bytes: Uint8Array): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}`, {
+            raw: { bytes, contentType: 'application/octet-stream' },
+        });
+    }
+
+    /** Quien recibió la plata confirma o rechaza su comprobante. */
+    decideReceipt(operationId: string, recipient: ReceiptRecipientDto, body: ReceiptDecisionRequest): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/decision`, { body });
+    }
+
+    /** El archivo de un comprobante, con su tipo. */
+    async receiptFile(operationId: string, recipient: ReceiptRecipientDto): Promise<{ bytes: Uint8Array; contentType: string }> {
+        const response = await this.send('GET', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/file`, {});
+        return {
+            bytes: new Uint8Array(await response.arrayBuffer()),
+            contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        };
+    }
+
     /** Pide el link de pago. Solo con el activo en custodia. */
     checkout(operationId: string): Promise<CheckoutDto> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/checkout`);
@@ -538,14 +561,24 @@ export class MarketplaceClient {
         return this.request('POST', `/operations/${encodeURIComponent(id)}/${paso}`, { body });
     }
 
-    private async request<T>(
-        method: string,
-        path: string,
-        options: { body?: unknown; anonimo?: boolean } = {},
-    ): Promise<T> {
+    private async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+        const response = await this.send(method, path, options);
+
+        // 204 sin cuerpo: los pasos de la operación no devuelven nada.
+        if (response.status === 204) {
+            return undefined as T;
+        }
+
+        return (await leerJson(response)) as T;
+    }
+
+    /** El pedido y la respuesta sin leer; un error de la API se lanza como `ApiError`. */
+    private async send(method: string, path: string, options: RequestOptions): Promise<Response> {
         const headers: Record<string, string> = {};
 
-        if (options.body !== undefined) {
+        if (options.raw) {
+            headers['content-type'] = options.raw.contentType;
+        } else if (options.body !== undefined) {
             headers['content-type'] = 'application/json';
         }
 
@@ -559,20 +592,26 @@ export class MarketplaceClient {
         const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
             method,
             headers,
-            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+            // La copia tiene un `ArrayBuffer` propio, que es lo que `fetch` acepta.
+            body: options.raw
+                ? new Uint8Array(options.raw.bytes)
+                : options.body === undefined
+                  ? undefined
+                  : JSON.stringify(options.body),
         });
 
         if (!response.ok) {
             throw ApiError.fromResponse(response.status, await leerJson(response));
         }
-
-        // 204 sin cuerpo: los pasos de la operación no devuelven nada.
-        if (response.status === 204) {
-            return undefined as T;
-        }
-
-        return (await leerJson(response)) as T;
+        return response;
     }
+}
+
+interface RequestOptions {
+    body?: unknown;
+    /** Un archivo crudo en lugar de JSON. */
+    raw?: { bytes: Uint8Array; contentType: string };
+    anonimo?: boolean;
 }
 
 async function leerJson(response: Response): Promise<unknown> {

@@ -14,6 +14,7 @@ import {
     DeliveryVerification,
     StoredMilestones,
     TransferRejection,
+    PaymentReceipt,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -337,6 +338,57 @@ function serializeSettlementQuotes(quotes?: readonly SettlementQuote[]) {
     return quotes.map((q) => q.toSnapshot());
 }
 
+const RECEIPT_RECIPIENTS = ["seller", "platform"] as const;
+const RECEIPT_STATUSES = ["pending", "confirmed", "rejected"] as const;
+
+/** Lee los comprobantes de la transferencia dividida. Una fila anterior a la columna no tiene. */
+function parsePaymentReceipts(raw: unknown): PaymentReceipt[] | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (!Array.isArray(raw)) {
+        throw new Error("Columna `paymentReceipts` corrupta: se esperaba un array.");
+    }
+    return raw.map((entry): PaymentReceipt => {
+        const r = (typeof entry === "object" && entry !== null ? entry : {}) as Record<string, unknown>;
+        if (
+            !RECEIPT_RECIPIENTS.includes(r.recipient as (typeof RECEIPT_RECIPIENTS)[number]) ||
+            !RECEIPT_STATUSES.includes(r.status as (typeof RECEIPT_STATUSES)[number]) ||
+            typeof r.fileKey !== "string" ||
+            typeof r.contentType !== "string" ||
+            typeof r.sizeBytes !== "number" ||
+            typeof r.uploadedAt !== "string"
+        ) {
+            throw new Error("Comprobante corrupto: faltan datos obligatorios o son inválidos.");
+        }
+        return {
+            recipient: r.recipient as PaymentReceipt["recipient"],
+            status: r.status as PaymentReceipt["status"],
+            fileKey: r.fileKey,
+            contentType: r.contentType,
+            sizeBytes: r.sizeBytes,
+            uploadedAt: new Date(r.uploadedAt),
+            decidedBy: typeof r.decidedBy === "string" ? new UniqueEntityID(r.decidedBy) : undefined,
+            decidedAt: typeof r.decidedAt === "string" ? new Date(r.decidedAt) : undefined,
+            rejectionReason: typeof r.rejectionReason === "string" ? r.rejectionReason : undefined,
+        };
+    });
+}
+
+/** `undefined` sin comprobantes: nunca se borran, solo se agregan o reemplazan por destino. */
+function serializePaymentReceipts(receipts?: readonly PaymentReceipt[]) {
+    if (!receipts) return undefined;
+    return receipts.map((r) => ({
+        recipient: r.recipient,
+        status: r.status,
+        fileKey: r.fileKey,
+        contentType: r.contentType,
+        sizeBytes: r.sizeBytes,
+        uploadedAt: r.uploadedAt.toISOString(),
+        decidedBy: r.decidedBy?.toString() ?? null,
+        decidedAt: r.decidedAt?.toISOString() ?? null,
+        rejectionReason: r.rejectionReason ?? null,
+    }));
+}
+
 /** Lee el rechazo de la última declaración de cesión. */
 function parseTransferRejection(raw: unknown): TransferRejection | undefined {
     if (raw === null || raw === undefined) return undefined;
@@ -432,6 +484,7 @@ export class OperationMapper {
             completedAt: raw.completedAt ?? undefined,
             milestones: parseMilestones(raw.milestones),
             transferRejection: parseTransferRejection(raw.transferRejection),
+            paymentReceipts: parsePaymentReceipts(raw.paymentReceipts),
         };
 
         return Operation.reconstitute(
@@ -468,6 +521,7 @@ export class OperationMapper {
             completedAt: props.completedAt ?? null,
             milestones: serializeMilestones(props.milestones),
             transferRejection: serializeTransferRejection(props.transferRejection),
+            paymentReceipts: serializePaymentReceipts(props.paymentReceipts),
             createdAt,
         };
     }

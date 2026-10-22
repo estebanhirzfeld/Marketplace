@@ -1193,6 +1193,46 @@ describe("PrismaOperationRepository — hitos", () => {
         expect(otraVez.transferInitiation?.controlCeded).toBe(true);
     });
 
+    it("guarda los comprobantes de la transferencia con su decisión", async () => {
+        const operation = await unaOperacionPendienteDeFirma("comprobantes");
+        operation.signContract();
+        const { sellerId } = operation.toSnapshot().props;
+        operation.initiateTransfer({ declaredBy: sellerId, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: new UniqueEntityID(), isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        const uploadedAt = new Date("2026-10-22T13:00:00.000Z");
+        operation.uploadReceipt("seller", { fileKey: "receipts/x/seller.pdf", contentType: "application/pdf", sizeBytes: 1200 }, uploadedAt);
+        operation.uploadReceipt("platform", { fileKey: "receipts/x/platform.png", contentType: "image/png", sizeBytes: 900 }, uploadedAt);
+        operation.decideReceipt("seller", { confirm: false, reason: "No me llegó." }, sellerId);
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved!.paymentReceipts).toEqual([
+            {
+                recipient: "seller",
+                status: "rejected",
+                fileKey: "receipts/x/seller.pdf",
+                contentType: "application/pdf",
+                sizeBytes: 1200,
+                uploadedAt,
+                decidedBy: sellerId,
+                decidedAt: expect.any(Date),
+                rejectionReason: "No me llegó.",
+            },
+            {
+                recipient: "platform",
+                status: "pending",
+                fileKey: "receipts/x/platform.png",
+                contentType: "image/png",
+                sizeBytes: 900,
+                uploadedAt,
+                decidedBy: undefined,
+                decidedAt: undefined,
+                rejectionReason: undefined,
+            },
+        ]);
+    });
+
     it("rechaza una columna corrupta", async () => {
         const operation = await unaOperacionPendienteDeFirma("hito-cor");
         await operationRepo.save(operation);

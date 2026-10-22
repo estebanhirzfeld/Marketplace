@@ -1,9 +1,19 @@
-import { IOperationRepository, ISellerPaymentAccountRepository } from '../../ports/Repositories';
+import {
+    IOperationRepository,
+    ISellerBankAccountRepository,
+    ISellerPaymentAccountRepository,
+} from '../../ports/Repositories';
+import { Money } from '../../value-objects/Money';
 import { IExchangeRateProvider } from '../../ports/IExchangeRateProvider';
 import { Actor } from '../../ports/Actor';
 import { Operation } from '../../entities/Operation';
 import { ForbiddenError, InvalidStateError, NotFoundError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
+
+function moneyOf(m: Money | undefined): { cents: number; currency: string } {
+    if (!m) throw new Error('La operación con el activo en custodia siempre tiene el reparto calculado.');
+    return { cents: m.getCents(), currency: m.getCurrency() };
+}
 
 /** Moneda en la que Mercado Pago cobra sin convertir por su cuenta. */
 const CHECKOUT_CURRENCY = 'ARS';
@@ -29,12 +39,30 @@ export interface PaymentOptions {
     };
     transfer: {
         available: boolean;
+        /** Por qué no se puede: falta la cuenta del vendedor en la moneda de la operación. */
+        reason?: TransferUnavailableReason;
         /** Texto cargado por la plataforma para la moneda de la operación. */
         instructions?: string;
         /** Lo que el comprador indica al transferir: el id de la operación. */
         reference: string;
+        /**
+         * Las dos transferencias, cada una con su monto: lo del vendedor a su
+         * cuenta y la comisión a la plataforma. Solo para el comprador y la
+         * plataforma: el vendedor no ve datos bancarios de nadie.
+         */
+        destinations?: TransferDestination[];
     };
 }
+
+export type TransferUnavailableReason = 'seller_bank_missing';
+
+export type TransferDestination =
+    | {
+          recipient: 'seller';
+          amount: { cents: number; currency: string };
+          bankAccount: { cbu?: string; alias?: string; holder: string };
+      }
+    | { recipient: 'platform'; amount: { cents: number; currency: string }; instructions: string };
 
 export interface PaymentOptionsDeps {
     /** Existe la pasarela (hay credenciales de Mercado Pago). */
@@ -45,6 +73,8 @@ export interface PaymentOptionsDeps {
     transferInstructions: { ARS?: string; USD?: string };
     paymentAccounts?: ISellerPaymentAccountRepository;
     rates?: IExchangeRateProvider;
+    /** Las cuentas bancarias de los vendedores: sin la de la moneda de la operación, no hay transferencia. */
+    bankAccounts?: ISellerBankAccountRepository;
 }
 
 /**
@@ -88,6 +118,11 @@ export class GetPaymentOptionsUseCase {
 
         const reason = await this.mercadoPagoReason(operation, converted);
         const instructions = this.instructionsFor(currency);
+        const sellerBank =
+            instructions !== undefined && (currency === 'ARS' || currency === 'USD')
+                ? await this.deps.bankAccounts?.findByUserAndCurrency(operation.sellerId.toString(), currency)
+                : null;
+        const transferAvailable = instructions !== undefined && !!sellerBank;
         // El vendedor ni paga ni confirma: se entera de que la transferencia
         // existe, pero los datos bancarios de la plataforma son del comprador y
         // del admin.
@@ -103,9 +138,30 @@ export class GetPaymentOptionsUseCase {
                 converted,
             },
             transfer: {
-                available: instructions !== undefined,
+                available: transferAvailable,
+                ...(instructions !== undefined && !sellerBank ? { reason: 'seller_bank_missing' as const } : {}),
                 ...(instructions !== undefined && canSeeInstructions ? { instructions } : {}),
                 reference: operation.id.toString(),
+                ...(transferAvailable && sellerBank && canSeeInstructions
+                    ? {
+                          destinations: [
+                              {
+                                  recipient: 'seller' as const,
+                                  amount: moneyOf(operation.sellerReceives),
+                                  bankAccount: {
+                                      ...(sellerBank.destination.cbu ? { cbu: sellerBank.destination.cbu } : {}),
+                                      ...(sellerBank.destination.alias ? { alias: sellerBank.destination.alias } : {}),
+                                      holder: sellerBank.destination.holder,
+                                  },
+                              },
+                              {
+                                  recipient: 'platform' as const,
+                                  amount: moneyOf(operation.platformEarns),
+                                  instructions: instructions!,
+                              },
+                          ],
+                      }
+                    : {}),
             },
         };
     }

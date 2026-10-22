@@ -218,7 +218,32 @@ export interface OperationProps {
     milestones?: StoredMilestones;
     /** El último rechazo de una declaración de cesión, hasta que el vendedor declare de nuevo. */
     transferRejection?: TransferRejection;
+    /** Los comprobantes de la transferencia dividida: el último de cada destino. */
+    paymentReceipts?: PaymentReceipt[];
 }
+
+/** A quién le transfirió el comprador: al vendedor lo suyo, a la plataforma la comisión. */
+export type ReceiptRecipient = 'seller' | 'platform';
+
+/**
+ * El comprobante de una de las dos transferencias. Lo confirma quien recibe
+ * la plata: el vendedor el suyo, la plataforma la comisión.
+ */
+export interface PaymentReceipt {
+    recipient: ReceiptRecipient;
+    fileKey: string;
+    contentType: string;
+    sizeBytes: number;
+    uploadedAt: Date;
+    status: 'pending' | 'confirmed' | 'rejected';
+    decidedBy?: UniqueEntityID;
+    decidedAt?: Date;
+    rejectionReason?: string;
+}
+
+export type ReceiptDecision = { confirm: true } | { confirm: false; reason: string };
+
+const RECIPIENT_ORDER: readonly ReceiptRecipient[] = ['seller', 'platform'];
 
 /**
  * Un admin encontró falsa la declaración de cesión del vendedor: dijo que
@@ -655,6 +680,63 @@ export class Operation extends Entity<OperationProps> {
 
         this.props.custodyVerification = { ...data, verifiedAt: new Date() };
         this.props.status = 'asset_in_custody';
+    }
+
+    public get paymentReceipts(): PaymentReceipt[] {
+        return [...(this.props.paymentReceipts ?? [])];
+    }
+
+    /**
+     * El comprador sube el comprobante de una de las dos transferencias. Uno
+     * nuevo reemplaza al anterior de ese destino, salvo que ya esté confirmado.
+     */
+    public uploadReceipt(
+        recipient: ReceiptRecipient,
+        file: { fileKey: string; contentType: string; sizeBytes: number },
+        at: Date = new Date(),
+    ): void {
+        if (this.props.status !== 'asset_in_custody') {
+            throw new InvalidStateError('Los comprobantes se suben con el activo en custodia, que es cuando corresponde pagar.');
+        }
+        const receipts = this.props.paymentReceipts ?? [];
+        if (receipts.find((r) => r.recipient === recipient)?.status === 'confirmed') {
+            throw new InvalidStateError('Ese comprobante ya está confirmado.');
+        }
+        const receipt: PaymentReceipt = { recipient, ...file, uploadedAt: at, status: 'pending' };
+        this.props.paymentReceipts = [...receipts.filter((r) => r.recipient !== recipient), receipt].sort(
+            (a, b) => RECIPIENT_ORDER.indexOf(a.recipient) - RECIPIENT_ORDER.indexOf(b.recipient),
+        );
+    }
+
+    /**
+     * Quien recibió la plata confirma o rechaza el comprobante. Con los dos
+     * confirmados, el pago queda confirmado por el total: lo que recibió el
+     * vendedor más la comisión es lo que pagó el comprador.
+     */
+    public decideReceipt(recipient: ReceiptRecipient, decision: ReceiptDecision, by: UniqueEntityID, at: Date = new Date()): void {
+        const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
+        if (!receipt || receipt.status !== 'pending') {
+            throw new InvalidStateError('No hay un comprobante esperando confirmación.');
+        }
+        if (decision.confirm) {
+            Object.assign(receipt, { status: 'confirmed', decidedBy: by, decidedAt: at, rejectionReason: undefined });
+        } else {
+            const reason = decision.reason.trim();
+            if (!reason) {
+                throw new ValidationError('Decile al comprador qué está mal: el motivo es lo que le va a permitir corregirlo.');
+            }
+            Object.assign(receipt, { status: 'rejected', decidedBy: by, decidedAt: at, rejectionReason: reason });
+        }
+
+        const confirmed = (this.props.paymentReceipts ?? []).filter((r) => r.status === 'confirmed');
+        if (confirmed.length === RECIPIENT_ORDER.length && this.props.buyerPays) {
+            this.confirmBuyerPayment({
+                provider: 'transferencia',
+                method: 'transferencia_dividida',
+                amountCents: this.props.buyerPays.getCents(),
+                currency: this.props.buyerPays.getCurrency(),
+            });
+        }
     }
 
     public get payment(): PaymentRecord | undefined {

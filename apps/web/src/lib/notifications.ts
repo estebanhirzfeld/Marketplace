@@ -122,6 +122,17 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
                 ? `La invitación al comprador venció el ${fechaLarga(n.occursAt)} sin aceptarse. Hay que volver a iniciar la entrega.`
                 : 'La invitación al comprador venció sin aceptarse. Hay que volver a iniciar la entrega.',
     },
+    comprobante_subido: {
+        title: 'Hay un comprobante para confirmar',
+        cuerpo: (n) =>
+            n.amount
+                ? `El comprador dice que te transfirió ${money(n.amount)}. Fijate que te haya llegado y confirmalo.`
+                : 'El comprador subió el comprobante de una transferencia. Fijate que haya llegado y confirmalo.',
+    },
+    comprobante_rechazado: {
+        title: 'Revisá tu comprobante',
+        cuerpo: () => 'Rechazaron uno de tus comprobantes. En la operación está el motivo; corregilo y subí otro.',
+    },
     cesion_rechazada: {
         title: 'Revisá tu cesión',
         cuerpo: () =>

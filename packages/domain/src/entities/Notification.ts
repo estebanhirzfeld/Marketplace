@@ -54,7 +54,11 @@ export type NotificationType =
     /** A la plataforma: venció la invitación al comprador sin aceptarse; `occursAt` es cuándo venció. */
     | 'entrega_vencida'
     /** Al vendedor: la plataforma rechazó su declaración de cesión; el motivo está en la operación. */
-    | 'cesion_rechazada';
+    | 'cesion_rechazada'
+    /** A quien recibe la transferencia (el vendedor o la plataforma): el comprador subió el comprobante. */
+    | 'comprobante_subido'
+    /** Al comprador: rechazaron uno de sus comprobantes; el motivo está en la operación. */
+    | 'comprobante_rechazado';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

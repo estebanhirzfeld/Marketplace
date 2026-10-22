@@ -101,6 +101,14 @@ import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/
 import { AttestTransferStepUseCase } from '@marketplace/domain/src/use-cases/operation/AttestTransferStepUseCase';
 import { RejectTransferUseCase } from '@marketplace/domain/src/use-cases/operation/RejectTransferUseCase';
 import {
+    DecidePaymentReceiptUseCase,
+    GetPaymentReceiptFileUseCase,
+    UploadPaymentReceiptUseCase,
+} from '@marketplace/domain/src/use-cases/operation/PaymentReceiptUseCases';
+import { DiskFileStorage } from './adapters/DiskFileStorage';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import {
     CheckDomainDeliveryUseCase,
     StartDomainDeliveryUseCase,
 } from '@marketplace/domain/src/use-cases/operation/DomainDeliveryUseCases';
@@ -256,6 +264,9 @@ export interface Container {
     runTransferStepChecks: RunTransferStepChecksUseCase;
     attestTransferStep: AttestTransferStepUseCase;
     rejectTransfer: RejectTransferUseCase;
+    uploadPaymentReceipt: UploadPaymentReceiptUseCase;
+    decidePaymentReceipt: DecidePaymentReceiptUseCase;
+    getPaymentReceiptFile: GetPaymentReceiptFileUseCase;
     /** Ausentes sin registrador: ver `domainRegistrar`. */
     startDomainDelivery?: StartDomainDeliveryUseCase;
     checkDomainDelivery?: CheckDomainDeliveryUseCase;
@@ -466,21 +477,30 @@ export function createContainer(
         : undefined;
     // Los medios de pago los usa su ruta y el detalle de la operación, que los
     // necesita para saber a quién le toca con el activo en custodia.
+    const bankAccountRepo = new PrismaSellerBankAccountRepository();
     const paymentOptions = new GetPaymentOptionsUseCase(operationRepo, {
         mercadoPagoEnabled: Boolean(mercadoPago),
         splitEnabled,
         paymentAccounts: paymentAccountRepo,
         rates: exchangeRates,
+        bankAccounts: bankAccountRepo,
         transferInstructions: {
             ARS: process.env.TRANSFER_INSTRUCTIONS_ARS?.trim() || undefined,
             USD: process.env.TRANSFER_INSTRUCTIONS_USD?.trim() || undefined,
         },
     });
 
-    const bankAccountRepo = new PrismaSellerBankAccountRepository();
+    // Los comprobantes. Sin `UPLOADS_DIR` van al directorio temporal del
+    // sistema, nunca dentro del repositorio; en producción se configura.
+    const fileStorage = new DiskFileStorage(
+        process.env.UPLOADS_DIR?.trim() || path.join(tmpdir(), 'marketplace-uploads'),
+    );
 
     return {
         listingRepo,
+        uploadPaymentReceipt: new UploadPaymentReceiptUseCase(operationRepo, fileStorage, avisos, avisosDePlataforma),
+        decidePaymentReceipt: new DecidePaymentReceiptUseCase(operationRepo, undefined, avisos),
+        getPaymentReceiptFile: new GetPaymentReceiptFileUseCase(operationRepo, fileStorage),
         declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo),
         getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,

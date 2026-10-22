@@ -54,6 +54,7 @@ import {
     PrismaUserRepository,
     PrismaListingRepository,
     PrismaOperationRepository,
+    PrismaSellerBankAccountRepository,
     PrismaCustodyAccountRepository,
     PrismaYouTubeConnectionRepository,
     PrismaYouTubeChannelListingFinder,
@@ -2526,12 +2527,20 @@ describe('GET /operations/:id/payment-options', () => {
     describe('con el contenedor con textos de transferencia', () => {
         async function pedirComo(email: string) {
             const id = await unaOperacionEnCustodia();
+            // Cada uno recibe lo suyo: sin la cuenta del vendedor no hay transferencia.
+            await app.inject({
+                method: 'PUT',
+                url: '/me/bank-accounts',
+                headers: { authorization: `Bearer ${await tokenDe('seller-opts@test.com')}` },
+                payload: { currency: 'ARS', alias: 'vendedor.opts', holder: 'Vendedor Opts' },
+            });
             const container: Container = {
                 ...createContainer(fakeHasher),
                 paymentOptions: new GetPaymentOptionsUseCase(new PrismaOperationRepository(), {
                     mercadoPagoEnabled: true,
                     splitEnabled: false,
                     transferInstructions: { ARS: 'Banco Ejemplo\nCBU 000' },
+                    bankAccounts: new PrismaSellerBankAccountRepository(),
                 }),
             };
             const servidor = await buildApp({ container, jwtSecret: 'secreto-de-test' });
@@ -2549,11 +2558,13 @@ describe('GET /operations/:id/payment-options', () => {
 
             expect(res.statusCode).toBe(200);
             expect(res.json().mercadopago).toEqual({ available: true, chargedIn: 'ARS', converted: false });
-            expect(res.json().transfer).toEqual({
+            expect(res.json().transfer).toMatchObject({
                 available: true,
                 instructions: 'Banco Ejemplo\nCBU 000',
                 reference: id,
             });
+            expect(res.json().transfer.destinations.map((d: { recipient: string }) => d.recipient)).toEqual(['seller', 'platform']);
+            expect(res.json().transfer.destinations[0].bankAccount).toEqual({ alias: 'vendedor.opts', holder: 'Vendedor Opts' });
         });
 
         // El vendedor no paga ni confirma: no recibe los datos bancarios de la plataforma.
@@ -4078,5 +4089,108 @@ describe('/me/bank-accounts', () => {
         const res = await declarar(email, { currency: 'ARS', alias: 'plataforma.x', holder: 'Plataforma' });
 
         expect(res.statusCode).toBe(403);
+    });
+});
+
+/** Los comprobantes de la transferencia dividida: cada uno recibe lo suyo y lo confirma. */
+describe('/operations/:id/receipts', () => {
+    const PDF = Buffer.from('%PDF-1.7 comprobante de prueba');
+
+    async function enCustodia() {
+        const stamp = Date.now();
+        const buyerEmail = `buyer-comp-${stamp}@test.com`;
+        const sellerEmail = `seller-comp-${stamp}@test.com`;
+        const adminEmail = `admin-comp-${stamp}@test.com`;
+        const buyer = await crearUsuario(buyerEmail, UserRole.BUYER);
+        const seller = await crearUsuario(sellerEmail, UserRole.SELLER);
+        const admin = await crearUsuario(adminEmail, UserRole.ADMIN);
+        const listing = await crearListingPublicado(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: admin.id, isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        await new PrismaOperationRepository().save(operation);
+        return { id: operation.id.toString(), buyerEmail, sellerEmail, adminEmail };
+    }
+
+    async function subir(id: string, recipient: string, email: string, payload: Buffer) {
+        return app.inject({
+            method: 'POST',
+            url: `/operations/${id}/receipts/${recipient}`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}`, 'content-type': 'application/octet-stream' },
+            payload,
+        });
+    }
+
+    async function decidir(id: string, recipient: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/operations/${id}/receipts/${recipient}/decision`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('con los dos comprobantes confirmados, el pago queda confirmado', async () => {
+        const { id, buyerEmail, sellerEmail, adminEmail } = await enCustodia();
+
+        expect((await subir(id, 'seller', buyerEmail, PDF)).statusCode).toBe(204);
+        expect((await subir(id, 'platform', buyerEmail, PDF)).statusCode).toBe(204);
+        expect((await decidir(id, 'seller', sellerEmail, { confirm: true })).statusCode).toBe(204);
+        expect((await decidir(id, 'platform', adminEmail, { confirm: true })).statusCode).toBe(204);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe(buyerEmail)}` },
+        });
+        expect(detalle.json().status).toBe('payment_received');
+    });
+
+    it('el archivo se descarga con su tipo y sin caché', async () => {
+        const { id, buyerEmail, adminEmail } = await enCustodia();
+        await subir(id, 'platform', buyerEmail, PDF);
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}/receipts/platform/file`,
+            headers: { authorization: `Bearer ${await tokenDe(adminEmail)}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.headers['content-type']).toBe('application/pdf');
+        expect(res.headers['cache-control']).toBe('private, no-store');
+        expect(res.rawPayload.equals(PDF)).toBe(true);
+    });
+
+    it('400 con un archivo que no es imagen ni PDF', async () => {
+        const { id, buyerEmail } = await enCustodia();
+
+        const res = await subir(id, 'seller', buyerEmail, Buffer.from('MZ ejecutable'));
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().message).toBe('El comprobante tiene que ser una imagen (JPG, PNG o WebP) o un PDF de hasta 5 MB.');
+    });
+
+    it('403 si quien sube no es el comprador, y 400 con un destino que no existe', async () => {
+        const { id, buyerEmail, sellerEmail } = await enCustodia();
+
+        expect((await subir(id, 'seller', sellerEmail, PDF)).statusCode).toBe(403);
+        expect((await subir(id, 'otro', buyerEmail, PDF)).statusCode).toBe(400);
+    });
+
+    it('rechazar sin motivo es 400; con motivo deja subir otro', async () => {
+        const { id, buyerEmail, sellerEmail } = await enCustodia();
+        await subir(id, 'seller', buyerEmail, PDF);
+
+        expect((await decidir(id, 'seller', sellerEmail, { confirm: false })).statusCode).toBe(400);
+        expect((await decidir(id, 'seller', sellerEmail, { confirm: false, reason: 'No me llegó.' })).statusCode).toBe(204);
+        expect((await subir(id, 'seller', buyerEmail, PDF)).statusCode).toBe(204);
     });
 });

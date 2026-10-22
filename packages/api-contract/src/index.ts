@@ -989,11 +989,24 @@ export interface PaymentOptionsDto {
     };
     transfer: {
         available: boolean;
+        /** Por qué no se puede: falta la cuenta del vendedor en la moneda de la operación. */
+        reason?: 'seller_bank_missing';
         instructions?: string;
         /** Lo que el comprador indica al transferir: el id de la operación. */
         reference: string;
+        /** Las dos transferencias, cada una con su monto. Solo para el comprador y la plataforma. */
+        destinations?: TransferDestinationDto[];
     };
 }
+
+export type ReceiptRecipientDto = 'seller' | 'platform';
+
+export type TransferDestinationDto =
+    | { recipient: 'seller'; amount: MoneyDto; bankAccount: { cbu?: string; alias?: string; holder: string } }
+    | { recipient: 'platform'; amount: MoneyDto; instructions: string };
+
+/** Quien recibió la plata confirma su comprobante, o lo rechaza con el motivo. */
+export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; reason: string };
 
 /** Registro de una transferencia bancaria que solo una persona pudo ver llegar. */
 export interface ConfirmPaymentRequest {
@@ -1212,7 +1225,11 @@ export type NotificationTypeDto =
     /** A la plataforma: la invitación de entrega al comprador venció en `occursAt`. */
     | 'entrega_vencida'
     /** Al vendedor: la plataforma rechazó su declaración de cesión; el motivo está en la operación. */
-    | 'cesion_rechazada';
+    | 'cesion_rechazada'
+    /** A quien recibe la transferencia: el comprador subió el comprobante para confirmar. */
+    | 'comprobante_subido'
+    /** Al comprador: rechazaron uno de sus comprobantes; el motivo está en la operación. */
+    | 'comprobante_rechazado';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

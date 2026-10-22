@@ -100,6 +100,34 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** El comprador subió el comprobante de lo que le transfirió al vendedor: que lo confirme. */
+    async sellerReceiptUploaded(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.sellerId,
+                type: 'comprobante_subido',
+                operationId: operation.id,
+                listingId: props.listingId,
+                amountCents: operation.sellerReceives?.getCents(),
+                currency: operation.sellerReceives?.getCurrency(),
+            }),
+        ]);
+    }
+
+    /** Rechazaron un comprobante: al comprador, que tiene que revisarlo y subir otro. */
+    async receiptRejected(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'comprobante_rechazado',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+        ]);
+    }
+
     /** La plataforma rechazó la cesión: al vendedor, que tiene que volver a ceder. */
     async transferRejected(operation: Operation): Promise<void> {
         const { props } = operation.toSnapshot();

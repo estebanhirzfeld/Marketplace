@@ -65,6 +65,12 @@ export class PlatformNotifier {
     }
 
     /** Entró el pago: falta entregar el activo, liquidar y cerrar. */
+    /** El comprador subió el comprobante de la comisión: que la plataforma lo confirme. */
+    async commissionReceiptUploaded(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.avisar('comprobante_subido', { operationId: operation.id, listingId: props.listingId });
+    }
+
     async payoutNeeded(operation: Operation): Promise<void> {
         const { props } = operation.toSnapshot();
         await this.avisar('liquidacion_pendiente', {

@@ -3,6 +3,8 @@ import { Container } from '../container';
 import { authenticate, actorOf } from '../plugins/authenticate';
 import { assertIsAdmin } from '@marketplace/domain/src/ports/Actor';
 import { ValidationError } from '@marketplace/domain/src/errors/DomainError';
+import { ReceiptRecipient } from '@marketplace/domain/src/entities/Operation';
+import { MAX_RECEIPT_BYTES } from '@marketplace/domain/src/use-cases/operation/PaymentReceiptUseCases';
 import type {
     CheckoutDto,
     CompleteOperationRequest,
@@ -12,6 +14,7 @@ import type {
     DeclareRecipientIdentityRequest,
     AttestTransferStepRequest,
     RejectTransferRequest,
+    ReceiptDecisionRequest,
     DomainCustodyCheckDto,
     DomainDeliveryCheckDto,
     InitiateTransferRequest,
@@ -20,6 +23,16 @@ import type {
 } from '@marketplace/api-contract';
 
 interface IdParams { id: string }
+interface ReceiptParams { id: string; recipient: ReceiptRecipient }
+
+const RECEIPT_PARAMS_SCHEMA = {
+    type: 'object',
+    required: ['id', 'recipient'],
+    properties: { id: { type: 'string' }, recipient: { type: 'string', enum: ['seller', 'platform'] } },
+} as const;
+
+/** Un poco más que el máximo del dominio, para que el motivo del rechazo lo dé el dominio. */
+const RECEIPT_BODY_LIMIT = MAX_RECEIPT_BYTES + 1024 * 1024;
 interface StepParams { id: string; key: string }
 
 /** El mismo límite que las notas de las demás constancias. */
@@ -199,6 +212,62 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                 notes,
             );
             return reply.send({ status });
+        },
+    );
+
+    /*
+     * Los comprobantes de la transferencia dividida. El archivo viaja crudo
+     * (`application/octet-stream`) y su tipo se comprueba por los bytes en el
+     * dominio: el nombre y el tipo que manda el navegador no prueban nada.
+     */
+    app.post<{ Params: ReceiptParams; Body: Buffer }>(
+        '/operations/:id/receipts/:recipient',
+        { preHandler: [authenticate], schema: { params: RECEIPT_PARAMS_SCHEMA }, bodyLimit: RECEIPT_BODY_LIMIT },
+        async (request, reply) => {
+            if (!Buffer.isBuffer(request.body)) {
+                throw new ValidationError('Mandá el comprobante como archivo.');
+            }
+            await c.uploadPaymentReceipt.execute(
+                request.params.id,
+                request.params.recipient,
+                new Uint8Array(request.body),
+                actorOf(request),
+            );
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: ReceiptParams; Body: ReceiptDecisionRequest }>(
+        '/operations/:id/receipts/:recipient/decision',
+        {
+            preHandler: [authenticate],
+            schema: {
+                params: RECEIPT_PARAMS_SCHEMA,
+                body: {
+                    type: 'object',
+                    required: ['confirm'],
+                    properties: { confirm: { type: 'boolean' }, reason: { type: 'string', maxLength: MAX_NOTES_LENGTH } },
+                },
+            },
+        },
+        async (request, reply) => {
+            const body = request.body;
+            const decision = body.confirm ? { confirm: true as const } : { confirm: false as const, reason: body.reason ?? '' };
+            await c.decidePaymentReceipt.execute(request.params.id, request.params.recipient, decision, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.get<{ Params: ReceiptParams }>(
+        '/operations/:id/receipts/:recipient/file',
+        { preHandler: [authenticate], schema: { params: RECEIPT_PARAMS_SCHEMA } },
+        async (request, reply) => {
+            const file = await c.getPaymentReceiptFile.execute(request.params.id, request.params.recipient, actorOf(request));
+            return reply
+                .header('content-type', file.contentType)
+                .header('cache-control', 'private, no-store')
+                .header('x-content-type-options', 'nosniff')
+                .send(Buffer.from(file.bytes));
         },
     );
 

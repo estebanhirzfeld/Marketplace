@@ -33,6 +33,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
     await app.register(fastifyJwt, { secret });
 
+    // Los comprobantes viajan como archivo crudo; el límite lo pone cada ruta.
+    app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_request, body, done) => {
+        done(null, body);
+    });
+
     registerErrorHandler(app);
 
     registerAuthRoutes(app, container);
