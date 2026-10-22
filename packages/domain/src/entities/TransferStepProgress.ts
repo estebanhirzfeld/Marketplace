@@ -57,7 +57,7 @@ const ALLOWED_TRANSITIONS: Record<TransferStepProgressStatus, readonly TransferS
  * ausencia de progreso significa "pendiente y sin plazo".
  *
  * Los plazos dependen del reloj, y el reloj entra siempre como argumento (igual
- * que `Listing.assertCanBeTransferred(ahora)`): la entidad no llama a `new Date()`.
+ * que `Listing.assertReadyToSign(ahora)`): la entidad no llama a `new Date()`.
  */
 export class TransferStepProgress extends Entity<TransferStepProgressProps> {
     private constructor(props: TransferStepProgressProps, id?: UniqueEntityID, createdAt?: Date) {

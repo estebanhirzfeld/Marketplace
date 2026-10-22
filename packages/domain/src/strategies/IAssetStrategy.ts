@@ -1,6 +1,26 @@
 import { Money } from '../value-objects/Money';
+import { DomainName } from '../value-objects/DomainName';
 import { VerificationSource } from '../entities/Listing';
+import { DomainRegistryRecord } from '../ports/IDomainRegistryLookup';
 import { AssetType } from '@marketplace/shared-types';
+
+/**
+ * Los hechos con los que una estrategia decide si el activo está listo para
+ * firmar. Los trae quien llama: la estrategia no consulta nada.
+ */
+export interface TransferReadinessFacts {
+    now: Date;
+    /** Desde cuándo la plataforma tiene acceso al activo, si lo tiene. */
+    platformAccessSince?: Date;
+    /**
+     * Lo que dice el registro del dominio. `undefined` si no hubo dominio que
+     * consultar; `null` si el registro no lo conoce.
+     */
+    domainRegistry?: DomainRegistryRecord | null;
+}
+
+/** Si el activo puede pasar a custodia sin esperas y, si no, qué hacer. */
+export type TransferReadiness = { ready: true } | { ready: false; instruction: string };
 
 export type MetricKey = 'followers' | 'revenue' | 'sessions' | 'subscribers' | 'engagement';
 
@@ -212,6 +232,23 @@ export interface IAssetStrategy {
      * propietario principal. Un sitio web no tiene ninguna ventana.
      */
     transferWaitingDays(): number;
+
+    /**
+     * Si el activo puede pasar a custodia sin esperas: es la condición para
+     * firmar el tripartito, porque después de firmar nadie se puede bajar.
+     * Pura: los hechos los trae quien llama.
+     */
+    transferReadiness(facts: TransferReadinessFacts): TransferReadiness;
+
+    /**
+     * Si la custodia depende de un acceso que la plataforma registra antes de
+     * firmar. Un canal sí; un sitio entra en custodia por un traslado durante
+     * la operación.
+     */
+    requiresPlatformAccess(): boolean;
+
+    /** El dominio a consultar en el registro público antes de firmar, si hay uno. */
+    registryDomain(): DomainName | undefined;
 
     /**
      * Retorna los nombres de los atributos que se pueden mostrar públicamente (pre-NDA)

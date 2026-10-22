@@ -57,6 +57,8 @@ import { HmacOwnershipChallengeIssuer } from './adapters/HmacOwnershipChallengeI
 import { NodeDnsResolver } from './adapters/NodeDnsResolver';
 import { HostingerDomainRegistrar } from './adapters/HostingerDomainRegistrar';
 import { IDomainRegistrar } from '@marketplace/domain/src/ports/IDomainRegistrar';
+import { IDomainRegistryLookup } from '@marketplace/domain/src/ports/IDomainRegistryLookup';
+import { RdapDomainRegistryLookup } from './adapters/RdapDomainRegistryLookup';
 import { ApproveListingUseCase } from '@marketplace/domain/src/use-cases/listing/ApproveListingUseCase';
 import { RejectListingUseCase } from '@marketplace/domain/src/use-cases/listing/RejectListingUseCase';
 import { GetListingDetailsUseCase } from '@marketplace/domain/src/use-cases/listing/GetListingDetailsUseCase';
@@ -213,6 +215,8 @@ export interface Container {
      * custodia. Ausente mientras falte `HOSTINGER_API_TOKEN`.
      */
     domainRegistrar?: IDomainRegistrar;
+    /** Registro público de dominios (RDAP): lo consulta la firma de un sitio. */
+    domainRegistryLookup: IDomainRegistryLookup;
     registerPlatformAccess: RegisterPlatformAccessUseCase;
     revokePlatformAccess: RevokePlatformAccessUseCase;
     rejectPlatformAccessRequest: RejectPlatformAccessRequestUseCase;
@@ -400,6 +404,8 @@ export function createContainer(
     const domainRegistrar =
         domainRegistrarOverride ??
         (hostingerToken ? new HostingerDomainRegistrar({ token: hostingerToken }) : undefined);
+    // El registro público no pide credenciales: está siempre.
+    const domainRegistryLookup = new RdapDomainRegistryLookup();
     const reportRepo = new PrismaReportRepository();
     // La conexión de canales necesita el OAuth completo Y la clave que cifra
     // el token de actualización (la misma de Mercado Pago). El adaptador de
@@ -533,6 +539,7 @@ export function createContainer(
             ? new VerifyDomainOwnershipUseCase(listingRepo, dnsOwnership.issuer, dnsOwnership.resolver)
             : undefined,
         domainRegistrar,
+        domainRegistryLookup,
         registerPlatformAccess,
         listAwaitingAccess: new ListListingsAwaitingAccessUseCase(listingRepo, userRepo),
         // Con las mismas credenciales de Google que la verificación de titularidad.
@@ -585,7 +592,15 @@ export function createContainer(
 
         signNda: new SignNdaUseCase(contractRepo, listingRepo, userRepo, armador),
         documentoDelContrato: new GetContractDocumentUseCase(contractRepo, operationRepo, armador),
-        signContract: new SignContractUseCase(contractRepo, operationRepo, userRepo, listingRepo, armador, avisos),
+        signContract: new SignContractUseCase(
+            contractRepo,
+            operationRepo,
+            userRepo,
+            listingRepo,
+            armador,
+            avisos,
+            domainRegistryLookup,
+        ),
 
         initiateTransfer: new InitiateTransferUseCase(operationRepo, listingRepo, avisosDePlataforma, custodyRepo),
         confirmCustody: new ConfirmCustodyUseCase(operationRepo, listingRepo, avisos, custodyRepo, domainRegistrar),

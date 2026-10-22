@@ -7,8 +7,11 @@ import {
     IAssetStrategy,
     TransferContext,
     TransferPhase,
+    TransferReadiness,
     TransferStep,
 } from '../strategies/IAssetStrategy';
+import { DomainName } from '../value-objects/DomainName';
+import { DomainRegistryRecord } from '../ports/IDomainRegistryLookup';
 
 /**
  * Un paso de la cesión que le toca al vendedor.
@@ -383,23 +386,37 @@ export class Listing extends Entity<ListingProps> {
     }
 
     /**
+     * Si el activo puede pasar a custodia sin esperas. Lo decide la
+     * estrategia; el listing aporta su acceso registrado y quien llama, lo que
+     * dijo el registro del dominio.
+     */
+    public transferReadiness(
+        domainRegistry?: DomainRegistryRecord | null,
+        ahora: Date = new Date(),
+    ): TransferReadiness {
+        return this.props.assetStrategy.transferReadiness({
+            now: ahora,
+            platformAccessSince: this.props.platformAccess?.accessSince,
+            domainRegistry,
+        });
+    }
+
+    /**
      * El candado del tripartito. Firmarlo compromete a las dos partes —después
      * de eso la cancelación es ilegal—, así que nadie debería quedar atado a
      * una operación que la plataforma todavía no puede cerrar de forma segura.
      */
-    public assertCanBeTransferred(ahora: Date = new Date()): void {
-        if (!this.props.platformAccess) {
-            throw new InvalidStateError(
-                'La plataforma todavía no tiene acceso al activo: no puede garantizar la custodia.',
-            );
-        }
-        if (!this.isReadyToTransfer(ahora)) {
-            const desde = this.transferableFrom()!;
-            throw new InvalidStateError(
-                `El activo todavía está en el período de espera de su plataforma. ` +
-                `Va a poder transferirse a partir del ${desde.toLocaleDateString('es-AR')}.`,
-            );
-        }
+    public assertReadyToSign(domainRegistry?: DomainRegistryRecord | null, ahora: Date = new Date()): void {
+        const readiness = this.transferReadiness(domainRegistry, ahora);
+        if (!readiness.ready) throw new InvalidStateError(readiness.instruction);
+    }
+
+    public requiresPlatformAccess(): boolean {
+        return this.props.assetStrategy.requiresPlatformAccess();
+    }
+
+    public registryDomain(): DomainName | undefined {
+        return this.props.assetStrategy.registryDomain();
     }
 
     // ── Titularidad comprobada contra la fuente ────────────

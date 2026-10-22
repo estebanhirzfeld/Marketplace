@@ -7,11 +7,36 @@ import {
     MAX_RECIPIENT_IDENTIFIER_LENGTH,
     MetricKey,
     TransferContext,
+    TransferReadiness,
+    TransferReadinessFacts,
     TransferStep,
 } from './IAssetStrategy';
 import { ValidationError } from '../errors/DomainError';
 import { Money } from '../value-objects/Money';
 import { Email } from '../value-objects/Email';
+import { DomainName } from '../value-objects/DomainName';
+import { DomainRegistryRecord } from '../ports/IDomainRegistryLookup';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** Con menos margen, el dominio podría vencer en medio del traspaso. */
+const MIN_DAYS_BEFORE_EXPIRY = 45;
+/** El número que IANA le asigna a Hostinger como registrador. */
+const HOSTINGER_IANA_REGISTRAR_ID = '1636';
+/** Estados EPP que impiden traspasar el dominio. */
+const BLOCKING_STATUSES = [
+    'pending delete',
+    'redemption period',
+    'pending restore',
+    'server hold',
+    'client hold',
+    'inactive',
+    'pending transfer',
+];
+
+function isHostinger(registry: DomainRegistryRecord): boolean {
+    if (registry.registrarIanaId) return registry.registrarIanaId === HOSTINGER_IANA_REGISTRAR_ID;
+    return registry.registrarName?.toLowerCase().includes('hostinger') ?? false;
+}
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
 
 export interface WebStrategyProps {
@@ -215,6 +240,76 @@ export class WebStrategy implements IAssetStrategy {
     /** Cambiar registrador y hosting es inmediato: no hay ventana que esperar. */
     public transferWaitingDays(): number {
         return 0;
+    }
+
+    /*
+     * Un sitio entra en custodia por un traslado entre cuentas de Hostinger
+     * durante la operación. Para que eso pase sin esperas, antes de firmar el
+     * dominio tiene que estar en Hostinger, sin estados que lo traben y lejos
+     * de vencer. El candado del registrador («client transfer prohibited») y
+     * el bloqueo de 60 días solo frenan un cambio de registrador, no un
+     * traslado entre cuentas, así que no traban la firma.
+     */
+    public transferReadiness(facts: TransferReadinessFacts): TransferReadiness {
+        const domain = this.registryDomain();
+        if (!domain) {
+            return {
+                ready: false,
+                instruction: 'El sitio no tiene un dominio válido cargado: sin dominio no hay custodia posible.',
+            };
+        }
+        const registry = facts.domainRegistry;
+        if (registry === undefined) {
+            return { ready: false, instruction: `Falta consultar el registro del dominio ${domain.value}.` };
+        }
+        if (registry === null) {
+            return {
+                ready: false,
+                instruction: `El registro público no encuentra el dominio ${domain.value}. Revisá que esté registrado y activo antes de firmar.`,
+            };
+        }
+        if (!isHostinger(registry)) {
+            return {
+                ready: false,
+                instruction:
+                    `El dominio ${domain.value} está en ${registry.registrarName ?? 'otro registrador'}. ` +
+                    'Para venderlo acá tiene que estar en Hostinger: pedí el código EPP en tu registrador actual ' +
+                    'e iniciá el traslado desde Hostinger. Al llegar, el dominio queda 60 días sin poder irse a ' +
+                    'otro registrador, pero eso no traba la venta: el traspaso a la plataforma es entre cuentas de Hostinger.',
+            };
+        }
+        const blocking = registry.statuses.find((s) => BLOCKING_STATUSES.includes(s));
+        if (blocking) {
+            return {
+                ready: false,
+                instruction: `El registro muestra el dominio ${domain.value} con el estado «${blocking}», que impide traspasarlo. Resolvelo en Hostinger antes de firmar.`,
+            };
+        }
+        if (
+            registry.expiresAt &&
+            registry.expiresAt.getTime() - facts.now.getTime() < MIN_DAYS_BEFORE_EXPIRY * MS_PER_DAY
+        ) {
+            return {
+                ready: false,
+                instruction:
+                    `El dominio ${domain.value} vence el ${registry.expiresAt.toLocaleDateString('es-AR')}. ` +
+                    `Renová el dominio en Hostinger antes de firmar: tienen que faltar más de ${MIN_DAYS_BEFORE_EXPIRY} días para que venza.`,
+            };
+        }
+        return { ready: true };
+    }
+
+    public requiresPlatformAccess(): boolean {
+        return false;
+    }
+
+    public registryDomain(): DomainName | undefined {
+        if (this.domain.trim() === '') return undefined;
+        try {
+            return DomainName.parse(this.domain);
+        } catch {
+            return undefined;
+        }
     }
 
     public getConfidentialFields(): string[] {

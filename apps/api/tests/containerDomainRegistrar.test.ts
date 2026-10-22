@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createContainer } from '../src/container';
 import { HostingerDomainRegistrar } from '../src/adapters/HostingerDomainRegistrar';
+import { RdapDomainRegistryLookup } from '../src/adapters/RdapDomainRegistryLookup';
 
 /** El cableado del registrador de dominios según el entorno. No toca la base ni la red. */
 
@@ -26,6 +27,12 @@ describe('Contenedor — registrador de dominios', () => {
         const c = createContainer();
 
         expect(c.domainRegistrar).toBeUndefined();
+    });
+
+    it('la consulta del registro público de dominios no depende del token: la firma de un sitio la necesita siempre', () => {
+        vi.stubEnv('HOSTINGER_API_TOKEN', '');
+
+        expect(createContainer().domainRegistryLookup).toBeInstanceOf(RdapDomainRegistryLookup);
     });
 
     it('un HOSTINGER_WHOIS_PROFILE_ID que quedó de antes no impide arrancar', () => {

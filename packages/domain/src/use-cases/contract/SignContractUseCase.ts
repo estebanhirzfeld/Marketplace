@@ -7,8 +7,10 @@ import {
 import { generateDocument } from '../../contracts/ContractGenerator';
 import { ContractDataBuilder } from '../../contracts/ContractDataBuilder';
 import { Actor } from '../../ports/Actor';
-import { NotFoundError, InvalidStateError } from '../../errors/DomainError';
+import { NotFoundError, InvalidStateError, ServiceUnavailableError } from '../../errors/DomainError';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
+import { DomainRegistryRecord, IDomainRegistryLookup } from '../../ports/IDomainRegistryLookup';
+import { DomainName } from '../../value-objects/DomainName';
 
 /**
  * Firma del contrato tripartito que cierra la venta.
@@ -26,6 +28,7 @@ export class SignContractUseCase {
         private readonly listingRepo: IListingRepository,
         private readonly armador: ContractDataBuilder,
         private readonly avisos?: NegotiationNotifier,
+        private readonly registryLookup?: IDomainRegistryLookup,
     ) {}
 
     async execute(contractId: string, ipAddress: string, actor: Actor): Promise<void> {
@@ -54,15 +57,15 @@ export class SignContractUseCase {
         const role = operation.partyFor(actor.id);
 
         // El tripartito es el punto de no retorno: después de firmarlo la
-        // cancelación deja de ser legal. Si la plataforma todavía no puede
-        // tomar la custodia del activo, nadie debería quedar comprometido.
+        // cancelación deja de ser legal. Si el activo todavía no puede pasar a
+        // custodia sin esperas, nadie debería quedar comprometido.
         // Los NDA no pasan por acá a propósito: obligan a callar, no a comprar.
         if (contract.type === 'tripartite') {
             const listing = await this.listingRepo.findById(operation.listingId.toString());
             if (!listing) {
                 throw new NotFoundError('Activo no encontrado');
             }
-            listing.assertCanBeTransferred();
+            listing.assertReadyToSign(await this.lookUpRegistry(listing.registryDomain()));
         }
 
         // Sin documento no hay nada que firmar. Se arma con los datos reales
@@ -89,5 +92,19 @@ export class SignContractUseCase {
             await this.operationRepo.save(operation);
             await this.avisos?.contractSigned(operation);
         }
+    }
+
+    /**
+     * Sin consulta configurada no se puede saber si el dominio está listo, y
+     * darlo por listo ataría a las partes a una custodia que quizás no llega.
+     */
+    private async lookUpRegistry(domain: DomainName | undefined): Promise<DomainRegistryRecord | null | undefined> {
+        if (!domain) return undefined;
+        if (!this.registryLookup) {
+            throw new ServiceUnavailableError(
+                'No pudimos consultar el registro del dominio. Volvé a intentar en unos minutos.',
+            );
+        }
+        return this.registryLookup.lookup(domain);
     }
 }

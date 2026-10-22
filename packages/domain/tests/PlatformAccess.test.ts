@@ -155,17 +155,17 @@ describe('Listing.transferableFrom — la fecha que ve el comprador', () => {
     });
 });
 
-describe('Listing.assertCanBeTransferred — el candado', () => {
+describe('Listing.assertReadyToSign — el candado', () => {
     it('deja pasar un listing listo', () => {
         const listing = unCanal();
         listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
             custodyAccountId: CUSTODY, accessSince: haceDias(8) });
 
-        expect(() => listing.assertCanBeTransferred()).not.toThrow();
+        expect(() => listing.assertReadyToSign()).not.toThrow();
     });
 
     it('frena un listing sin acceso registrado', () => {
-        expect(() => unCanal().assertCanBeTransferred()).toThrow(InvalidStateError);
+        expect(() => unCanal().assertReadyToSign()).toThrow(InvalidStateError);
     });
 
     it('frena un listing dentro de la ventana de espera', () => {
@@ -173,7 +173,7 @@ describe('Listing.assertCanBeTransferred — el candado', () => {
         listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
             custodyAccountId: CUSTODY, accessSince: haceDias(3) });
 
-        expect(() => listing.assertCanBeTransferred()).toThrow(InvalidStateError);
+        expect(() => listing.assertReadyToSign()).toThrow(InvalidStateError);
     });
 });
 
@@ -194,7 +194,7 @@ describe('Listing.revokePlatformAccess', () => {
 
         expect(listing.platformAccess).toBeUndefined();
         expect(listing.isReadyToTransfer()).toBe(false);
-        expect(() => listing.assertCanBeTransferred()).toThrow(InvalidStateError);
+        expect(() => listing.assertReadyToSign()).toThrow(InvalidStateError);
     });
 
     /**

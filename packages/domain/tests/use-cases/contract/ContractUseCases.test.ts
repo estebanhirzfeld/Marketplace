@@ -16,7 +16,9 @@ import { Email } from '../../../src/value-objects/Email';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
-import { ForbiddenError, InvalidStateError } from '../../../src/errors/DomainError';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
+import { DomainRegistryRecord, IDomainRegistryLookup } from '../../../src/ports/IDomainRegistryLookup';
+import { ForbiddenError, InvalidStateError, ServiceUnavailableError } from '../../../src/errors/DomainError';
 import { ContractDataBuilder } from '../../../src/contracts/ContractDataBuilder';
 import { UserRole } from '@marketplace/shared-types';
 
@@ -436,5 +438,106 @@ describe('SignContractUseCase — el tripartito exige un activo transferible', (
         const nda = await useCase.execute(listing.id.toString(), '1.1.1.1', actorDe(buyerId));
 
         expect(nda.isFullySigned()).toBe(true);
+    });
+});
+
+/**
+ * Un sitio entra en custodia durante la operación, por un traslado entre
+ * cuentas de Hostinger: no necesita acceso de la plataforma. Lo que sí tiene
+ * que estar antes de firmar es el dominio en Hostinger, activo y lejos de
+ * vencer, y eso lo dice el registro público.
+ */
+describe('SignContractUseCase — el tripartito de un sitio consulta el registro del dominio', () => {
+    function unSitioPublicado(): Listing {
+        const listing = Listing.create({
+            sellerId: new UniqueEntityID(),
+            assetStrategy: new WebStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                domain: 'deliaorrego.online',
+            }),
+            askingPrice: Money.fromCents(3600000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        return listing;
+    }
+
+    function armarFirma(listing: Listing, registryLookup?: IDomainRegistryLookup) {
+        const buyerId = new UniqueEntityID();
+        const operation = unaOperacionEnContractPending(buyerId, new UniqueEntityID());
+        const contract = Contract.createTripartite(listing.id, operation.id);
+
+        const useCase = new SignContractUseCase(
+            createMockContractRepo({ findById: vi.fn().mockResolvedValue(contract) }),
+            createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operation) }),
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(unUsuario(true)) }),
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+            unArmador({ listing, operation }),
+            undefined,
+            registryLookup,
+        );
+
+        return { useCase, contract, buyerId };
+    }
+
+    function registroCon(record: DomainRegistryRecord | null): IDomainRegistryLookup {
+        return { lookup: vi.fn().mockResolvedValue(record) };
+    }
+
+    const enHostinger: DomainRegistryRecord = {
+        registrarIanaId: '1636',
+        registrarName: 'HOSTINGER operations, UAB',
+        statuses: ['client transfer prohibited'],
+        expiresAt: new Date(Date.now() + 200 * 24 * 60 * 60 * 1000),
+    };
+
+    it('firma sin acceso de la plataforma cuando el dominio está listo', async () => {
+        const lookup = registroCon(enHostinger);
+        const { useCase, contract, buyerId } = armarFirma(unSitioPublicado(), lookup);
+
+        await useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId));
+
+        expect(contract.hasSignedBy('buyer')).toBe(true);
+        expect(lookup.lookup).toHaveBeenCalledWith(expect.objectContaining({ value: 'deliaorrego.online' }));
+    });
+
+    it('frena la firma con la instrucción si el dominio está en otro registrador', async () => {
+        const lookup = registroCon({ ...enHostinger, registrarIanaId: '146', registrarName: 'GoDaddy.com, LLC' });
+        const { useCase, contract, buyerId } = armarFirma(unSitioPublicado(), lookup);
+
+        await expect(useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId))).rejects.toThrow(
+            /EPP/,
+        );
+        expect(contract.hasSignedBy('buyer')).toBe(false);
+    });
+
+    it('si el registro no responde, no firma y pide volver a intentar', async () => {
+        const lookup: IDomainRegistryLookup = {
+            lookup: vi.fn().mockRejectedValue(new ServiceUnavailableError('El registro no respondió.')),
+        };
+        const { useCase, contract, buyerId } = armarFirma(unSitioPublicado(), lookup);
+
+        await expect(useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId))).rejects.toThrow(
+            ServiceUnavailableError,
+        );
+        expect(contract.hasSignedBy('buyer')).toBe(false);
+    });
+
+    it('sin consulta de registro configurada, no da el sitio por listo', async () => {
+        const { useCase, contract, buyerId } = armarFirma(unSitioPublicado());
+
+        await expect(useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId))).rejects.toThrow(
+            ServiceUnavailableError,
+        );
+    });
+
+    it('un canal no consulta el registro de dominios', async () => {
+        const lookup = registroCon(null);
+        const { useCase, contract, buyerId } = armarFirma(unListingTransferible(), lookup);
+
+        await useCase.execute(contract.id.toString(), '10.0.0.1', actorDe(buyerId));
+
+        expect(lookup.lookup).not.toHaveBeenCalled();
+        expect(contract.hasSignedBy('buyer')).toBe(true);
     });
 });

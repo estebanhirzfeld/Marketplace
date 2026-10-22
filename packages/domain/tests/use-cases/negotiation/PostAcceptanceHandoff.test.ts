@@ -6,6 +6,12 @@ import { Contract } from '../../../src/entities/Contract';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
+import { Notification } from '../../../src/entities/Notification';
+import { User } from '../../../src/entities/User';
+import { Email } from '../../../src/value-objects/Email';
+import { INotifier } from '../../../src/ports/INotifier';
+import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
 import { Actor } from '../../../src/ports/Actor';
 import { IUnitOfWork, TransactionalRepositories } from '../../../src/ports/IUnitOfWork';
 import {
@@ -179,5 +185,69 @@ describe('AcceptOfferUseCase — el contrato que cierra la venta', () => {
         const tripartitos = e.guardados.filter((c) => c.type === 'tripartite');
         expect(tripartitos).toHaveLength(1);
         expect(tripartitos[0].operationId?.toString()).toBe(ganadora.id.toString());
+    });
+});
+
+/**
+ * El aviso `acceso_pendiente` le dice a la plataforma que la firma está
+ * trabada hasta que registre su acceso al activo. Un sitio no necesita ese
+ * acceso —entra en custodia por un traslado de Hostinger—, así que avisarlo
+ * mandaba al admin a una tarea que no existe.
+ */
+describe('AcceptOfferUseCase — el aviso de acceso pendiente', () => {
+    function avisosDePlataforma() {
+        const enviadas: Notification[] = [];
+        const notifier: INotifier = {
+            notify: vi.fn(async (ns: Notification[]) => {
+                enviadas.push(...ns);
+            }),
+        };
+        const admin = User.create({
+            email: Email.create('admin@traspaso.com'),
+            fullName: 'Admin',
+            passwordHash: 'x'.repeat(60),
+            role: UserRole.ADMIN,
+        });
+        const users: IUserRepository = {
+            findById: vi.fn().mockResolvedValue(null),
+            findByEmail: vi.fn().mockResolvedValue(null),
+            findByRole: vi.fn(async (role) => (role === UserRole.ADMIN ? [admin] : [])),
+            save: vi.fn().mockResolvedValue(undefined),
+        };
+        return { enviadas, avisos: new PlatformNotifier(notifier, users) };
+    }
+
+    it('aceptar una oferta por un sitio no avisa acceso pendiente', async () => {
+        const sellerId = new UniqueEntityID();
+        const listing = Listing.create({
+            sellerId,
+            assetStrategy: new WebStrategy({
+                monthlyRevenueUsd: Money.fromCents(120000, 'USD'),
+                domain: 'deliaorrego.online',
+            }),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        const operation = createPendingOffer(listing, new UniqueEntityID(), sellerId);
+        const { enviadas, avisos } = avisosDePlataforma();
+
+        const e = armarEscenario(listing, operation);
+        await new AcceptOfferUseCase(e.uow, undefined, avisos).execute(operation.id.toString(), actorDe(sellerId));
+
+        expect(operation.status).toBe('contract_pending');
+        expect(enviadas.map((n) => n.type)).not.toContain('acceso_pendiente');
+    });
+
+    it('aceptar una oferta por un canal sin acceso de la plataforma sigue avisando', async () => {
+        const sellerId = new UniqueEntityID();
+        const listing = createListingInOperation(sellerId);
+        const operation = createPendingOffer(listing, new UniqueEntityID(), sellerId);
+        const { enviadas, avisos } = avisosDePlataforma();
+
+        const e = armarEscenario(listing, operation);
+        await new AcceptOfferUseCase(e.uow, undefined, avisos).execute(operation.id.toString(), actorDe(sellerId));
+
+        expect(enviadas.map((n) => n.type)).toContain('acceso_pendiente');
     });
 });

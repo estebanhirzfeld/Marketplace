@@ -55,7 +55,7 @@ export interface OperationAsset {
     name?: string;
     /**
      * Si el activo ya se puede transferir. Firmar el tripartito lo exige
-     * (`assertCanBeTransferred`), así que sin este dato la pantalla ofrecía
+     * (`assertReadyToSign`), así que sin este dato la pantalla ofrecía
      * firmar y el error aparecía recién al apretar el botón.
      */
     transferable: boolean;

@@ -71,10 +71,12 @@ export class AcceptOfferUseCase {
                 await repos.listings.save(listing);
             }
 
-            // Si el activo todavía no se puede transferir, la firma queda
-            // trabada esperando a la plataforma. Se resuelve adentro porque el
-            // listing ya está cargado acá.
-            const faltaAcceso = listing !== null && listing.transferableFrom() === undefined;
+            // Si la custodia depende de un acceso que la plataforma todavía no
+            // registró, la firma queda trabada esperando a la plataforma. Un
+            // sitio no pasa por acá: entra en custodia por un traslado. Se
+            // resuelve adentro porque el listing ya está cargado acá.
+            const faltaAcceso =
+                listing !== null && listing.requiresPlatformAccess() && listing.transferableFrom() === undefined;
 
             return { operation, by, cancelled, faltaAcceso };
         });

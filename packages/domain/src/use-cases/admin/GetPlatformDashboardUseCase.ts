@@ -87,7 +87,7 @@ const ESPERAN_AL_VENDEDOR: OperationStatus[] = ['contract_signed'];
  * `contract_pending` va aparte porque depende del activo.
  *
  * Firmar el tripartito exige que la plataforma ya pueda tomar la custodia
- * (`assertCanBeTransferred`), así que mientras no haya constancia de acceso al
+ * (`assertReadyToSign`), así que mientras no haya constancia de acceso al
  * activo el turno es nuestro y no de las partes — que es exactamente la
  * situación en la que la operación se quedaba detenida sin que el panel la
  * mostrara. Con la constancia ya registrada solo falta que corra el plazo, y

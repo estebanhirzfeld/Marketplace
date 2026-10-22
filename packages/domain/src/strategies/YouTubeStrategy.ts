@@ -5,12 +5,17 @@ import {
   MAX_RECIPIENT_IDENTIFIER_LENGTH,
   MetricKey,
   TransferContext,
+  TransferReadiness,
+  TransferReadinessFacts,
   TransferStep,
 } from './IAssetStrategy';
 import { Money } from '../value-objects/Money';
 import { Email } from '../value-objects/Email';
+import { DomainName } from '../value-objects/DomainName';
 import { ValidationError } from '../errors/DomainError';
 import { AssetNiche, AssetType } from '@marketplace/shared-types';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface YouTubeStrategyProps {
   monthlyRevenueUsd: Money;
@@ -219,6 +224,37 @@ export class YouTubeStrategy implements IAssetStrategy {
 
   public transferWaitingDays(): number {
     return 7;
+  }
+
+  /*
+   * Listo cuando la plataforma es administradora hace los siete días que
+   * YouTube exige antes de dejarla ser propietaria principal.
+   */
+  public transferReadiness(facts: TransferReadinessFacts): TransferReadiness {
+    if (!facts.platformAccessSince) {
+      return {
+        ready: false,
+        instruction: 'La plataforma todavía no tiene acceso al activo: no puede garantizar la custodia.',
+      };
+    }
+    const desde = new Date(facts.platformAccessSince.getTime() + this.transferWaitingDays() * MS_PER_DAY);
+    if (facts.now.getTime() < desde.getTime()) {
+      return {
+        ready: false,
+        instruction:
+          'El activo todavía está en el período de espera de su plataforma. ' +
+          `Va a poder transferirse a partir del ${desde.toLocaleDateString('es-AR')}.`,
+      };
+    }
+    return { ready: true };
+  }
+
+  public requiresPlatformAccess(): boolean {
+    return true;
+  }
+
+  public registryDomain(): DomainName | undefined {
+    return undefined;
   }
 
   /*
