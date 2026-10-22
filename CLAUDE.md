@@ -107,6 +107,12 @@ Every user-facing string (screens, notifications, emails) follows this register.
 - **Spelling is correct**, accents included ("Transferir", "realizará").
 - **Every state is drawn:** loading ("Registrando tu confirmación…"), success saying what happens next and who is told, and the unhappy path. Waits end with what we will do: "te avisaremos cuando…".
 - **Flows go one decision per step:** choose the method with two cards (the `/vender` pattern), then numbered steps ("Paso 1 de 2"). One attach button (the phone offers gallery or camera), always with a preview.
+
+Skills to load before designing or writing a screen (user-level, in `~/.claude/skills/`):
+
+- **`role-aware-ui`** — before any layout, name the role, how often it comes and the single decision it makes; cut what does not serve that decision; design the loading, empty and error states. This is what removed the status badges and the counterpart's name from the payment screen.
+- **`ui-ux-pro-max`** — use it for its UX rules (contrast 4.5:1, touch targets of at least 44 px, progress shown in multi-step flows, loading feedback, visible labels) and its pre-delivery checklist. Do **not** take its palettes or styles: the app has its own identity (dark ground, `#cff245` accent, Space Grotesk and JetBrains Mono, tokens in `apps/web/src/app/globals.css`).
+- Before coding the screens of a new unit, publish a design canvas round in its own folder (`design/<topic>/project/`) and wait for the user's corrections. Phase 21 canvas: `design/recorrido-traspaso/`.
 - Each completed phase gets a write-up in `docs/fase-*.md`.
 
 ## Phase write-ups (`docs/fase-*.md`)
