@@ -1,17 +1,28 @@
 import {
+    ICustodyAccountRepository,
     IListingRepository,
     IOperationRepository,
     ITransferStepProgressRepository,
 } from '../../ports/Repositories';
+import { Operation } from '../../entities/Operation';
+import { Listing } from '../../entities/Listing';
+import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
+import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { IDomainRegistrar, RegistrarMove } from '../../ports/IDomainRegistrar';
 import {
     TransferStepProgress,
     TransferStepProgressStatus,
 } from '../../entities/TransferStepProgress';
 import { DomainName } from '../../value-objects/DomainName';
-import { isWebListing, websiteDomainOf } from '../../services/WebCustody';
+import { isWebListing, resolveCustodyAccountId, websiteDomainOf } from '../../services/WebCustody';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { InvalidStateError, NotFoundError, ServiceUnavailableError, ValidationError } from '../../errors/DomainError';
+
+/**
+ * Quién figura como verificador cuando la plataforma confirma algo sola, sin
+ * un admin: la custodia de un sitio la da el registrador, no una persona.
+ */
+export const PLATFORM_ACTOR_ID = 'system';
 
 /** La `key` del paso de `WebStrategy` que comprueba este caso de uso. */
 export const DOMAIN_TO_PLATFORM_STEP_KEY = 'domain-to-platform';
@@ -69,6 +80,10 @@ export class CheckDomainCustodyUseCase {
         private readonly now: () => Date = () => new Date(),
         /** Opcional: sin él, el paso se cumple igual y nadie se entera. */
         private readonly platformNotifier?: PlatformNotifier,
+        /** Para congelar en la custodia la cuenta de la plataforma que recibió el dominio. */
+        private readonly custodyRepo?: ICustodyAccountRepository,
+        /** Para avisarle al comprador que ya puede pagar. */
+        private readonly avisos?: NegotiationNotifier,
     ) {}
 
     async execute(operationId: string): Promise<TransferStepProgressStatus> {
@@ -77,7 +92,12 @@ export class CheckDomainCustodyUseCase {
             throw new NotFoundError('Operación no encontrada');
         }
 
+        const existing = await this.progressRepo.find('operation', operationId, DOMAIN_TO_PLATFORM_STEP_KEY);
+
         if (operation.status !== 'transfer_in_progress') {
+            // Con la custodia ya confirmada, volver a comprobar no es un error:
+            // es el mismo resultado (un doble clic, o el job y el botón a la vez).
+            if (existing?.status === 'done') return existing.status;
             throw new InvalidStateError(
                 'Solo se comprueba el dominio de una operación con la transferencia en curso.',
             );
@@ -92,10 +112,12 @@ export class CheckDomainCustodyUseCase {
         }
         const domain = websiteDomainOf(listing);
 
-        const existing = await this.progressRepo.find('operation', operationId, DOMAIN_TO_PLATFORM_STEP_KEY);
         // Cumplido o rechazado no se reabre. Vencido sí puede cumplirse: lo
         // resuelve una persona, y que el dominio aparezca es resolverlo.
         if (existing && !existing.isOpen() && existing.status !== 'expired') {
+            // Un paso cumplido con la operación todavía sin custodia es un corte
+            // entre los dos guardados: se completa sin volver a preguntar.
+            if (existing.status === 'done') await this.confirmCustody(operation, listing);
             return existing.status;
         }
 
@@ -114,6 +136,7 @@ export class CheckDomainCustodyUseCase {
                 await this.progressRepo.save(progress);
                 // Un paso cumplido no vuelve a llegar acá, así que el aviso sale una vez.
                 await this.platformNotifier?.domainInCustody(operation);
+                await this.confirmCustody(operation, listing);
                 return progress.status;
             }
 
@@ -143,6 +166,24 @@ export class CheckDomainCustodyUseCase {
             }
             throw error;
         }
+    }
+
+    /**
+     * El dominio activo en la cuenta de la plataforma es la custodia de un
+     * sitio: no queda nada que una persona tenga que comprobar. La confirma
+     * la plataforma, sin un admin detrás.
+     */
+    private async confirmCustody(operation: Operation, listing: Listing): Promise<void> {
+        operation.confirmAssetCustody({
+            verifiedBy: new UniqueEntityID(PLATFORM_ACTOR_ID),
+            isPrimaryOwner: true,
+            accessSecured: true,
+            metrics: {},
+            custodyAccountId: await resolveCustodyAccountId(listing, this.custodyRepo),
+            notes: 'Comprobado en Hostinger: el dominio está activo en la cuenta de la plataforma.',
+        });
+        await this.operationRepo.save(operation);
+        await this.avisos?.assetInCustody(operation);
     }
 
     private start(operationId: string, startedAt: Date, deadlineAt?: Date): TransferStepProgress {

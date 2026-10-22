@@ -106,7 +106,7 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
     },
     dominio_en_custodia: {
         title: 'El dominio ya está en nuestra cuenta',
-        cuerpo: () => 'Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.',
+        cuerpo: () => 'Llegó a la cuenta de Hostinger de la plataforma y la custodia quedó confirmada.',
     },
     entrega_recordatorio: {
         title: 'Aceptá el dominio en Hostinger',

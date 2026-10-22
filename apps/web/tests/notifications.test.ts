@@ -90,7 +90,7 @@ describe('avisos del traslado del dominio a la plataforma', () => {
         const { title, cuerpo } = textFor({ ...delTraslado, type: 'dominio_en_custodia' });
 
         expect(title).toBe('El dominio ya está en nuestra cuenta');
-        expect(cuerpo).toBe('Llegó a la cuenta de Hostinger de la plataforma. Falta declarar la custodia.');
+        expect(cuerpo).toBe('Llegó a la cuenta de Hostinger de la plataforma y la custodia quedó confirmada.');
     });
 
     it('le recuerda al comprador que acepte el dominio desde su cuenta de Hostinger, con el plazo', () => {

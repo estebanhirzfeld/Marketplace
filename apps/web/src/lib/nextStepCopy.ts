@@ -107,7 +107,10 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
             };
         case 'verify_custody':
             return kind === 'web'
-                ? { title: 'Confirmá la custodia del dominio', body: 'El dominio ya está en nuestra cuenta de Hostinger.' }
+                ? {
+                      title: 'Confirmá la custodia del dominio',
+                      body: 'El dominio ya está en nuestra cuenta de Hostinger: comprobalo y la custodia se confirma sola.',
+                  }
                 : {
                       title: 'Verificá la custodia del canal',
                       body: 'Comprobá que la plataforma quedó como propietaria principal y que el vendedor ya no tiene acceso.',

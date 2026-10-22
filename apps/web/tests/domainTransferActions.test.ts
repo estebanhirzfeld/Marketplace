@@ -39,7 +39,7 @@ describe('checkDomainCustodyAction', () => {
     it.each([
         ['pending', 'Todavía no hay un traslado hacia nuestra cuenta de Hostinger.'],
         ['waiting', 'El traslado llegó y lo aceptamos. Falta confirmarlo desde el mail de Hostinger.'],
-        ['done', 'El dominio ya está en nuestra cuenta. Falta declarar la custodia.'],
+        ['done', 'El dominio ya está en nuestra cuenta y la custodia quedó confirmada.'],
         ['expired', 'La invitación del vendedor venció. Tiene que iniciar el traslado de nuevo.'],
     ])('con el paso %s le dice al admin cómo quedó', async (status, message) => {
         checkDomainCustody.mockResolvedValue({ status });

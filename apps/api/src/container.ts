@@ -446,6 +446,8 @@ export function createContainer(
               domainRegistrar,
               undefined,
               avisosDePlataforma,
+              custodyRepo,
+              avisos,
           )
         : undefined;
     // La entrega al comprador: la inicia el admin, la comprueban la ruta, el

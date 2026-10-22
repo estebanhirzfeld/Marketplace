@@ -26,6 +26,8 @@ import {
     ValidationError,
 } from '../../../src/errors/DomainError';
 import { PlatformNotifier } from '../../../src/services/PlatformNotifier';
+import { NegotiationNotifier } from '../../../src/services/NegotiationNotifier';
+import { PLATFORM_ACTOR_ID } from '../../../src/use-cases/operation/CheckDomainCustodyUseCase';
 import { Notification } from '../../../src/entities/Notification';
 import { User } from '../../../src/entities/User';
 import { Email } from '../../../src/value-objects/Email';
@@ -200,6 +202,12 @@ function setup(options: {
             save: vi.fn(),
         },
     );
+    const partyNotices: Notification[] = [];
+    const negotiationNotifier = new NegotiationNotifier({
+        notify: vi.fn(async (ns: Notification[]) => {
+            partyNotices.push(...ns);
+        }),
+    });
     const useCase = new CheckDomainCustodyUseCase(
         operationRepo,
         listingRepo,
@@ -207,6 +215,8 @@ function setup(options: {
         registrar,
         () => clock.now,
         platformNotifier,
+        undefined,
+        negotiationNotifier,
     );
     const id = operation.id.toString();
     const row = () => progressRepo.rows.get(`operation:${id}:domain-to-platform`);
@@ -217,7 +227,7 @@ function setup(options: {
         startedAt: row()?.startedAt,
     });
 
-    return { useCase, id, registrar, registrarState, clock, progressRepo, row, snapshot, sent };
+    return { useCase, id, registrar, registrarState, clock, progressRepo, row, snapshot, sent, operation, operationRepo, partyNotices };
 }
 
 describe('CheckDomainCustodyUseCase', () => {
@@ -341,15 +351,62 @@ describe('CheckDomainCustodyUseCase', () => {
             expect(registrar.acceptIncomingMove).toHaveBeenCalledTimes(1);
         });
 
-        it('con la fila en done no vuelve a consultar al registrador', async () => {
-            const { useCase, id, registrar } = setup({ portfolio: anEntry() });
+        it('con la fila en done no vuelve a consultar al registrador, aunque la custodia ya esté confirmada', async () => {
+            const { useCase, id, registrar, operation } = setup({ portfolio: anEntry() });
             await useCase.execute(id);
             vi.mocked(registrar.getPortfolioEntry).mockClear();
 
             const status = await useCase.execute(id);
 
             expect(status).toBe('done');
+            expect(operation.status).toBe('asset_in_custody');
             expect(registrar.getPortfolioEntry).not.toHaveBeenCalled();
+        });
+    });
+
+    /*
+     * Ver el dominio activo en la cuenta de la plataforma ES la custodia de un
+     * sitio: no queda nada que una persona tenga que comprobar. El job y el
+     * botón del admin hacen lo mismo.
+     */
+    describe('custodia automática', () => {
+        it('con el dominio activo en nuestra cuenta, confirma la custodia y avisa al comprador', async () => {
+            const { useCase, id, operation, operationRepo, partyNotices } = setup({ portfolio: anEntry() });
+
+            await useCase.execute(id);
+
+            expect(operation.status).toBe('asset_in_custody');
+            expect(operation.custodyVerification).toMatchObject({ isPrimaryOwner: true, accessSecured: true });
+            expect(operation.custodyVerification?.verifiedBy.toString()).toBe(PLATFORM_ACTOR_ID);
+            expect(operationRepo.save).toHaveBeenCalledWith(operation);
+            expect(partyNotices.map((n) => n.type)).toContain('activo_en_custodia');
+        });
+
+        it('si el paso quedó cumplido pero la custodia no se guardó, la confirma sin volver a consultar', async () => {
+            const { useCase, id, operation, registrar, progressRepo } = setup();
+            const done = TransferStepProgress.start({
+                scope: 'operation',
+                scopeId: id,
+                stepKey: 'domain-to-platform',
+                startedAt: INVITED_AT,
+            });
+            done.markDone(NOW, { evidence: { inPortfolio: true } });
+            await progressRepo.save(done);
+
+            const status = await useCase.execute(id);
+
+            expect(status).toBe('done');
+            expect(operation.status).toBe('asset_in_custody');
+            expect(registrar.getPortfolioEntry).not.toHaveBeenCalled();
+        });
+
+        it('con el traslado todavía en curso no confirma nada', async () => {
+            const { useCase, id, operation, operationRepo } = setup({ incoming: aMove('activating') });
+
+            await useCase.execute(id);
+
+            expect(operation.status).toBe('transfer_in_progress');
+            expect(operationRepo.save).not.toHaveBeenCalled();
         });
     });
 

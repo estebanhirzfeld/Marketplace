@@ -155,7 +155,9 @@ export default async function DetalleOperacion(props: {
                 ) : null;
             }
             case 'verify_custody':
-                return <CustodyVerificationForm action={confirmCustody.bind(null, op.id)} />;
+                // Un sitio se confirma solo al ver el dominio en nuestra cuenta: el
+                // botón para comprobarlo está en las herramientas del traspaso.
+                return op.assetType === 'web' ? null : <CustodyVerificationForm action={confirmCustody.bind(null, op.id)} />;
             case 'pay':
                 return (
                     <PaymentChoice
