@@ -1023,6 +1023,8 @@ export interface PaymentReceiptDto {
     recipient: ReceiptRecipientDto;
     status: 'pending' | 'confirmed' | 'rejected';
     uploadedAt: string;
+    /** El tipo del archivo, detectado por su contenido: una imagen tiene vista previa. */
+    contentType: string;
     /** El motivo elegido. Ausente en rechazos anteriores a los motivos. */
     rejectionCode?: ReceiptRejectionCodeDto;
     /** El detalle que escribió quien rechazó, si escribió uno. */

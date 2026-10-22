@@ -351,9 +351,16 @@ export async function decideReceiptAction(
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return confirm
-        ? { ok: true, message: 'Registramos tu confirmación.' }
-        : { ok: true, message: 'Rechazaste el comprobante. El comprador recibirá el motivo.' };
+    if (!confirm) {
+        return { ok: true, message: 'Rechazaste el comprobante. El comprador recibirá el motivo y deberá adjuntar uno nuevo.' };
+    }
+    return {
+        ok: true,
+        message:
+            recipient === 'seller'
+                ? 'Registramos tu confirmación. Le avisaremos al comprador que recibiste el pago.'
+                : 'Registramos la acreditación de la comisión. Le avisaremos al comprador.',
+    };
 }
 
 /* ── Traspaso de un sitio (admin) ─────────────────────────*/

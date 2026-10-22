@@ -71,11 +71,11 @@ export default async function DetalleOperacion(props: {
 
     const isAdmin = actor.role === UserRole.ADMIN;
 
-    // Cómo puede pagar el comprador. Solo lo piden las partes, y solo mientras
-    // el activo está en custodia. Si la consulta falla la pantalla no se rompe:
-    // se queda con lo que había antes (el botón de pagar, sin opciones).
+    // Cómo puede pagar el comprador, mientras el activo está en custodia. La
+    // plataforma también lo pide: ve los destinos para revisar comprobantes. Si
+    // la consulta falla la pantalla no se rompe: queda el botón de pagar.
     let paymentOptions: PaymentOptionsDto | undefined;
-    if (!isAdmin && op.miParte && op.status === 'asset_in_custody') {
+    if ((isAdmin || op.miParte) && op.status === 'asset_in_custody') {
         try {
             paymentOptions = await api().paymentOptions(id);
         } catch {
@@ -83,6 +83,20 @@ export default async function DetalleOperacion(props: {
         }
     }
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
+
+    // La cuenta donde el vendedor tuvo que recibir lo suyo, para verificarla antes de confirmar.
+    const sellerDestination = paymentOptions?.transfer.destinations?.find((d) => d.recipient === 'seller');
+    let sellerAccount = sellerDestination?.recipient === 'seller'
+        ? (sellerDestination.bankAccount.alias ?? sellerDestination.bankAccount.cbu)
+        : undefined;
+    if (!sellerAccount && op.miParte === 'seller' && op.paymentReceipts?.some((r) => r.recipient === 'seller')) {
+        try {
+            const own = (await api().bankAccounts()).find((a) => a.currency === op.buyerPays?.currency);
+            sellerAccount = own?.alias ?? own?.cbu;
+        } catch {
+            sellerAccount = undefined;
+        }
+    }
 
     // El vendedor tiene un plazo para confirmar lo que le transfirieron; vencido, decide la plataforma.
     const sellerStep = op.next?.byRole.seller;
@@ -105,12 +119,15 @@ export default async function DetalleOperacion(props: {
         : undefined;
 
     /** Mirar un comprobante y responder si llegó, para quien recibió esa plata. */
-    const receiptReview = (recipient: 'seller' | 'platform', confirmText: string) => (
+    const receiptReview = (recipient: 'seller' | 'platform', expected?: string, account?: string) => (
         <ReceiptReviewForm
             fileHref={`/operaciones/${op.id}/comprobantes/${recipient}`}
+            isImage={op.paymentReceipts?.find((r) => r.recipient === recipient)?.contentType.startsWith('image/') ?? false}
+            expected={expected}
+            account={account}
             confirmAction={decideReceiptAction.bind(null, op.id, recipient, true)}
             rejectAction={decideReceiptAction.bind(null, op.id, recipient, false)}
-            confirmText={confirmText}
+            confirmText="Confirmar la acreditación"
         />
     );
 
@@ -193,21 +210,18 @@ export default async function DetalleOperacion(props: {
                         buyerPays={op.buyerPays}
                         checkoutAction={goToCheckout.bind(null, op.id)}
                         receipts={op.paymentReceipts}
-                        uploadAction={(recipient) => uploadReceiptAction.bind(null, op.id, recipient)}
+                        uploadActions={{
+                            platform: uploadReceiptAction.bind(null, op.id, 'platform'),
+                            seller: uploadReceiptAction.bind(null, op.id, 'seller'),
+                        }}
                     />
                 );
             case 'link_payment_account':
                 return <SellerPaymentWait options={paymentOptions} />;
             case 'confirm_seller_receipt':
-                return receiptReview(
-                    'seller',
-                    op.sellerReceives ? `Me llegaron ${exactMoney(op.sellerReceives)}` : 'Me llegó la transferencia',
-                );
+                return receiptReview('seller', op.sellerReceives && exactMoney(op.sellerReceives), sellerAccount);
             case 'confirm_commission_receipt':
-                return receiptReview(
-                    'platform',
-                    op.platformEarns ? `Llegaron ${exactMoney(op.platformEarns)} de comisión` : 'Llegó la comisión',
-                );
+                return receiptReview('platform', op.platformEarns && exactMoney(op.platformEarns), 'de la plataforma');
             case 'accept_delivery':
                 return op.recipientIdentity ? (
                     <DomainDeliveryStatus
@@ -619,7 +633,7 @@ export default async function DetalleOperacion(props: {
                                         <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
                                             Venció su plazo para responder. Mirá el comprobante y decidí vos.
                                         </p>
-                                        {receiptReview('seller', 'La transferencia al vendedor llegó')}
+                                        {receiptReview('seller', op.sellerReceives && exactMoney(op.sellerReceives), sellerAccount)}
                                     </div>
                                 </Panel>
                             )}

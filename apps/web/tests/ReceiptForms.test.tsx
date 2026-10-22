@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ReceiptReviewForm, ReceiptUploadForm } from '@/components/ReceiptForms';
+import { ReceiptReviewForm } from '@/components/ReceiptForms';
 
 /*
  * Quien recibió la plata mira el comprobante y responde; el comprador lo sube
@@ -19,40 +19,33 @@ describe('ReceiptReviewForm', () => {
     const html = renderToStaticMarkup(
         <ReceiptReviewForm
             fileHref="/operaciones/op-1/comprobantes/seller"
+            isImage
+            expected="AR$ 9.500"
+            account="ana.vendedora.mp"
             confirmAction={accion}
             rejectAction={accion}
-            confirmText="Me llegaron AR$ 9.500"
+            confirmText="Confirmar la acreditación"
         />,
     );
 
-    it('deja ver el comprobante antes de responder', () => {
+    it('deja ver el comprobante antes de responder, con su vista previa', () => {
         expect(html).toContain('href="/operaciones/op-1/comprobantes/seller"');
         expect(html).toContain('rel="noopener"');
+        expect(html).toMatch(/<img[^>]*src="\/operaciones\/op-1\/comprobantes\/seller"/);
     });
 
-    it('confirma con el monto a la vista; rechazar es elegir un motivo, con el detalle opcional', () => {
-        expect(texto(html)).toContain('Me llegaron AR$ 9.500');
-        expect(html.match(/<input[^>]*type="radio"[^>]*name="code"/g)).toHaveLength(3);
-        expect(texto(html)).toContain('Todavía no se acreditó');
-        expect(texto(html)).toContain('El monto no coincide');
-        expect(html).toMatch(/<textarea[^>]*name="detail"/);
-        expect(html).not.toMatch(/<textarea[^>]*required/);
-        expect(texto(html)).toContain('Rechazar el comprobante');
-    });
-});
-
-describe('ReceiptUploadForm', () => {
-    it('acepta solo imágenes y PDF, y avisa el tamaño máximo', () => {
-        const html = renderToStaticMarkup(<ReceiptUploadForm action={accion} />);
-
-        expect(html).toContain('accept="application/pdf,image/png,image/jpeg,image/webp"');
-        expect(texto(html)).toContain('Subí el comprobante');
-        expect(texto(html)).toContain('hasta 5 MB');
+    it('pide verificar el monto y la cuenta en el banco, y avisa que confirmar no se deshace', () => {
+        expect(texto(html)).toContain('Verificá en tu banco que se hayan acreditado AR$ 9.500 en la cuenta ana.vendedora.mp');
+        expect(texto(html)).toContain('Una vez confirmado, no se puede deshacer.');
+        expect(texto(html)).toContain('Confirmar la acreditación');
+        expect(texto(html)).toContain('No se acreditó');
     });
 
-    it('si reemplaza uno rechazado, lo dice', () => {
-        const html = renderToStaticMarkup(<ReceiptUploadForm action={accion} replacing />);
-
-        expect(texto(html)).toContain('Subí otro comprobante');
+    it('un PDF no tiene vista previa: se abre aparte', () => {
+        const pdf = renderToStaticMarkup(
+            <ReceiptReviewForm fileHref="/x" confirmAction={accion} rejectAction={accion} confirmText="Confirmar la acreditación" />,
+        );
+        expect(pdf).not.toMatch(/<img/);
+        expect(texto(pdf)).toContain('Ver el comprobante completo');
     });
 });

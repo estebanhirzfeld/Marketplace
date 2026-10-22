@@ -121,8 +121,8 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
                   };
         case 'pay':
             return {
-                title: 'Pagá la compra',
-                body: 'El activo ya está en nuestra custodia y verificado. Recién ahora corresponde pagar.',
+                title: 'Pagá tu compra',
+                body: 'El activo está en custodia de la plataforma. Elegí cómo realizar el pago.',
             };
         case 'enable_payment_method':
             return {

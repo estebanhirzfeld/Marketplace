@@ -618,7 +618,7 @@ export default function Sistema() {
                     <div className="max-w-[560px]">
                         <BankAccountsView
                             accounts={[{ currency: 'ARS', alias: 'delia.pesos', holder: 'Delia Orrego', declaredAt: '2026-10-22T10:00:00.000Z' }]}
-                            actionFor={() => async () => ({})}
+                            actionFor={() => noop}
                         />
                     </div>
                 </Section>
@@ -688,7 +688,7 @@ export default function Sistema() {
                         </div>
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ADMIN · SI LA CESIÓN NO LLEGÓ</div>
-                            <RejectTransferForm action={async () => ({})} />
+                            <RejectTransferForm action={noop} />
                         </div>
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR · ANTES DE VENDER</div>
@@ -1047,29 +1047,60 @@ export default function Sistema() {
                             />
                         </div>
                         <div className="flex flex-col gap-3">
-                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — UN COMPROBANTE EN REVISIÓN Y OTRO RECHAZADO</div>
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — MERCADO PAGO ELEGIDO</div>
+                            <PaymentChoice options={PAGO_AMBAS} checkoutAction={noopVoid} initialView="mercadopago" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — TRANSFERENCIA, ANTES DE EMPEZAR</div>
+                            <PaymentChoice options={PAGO_AMBAS} checkoutAction={noopVoid} initialView="transfer-intro" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — PASO 2, CON LA COMISIÓN ENVIADA</div>
+                            <PaymentChoice
+                                options={PAGO_AMBAS}
+                                checkoutAction={noopVoid}
+                                receipts={[{ recipient: 'platform', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z', contentType: 'image/png' }]}
+                                uploadActions={{ platform: noop, seller: noop }}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — LA COMISIÓN RECHAZADA</div>
                             <PaymentChoice
                                 options={PAGO_AMBAS}
                                 checkoutAction={noopVoid}
                                 receipts={[
-                                    { recipient: 'seller', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z' },
                                     {
                                         recipient: 'platform',
                                         status: 'rejected',
                                         uploadedAt: '2026-10-22T12:00:00.000Z',
-                                        rejectionReason: 'El monto no coincide con la comisión.',
+                                        contentType: 'image/png',
+                                        rejectionCode: 'amount_mismatch',
                                     },
                                 ]}
-                                uploadAction={() => async () => ({})}
+                                uploadActions={{ platform: noop, seller: noop }}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — LOS DOS COMPROBANTES ENVIADOS</div>
+                            <PaymentChoice
+                                options={PAGO_AMBAS}
+                                checkoutAction={noopVoid}
+                                receipts={[
+                                    { recipient: 'seller', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z', contentType: 'image/png' },
+                                    { recipient: 'platform', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z', contentType: 'application/pdf' },
+                                ]}
+                                uploadActions={{ platform: noop, seller: noop }}
                             />
                         </div>
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR O PLATAFORMA — CONFIRMAR UN COMPROBANTE</div>
                             <ReceiptReviewForm
                                 fileHref="/sistema"
-                                confirmAction={async () => ({})}
-                                rejectAction={async () => ({})}
-                                confirmText="Me llegaron AR$ 1.425.000"
+                                confirmAction={noop}
+                                rejectAction={noop}
+                                expected="AR$ 1.425.000"
+                                account="ejemplo.vendedor"
+                                confirmText="Confirmar la acreditación"
                             />
                         </div>
                         <div className="flex flex-col gap-3">
