@@ -18,6 +18,9 @@ import type {
     DomainDeliveryCheckDto,
     InitiateTransferRequest,
     PaymentOptionsDto,
+    ReceiptCoherenceRequest,
+    ReceiptReviewRequest,
+    ReceiptReviewResolutionRequest,
     TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 
@@ -36,6 +39,9 @@ interface StepParams { id: string; key: string }
 
 /** El mismo límite que las notas de las demás constancias. */
 const MAX_NOTES_LENGTH = 2000;
+
+/** El ID COELSA tiene 22 caracteres; el número de operación de cada banco, menos. Con margen. */
+const BANK_REFERENCE_MAX = 64;
 
 const priceSchema = {
     body: {
@@ -264,6 +270,124 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                 : { confirm: false as const, code: body.code, detail: body.detail };
             await c.decidePaymentReceipt.execute(request.params.id, request.params.recipient, decision, actorOf(request));
             return reply.code(204).send();
+        },
+    );
+
+    /*
+     * La revisión de un comprobante rechazado: la pide el comprador, la
+     * coherencia y la resolución son de la plataforma, y el vendedor puede
+     * sumar los movimientos de su cuenta. La autorización vive en los casos de uso.
+     */
+    app.post<{ Params: ReceiptParams; Body: ReceiptReviewRequest }>(
+        '/operations/:id/receipts/:recipient/review',
+        {
+            preHandler: [authenticate],
+            schema: {
+                params: RECEIPT_PARAMS_SCHEMA,
+                body: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: { bankReference: { type: 'string', maxLength: BANK_REFERENCE_MAX } },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.requestReceiptReview.execute(request.params.id, request.params.recipient, request.body ?? {}, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.put<{ Params: ReceiptParams; Body: { bankReference: string } }>(
+        '/operations/:id/receipts/:recipient/review/bank-reference',
+        {
+            preHandler: [authenticate],
+            schema: {
+                params: RECEIPT_PARAMS_SCHEMA,
+                body: {
+                    type: 'object',
+                    required: ['bankReference'],
+                    additionalProperties: false,
+                    properties: { bankReference: { type: 'string', maxLength: BANK_REFERENCE_MAX } },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.addReviewBankReference.execute(
+                request.params.id,
+                request.params.recipient,
+                request.body.bankReference,
+                actorOf(request),
+            );
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: ReceiptParams; Body: ReceiptCoherenceRequest }>(
+        '/operations/:id/receipts/:recipient/review/coherence',
+        {
+            preHandler: [authenticate],
+            schema: {
+                params: RECEIPT_PARAMS_SCHEMA,
+                body: {
+                    type: 'object',
+                    required: ['coherent'],
+                    additionalProperties: false,
+                    properties: { coherent: { type: 'boolean' }, reason: { type: 'string', maxLength: MAX_NOTES_LENGTH } },
+                    if: { properties: { coherent: { const: false } } },
+                    then: { required: ['reason'] },
+                },
+            },
+        },
+        async (request, reply) => {
+            const body = request.body;
+            const resolution = body.coherent ? { coherent: true as const } : { coherent: false as const, reason: body.reason };
+            await c.resolveReceiptCoherence.execute(request.params.id, request.params.recipient, resolution, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: ReceiptParams; Body: ReceiptReviewResolutionRequest }>(
+        '/operations/:id/receipts/:recipient/review/resolution',
+        {
+            preHandler: [authenticate],
+            schema: {
+                params: RECEIPT_PARAMS_SCHEMA,
+                body: {
+                    type: 'object',
+                    required: ['credited'],
+                    additionalProperties: false,
+                    properties: { credited: { type: 'boolean' } },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.resolveReceiptReview.execute(request.params.id, request.params.recipient, request.body, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: IdParams; Body: Buffer }>(
+        '/operations/:id/receipts/seller/review/statement',
+        { preHandler: [authenticate], bodyLimit: RECEIPT_BODY_LIMIT },
+        async (request, reply) => {
+            if (!Buffer.isBuffer(request.body)) {
+                throw new ValidationError('Mandá los movimientos como archivo.');
+            }
+            await c.attachSellerStatement.execute(request.params.id, new Uint8Array(request.body), actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.get<{ Params: IdParams }>(
+        '/operations/:id/receipts/seller/review/statement/file',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const file = await c.getSellerStatementFile.execute(request.params.id, actorOf(request));
+            return reply
+                .header('content-type', file.contentType)
+                .header('cache-control', 'private, no-store')
+                .header('x-content-type-options', 'nosniff')
+                .send(Buffer.from(file.bytes));
         },
     );
 

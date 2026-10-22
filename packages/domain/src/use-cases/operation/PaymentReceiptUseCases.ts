@@ -75,6 +75,7 @@ export class DecidePaymentReceiptUseCase {
         private readonly deadlines: HandoverDeadlines = new HandoverDeadlines(),
         private readonly avisos?: NegotiationNotifier,
         private readonly now: () => Date = () => new Date(),
+        private readonly avisosDePlataforma?: PlatformNotifier,
     ) {}
 
     async execute(operationId: string, recipient: ReceiptRecipient, decision: ReceiptDecision, actor: Actor): Promise<void> {
@@ -85,7 +86,12 @@ export class DecidePaymentReceiptUseCase {
         operation.decideReceipt(recipient, decision, new UniqueEntityID(actor.id), now);
         await this.operationRepo.save(operation);
 
-        if (!decision.confirm) await this.avisos?.receiptRejected(operation);
+        // Un segundo rechazo abre la revisión: no hay otro comprobante que pedir, decide la plataforma.
+        const inReview = operation.paymentReceipts.find((r) => r.recipient === recipient)?.status === 'in_review';
+        if (!decision.confirm && inReview) {
+            await this.avisosDePlataforma?.receiptReviewNeeded(operation);
+            await this.avisos?.receiptReviewStarted(operation);
+        } else if (!decision.confirm) await this.avisos?.receiptRejected(operation);
         else if (operation.status === 'payment_received') await this.avisos?.paymentConfirmed(operation);
     }
 

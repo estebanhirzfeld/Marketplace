@@ -233,7 +233,7 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
  * son independientes, así que pueden avanzar a la vez.
  */
 function receiptSteps(input: NextActionsInput, receipts: ReceiptFacts): Record<Role, NextStep> {
-    if (receipts.review) return reviewSteps(receipts.review);
+    if (receipts.review) return withReview(input, receipts, receipts.review);
     const buyerPending = !receipts.seller || receipts.seller === 'rejected' || !receipts.platform || receipts.platform === 'rejected';
     const sellerDeadline = receipts.sellerUploadedAt ? input.deadlines.sellerTransferConfirmation(receipts.sellerUploadedAt) : undefined;
     const payDeadline = input.milestones.custodyAt ? input.deadlines.buyerPayment(input.milestones.custodyAt) : undefined;
@@ -258,6 +258,19 @@ function receiptSteps(input: NextActionsInput, receipts: ReceiptFacts): Record<R
  * plataforma ya puede resolver con el rastreo. Con sus movimientos adjuntos,
  * o si se revisa la comisión, decide la plataforma.
  */
+function withReview(input: NextActionsInput, receipts: ReceiptFacts, review: NonNullable<ReceiptFacts['review']>): Record<Role, NextStep> {
+    const reviewed = reviewSteps(review);
+    // El otro comprobante sigue su curso: lo que le toque hacer a cada uno por él se suma a la revisión.
+    const other: ReceiptFacts = { ...receipts, review: undefined, [review.recipient]: 'confirmed' };
+    const rest = receiptSteps(input, other);
+    const pick = (role: Role): NextStep => {
+        if (reviewed[role].kind === 'act') return reviewed[role];
+        if (rest[role].kind === 'act') return rest[role];
+        return reviewed[role];
+    };
+    return { buyer: pick('buyer'), seller: pick('seller'), platform: pick('platform') };
+}
+
 function reviewSteps(review: NonNullable<ReceiptFacts['review']>): Record<Role, NextStep> {
     if (review.stage === 'coherence') return turnOf('platform', act('review_receipt'));
     if (review.recipient === 'platform' || review.hasSellerStatement) return turnOf('platform', act('resolve_receipt_review'));

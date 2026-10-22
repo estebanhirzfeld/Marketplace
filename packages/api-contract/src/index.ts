@@ -1019,6 +1019,19 @@ export type TransferDestinationDto =
 /** Quien recibió la plata confirma su comprobante, o lo rechaza con el motivo. */
 export type ReceiptRejectionCodeDto = 'not_credited' | 'amount_mismatch' | 'other';
 
+/** El comprador pide la revisión de un comprobante rechazado, con el ID COELSA si lo tiene. */
+export interface ReceiptReviewRequest {
+    bankReference?: string;
+}
+
+/** La plataforma revisó la coherencia: coherente, o el motivo por el que no lo es. */
+export type ReceiptCoherenceRequest = { coherent: true } | { coherent: false; reason: string };
+
+/** La plataforma resolvió con el rastreo entre bancos si el pago se acreditó. */
+export interface ReceiptReviewResolutionRequest {
+    credited: boolean;
+}
+
 export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; code: ReceiptRejectionCodeDto; detail?: string };
 
 /** En qué está un comprobante. El archivo se pide aparte, a quien le corresponde verlo. */
@@ -1264,7 +1277,9 @@ export type NotificationTypeDto =
     /** Al vendedor: tiene que responder la revisión del pago; `occursAt` es su plazo. */
     | 'revision_pendiente_vendedor'
     /** A las dos partes: la plataforma resolvió la revisión del pago. */
-    | 'revision_resuelta';
+    | 'revision_resuelta'
+    /** Al comprador: su comprobante pasó a la revisión de la plataforma. */
+    | 'revision_en_curso';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

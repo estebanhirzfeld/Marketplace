@@ -131,7 +131,7 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
     },
     comprobante_rechazado: {
         title: 'Revisá tu comprobante',
-        cuerpo: () => 'Rechazaron uno de tus comprobantes. En la operación figura el motivo: verificá la transferencia y adjuntá uno nuevo.',
+        cuerpo: () => 'Rechazaron uno de tus comprobantes. En la operación figura el motivo.',
     },
     revision_solicitada: {
         title: 'Hay una revisión de pago para resolver',
@@ -143,6 +143,10 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
             n.occursAt
                 ? `El comprobante del comprador coincide con tu cuenta. Si no respondés antes del ${fechaLarga(n.occursAt)}, daremos el pago por acreditado.`
                 : 'El comprobante del comprador coincide con tu cuenta. Si no respondés a tiempo, daremos el pago por acreditado.',
+    },
+    revision_en_curso: {
+        title: 'Tu comprobante está en revisión',
+        cuerpo: () => 'La plataforma revisará el comprobante y resolverá si el pago se acreditó. Te avisaremos cuando se resuelva.',
     },
     revision_resuelta: {
         title: 'Se resolvió la revisión del pago',

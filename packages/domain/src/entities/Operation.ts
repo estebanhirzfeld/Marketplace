@@ -820,6 +820,7 @@ export class Operation extends Entity<OperationProps> {
     }
 
     private receiptInReview(recipient: ReceiptRecipient, stage?: ReceiptReview['stage']): PaymentReceipt & { review: ReceiptReview } {
+        this.assertReviewInCustody();
         const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
         if (!receipt || receipt.status !== 'in_review' || !receipt.review) {
             throw new InvalidStateError('El comprobante no está en revisión.');
@@ -832,6 +833,13 @@ export class Operation extends Entity<OperationProps> {
         return receipt as PaymentReceipt & { review: ReceiptReview };
     }
 
+    /** Una revisión es sobre un pago pendiente: con el pago confirmado por otro medio ya no hay qué revisar. */
+    private assertReviewInCustody(): void {
+        if (this.props.status !== 'asset_in_custody') {
+            throw new InvalidStateError('La revisión de un comprobante es con el activo en custodia.');
+        }
+    }
+
     /** Si hay un comprobante en revisión: mientras dure, la operación no se cancela por plazo. */
     public get hasOpenReceiptReview(): boolean {
         return (this.props.paymentReceipts ?? []).some((r) => r.status === 'in_review');
@@ -839,6 +847,7 @@ export class Operation extends Entity<OperationProps> {
 
     /** El comprador pide que la plataforma revise un comprobante que le rechazaron. */
     public requestReceiptReview(recipient: ReceiptRecipient, input: { bankReference?: string }, at: Date = new Date()): void {
+        this.assertReviewInCustody();
         const receipt = this.props.paymentReceipts?.find((r) => r.recipient === recipient);
         if (!receipt || receipt.status !== 'rejected') {
             throw new InvalidStateError('Solo se puede solicitar la revisión de un comprobante rechazado.');
@@ -948,6 +957,7 @@ export class Operation extends Entity<OperationProps> {
     }
 
     private awaitingSellerReviews(): PaymentReceipt[] {
+        if (this.props.status !== 'asset_in_custody') return [];
         return (this.props.paymentReceipts ?? []).filter(
             (r) => r.recipient === 'seller' && r.status === 'in_review' && r.review?.stage === 'awaiting_seller',
         );

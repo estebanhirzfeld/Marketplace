@@ -148,7 +148,7 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
         case 'review_receipt':
             return {
                 title: 'Revisá el comprobante',
-                body: 'El comprador solicitó la revisión de un comprobante rechazado. Verificá que coincida con las cuentas y los CUIT de las partes.',
+                body: 'Un comprobante rechazado está en revisión. Verificá que coincida con las cuentas y los CUIT de las partes.',
             };
         case 'respond_receipt_review':
             return {

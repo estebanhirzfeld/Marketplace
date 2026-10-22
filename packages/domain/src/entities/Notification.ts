@@ -64,7 +64,9 @@ export type NotificationType =
     /** Al vendedor: tiene que responder la revisión del pago; `occursAt` es su plazo. */
     | 'revision_pendiente_vendedor'
     /** A las dos partes: la plataforma resolvió la revisión del pago. */
-    | 'revision_resuelta';
+    | 'revision_resuelta'
+    /** Al comprador: su comprobante pasó a la revisión de la plataforma. */
+    | 'revision_en_curso';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

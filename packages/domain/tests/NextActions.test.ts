@@ -316,6 +316,29 @@ describe('NextActions — revisión de un comprobante', () => {
         expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['platform'] });
     });
 
+    it('la revisión de un comprobante no tapa al otro: el vendedor confirma el suyo mientras se revisa la comisión', () => {
+        const { byRole, turn } = enCustodia({
+            seller: 'pending',
+            platform: 'in_review',
+            sellerUploadedAt: CUSTODY,
+            review: { recipient: 'platform', stage: 'coherence', hasSellerStatement: false },
+        });
+
+        expect(turn).toEqual(['seller', 'platform']);
+        expect(byRole.seller).toMatchObject({ kind: 'act', id: 'confirm_seller_receipt' });
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'review_receipt' });
+    });
+
+    it('con el del vendedor en revisión y la comisión sin enviar, el comprador transfiere la comisión', () => {
+        const { byRole } = enCustodia({
+            seller: 'in_review',
+            review: { recipient: 'seller', stage: 'coherence', hasSellerStatement: false },
+        });
+
+        expect(byRole.buyer).toMatchObject({ kind: 'act', id: 'pay' });
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'review_receipt' });
+    });
+
     it('la revisión de la comisión la resuelve la plataforma sola', () => {
         const { byRole, turn } = enCustodia({
             seller: 'confirmed',

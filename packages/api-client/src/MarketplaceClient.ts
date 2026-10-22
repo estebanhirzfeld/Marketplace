@@ -59,8 +59,11 @@ import {
     RejectTransferRequest,
     SellerBankAccountDto,
     DeclareSellerBankAccountRequest,
+    ReceiptCoherenceRequest,
     ReceiptDecisionRequest,
     ReceiptRecipientDto,
+    ReceiptReviewRequest,
+    ReceiptReviewResolutionRequest,
     TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
@@ -457,6 +460,44 @@ export class MarketplaceClient {
     /** Quien recibió la plata confirma o rechaza su comprobante. */
     decideReceipt(operationId: string, recipient: ReceiptRecipientDto, body: ReceiptDecisionRequest): Promise<void> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/decision`, { body });
+    }
+
+    /** El comprador pide la revisión de un comprobante rechazado. */
+    requestReceiptReview(operationId: string, recipient: ReceiptRecipientDto, body: ReceiptReviewRequest): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/review`, { body });
+    }
+
+    /** El comprador suma el ID COELSA o el número de operación a una revisión abierta. */
+    addReviewBankReference(operationId: string, recipient: ReceiptRecipientDto, bankReference: string): Promise<void> {
+        return this.request('PUT', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/review/bank-reference`, {
+            body: { bankReference },
+        });
+    }
+
+    /** Admin: la coherencia del comprobante en revisión. */
+    resolveReceiptCoherence(operationId: string, recipient: ReceiptRecipientDto, body: ReceiptCoherenceRequest): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/review/coherence`, { body });
+    }
+
+    /** Admin: si el pago se acreditó, según el rastreo entre bancos. */
+    resolveReceiptReview(operationId: string, recipient: ReceiptRecipientDto, body: ReceiptReviewResolutionRequest): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/review/resolution`, { body });
+    }
+
+    /** El vendedor adjunta los movimientos de su cuenta a la revisión. */
+    attachSellerStatement(operationId: string, bytes: Uint8Array): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/seller/review/statement`, {
+            raw: { bytes, contentType: 'application/octet-stream' },
+        });
+    }
+
+    /** El archivo de los movimientos del vendedor, con su tipo. */
+    async sellerStatementFile(operationId: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+        const response = await this.send('GET', `/operations/${encodeURIComponent(operationId)}/receipts/seller/review/statement/file`, {});
+        return {
+            bytes: new Uint8Array(await response.arrayBuffer()),
+            contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        };
     }
 
     /** El archivo de un comprobante, con su tipo. */

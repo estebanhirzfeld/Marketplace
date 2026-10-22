@@ -93,6 +93,8 @@ enum NotificationType {
   revision_solicitada
   revision_pendiente_vendedor
   revision_resuelta
+  // Al comprador: su comprobante, rechazado dos veces, pasó a la revisión de la plataforma.
+  revision_en_curso
 }
 
 enum ContractType {

@@ -4267,4 +4267,64 @@ describe('/operations/:id/receipts', () => {
         expect((await decidir(id, 'seller', sellerEmail, { confirm: false, code: 'not_credited' })).statusCode).toBe(204);
         expect((await subir(id, 'seller', buyerEmail, PDF)).statusCode).toBe(204);
     });
+
+    async function como(email: string, method: 'POST' | 'PUT' | 'GET', url: string, payload?: unknown, raw?: Buffer) {
+        return app.inject({
+            method,
+            url,
+            headers: {
+                authorization: `Bearer ${await tokenDe(email)}`,
+                ...(raw ? { 'content-type': 'application/octet-stream' } : {}),
+            },
+            ...(raw ? { payload: raw } : payload !== undefined ? { payload } : {}),
+        });
+    }
+
+    it('la revisión de un comprobante rechazado, de punta a punta: el vendedor lo niega y el rastreo lo confirma', async () => {
+        const { id, buyerEmail, sellerEmail, adminEmail } = await enCustodia();
+        await subir(id, 'platform', buyerEmail, PDF);
+        await decidir(id, 'platform', adminEmail, { confirm: true });
+        await subir(id, 'seller', buyerEmail, PDF);
+        await decidir(id, 'seller', sellerEmail, { confirm: false, code: 'not_credited' });
+
+        // Solo el comprador la pide.
+        expect((await como(sellerEmail, 'POST', `/operations/${id}/receipts/seller/review`, {})).statusCode).toBe(403);
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/receipts/seller/review`, { bankReference: '0AB12CD34EF56GH78IJ90K' })).statusCode).toBe(204);
+
+        // La coherencia es de la plataforma.
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/receipts/seller/review/coherence`, { coherent: true })).statusCode).toBe(403);
+        expect((await como(adminEmail, 'POST', `/operations/${id}/receipts/seller/review/coherence`, { coherent: false })).statusCode).toBe(400);
+        expect((await como(adminEmail, 'POST', `/operations/${id}/receipts/seller/review/coherence`, { coherent: true })).statusCode).toBe(204);
+
+        // El vendedor adjunta sus movimientos; los ve la plataforma, no el comprador.
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/receipts/seller/review/statement`, undefined, PDF)).statusCode).toBe(403);
+        expect((await como(sellerEmail, 'POST', `/operations/${id}/receipts/seller/review/statement`, undefined, PDF)).statusCode).toBe(204);
+        expect((await como(buyerEmail, 'GET', `/operations/${id}/receipts/seller/review/statement/file`)).statusCode).toBe(403);
+        const movimientos = await como(adminEmail, 'GET', `/operations/${id}/receipts/seller/review/statement/file`);
+        expect(movimientos.statusCode).toBe(200);
+        expect(movimientos.headers['cache-control']).toBe('private, no-store');
+
+        const enRevision = await como(sellerEmail, 'GET', `/operations/${id}`);
+        expect(enRevision.json().paymentReceipts[0]).toMatchObject({
+            recipient: 'seller',
+            status: 'in_review',
+            review: { stage: 'awaiting_seller', requestedBy: 'buyer', bankReference: '0AB12CD34EF56GH78IJ90K', hasSellerStatement: true },
+        });
+        expect(enRevision.json().next.byRole.platform).toMatchObject({ kind: 'act', id: 'resolve_receipt_review', blocking: true });
+
+        // Resuelve la plataforma con el rastreo, aunque el vendedor lo niegue.
+        expect((await como(sellerEmail, 'POST', `/operations/${id}/receipts/seller/review/resolution`, { credited: true })).statusCode).toBe(403);
+        expect((await como(adminEmail, 'POST', `/operations/${id}/receipts/seller/review/resolution`, { credited: true })).statusCode).toBe(204);
+        expect((await como(buyerEmail, 'GET', `/operations/${id}`)).json().status).toBe('payment_received');
+    });
+
+    it('pedir la revisión de un comprobante que no está rechazado es 409', async () => {
+        const { id, buyerEmail } = await enCustodia();
+        await subir(id, 'seller', buyerEmail, PDF);
+
+        const res = await como(buyerEmail, 'POST', `/operations/${id}/receipts/seller/review`, {});
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().message).toBe('Solo se puede solicitar la revisión de un comprobante rechazado.');
+    });
 });

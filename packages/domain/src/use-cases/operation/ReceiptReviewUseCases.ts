@@ -7,6 +7,7 @@ import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { HandoverDeadlines } from '../../value-objects/HandoverDeadlines';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../errors/DomainError';
+import { UserRole } from '@marketplace/shared-types';
 import { detectReceiptType, MAX_RECEIPT_BYTES } from './PaymentReceiptUseCases';
 
 /*
@@ -173,5 +174,23 @@ export class ExpireReceiptReviewsUseCase {
             }
         }
         return summary;
+    }
+}
+
+/** Los movimientos que adjuntó el vendedor: los ve la plataforma y el propio vendedor. */
+export class GetSellerStatementFileUseCase {
+    constructor(
+        private readonly operationRepo: IOperationRepository,
+        private readonly storage: IFileStorage,
+    ) {}
+
+    async execute(operationId: string, actor: Actor): Promise<{ bytes: Uint8Array; contentType: string }> {
+        const operation = await loadOperation(this.operationRepo, operationId);
+        if (actor.role !== UserRole.ADMIN) operation.assertIsSeller(actor.id);
+
+        const statement = operation.paymentReceipts.find((r) => r.recipient === 'seller')?.review?.sellerStatement;
+        const stored = statement && (await this.storage.get(statement.fileKey));
+        if (!stored) throw new NotFoundError('Movimientos no encontrados');
+        return stored;
     }
 }

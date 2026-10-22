@@ -112,6 +112,7 @@ import {
     RequestReceiptReviewUseCase,
     ResolveReceiptCoherenceUseCase,
     ResolveReceiptReviewUseCase,
+    GetSellerStatementFileUseCase,
 } from '@marketplace/domain/src/use-cases/operation/ReceiptReviewUseCases';
 import { DiskFileStorage } from './adapters/DiskFileStorage';
 import { tmpdir } from 'node:os';
@@ -280,6 +281,7 @@ export interface Container {
     attachSellerStatement: AttachSellerStatementUseCase;
     resolveReceiptReview: ResolveReceiptReviewUseCase;
     expireReceiptReviews: ExpireReceiptReviewsUseCase;
+    getSellerStatementFile: GetSellerStatementFileUseCase;
     /** Ausentes sin registrador: ver `domainRegistrar`. */
     startDomainDelivery?: StartDomainDeliveryUseCase;
     checkDomainDelivery?: CheckDomainDeliveryUseCase;
@@ -511,7 +513,7 @@ export function createContainer(
     return {
         listingRepo,
         uploadPaymentReceipt: new UploadPaymentReceiptUseCase(operationRepo, fileStorage, avisos, avisosDePlataforma),
-        decidePaymentReceipt: new DecidePaymentReceiptUseCase(operationRepo, undefined, avisos),
+        decidePaymentReceipt: new DecidePaymentReceiptUseCase(operationRepo, undefined, avisos, undefined, avisosDePlataforma),
         getPaymentReceiptFile: new GetPaymentReceiptFileUseCase(operationRepo, fileStorage),
         requestReceiptReview: new RequestReceiptReviewUseCase(operationRepo, avisosDePlataforma),
         addReviewBankReference: new AddReviewBankReferenceUseCase(operationRepo),
@@ -519,6 +521,7 @@ export function createContainer(
         attachSellerStatement: new AttachSellerStatementUseCase(operationRepo, fileStorage, avisosDePlataforma),
         resolveReceiptReview: new ResolveReceiptReviewUseCase(operationRepo, avisos),
         expireReceiptReviews: new ExpireReceiptReviewsUseCase(operationRepo, avisos),
+        getSellerStatementFile: new GetSellerStatementFileUseCase(operationRepo, fileStorage),
         declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo, userRepo),
         getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,

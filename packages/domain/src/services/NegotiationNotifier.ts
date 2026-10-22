@@ -142,6 +142,19 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** Al comprador: su comprobante pasó a la revisión de la plataforma. */
+    async receiptReviewStarted(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'revision_en_curso',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+        ]);
+    }
+
     /** A las dos partes: la plataforma resolvió la revisión del pago. */
     async receiptReviewResolved(operation: Operation): Promise<void> {
         await this.toBothParties(operation, 'revision_resuelta');

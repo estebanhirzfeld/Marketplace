@@ -16,6 +16,7 @@ import {
     ResolveReceiptCoherenceUseCase,
     ResolveReceiptReviewUseCase,
 } from '../src/use-cases/operation/ReceiptReviewUseCases';
+import { DecidePaymentReceiptUseCase } from '../src/use-cases/operation/PaymentReceiptUseCases';
 import { ForbiddenError } from '../src/errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
 import { Money } from '../src/value-objects/Money';
@@ -275,6 +276,7 @@ describe('casos de uso de la revisión', () => {
             coherence: new ResolveReceiptCoherenceUseCase(repo, deadlines, avisos, now),
             statement: new AttachSellerStatementUseCase(repo, storage, plataforma, now),
             resolve: new ResolveReceiptReviewUseCase(repo, avisos, now),
+            decide: new DecidePaymentReceiptUseCase(repo, deadlines, avisos, now, plataforma),
             expire: new ExpireReceiptReviewsUseCase(repo, avisos, now),
         };
     }
@@ -359,6 +361,35 @@ describe('casos de uso de la revisión', () => {
         expect(op.status).toBe('payment_received');
         expect(enviadas.map((n) => n.type).sort()).toEqual(['pago_confirmado', 'revision_resuelta', 'revision_resuelta']);
         expect(repo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('el segundo rechazo abre la revisión: avisa a la plataforma y al comprador que está en revisión', async () => {
+        const op = rechazado();
+        op.uploadReceipt('seller', { ...file, fileKey: 'receipts/op/seller-2.pdf' }, LATER);
+        const { decide, enviadas } = armar(op);
+
+        await decide.execute(op.id.toString(), 'seller', { confirm: false, code: 'not_credited' }, actor(SELLER, UserRole.SELLER));
+
+        expect(seller(op).status).toBe('in_review');
+        expect(enviadas.map((n) => [n.type, n.toSnapshot().props.userId.toString()]).sort()).toEqual(
+            [
+                ['revision_en_curso', BUYER.toString()],
+                ['revision_solicitada', expect.any(String)],
+            ].sort(),
+        );
+        expect(enviadas.map((n) => n.type)).not.toContain('comprobante_rechazado');
+    });
+
+    it('fuera de la custodia una revisión no se resuelve: el pago ya entró por otro lado', () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        op.resolveReceiptCoherence('seller', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+        op.confirmBuyerPayment({ provider: 'mercadopago', externalId: 'mp-1', method: 'account_money', amountCents: op.buyerPays!.getCents(), currency: 'USD' });
+
+        expect(() => op.resolveReceiptReview('seller', { credited: true }, ADMIN, LATER)).toThrow(
+            new InvalidStateError('La revisión de un comprobante es con el activo en custodia.'),
+        );
+        expect(op.expireReceiptReviews(AFTER_DEADLINE)).toEqual([]);
     });
 
     it('el comprador suma el ID COELSA después de pedir la revisión', async () => {
