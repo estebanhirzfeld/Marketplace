@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Plataforma: comprobantes por confirmar</title>
+<title>Plataforma: comprobantes por revisar</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -13,61 +13,148 @@
 <style>
 body{margin:0;background:#0b0c0e}
 a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
 </style>
 </helmet>
-<div style="width: 720px; height: 820px; box-sizing: border-box; padding: 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 20px">
+<div style="width: 1280px; height: 1000px; box-sizing: border-box; padding: 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+
   <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
-    <h1 style="margin: 0; font-size: 22px; font-weight: 700">Comprobantes por confirmar</h1>
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8c939c">3 PENDIENTES</span>
+    <h1 style="margin: 0; font-size: 24px; font-weight: 700">Comprobantes por revisar</h1>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8c939c">{{ pendingCount }} PENDIENTES</span>
   </div>
 
-  <div style="display: flex; flex-direction: column; border: 1px solid #1e2126; border-radius: 5px">
-    <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #1e2126; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">
-      <span>OPERACIÓN</span><span>QUÉ</span><span>MONTO</span><span>SUBIDO</span>
+  <div style="display: flex; gap: 24px; flex: 1; min-height: 0">
+    <div style="width: 440px; flex-shrink: 0; display: flex; flex-direction: column; border: 1px solid #1e2126; border-radius: 5px; overflow: hidden">
+      <sc-for list="{{ items }}" as="it" hint-placeholder-count="4">
+        <button type="button" onClick="{{ it.select }}" aria-pressed="{{ it.pressed }}" style="display: flex; flex-direction: column; gap: 6px; min-height: 76px; padding: 14px 16px; border: 0; border-bottom: 1px solid #1e2126; border-left: 3px solid {{ it.mark }}; background: {{ it.bg }}; color: #e8e9ea; font: inherit; text-align: left; cursor: pointer">
+          <span style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px">
+            <span>{{ it.asset }}</span>
+            <span style="font-family: 'JetBrains Mono', monospace">{{ it.amount }}</span>
+          </span>
+          <span style="display: flex; justify-content: space-between; gap: 12px; font-size: 13px">
+            <span style="color: {{ it.kindColor }}">{{ it.kind }}</span>
+            <span style="color: #838a94">{{ it.age }}</span>
+          </span>
+        </button>
+      </sc-for>
     </div>
 
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 16px; border-bottom: 1px solid #1e2126; background: #16191d">
-      <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; font-size: 14px">
-        <span>deliaorrego.online</span>
-        <span>Comisión</span>
-        <span style="font-family: 'JetBrains Mono', monospace">AR$ 150.000</span>
-        <span style="color: #8c939c">hace 2 h</span>
-      </div>
-      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
-        <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Ver el comprobante →</a>
-        <span style="font-size: 13px; color: #8c939c">Referencia OP-3F2B8C1E · a la cuenta en pesos</span>
-      </div>
-      <div style="display: flex; flex-wrap: wrap; gap: 10px">
-        <button type="button" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 14px; font-weight: 700">Llegaron AR$ 150.000</button>
-        <button type="button" style="min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">No llegó o no coincide…</button>
-      </div>
-    </div>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size: 18px; font-weight: 700">No quedan comprobantes por revisar</span>
+        <span style="font-size: 14px; color: #8c939c">Te avisaremos cuando llegue uno nuevo.</span>
+      </sc-if>
 
-    <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-bottom: 1px solid #1e2126">
-      <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; font-size: 14px">
-        <span>Canal de recetas</span>
-        <span style="color: #e8a33d">Del vendedor, vencido</span>
-        <span style="font-family: 'JetBrains Mono', monospace">US$ 2.850</span>
-        <span style="color: #8c939c">hace 3 días</span>
-      </div>
-      <span style="font-size: 13px; line-height: 1.5; color: #8c939c">El vendedor no respondió en 2 días hábiles. Decidís vos, con el comprobante a la vista.</span>
-    </div>
+      <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{ sel.kindColor }}">{{ sel.kindUpper }}</span>
+          <span style="font-size: 22px; font-weight: 700">{{ sel.title }}</span>
+          <span style="font-size: 14px; line-height: 1.5; color: #8c939c">{{ sel.asset }} · <strong style="color: #e8e9ea">{{ sel.amount }}</strong> a <strong style="color: #e8e9ea">{{ sel.destination }}</strong></span>
+        </div>
 
-    <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; padding: 16px; font-size: 14px">
-      <span>tiendaverde.com.ar</span>
-      <span>Comisión</span>
-      <span style="font-family: 'JetBrains Mono', monospace">AR$ 48.000</span>
-      <span style="color: #8c939c">ayer</span>
+        <div style="display: flex; gap: 16px">
+          <a href="#" style="display: flex; flex-direction: column; gap: 8px; text-decoration: none">
+            <span style="width: 150px; height: 200px; border-radius: 5px; background: #e8e9ea; display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; box-sizing: border-box">
+              <span style="height: 10px; width: 60%; background: #8c939c; border-radius: 2px"></span>
+              <span style="height: 6px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
+              <span style="height: 16px; width: 55%; margin-top: 12px; background: #0b0c0e; border-radius: 2px"></span>
+            </span>
+            <span style="font-size: 13px">Comprobante del comprador</span>
+          </a>
+          <sc-if value="{{ sel.hasStatement }}" hint-placeholder-val="{{ false }}">
+            <a href="#" style="display: flex; flex-direction: column; gap: 8px; text-decoration: none">
+              <span style="width: 150px; height: 200px; border-radius: 5px; background: #e8e9ea; display: flex; flex-direction: column; gap: 6px; padding: 16px 12px; box-sizing: border-box">
+                <span style="height: 10px; width: 60%; background: #8c939c; border-radius: 2px"></span>
+                <span style="height: 5px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
+                <span style="height: 5px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
+                <span style="height: 5px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
+                <span style="height: 5px; width: 70%; background: #c9cdd2; border-radius: 2px"></span>
+              </span>
+              <span style="font-size: 13px">Movimientos del vendedor</span>
+            </a>
+          </sc-if>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+            <sc-if value="{{ sel.hasReason }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #2a2e35; border-radius: 5px">
+                <span style="font-size: 13px; color: #838a94">Motivo del vendedor</span>
+                <span style="font-size: 14px">Todavía no se acreditó · «Revisé recién y no figura en mi cuenta.»</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ sel.hasChecks }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 8px" role="group" aria-label="Coherencia del comprobante">
+                <span style="font-size: 13px; color: #838a94">Coherencia del comprobante</span>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Monto: AR$ 1.425.000</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Destino: ana.vendedora.mp</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Fecha: 22/10, posterior a la custodia (21/10)</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" style="width: 18px; height: 18px; accent-color: #cff245">Número de operación: <span style="font-family: 'JetBrains Mono', monospace">[N.º DE OPERACIÓN]</span></label>
+              </div>
+            </sc-if>
+            <span style="font-size: 13px; line-height: 1.5; color: #838a94">{{ sel.hint }}</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: auto">
+            <button type="button" onClick="{{ resolve }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">{{ sel.primary }}</button>
+            <button type="button" onClick="{{ resolve }}" style="min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">{{ sel.secondary }}</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}">
+          <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 48px; margin-top: auto">
+            <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+            <span style="font-size: 15px">Registrando la decisión…</span>
+            <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ hasNotice }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #2a2e35; border-radius: 5px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span style="font-size: 14px">{{ notice }}</span>
+        </div>
+      </sc-if>
     </div>
   </div>
-
-  <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #838a94">El comprobante del vendedor aparece acá solo si se venció su plazo. Mientras tanto lo confirma él.</p>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":820}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
 class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { selected: 'commission', resolved: [], sending: false, notice: '' };
+}
 renderVals() {
-return {};
+const s = this.state;
+const cases = [
+{ id: 'commission', asset: 'deliaorrego.online', amount: 'AR$ 150.000', destination: 'la cuenta de la plataforma', age: 'hace 2 h', kind: 'Comisión', kindColor: '#8c939c', title: 'Confirmá la acreditación de la comisión', hint: 'Verificá en la cuenta de la plataforma que se haya acreditado el monto exacto.', primary: 'Confirmar la acreditación', secondary: 'No se acreditó', done: 'Registramos la acreditación. Le avisaremos al comprador.' },
+{ id: 'review', asset: 'deliaorrego.online', amount: 'AR$ 1.425.000', destination: 'ana.vendedora.mp', age: 'hace 40 min', kind: 'Revisión solicitada', kindColor: '#e8a33d', hasReason: true, hasChecks: true, title: 'El comprador solicitó la revisión', hint: 'Si el comprobante es coherente, solicitale los movimientos al vendedor. Tendrá 2 días hábiles; si no responde, el pago se dará por acreditado.', primary: 'Solicitar los movimientos al vendedor', secondary: 'Rechazar el comprobante', done: 'Solicitamos los movimientos. Le avisaremos al vendedor y al comprador.' },
+{ id: 'statement', asset: 'tiendaverde.com.ar', amount: 'AR$ 456.000', destination: 'verde.ventas', age: 'ayer', kind: 'Movimientos recibidos', kindColor: '#e8a33d', hasReason: true, hasStatement: true, title: 'Resolvé si el pago se acreditó', hint: 'Buscá en los movimientos del vendedor un crédito por el monto y la fecha del comprobante.', primary: 'El pago se acreditó', secondary: 'El pago no se acreditó', done: 'Registramos la resolución. Le avisaremos al comprador y al vendedor.' },
+{ id: 'overdue', asset: 'Canal de recetas', amount: 'US$ 2.850', destination: 'recetas.usd', age: 'hace 3 días', kind: 'Vendedor sin respuesta', kindColor: '#e8a33d', title: 'El vendedor no respondió a tiempo', hint: 'Venció el plazo del vendedor para confirmar. Verificá el comprobante y resolvé.', primary: 'Confirmar la acreditación', secondary: 'Rechazar el comprobante', done: 'Registramos la decisión. Le avisaremos al comprador y al vendedor.' },
+];
+const open = cases.filter((c) => !s.resolved.includes(c.id));
+const current = open.find((c) => c.id === s.selected) || open[0];
+const sel = current ? { ...current, kindUpper: current.kind.toUpperCase(), hasReason: !!current.hasReason, hasChecks: !!current.hasChecks, hasStatement: !!current.hasStatement } : {};
+return {
+pendingCount: open.length,
+items: open.map((c) => ({
+...c,
+pressed: current && c.id === current.id ? 'true' : 'false',
+bg: current && c.id === current.id ? '#16191d' : 'transparent',
+mark: current && c.id === current.id ? '#cff245' : 'transparent',
+select: () => this.setState({ selected: c.id, notice: '' }),
+})),
+sel,
+hasSelection: !!current,
+isEmpty: !current,
+sending: s.sending,
+notSending: !s.sending,
+hasNotice: !!s.notice,
+notice: s.notice,
+resolve: () => this.setState({ sending: true }),
+sent: () => this.setState({ sending: false, resolved: [...s.resolved, current.id], notice: current.done, selected: '' }),
+};
 }
 }
 </script>

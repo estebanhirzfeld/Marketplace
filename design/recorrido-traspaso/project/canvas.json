@@ -3,15 +3,25 @@
   "attachments": {},
   "boards": {
     "AdminCommission.dc.html": {
-      "h": 820,
-      "title": "Plataforma · confirmar la comisión",
-      "w": 720,
+      "h": 1000,
+      "is_interactive": true,
+      "title": "Plataforma · comprobantes por revisar",
+      "w": 1280,
       "x": 2070,
       "y": 0
     },
     "BuyerReceipt.dc.html": {
-      "h": 900,
+      "h": 960,
+      "is_interactive": true,
       "title": "Comprador · confirmar que recibió el sitio",
+      "w": 720,
+      "x": 0,
+      "y": 2780
+    },
+    "BuyerRejected.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Comprador · comprobante rechazado",
       "w": 720,
       "x": 0,
       "y": 1460
@@ -39,6 +49,14 @@
       "w": 720,
       "x": 1270,
       "y": 0
+    },
+    "SellerStatement.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Vendedor · adjuntar los movimientos de la cuenta",
+      "w": 720,
+      "x": 800,
+      "y": 1460
     }
   },
   "createdOnFiles": {
@@ -52,7 +70,7 @@
   "notes": {
     "row1": {
       "kind": "title1",
-      "maxW": 2790,
+      "maxW": 3350,
       "text": "Pago de la compra",
       "w": 240,
       "x": 0,
@@ -60,11 +78,19 @@
     },
     "row2": {
       "kind": "title1",
-      "maxW": 2790,
-      "text": "Entrega y recepción",
+      "maxW": 3350,
+      "text": "Revisión de un comprobante",
       "w": 240,
       "x": 0,
       "y": 1160
+    },
+    "row3": {
+      "kind": "title1",
+      "maxW": 3350,
+      "text": "Entrega y recepción",
+      "w": 240,
+      "x": 0,
+      "y": 2480
     }
   },
   "order": [
@@ -72,6 +98,8 @@
     "QrUpload.dc.html",
     "SellerConfirm.dc.html",
     "AdminCommission.dc.html",
+    "BuyerRejected.dc.html",
+    "SellerStatement.dc.html",
     "BuyerReceipt.dc.html"
   ],
   "pages": [],

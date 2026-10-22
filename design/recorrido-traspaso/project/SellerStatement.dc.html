@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Vendedor: adjuntar los movimientos de la cuenta</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 720px; min-height: 900px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Adjuntá los movimientos de tu cuenta</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c"><strong style="color: #e8e9ea; font-weight: 700">El comprador</strong> solicitó la revisión del pago de <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong>. Verificamos su comprobante y es coherente.</p>
+  </div>
+
+  <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 15px; font-weight: 500">Necesitamos los movimientos de la cuenta <strong>ana.vendedora.mp</strong> del <strong>22 de octubre</strong></span>
+        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Podés adjuntar una captura o el resumen en PDF de tu banco. Deben verse la fecha y los créditos del día.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid #e8a33d; border-radius: 5px">
+        <span style="font-size: 15px">Tenés tiempo hasta el <strong>27 de octubre</strong>.</span>
+        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Si no los adjuntás, daremos el pago por acreditado.</span>
+      </div>
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Ver el comprobante del comprador</a>
+      <button type="button" onClick="{{ attach }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Adjuntar los movimientos</button>
+      <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1e2126; padding-top: 18px">
+        <span style="font-size: 14px; color: #8c939c">¿Revisaste de nuevo y el pago sí figura?</span>
+        <button type="button" onClick="{{ confirmNow }}" style="align-self: flex-start; min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Confirmar la acreditación</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; gap: 16px; align-items: center; border: 1px solid #1e2126; border-radius: 5px; padding: 12px">
+        <div style="width: 72px; height: 96px; flex-shrink: 0; border-radius: 3px; background: #e8e9ea; display: flex; flex-direction: column; gap: 6px; padding: 10px 8px; box-sizing: border-box" aria-hidden="true">
+          <div style="height: 6px; width: 70%; background: #8c939c; border-radius: 1px"></div>
+          <div style="height: 4px; width: 90%; background: #c9cdd2; border-radius: 1px"></div>
+          <div style="height: 4px; width: 90%; background: #c9cdd2; border-radius: 1px"></div>
+          <div style="height: 4px; width: 90%; background: #c9cdd2; border-radius: 1px"></div>
+          <div style="height: 4px; width: 60%; background: #c9cdd2; border-radius: 1px"></div>
+        </div>
+        <span style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px">movimientos-22-10.pdf</span>
+          <span style="font-size: 13px; color: #838a94">Verificá que la fecha y los créditos sean legibles.</span>
+          <button type="button" onClick="{{ clear }}" style="align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; color: #cff245; font: inherit; font-size: 14px">Cambiar el archivo</button>
+        </span>
+      </div>
+      <sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}">
+        <button type="button" onClick="{{ send }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Enviar los movimientos</button>
+      </sc-if>
+      <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}">
+        <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 48px">
+          <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+          <span style="font-size: 15px">Enviando los movimientos…</span>
+          <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">{{ doneTitle }}</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">{{ doneText }}</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'empty', sending: false, outcome: 'statement' };
+}
+renderVals() {
+const s = this.state;
+const confirmed = s.outcome === 'confirmed';
+return {
+isEmpty: s.view === 'empty',
+hasFile: s.view === 'file',
+isDone: s.view === 'done',
+sending: s.sending,
+notSending: !s.sending,
+doneTitle: confirmed ? 'Registramos tu confirmación' : 'Recibimos los movimientos',
+doneText: confirmed
+? 'Le avisaremos al comprador que recibiste el pago y cerraremos la revisión.'
+: 'La revisión es manual y puede demorar: te avisaremos cuando se resuelva.',
+attach: () => this.setState({ view: 'file', outcome: 'statement' }),
+clear: () => this.setState({ view: 'empty' }),
+send: () => this.setState({ sending: true }),
+sent: () => this.setState({ view: 'done', sending: false }),
+confirmNow: () => this.setState({ view: 'done', outcome: 'confirmed' }),
+restart: () => this.setState({ view: 'empty', sending: false, outcome: 'statement' }),
+};
+}
+}
+</script>
+</body>
+</html>

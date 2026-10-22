@@ -64,6 +64,33 @@ admin MUST poder decidir con el comprobante a la vista. Con los dos comprobantes
 - WHEN llega el webhook
 - THEN la operación pasa a `payment_received` sin comprobantes
 
+### Requirement: Revisión de la plataforma sobre un comprobante rechazado
+
+Con un comprobante rechazado por el vendedor, el comprador MUST poder adjuntar otro o solicitar la
+revisión de la plataforma; mientras dura la revisión, el plazo de pago MUST quedar suspendido. La
+plataforma MUST revisar primero la coherencia del comprobante (monto, destino, fecha posterior a la
+custodia y número de operación del banco) y rechazarlo si no la tiene. Si la tiene, MUST pedirle al
+vendedor los movimientos de su cuenta del día, con 2 días hábiles de plazo y el aviso de que su silencio
+da el pago por acreditado. Un mismo comprobante rechazado dos veces MUST pasar solo a revisión.
+
+#### Scenario: El vendedor muestra que no llegó
+
+- GIVEN una revisión con el comprobante coherente y los movimientos del vendedor sin el crédito
+- WHEN la plataforma resuelve
+- THEN el comprobante queda rechazado y el plazo de pago del comprador se reanuda
+
+#### Scenario: El vendedor no responde
+
+- GIVEN una revisión con el comprobante coherente
+- WHEN vencen los 2 días hábiles sin movimientos del vendedor
+- THEN el comprobante queda confirmado
+
+#### Scenario: El comprobante no es coherente
+
+- GIVEN una revisión de un comprobante con otro monto o destino
+- WHEN la plataforma lo revisa
+- THEN lo rechaza sin pedirle nada al vendedor
+
 ### Requirement: Subir un comprobante desde el teléfono sin sesión
 
 La página MUST mostrar un QR con un enlace de un solo uso para subir el comprobante desde el teléfono

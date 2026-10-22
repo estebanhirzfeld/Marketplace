@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Comprador: comprobante rechazado</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 720px; min-height: 900px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Revisá el pago al vendedor</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">deliaorrego.online · <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong> a <strong style="color: #e8e9ea; font-weight: 700">ana.vendedora.mp</strong>.</p>
+  </div>
+
+  <sc-if value="{{ isRejected }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 20px; font-weight: 700"><strong>El vendedor</strong> rechazó el comprobante</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid #2a2e35; border-radius: 5px">
+          <span style="font-size: 15px">Todavía no se acreditó</span>
+          <span style="font-size: 14px; line-height: 1.5; color: #8c939c">«Revisé recién y no figura en mi cuenta.»</span>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Verificá con tu banco que la transferencia se haya realizado. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">29 de octubre</strong> para adjuntar un nuevo comprobante.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Adjuntar un nuevo comprobante</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1e2126; padding-top: 18px">
+        <span style="font-size: 15px; font-weight: 500">¿La transferencia figura como realizada en tu banco?</span>
+        <button type="button" onClick="{{ ask }}" style="align-self: flex-start; min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Solicitar la revisión de la plataforma</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isConfirmAsk }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">Solicitar la revisión de la plataforma</span>
+      <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5">
+        <li>La plataforma verificará el comprobante: monto, destino, fecha y número de operación.</li>
+        <li>Si corresponde, le solicitará <strong>al vendedor</strong> los movimientos de su cuenta.</li>
+        <li>Con esa información, resolverá si el pago se acreditó.</li>
+      </ol>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Mientras dure la revisión, el plazo de pago queda suspendido.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ send }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Solicitar la revisión</button>
+        <button type="button" onClick="{{ back }}" style="min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Volver</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 120px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; box-sizing: border-box">
+      <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 15px">Registrando la solicitud…</span>
+      <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isInReview }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">El comprobante está en revisión</span>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">La revisión es manual y puede demorar. El plazo de pago queda suspendido: te avisaremos cuando se resuelva.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'rejected' };
+}
+renderVals() {
+const v = this.state.view;
+return {
+isRejected: v === 'rejected',
+isConfirmAsk: v === 'ask',
+isSending: v === 'sending',
+isInReview: v === 'review',
+ask: () => this.setState({ view: 'ask' }),
+back: () => this.setState({ view: 'rejected' }),
+send: () => this.setState({ view: 'sending' }),
+sent: () => this.setState({ view: 'review' }),
+restart: () => this.setState({ view: 'rejected' }),
+};
+}
+}
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Comprador: confirmar que recibió el sitio</title>
+<title>Comprador: confirmar la recepción del sitio</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -13,60 +13,135 @@
 <style>
 body{margin:0;background:#0b0c0e}
 a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
 </style>
 </helmet>
-<div style="width: 720px; height: 900px; box-sizing: border-box; padding: 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 20px">
-  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #5eead4; border: 1px solid #2a2e35; border-radius: 3px; padding: 4px 8px">PAGO CONFIRMADO</span>
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">SOS EL COMPRADOR</span>
+<div style="width: 720px; min-height: 960px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Confirmá la recepción del sitio</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">deliaorrego.online · Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">3 de noviembre</strong>.</p>
   </div>
 
-  <section style="display: flex; flex-direction: column; gap: 18px; border: 1px solid #2a2e35; border-radius: 5px; background: #16191d; padding: 24px">
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #cff245">TU PRÓXIMO PASO</span>
-    <div style="display: flex; flex-direction: column; gap: 6px">
-      <h1 style="margin: 0; font-size: 22px; font-weight: 700; line-height: 1.2">Revisá que tengas todo el sitio</h1>
-      <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #8c939c">El dominio ya está en tu cuenta de Hostinger. Lo demás lo entregó el vendedor y solo vos podés comprobarlo.</p>
-      <p style="margin: 0; font-size: 13px; color: #e8a33d">Tenés hasta el 3 de noviembre de 2026. Si no respondés, lo damos por recibido.</p>
-    </div>
+  <sc-if value="{{ isReview }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 22px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 13px; color: #838a94">Verificado por la plataforma</span>
+        <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span>El dominio <strong>deliaorrego.online</strong> está activo en tu cuenta de Hostinger <strong>tu.mail@ejemplo.com</strong>.</span>
+        </div>
+      </div>
 
-    <div style="display: flex; flex-direction: column; gap: 8px">
-      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">LO COMPROBAMOS NOSOTROS</span>
-      <div style="display: flex; align-items: center; gap: 10px; font-size: 14px">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-        <span>deliaorrego.online está activo en tu cuenta tu.mail@ejemplo.com</span>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 13px; color: #838a94">Entregado por el vendedor. Verificá cada punto antes de confirmar.</span>
+        <sc-for list="{{ items }}" as="it" hint-placeholder-count="3">
+          <button type="button" onClick="{{ it.toggle }}" role="checkbox" aria-checked="{{ it.checked }}" style="display: flex; align-items: flex-start; gap: 12px; min-height: 56px; padding: 12px 14px; border: 1px solid {{ it.border }}; border-radius: 5px; background: transparent; color: #e8e9ea; font: inherit; text-align: left; cursor: pointer">
+            <span style="width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; border-radius: 3px; border: 2px solid {{ it.border }}; background: {{ it.fill }}; display: inline-flex; align-items: center; justify-content: center" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0b0c0e" stroke-width="3"><path d="M20 6 9 17l-5-5"></path></svg>
+            </span>
+            <span style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 15px">{{ it.label }}</span>
+              <span style="font-size: 13px; color: #838a94">{{ it.detail }}</span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <button type="button" onClick="{{ confirm }}" disabled="{{ cannotConfirm }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: {{ confirmBg }}; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Confirmar la recepción</button>
+          <span style="font-size: 13px; line-height: 1.5; color: #838a94">Si no respondés antes del <strong style="color: #e8e9ea">3 de noviembre</strong>, daremos el sitio por recibido.</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}">
+        <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 48px">
+          <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+          <span style="font-size: 15px">{{ sendingText }}</span>
+          <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1e2126; padding-top: 18px">
+        <span style="font-size: 15px; font-weight: 500">¿Falta algo o no funciona?</span>
+        <button type="button" onClick="{{ openClaim }}" style="align-self: flex-start; min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Abrir un reclamo</button>
       </div>
     </div>
+  </sc-if>
 
-    <div style="display: flex; flex-direction: column; gap: 10px">
-      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">LO CONFIRMÁS VOS</span>
-      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
-        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
-        <span>El hosting y los archivos del sitio<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
+  <sc-if value="{{ isClaim }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">¿Qué falta o no funciona?</span>
+      <label style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; color: #8c939c">Detalle para la plataforma y el vendedor</span>
+        <textarea rows="3" placeholder="Por ejemplo: la base de datos no tiene los pedidos de octubre." style="resize: none; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px; padding: 10px"></textarea>
       </label>
-      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
-        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
-        <span>El código y la base de datos<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
-      </label>
-      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
-        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
-        <span>Las cuentas asociadas (correo, analítica, redes)<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
-      </label>
+      <span style="font-size: 13px; line-height: 1.5; color: #838a94">Mientras el reclamo esté abierto, la operación no se cerrará y el plazo queda suspendido.</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ sendClaim }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Abrir el reclamo</button>
+        <button type="button" onClick="{{ back }}" style="min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Volver</button>
+      </div>
     </div>
+  </sc-if>
 
-    <button type="button" style="min-height: 48px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Recibí todo, cerrar la operación</button>
-
-    <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #1e2126; padding-top: 16px">
-      <span style="font-size: 14px; font-weight: 500">¿Falta algo o no funciona?</span>
-      <span style="font-size: 13px; line-height: 1.5; color: #8c939c">Abrí un reclamo: la operación no se cierra hasta que lo resolvamos.</span>
-      <button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">Reclamar</button>
+  <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">{{ doneTitle }}</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">{{ doneText }}</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
     </div>
-  </section>
+  </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":960}}'>
 class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'review', checked: [], sending: false, outcome: 'received' };
+}
 renderVals() {
-return {};
+const s = this.state;
+const list = [
+{ id: 'hosting', label: 'El hosting y los archivos del sitio', detail: 'El vendedor los declaró entregados el 30 de octubre.' },
+{ id: 'code', label: 'El código y la base de datos', detail: 'El vendedor los declaró entregados el 30 de octubre.' },
+{ id: 'accounts', label: 'Las cuentas asociadas: correo, analítica y redes', detail: 'El vendedor las declaró entregadas el 30 de octubre.' },
+];
+const all = list.every((i) => s.checked.includes(i.id));
+const claim = s.outcome === 'claim';
+return {
+isReview: s.view === 'review',
+isClaim: s.view === 'claim',
+isDone: s.view === 'done',
+items: list.map((i) => {
+const on = s.checked.includes(i.id);
+return {
+...i,
+checked: on ? 'true' : 'false',
+border: on ? '#cff245' : '#2a2e35',
+fill: on ? '#cff245' : 'transparent',
+toggle: () => this.setState({ checked: on ? s.checked.filter((x) => x !== i.id) : [...s.checked, i.id] }),
+};
+}),
+cannotConfirm: !all,
+confirmBg: all ? '#cff245' : '#4a5057',
+sending: s.sending,
+notSending: !s.sending,
+sendingText: claim ? 'Abriendo el reclamo…' : 'Registrando la recepción…',
+doneTitle: claim ? 'Abriste un reclamo' : 'Registramos la recepción',
+doneText: claim
+? 'La plataforma revisará el reclamo con el vendedor. La operación queda en pausa: te avisaremos cuando se resuelva.'
+: 'Le avisaremos al vendedor y la operación quedará cerrada. El sitio ya es tuyo.',
+confirm: () => this.setState({ sending: true, outcome: 'received' }),
+openClaim: () => this.setState({ view: 'claim' }),
+back: () => this.setState({ view: 'review' }),
+sendClaim: () => this.setState({ view: 'review', sending: true, outcome: 'claim' }),
+sent: () => this.setState({ view: 'done', sending: false }),
+restart: () => this.setState({ view: 'review', checked: [], sending: false, outcome: 'received' }),
+};
 }
 }
 </script>
