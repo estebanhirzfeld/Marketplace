@@ -10,6 +10,9 @@ import { Actor } from '../../../src/ports/Actor';
 import { Operation, OperationStatus } from '../../../src/entities/Operation';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
+import { Listing } from '../../../src/entities/Listing';
+import { WebStrategy } from '../../../src/strategies/WebStrategy';
+import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -54,7 +57,7 @@ function operacionEn(status: OperationStatus): Operation {
     return op; // payment_received
 }
 
-function armar(operaciones: Operation[]) {
+function armar(operaciones: Operation[], listing: Listing | null = null) {
     let llamadasAFindByStatuses = 0;
 
     const operationRepo: IOperationRepository = {
@@ -68,7 +71,7 @@ function armar(operaciones: Operation[]) {
         save: vi.fn().mockResolvedValue(undefined),
     };
     const listingRepo: IListingRepository = {
-        findById: vi.fn().mockResolvedValue(null),
+        findById: vi.fn().mockResolvedValue(listing),
         findPublished: vi.fn().mockResolvedValue([]),
         findBySeller: vi.fn().mockResolvedValue([]),
         findByStatus: vi.fn().mockResolvedValue([]),
@@ -144,5 +147,44 @@ describe('GetPlatformDashboardUseCase — ESPERAN_AL_VENDEDOR', () => {
 
         const idsEnEspera = tablero.waitingOnSeller.map((p) => p.id);
         expect(idsEnEspera).not.toContain(enCustodia.id.toString());
+    });
+});
+
+/**
+ * Una firma pendiente cuenta como trabada por acceso solo si la custodia
+ * depende de un acceso que la plataforma todavía no registró. Un sitio no
+ * pasa por ahí: listarlo mandaba al admin a registrar un acceso que no existe.
+ */
+describe('GetPlatformDashboardUseCase — firma pendiente por falta de acceso', () => {
+    it('un sitio con la firma pendiente no figura como trabado por acceso', async () => {
+        const sitio = Listing.create({
+            sellerId: SELLER_ID,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(120000, 'USD'), domain: 'ejemplo.com' }),
+            askingPrice: Money.fromCents(500000, 'USD'),
+        });
+        const pendiente = operacionEn('contract_pending');
+        const { useCase } = armar([pendiente], sitio);
+
+        const tablero = await useCase.execute(ADMIN);
+
+        expect(tablero.pending.map((p) => p.id)).not.toContain(pendiente.id.toString());
+    });
+
+    it('un canal sin acceso con la firma pendiente sigue figurando', async () => {
+        const canal = Listing.create({
+            sellerId: SELLER_ID,
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                subscribers: 10000,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(500000, 'USD'),
+        });
+        const pendiente = operacionEn('contract_pending');
+        const { useCase } = armar([pendiente], canal);
+
+        const tablero = await useCase.execute(ADMIN);
+
+        expect(tablero.pending.map((p) => p.id)).toContain(pendiente.id.toString());
     });
 });

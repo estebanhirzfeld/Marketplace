@@ -298,7 +298,6 @@ describe('VerifyPlatformAccessUseCase', () => {
             assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(6_800_000, 'USD'),
         });
-        sitio.requestPlatformAccess(new Date());
         const { useCase } = armar(sitio, [cuenta()], [CANAL_ID]);
 
         await expect(useCase.execute(sitio.id.toString(), GRANT, ADMIN)).rejects.toThrow('no es un canal de YouTube');
@@ -366,6 +365,29 @@ describe('ListListingsAwaitingAccessUseCase', () => {
         const verificando = conSolicitud(canal());
         const pendiente = canal();
         const repo = listingRepo(null, { published: [verificando, pendiente], under_review: [], in_operation: [] });
+
+        const result = await new ListListingsAwaitingAccessUseCase(repo).execute(ADMIN);
+
+        expect(result.map((l) => l.id.toString())).toEqual([verificando.id.toString()]);
+    });
+
+    /*
+     * Un sitio ya no puede pedir la verificación, pero uno guardado antes de
+     * este cambio puede traer el pedido: no le corresponde a la bandeja.
+     */
+    it('deja afuera un sitio guardado con el pedido de antes', async () => {
+        const nuevo = Listing.create({
+            sellerId: new UniqueEntityID(),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
+            askingPrice: Money.fromCents(6_800_000, 'USD'),
+        }).toSnapshot();
+        const sitio = Listing.reconstitute(
+            { ...nuevo.props, status: 'published', platformAccessRequestedAt: new Date() },
+            new UniqueEntityID(nuevo.id),
+            nuevo.createdAt,
+        );
+        const verificando = conSolicitud(canal());
+        const repo = listingRepo(null, { published: [verificando, sitio], under_review: [], in_operation: [] });
 
         const result = await new ListListingsAwaitingAccessUseCase(repo).execute(ADMIN);
 

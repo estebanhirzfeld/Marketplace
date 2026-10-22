@@ -139,4 +139,12 @@ describe('IAssetStrategy.describe', () => {
         expect(web.describe().waitingNotice).toContain('60 días');
         expect(web.describe().waitingNotice).toContain('otro registrador');
     });
+
+    it('dice si la custodia depende del acceso de la plataforma, para que la pantalla no lo pida en un sitio', () => {
+        const [, youtube] = estrategias[0];
+        const [, web] = estrategias[1];
+
+        expect(youtube.describe().requiresPlatformAccess).toBe(true);
+        expect(web.describe().requiresPlatformAccess).toBe(false);
+    });
 });

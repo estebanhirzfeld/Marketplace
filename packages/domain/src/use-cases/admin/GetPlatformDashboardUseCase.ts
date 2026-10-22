@@ -140,7 +140,9 @@ export class GetPlatformDashboardUseCase {
                 firmaPendiente.map(async (op) => {
                     const listingId = op.toSnapshot().props.listingId.toString();
                     const listing = await this.listingRepo.findById(listingId);
-                    return listing && !listing.transferableFrom() ? op : undefined;
+                    return listing && listing.requiresPlatformAccess() && !listing.transferableFrom()
+                        ? op
+                        : undefined;
                 }),
             )
         ).filter((op): op is NonNullable<typeof op> => op !== undefined);

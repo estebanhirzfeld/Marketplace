@@ -141,15 +141,27 @@ describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platfor
         expect(op.transferInitiation?.custodyAccountId?.toString()).toBe(web.id.toString());
     });
 
-    it('si el sitio tiene platformAccess, manda el de la constancia y no busca otra cuenta', async () => {
+    /*
+     * Un sitio ya no registra acceso de la plataforma, pero un sitio guardado
+     * antes de ese cambio puede traer la constancia: se rehidrata con ella.
+     */
+    it('si un sitio guardado trae platformAccess, manda el de la constancia y no busca otra cuenta', async () => {
         const vigente = anAccount(AssetType.WEB, 'vigente@traspaso.com');
-        const listing = aWebListing();
-        listing.registerPlatformAccess({
-            verifiedBy: new UniqueEntityID(),
-            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-            custodyAccountId: vigente.id,
-            heldRole: 'owner',
-        });
+        const nuevo = aWebListing().toSnapshot();
+        const listing = Listing.reconstitute(
+            {
+                ...nuevo.props,
+                platformAccess: {
+                    verifiedBy: new UniqueEntityID(),
+                    verifiedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+                    accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+                    custodyAccountId: vigente.id,
+                    heldRole: 'owner',
+                },
+            },
+            new UniqueEntityID(nuevo.id),
+            nuevo.createdAt,
+        );
         const op = anOperation('contract_signed');
         const custodyRepo = custodyRepoWith([anAccount(AssetType.WEB, 'otra@traspaso.com'), vigente]);
 

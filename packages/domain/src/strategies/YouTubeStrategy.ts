@@ -124,6 +124,7 @@ export class YouTubeStrategy implements IAssetStrategy {
       summaryMetricKeys: ['subscribers', 'monthlyRevenueUsdCents', 'audienceTopCountry'],
       ownershipSource: 'youtube',
       transferWaitingDays: this.transferWaitingDays(),
+      requiresPlatformAccess: this.requiresPlatformAccess(),
       handoverNotice:
         'No lo detectamos solos: la API de YouTube no dice si un canal es Cuenta de Marca ni quiénes son sus propietarios.',
       waitingNotice:

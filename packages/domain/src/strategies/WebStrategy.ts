@@ -89,6 +89,7 @@ export class WebStrategy implements IAssetStrategy {
             summaryMetricKeys: ['monthlyRevenueUsdCents'],
             ownershipSource: 'dns',
             transferWaitingDays: this.transferWaitingDays(),
+            requiresPlatformAccess: this.requiresPlatformAccess(),
             handoverNotice:
                 'No lo detectamos solos: ningún registrador informa por API quién es el titular de un dominio. El registro DNS prueba que controlás los servidores de nombres, no que figurás como titular en el registrador.',
             /*

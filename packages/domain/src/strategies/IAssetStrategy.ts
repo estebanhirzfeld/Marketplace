@@ -151,6 +151,8 @@ export interface AssetTypeDescriptor {
     ownershipSource: VerificationSource;
     /** El mismo valor que `transferWaitingDays()`, para viajar en el descriptor. */
     transferWaitingDays: number;
+    /** El mismo valor que `requiresPlatformAccess()`, para viajar en el descriptor. */
+    requiresPlatformAccess: boolean;
     /**
      * Por qué la cesión del acceso la registra una persona y no un programa.
      * Cada plataforma tiene su propio motivo y sus propias palabras.

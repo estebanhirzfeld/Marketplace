@@ -63,7 +63,8 @@ export class ListListingsAwaitingAccessUseCase {
         assertIsAdmin(actor);
 
         const groups = await Promise.all(STATUSES_WITH_ACCESS_REQUEST.map((s) => this.listingRepo.findByStatus(s)));
-        return groups.flat().filter((l) => l.platformAccessStatus() === 'verifying');
+        // Un sitio guardado con un pedido de antes no le corresponde a la bandeja.
+        return groups.flat().filter((l) => l.requiresPlatformAccess() && l.platformAccessStatus() === 'verifying');
     }
 
     /**

@@ -615,6 +615,11 @@ export interface AssetTypeDescriptorDto {
     summaryMetricKeys: string[];
     ownershipSource: 'youtube' | 'adsense' | 'dns';
     transferWaitingDays: number;
+    /**
+     * Si la custodia depende de un acceso que la plataforma registra antes de
+     * firmar. `false` en un sitio: no hay que mostrarle nada del acceso.
+     */
+    requiresPlatformAccess: boolean;
     /** Por qué la cesión del acceso la registra una persona. */
     handoverNotice: string;
     /** Por qué hay que esperar. Ausente cuando la transferencia es inmediata. */

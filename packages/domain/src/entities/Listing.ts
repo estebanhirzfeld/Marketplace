@@ -232,6 +232,7 @@ export class Listing extends Entity<ListingProps> {
      * todos modos.
      */
     public registerPlatformAccess(data: PlatformAccessInput): void {
+        this.assertUsesPlatformAccess();
         if (!data.verifiedBy) {
             throw new ValidationError('Falta registrar quién verificó el acceso.');
         }
@@ -289,6 +290,7 @@ export class Listing extends Entity<ListingProps> {
      * plataforma.
      */
     public requestPlatformAccess(at: Date): void {
+        this.assertUsesPlatformAccess();
         if (this.props.status !== 'draft' && this.props.status !== 'published') {
             throw new InvalidStateError(
                 'Solo se puede pedir la verificación del acceso de un activo en borrador o publicado.',
@@ -373,6 +375,9 @@ export class Listing extends Entity<ListingProps> {
      * constancia: sin acceso no hay fecha que prometerle a nadie.
      */
     public transferableFrom(): Date | undefined {
+        // La fecha es de la espera de un acceso: un activo que no lo usa no la
+        // tiene, aunque traiga una constancia guardada de antes.
+        if (!this.requiresPlatformAccess()) return undefined;
         const constancia = this.props.platformAccess;
         if (!constancia) return undefined;
 
@@ -413,6 +418,14 @@ export class Listing extends Entity<ListingProps> {
 
     public requiresPlatformAccess(): boolean {
         return this.props.assetStrategy.requiresPlatformAccess();
+    }
+
+    private assertUsesPlatformAccess(): void {
+        if (!this.requiresPlatformAccess()) {
+            throw new InvalidStateError(
+                'Un sitio no necesita acceso de la plataforma: entra en custodia por un traslado del dominio.',
+            );
+        }
     }
 
     public registryDomain(): DomainName | undefined {

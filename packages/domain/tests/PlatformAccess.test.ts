@@ -124,17 +124,58 @@ describe('Cuándo un listing queda listo para transferirse', () => {
         expect(unCanal().isReadyToTransfer()).toBe(false);
     });
 
-    /**
-     * La espera sale de la plataforma del activo, no de nosotros. Un sitio web
-     * se transfiere cambiando registrador y hosting: no hay ventana que esperar.
-     */
-    it('un sitio web queda listo apenas se registra el acceso', () => {
+});
+
+/**
+ * Un sitio entra en custodia por un traslado del dominio entre cuentas de
+ * Hostinger durante la operación: el acceso de la plataforma es cosa de
+ * canales. Registrarlo o pedirlo en un sitio dejaba al admin con una tarea
+ * que no existe y al sitio con un «Transferencia inmediata» que no significa nada.
+ */
+describe('Un sitio no usa el acceso de la plataforma', () => {
+    it('registrar el acceso en un sitio se rechaza', () => {
         const listing = unSitioWeb();
 
-        listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
-            custodyAccountId: CUSTODY, accessSince: new Date() });
+        expect(() =>
+            listing.registerPlatformAccess({ verifiedBy: ADMIN, heldRole: 'manager',
+                custodyAccountId: CUSTODY, accessSince: new Date() }),
+        ).toThrow(new InvalidStateError('Un sitio no necesita acceso de la plataforma: entra en custodia por un traslado del dominio.'));
+        expect(listing.platformAccess).toBeUndefined();
+    });
 
-        expect(listing.isReadyToTransfer()).toBe(true);
+    it('pedir la verificación del acceso de un sitio se rechaza', () => {
+        const listing = unSitioWeb();
+
+        expect(() => listing.requestPlatformAccess(new Date())).toThrow(InvalidStateError);
+        expect(listing.platformAccessRequestedAt).toBeUndefined();
+    });
+
+    /*
+     * Un sitio guardado antes de este cambio puede traer la constancia. La
+     * fecha de «transferible» es de canales: con ella, el sitio mostraba
+     * «Transferencia inmediata» y el panel lo creía trabado por acceso.
+     */
+    it('un sitio guardado con una constancia de antes no tiene fecha de transferible', () => {
+        const nuevo = unSitioWeb().toSnapshot();
+        const listing = Listing.reconstitute(
+            {
+                ...nuevo.props,
+                platformAccess: { verifiedBy: ADMIN, verifiedAt: haceDias(10), accessSince: haceDias(10) },
+            },
+            new UniqueEntityID(nuevo.id),
+            nuevo.createdAt,
+        );
+
+        expect(listing.transferableFrom()).toBeUndefined();
+        expect(listing.isReadyToTransfer()).toBe(false);
+    });
+
+    it('un canal sigue pudiendo pedirla', () => {
+        const listing = unCanal();
+
+        listing.requestPlatformAccess(new Date());
+
+        expect(listing.platformAccessRequestedAt).toBeDefined();
     });
 });
 

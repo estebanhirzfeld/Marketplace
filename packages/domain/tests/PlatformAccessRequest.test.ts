@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Listing } from '../src/entities/Listing';
 import { YouTubeStrategy } from '../src/strategies/YouTubeStrategy';
-import { WebStrategy } from '../src/strategies/WebStrategy';
 import { Money } from '../src/value-objects/Money';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
 import { InvalidStateError } from '../src/errors/DomainError';
@@ -27,14 +26,6 @@ function canal() {
             isMonetized: true,
         }),
         askingPrice: Money.fromCents(1_000_000, 'USD'),
-    });
-}
-
-function sitio() {
-    return Listing.create({
-        sellerId: new UniqueEntityID(),
-        assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(210000, 'USD'), domain: 'ejemplo.com' }),
-        askingPrice: Money.fromCents(6_800_000, 'USD'),
     });
 }
 
@@ -145,12 +136,6 @@ describe('Listing.platformAccessStatus', () => {
         conAcceso(listing, new Date(AHORA.getTime() - 2 * DIA));
 
         expect(listing.platformAccessStatus(AHORA)).toBe('waiting');
-    });
-
-    it('un sitio web sin espera es immediate apenas hay constancia', () => {
-        const listing = conAcceso(sitio(), AHORA);
-
-        expect(listing.platformAccessStatus(AHORA)).toBe('immediate');
     });
 
     describe('rejectPlatformAccessRequest', () => {

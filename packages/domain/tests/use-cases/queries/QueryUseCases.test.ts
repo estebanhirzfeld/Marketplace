@@ -333,14 +333,9 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
             }),
             askingPrice: Money.fromCents(6800000, 'USD'),
         });
-        listing.registerPlatformAccess({
-            verifiedBy: new UniqueEntityID(),
-            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-            custodyAccountId: cuenta.id,
-            heldRole: 'owner',
-        });
+        // Un sitio no tiene acceso registrado: la cuenta es la de custodia web activa.
         const op = unaOperacionFirmada();
-        const custodyRepo = createMockCustodyRepo({ findById: vi.fn().mockResolvedValue(cuenta) });
+        const custodyRepo = createMockCustodyRepo({ findActive: vi.fn().mockResolvedValue([cuenta]) });
 
         const vista = await armarConCustodia(op, listing, custodyRepo).execute(
             op.id.toString(),
@@ -554,12 +549,6 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
             sellerId: SELLER_ID,
             assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(120000, 'USD') }),
             askingPrice: Money.fromCents(500000, 'USD'),
-        });
-        listing.registerPlatformAccess({
-            verifiedBy: new UniqueEntityID(),
-            accessSince: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-            custodyAccountId: new UniqueEntityID(),
-            heldRole: 'owner',
         });
         const op = unaOperacionFirmada();
         const custodyRepo = createMockCustodyRepo();
