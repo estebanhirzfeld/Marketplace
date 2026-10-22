@@ -131,7 +131,22 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
     },
     comprobante_rechazado: {
         title: 'Revisá tu comprobante',
-        cuerpo: () => 'Rechazaron uno de tus comprobantes. En la operación está el motivo; corregilo y subí otro.',
+        cuerpo: () => 'Rechazaron uno de tus comprobantes. En la operación figura el motivo: verificá la transferencia y adjuntá uno nuevo.',
+    },
+    revision_solicitada: {
+        title: 'Hay una revisión de pago para resolver',
+        cuerpo: () => 'Un comprobante rechazado está en revisión. Verificá su coherencia y resolvé con el rastreo bancario.',
+    },
+    revision_pendiente_vendedor: {
+        title: 'Respondé la revisión del pago',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `El comprobante del comprador coincide con tu cuenta. Si no respondés antes del ${fechaLarga(n.occursAt)}, daremos el pago por acreditado.`
+                : 'El comprobante del comprador coincide con tu cuenta. Si no respondés a tiempo, daremos el pago por acreditado.',
+    },
+    revision_resuelta: {
+        title: 'Se resolvió la revisión del pago',
+        cuerpo: () => 'La plataforma resolvió la revisión del comprobante. En la operación figura el resultado.',
     },
     cesion_rechazada: {
         title: 'Revisá tu cesión',

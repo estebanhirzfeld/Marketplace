@@ -105,6 +105,14 @@ import {
     GetPaymentReceiptFileUseCase,
     UploadPaymentReceiptUseCase,
 } from '@marketplace/domain/src/use-cases/operation/PaymentReceiptUseCases';
+import {
+    AddReviewBankReferenceUseCase,
+    AttachSellerStatementUseCase,
+    ExpireReceiptReviewsUseCase,
+    RequestReceiptReviewUseCase,
+    ResolveReceiptCoherenceUseCase,
+    ResolveReceiptReviewUseCase,
+} from '@marketplace/domain/src/use-cases/operation/ReceiptReviewUseCases';
 import { DiskFileStorage } from './adapters/DiskFileStorage';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -266,6 +274,12 @@ export interface Container {
     uploadPaymentReceipt: UploadPaymentReceiptUseCase;
     decidePaymentReceipt: DecidePaymentReceiptUseCase;
     getPaymentReceiptFile: GetPaymentReceiptFileUseCase;
+    requestReceiptReview: RequestReceiptReviewUseCase;
+    addReviewBankReference: AddReviewBankReferenceUseCase;
+    resolveReceiptCoherence: ResolveReceiptCoherenceUseCase;
+    attachSellerStatement: AttachSellerStatementUseCase;
+    resolveReceiptReview: ResolveReceiptReviewUseCase;
+    expireReceiptReviews: ExpireReceiptReviewsUseCase;
     /** Ausentes sin registrador: ver `domainRegistrar`. */
     startDomainDelivery?: StartDomainDeliveryUseCase;
     checkDomainDelivery?: CheckDomainDeliveryUseCase;
@@ -499,6 +513,12 @@ export function createContainer(
         uploadPaymentReceipt: new UploadPaymentReceiptUseCase(operationRepo, fileStorage, avisos, avisosDePlataforma),
         decidePaymentReceipt: new DecidePaymentReceiptUseCase(operationRepo, undefined, avisos),
         getPaymentReceiptFile: new GetPaymentReceiptFileUseCase(operationRepo, fileStorage),
+        requestReceiptReview: new RequestReceiptReviewUseCase(operationRepo, avisosDePlataforma),
+        addReviewBankReference: new AddReviewBankReferenceUseCase(operationRepo),
+        resolveReceiptCoherence: new ResolveReceiptCoherenceUseCase(operationRepo, undefined, avisos),
+        attachSellerStatement: new AttachSellerStatementUseCase(operationRepo, fileStorage, avisosDePlataforma),
+        resolveReceiptReview: new ResolveReceiptReviewUseCase(operationRepo, avisos),
+        expireReceiptReviews: new ExpireReceiptReviewsUseCase(operationRepo, avisos),
         declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo, userRepo),
         getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,

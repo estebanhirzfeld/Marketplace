@@ -88,6 +88,11 @@ enum NotificationType {
   // confirmar; al comprador, que le rechazaron uno.
   comprobante_subido
   comprobante_rechazado
+  // La revisión de un comprobante rechazado: a la plataforma, al vendedor
+  // con su plazo, y a las dos partes cuando se resuelve.
+  revision_solicitada
+  revision_pendiente_vendedor
+  revision_resuelta
 }
 
 enum ContractType {

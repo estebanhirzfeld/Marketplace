@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createContainer } from '../src/container';
-import { runTransferChecksJob } from '../src/jobs/transferChecksJob';
+import { runReceiptReviewsJob, runTransferChecksJob } from '../src/jobs/transferChecksJob';
 import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import type { TransferStepChecksSummary } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 
@@ -78,5 +78,27 @@ describe('runTransferChecksJob', () => {
         expect(code).toBe(1);
         expect(info).toHaveLength(0);
         expect(error).toEqual([JSON.stringify({ job: 'transfer-checks', error: 'la base no responde' })]);
+    });
+});
+
+describe('runReceiptReviewsJob', () => {
+    it('registra cuántos recordatorios y pagos dados por acreditados hubo, y sale con 0', async () => {
+        const { info, log } = aLog();
+        const useCase = { execute: vi.fn(async () => ({ reminded: 1, confirmed: 2 })) };
+
+        expect(await runReceiptReviewsJob(useCase, log)).toBe(0);
+        expect(info.map((l) => JSON.parse(l))).toEqual([{ job: 'receipt-reviews', reminded: 1, confirmed: 2 }]);
+    });
+
+    it('si falla, lo registra y sale con 1 para que systemd lo marque', async () => {
+        const { error, log } = aLog();
+        const useCase = { execute: vi.fn(async () => { throw new Error('sin base'); }) };
+
+        expect(await runReceiptReviewsJob(useCase, log)).toBe(1);
+        expect(JSON.parse(error[0])).toEqual({ job: 'receipt-reviews', error: 'sin base' });
+    });
+
+    it('el contenedor lo arma', () => {
+        expect(createContainer().expireReceiptReviews).toBeDefined();
     });
 });

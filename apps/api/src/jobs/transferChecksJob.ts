@@ -2,6 +2,7 @@ import type {
     RunTransferStepChecksUseCase,
     TransferStepChecksSummary,
 } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
+import type { ExpireReceiptReviewsUseCase } from '@marketplace/domain/src/use-cases/operation/ReceiptReviewUseCases';
 
 export interface JobLog {
     info(line: string): void;
@@ -37,4 +38,16 @@ export async function runTransferChecksJob(
         log.error(JSON.stringify({ job: JOB, ...failure }));
     }
     return summary.failures.length > 0 ? 1 : 0;
+}
+
+/** Una corrida de las revisiones de comprobantes: recordatorios y pagos dados por acreditados. */
+export async function runReceiptReviewsJob(useCase: Pick<ExpireReceiptReviewsUseCase, 'execute'>, log: JobLog): Promise<number> {
+    try {
+        const summary = await useCase.execute();
+        log.info(JSON.stringify({ job: 'receipt-reviews', ...summary }));
+        return 0;
+    } catch (error) {
+        log.error(JSON.stringify({ job: 'receipt-reviews', error: error instanceof Error ? error.message : String(error) }));
+        return 1;
+    }
 }

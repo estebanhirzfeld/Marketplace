@@ -782,6 +782,9 @@ export type NextActionIdDto =
     | 'link_payment_account'
     | 'confirm_seller_receipt'
     | 'confirm_commission_receipt'
+    | 'review_receipt'
+    | 'respond_receipt_review'
+    | 'resolve_receipt_review'
     | 'deliver_asset'
     | 'accept_delivery'
     | 'complete_operation';
@@ -1255,7 +1258,13 @@ export type NotificationTypeDto =
     /** A quien recibe la transferencia: el comprador subió el comprobante para confirmar. */
     | 'comprobante_subido'
     /** Al comprador: rechazaron uno de sus comprobantes; el motivo está en la operación. */
-    | 'comprobante_rechazado';
+    | 'comprobante_rechazado'
+    /** A la plataforma: hay una revisión de pago para atender (pedida, o con los movimientos del vendedor). */
+    | 'revision_solicitada'
+    /** Al vendedor: tiene que responder la revisión del pago; `occursAt` es su plazo. */
+    | 'revision_pendiente_vendedor'
+    /** A las dos partes: la plataforma resolvió la revisión del pago. */
+    | 'revision_resuelta';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

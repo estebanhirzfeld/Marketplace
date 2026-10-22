@@ -25,14 +25,30 @@ import { nextActions, NextActionsInput, NextActionsResult, PaymentAvailability }
 import { HandoverDeadlines } from '../../value-objects/HandoverDeadlines';
 import { GetPaymentOptionsUseCase } from './GetPaymentOptionsUseCase';
 
+import { UserRole } from '@marketplace/shared-types';
+
 /** En qué está cada comprobante, para saber a quién le toca con el activo en custodia. */
 function receiptFacts(operation: Operation): NextActionsInput['receipts'] {
     const byRecipient = (r: 'seller' | 'platform') => operation.paymentReceipts.find((x) => x.recipient === r);
     const seller = byRecipient('seller');
     const platform = byRecipient('platform');
-    return { seller: seller?.status, platform: platform?.status, sellerUploadedAt: seller?.uploadedAt };
+    const inReview = [seller, platform].find((r) => r?.status === 'in_review' && r.review);
+    return {
+        seller: seller?.status,
+        platform: platform?.status,
+        sellerUploadedAt: seller?.uploadedAt,
+        ...(inReview?.review
+            ? {
+                  review: {
+                      recipient: inReview.recipient,
+                      stage: inReview.review.stage,
+                      sellerDeadline: inReview.review.sellerDeadline,
+                      hasSellerStatement: !!inReview.review.sellerStatement,
+                  },
+              }
+            : {}),
+    };
 }
-import { UserRole } from '@marketplace/shared-types';
 
 /**
  * Quién está del otro lado.

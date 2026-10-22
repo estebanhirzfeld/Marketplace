@@ -29,6 +29,9 @@ export type NextActionId =
     | 'link_payment_account'
     | 'confirm_seller_receipt'
     | 'confirm_commission_receipt'
+    | 'review_receipt'
+    | 'respond_receipt_review'
+    | 'resolve_receipt_review'
     | 'deliver_asset'
     | 'accept_delivery'
     | 'complete_operation';
@@ -65,6 +68,13 @@ export interface ReceiptFacts {
     platform?: 'pending' | 'confirmed' | 'rejected' | 'in_review';
     /** Cuándo subió el comprador el del vendedor: ancla su plazo para confirmarlo. */
     sellerUploadedAt?: Date;
+    /** La revisión abierta de un comprobante, si la hay. */
+    review?: {
+        recipient: 'seller' | 'platform';
+        stage: 'coherence' | 'awaiting_seller';
+        sellerDeadline?: Date;
+        hasSellerStatement: boolean;
+    };
 }
 
 export interface NextActionsInput {
@@ -223,6 +233,7 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
  * son independientes, así que pueden avanzar a la vez.
  */
 function receiptSteps(input: NextActionsInput, receipts: ReceiptFacts): Record<Role, NextStep> {
+    if (receipts.review) return reviewSteps(receipts.review);
     const buyerPending = !receipts.seller || receipts.seller === 'rejected' || !receipts.platform || receipts.platform === 'rejected';
     const sellerDeadline = receipts.sellerUploadedAt ? input.deadlines.sellerTransferConfirmation(receipts.sellerUploadedAt) : undefined;
     const payDeadline = input.milestones.custodyAt ? input.deadlines.buyerPayment(input.milestones.custodyAt) : undefined;
@@ -238,6 +249,22 @@ function receiptSteps(input: NextActionsInput, receipts: ReceiptFacts): Record<R
         buyer: acting.buyer ?? others,
         seller: acting.seller ?? wait(waitingOn.filter((r) => r !== 'seller')),
         platform: acting.platform ?? wait(waitingOn.filter((r) => r !== 'platform')),
+    };
+}
+
+/**
+ * Con un comprobante en revisión, la revisión manda: primero la plataforma
+ * revisa la coherencia; después el vendedor responde en su plazo, mientras la
+ * plataforma ya puede resolver con el rastreo. Con sus movimientos adjuntos,
+ * o si se revisa la comisión, decide la plataforma.
+ */
+function reviewSteps(review: NonNullable<ReceiptFacts['review']>): Record<Role, NextStep> {
+    if (review.stage === 'coherence') return turnOf('platform', act('review_receipt'));
+    if (review.recipient === 'platform' || review.hasSellerStatement) return turnOf('platform', act('resolve_receipt_review'));
+    return {
+        buyer: wait(['seller'], review.sellerDeadline),
+        seller: act('respond_receipt_review', review.sellerDeadline),
+        platform: act('resolve_receipt_review', undefined, false),
     };
 }
 

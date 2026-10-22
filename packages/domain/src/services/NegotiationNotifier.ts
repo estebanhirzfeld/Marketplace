@@ -128,6 +128,25 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** Al vendedor: el comprobante es coherente y tiene hasta `deadline` para responder la revisión. */
+    async receiptReviewAwaitingSeller(operation: Operation, deadline: Date): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.sellerId,
+                type: 'revision_pendiente_vendedor',
+                operationId: operation.id,
+                listingId: props.listingId,
+                occursAt: deadline,
+            }),
+        ]);
+    }
+
+    /** A las dos partes: la plataforma resolvió la revisión del pago. */
+    async receiptReviewResolved(operation: Operation): Promise<void> {
+        await this.toBothParties(operation, 'revision_resuelta');
+    }
+
     /** La plataforma rechazó la cesión: al vendedor, que tiene que volver a ceder. */
     async transferRejected(operation: Operation): Promise<void> {
         const { props } = operation.toSnapshot();

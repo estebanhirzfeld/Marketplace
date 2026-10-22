@@ -57,6 +57,12 @@ function doing(id: NextActionIdDto, kind: AssetKind): string {
             return 'confirmar que le llegó la transferencia';
         case 'confirm_commission_receipt':
             return 'confirmar la transferencia de la comisión';
+        case 'review_receipt':
+            return 'revisar el comprobante';
+        case 'respond_receipt_review':
+            return 'responder la revisión del pago';
+        case 'resolve_receipt_review':
+            return 'resolver la revisión del pago';
         case 'deliver_asset':
             return kind === 'web' ? 'entregarle el dominio al comprador' : 'entregarle el canal al comprador';
         case 'accept_delivery':
@@ -138,6 +144,21 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
             return {
                 title: 'Confirmá que te llegó la transferencia',
                 body: 'El comprador subió el comprobante de lo que te transfirió. Fijate en tu cuenta que se haya acreditado y confirmalo, o decile qué está mal.',
+            };
+        case 'review_receipt':
+            return {
+                title: 'Revisá el comprobante',
+                body: 'El comprador solicitó la revisión de un comprobante rechazado. Verificá que coincida con las cuentas y los CUIT de las partes.',
+            };
+        case 'respond_receipt_review':
+            return {
+                title: 'Respondé la revisión del pago',
+                body: 'El comprobante del comprador coincide con tu cuenta. Verificá tus movimientos: si no respondés a tiempo, daremos el pago por acreditado.',
+            };
+        case 'resolve_receipt_review':
+            return {
+                title: 'Resolvé la revisión del pago',
+                body: 'Resolvé con la respuesta del rastreo bancario si el pago se acreditó. Los movimientos del vendedor son información, no prueba.',
             };
         case 'confirm_commission_receipt':
             return {

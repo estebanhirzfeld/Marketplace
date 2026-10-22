@@ -266,9 +266,14 @@ export interface ReceiptReview {
     sellerDeadline?: Date;
     /** Los movimientos que adjuntó el vendedor: información, no prueba. */
     sellerStatement?: { fileKey: string; contentType: string; sizeBytes: number; uploadedAt: Date };
+    /** Cuándo se le recordó al vendedor que su plazo vence: una sola vez. */
+    sellerRemindedAt?: Date;
 }
 
 export type CoherenceResolution = { coherent: true } | { coherent: false; reason: string };
+
+/** Cuánto antes del vencimiento se le recuerda al vendedor que responda la revisión. */
+const REVIEW_REMINDER_MS = 24 * 60 * 60 * 1000;
 
 /** Por qué no llegó lo que dice el comprobante: lo que el vendedor ve en su banco. */
 export type ReceiptRejectionCode = 'not_credited' | 'amount_mismatch' | 'other';
@@ -917,7 +922,8 @@ export class Operation extends Entity<OperationProps> {
      * que confirmó.
      */
     public expireReceiptReviews(at: Date): ReceiptRecipient[] {
-        const expired = (this.props.paymentReceipts ?? []).filter(
+        // Solo calla el vendedor: la comisión en revisión la resuelve la propia plataforma.
+        const expired = this.awaitingSellerReviews().filter(
             (r) =>
                 r.status === 'in_review' &&
                 r.review?.stage === 'awaiting_seller' &&
@@ -927,6 +933,24 @@ export class Operation extends Entity<OperationProps> {
         );
         for (const receipt of expired) this.confirmReceipt(receipt, undefined, at, true);
         return expired.map((r) => r.recipient);
+    }
+
+    /** Las revisiones del vendedor que vencen en las próximas 24 horas sin aviso previo: se le recuerda una vez. */
+    public remindReceiptReviews(at: Date): ReceiptRecipient[] {
+        const due = this.awaitingSellerReviews().filter((r) => {
+            const deadline = r.review?.sellerDeadline;
+            if (!deadline || r.review?.sellerStatement || r.review?.sellerRemindedAt) return false;
+            const left = deadline.getTime() - at.getTime();
+            return left > 0 && left <= REVIEW_REMINDER_MS;
+        });
+        for (const receipt of due) receipt.review!.sellerRemindedAt = at;
+        return due.map((r) => r.recipient);
+    }
+
+    private awaitingSellerReviews(): PaymentReceipt[] {
+        return (this.props.paymentReceipts ?? []).filter(
+            (r) => r.recipient === 'seller' && r.status === 'in_review' && r.review?.stage === 'awaiting_seller',
+        );
     }
 
     public get payment(): PaymentRecord | undefined {

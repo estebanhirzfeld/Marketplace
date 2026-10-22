@@ -273,6 +273,62 @@ describe('NextActions — comprobantes de la transferencia', () => {
     });
 });
 
+describe('NextActions — revisión de un comprobante', () => {
+    const DEADLINE = new Date('2026-10-26T23:59:59-03:00');
+    const enCustodia = (receipts: NextActionsInput['receipts']) =>
+        nextActions(input({ status: 'asset_in_custody', recipientDeclared: true, milestones: { custodyAt: CUSTODY }, receipts }));
+
+    it('pedida la revisión, la plataforma revisa la coherencia y las partes la esperan', () => {
+        const { byRole, turn } = enCustodia({
+            seller: 'in_review',
+            platform: 'confirmed',
+            review: { recipient: 'seller', stage: 'coherence', hasSellerStatement: false },
+        });
+
+        expect(turn).toEqual(['platform']);
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'review_receipt', blocking: true });
+        expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+        expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+    });
+
+    it('con el comprobante coherente, el vendedor responde con su plazo y la plataforma puede resolver', () => {
+        const { byRole, turn } = enCustodia({
+            seller: 'in_review',
+            platform: 'confirmed',
+            review: { recipient: 'seller', stage: 'awaiting_seller', sellerDeadline: DEADLINE, hasSellerStatement: false },
+        });
+
+        expect(turn).toEqual(['seller']);
+        expect(byRole.seller).toEqual({ kind: 'act', id: 'respond_receipt_review', blocking: true, deadline: DEADLINE });
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'resolve_receipt_review', blocking: false });
+        expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['seller'], deadline: DEADLINE });
+    });
+
+    it('con los movimientos del vendedor, decide la plataforma', () => {
+        const { byRole, turn } = enCustodia({
+            seller: 'in_review',
+            platform: 'confirmed',
+            review: { recipient: 'seller', stage: 'awaiting_seller', sellerDeadline: DEADLINE, hasSellerStatement: true },
+        });
+
+        expect(turn).toEqual(['platform']);
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'resolve_receipt_review', blocking: true });
+        expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+    });
+
+    it('la revisión de la comisión la resuelve la plataforma sola', () => {
+        const { byRole, turn } = enCustodia({
+            seller: 'confirmed',
+            platform: 'in_review',
+            review: { recipient: 'platform', stage: 'awaiting_seller', sellerDeadline: DEADLINE, hasSellerStatement: false },
+        });
+
+        expect(turn).toEqual(['platform']);
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'resolve_receipt_review', blocking: true });
+        expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+    });
+});
+
 describe('NextActions — entrega y cierre', () => {
     it('un sitio pagado sin cuenta receptora espera al comprador, que ahora sí la tiene que declarar', () => {
         const { byRole, turn } = nextActions(input({ status: 'payment_received' }));

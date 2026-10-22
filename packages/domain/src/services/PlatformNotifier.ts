@@ -71,6 +71,12 @@ export class PlatformNotifier {
         await this.avisar('comprobante_subido', { operationId: operation.id, listingId: props.listingId });
     }
 
+    /** Hay una revisión de pago para atender: la pidió el comprador o el vendedor adjuntó sus movimientos. */
+    async receiptReviewNeeded(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.avisar('revision_solicitada', { operationId: operation.id, listingId: props.listingId });
+    }
+
     async payoutNeeded(operation: Operation): Promise<void> {
         const { props } = operation.toSnapshot();
         await this.avisar('liquidacion_pendiente', {

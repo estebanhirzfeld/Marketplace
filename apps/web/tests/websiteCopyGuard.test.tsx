@@ -287,6 +287,9 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
             cesion_rechazada: true,
             comprobante_subido: true,
             comprobante_rechazado: true,
+            revision_solicitada: true,
+            revision_pendiente_vendedor: true,
+            revision_resuelta: true,
         };
         for (const type of Object.keys(types) as NotificationTypeDto[]) {
             const aviso: NotificationDto = {

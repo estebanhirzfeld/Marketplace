@@ -402,6 +402,7 @@ function parseReceiptReview(raw: unknown): ReceiptReview | undefined {
         stage: v.stage,
         bankReference: typeof v.bankReference === "string" ? v.bankReference : undefined,
         sellerDeadline: typeof v.sellerDeadline === "string" ? new Date(v.sellerDeadline) : undefined,
+        sellerRemindedAt: typeof v.sellerRemindedAt === "string" ? new Date(v.sellerRemindedAt) : undefined,
         sellerStatement:
             s && typeof s.fileKey === "string" && typeof s.contentType === "string" && typeof s.sizeBytes === "number" && typeof s.uploadedAt === "string"
                 ? { fileKey: s.fileKey, contentType: s.contentType, sizeBytes: s.sizeBytes, uploadedAt: new Date(s.uploadedAt) }
@@ -432,6 +433,7 @@ function serializePaymentReceipts(receipts?: readonly PaymentReceipt[]) {
                   stage: r.review.stage,
                   bankReference: r.review.bankReference ?? null,
                   sellerDeadline: r.review.sellerDeadline?.toISOString() ?? null,
+                  sellerRemindedAt: r.review.sellerRemindedAt?.toISOString() ?? null,
                   sellerStatement: r.review.sellerStatement
                       ? { ...r.review.sellerStatement, uploadedAt: r.review.sellerStatement.uploadedAt.toISOString() }
                       : null,

@@ -58,7 +58,13 @@ export type NotificationType =
     /** A quien recibe la transferencia (el vendedor o la plataforma): el comprador subió el comprobante. */
     | 'comprobante_subido'
     /** Al comprador: rechazaron uno de sus comprobantes; el motivo está en la operación. */
-    | 'comprobante_rechazado';
+    | 'comprobante_rechazado'
+    /** A la plataforma: hay una revisión de pago para atender (pedida, o con los movimientos del vendedor). */
+    | 'revision_solicitada'
+    /** Al vendedor: tiene que responder la revisión del pago; `occursAt` es su plazo. */
+    | 'revision_pendiente_vendedor'
+    /** A las dos partes: la plataforma resolvió la revisión del pago. */
+    | 'revision_resuelta';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

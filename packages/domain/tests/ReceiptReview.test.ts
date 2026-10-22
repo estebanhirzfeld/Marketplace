@@ -1,5 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Operation } from '../src/entities/Operation';
+import { Notification } from '../src/entities/Notification';
+import { User } from '../src/entities/User';
+import { Email } from '../src/value-objects/Email';
+import { BusinessCalendar, DEFAULT_HANDOVER_DEADLINES, HandoverDeadlines } from '../src/value-objects/HandoverDeadlines';
+import { IFileStorage } from '../src/ports/IFileStorage';
+import { IOperationRepository, IUserRepository } from '../src/ports/Repositories';
+import { NegotiationNotifier } from '../src/services/NegotiationNotifier';
+import { PlatformNotifier } from '../src/services/PlatformNotifier';
+import {
+    AddReviewBankReferenceUseCase,
+    AttachSellerStatementUseCase,
+    ExpireReceiptReviewsUseCase,
+    RequestReceiptReviewUseCase,
+    ResolveReceiptCoherenceUseCase,
+    ResolveReceiptReviewUseCase,
+} from '../src/use-cases/operation/ReceiptReviewUseCases';
+import { ForbiddenError } from '../src/errors/DomainError';
+import { UserRole } from '@marketplace/shared-types';
 import { Money } from '../src/value-objects/Money';
 import { UniqueEntityID } from '../src/value-objects/UniqueEntityID';
 import { InvalidStateError, ValidationError } from '../src/errors/DomainError';
@@ -199,5 +217,158 @@ describe('Operation — silencio del vendedor', () => {
 
         expect(op.expireReceiptReviews(AFTER_DEADLINE)).toEqual([]);
         expect(seller(op).status).toBe('in_review');
+    });
+
+    it('la comisión en revisión no se da por acreditada por silencio: la resuelve la plataforma', () => {
+        const op = enCustodia();
+        op.uploadReceipt('platform', file, AT);
+        op.decideReceipt('platform', { confirm: false, code: 'not_credited' }, ADMIN, AT);
+        op.requestReceiptReview('platform', {}, LATER);
+        op.resolveReceiptCoherence('platform', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+
+        expect(op.expireReceiptReviews(AFTER_DEADLINE)).toEqual([]);
+    });
+
+    it('recuerda una sola vez al vendedor, en las últimas 24 horas de su plazo', () => {
+        const op = coherente();
+
+        expect(op.remindReceiptReviews(LATER)).toEqual([]);
+        const dayBefore = new Date(SELLER_DEADLINE.getTime() - 12 * 3600_000);
+        expect(op.remindReceiptReviews(dayBefore)).toEqual(['seller']);
+        expect(op.remindReceiptReviews(dayBefore)).toEqual([]);
+    });
+});
+
+describe('casos de uso de la revisión', () => {
+    function armar(op: Operation) {
+        const enviadas: Notification[] = [];
+        const notifier = { notify: vi.fn(async (ns: Notification[]) => { enviadas.push(...ns); }) };
+        const admin = User.create({ email: Email.create('admin@pagos.com'), fullName: 'Admin', passwordHash: 'x'.repeat(60), role: UserRole.ADMIN });
+        const users: IUserRepository = {
+            findById: vi.fn().mockResolvedValue(null),
+            findByEmail: vi.fn().mockResolvedValue(null),
+            findByRole: vi.fn(async (role) => (role === UserRole.ADMIN ? [admin] : [])),
+            save: vi.fn(),
+        };
+        const repo: IOperationRepository = {
+            findById: vi.fn().mockResolvedValue(op),
+            findByListing: vi.fn(),
+            findByParty: vi.fn(),
+            findByStatuses: vi.fn().mockResolvedValue([op]),
+            save: vi.fn().mockResolvedValue(undefined),
+        };
+        const storage: IFileStorage = { put: vi.fn(), get: vi.fn() };
+        const clock = { now: LATER };
+        const deadlines = new HandoverDeadlines(DEFAULT_HANDOVER_DEADLINES, new BusinessCalendar([]));
+        const avisos = new NegotiationNotifier(notifier);
+        const plataforma = new PlatformNotifier(notifier, users);
+        const now = () => clock.now;
+        return {
+            enviadas,
+            repo,
+            storage,
+            clock,
+            deadlines,
+            adminId: admin.id,
+            request: new RequestReceiptReviewUseCase(repo, plataforma, now),
+            addReference: new AddReviewBankReferenceUseCase(repo),
+            coherence: new ResolveReceiptCoherenceUseCase(repo, deadlines, avisos, now),
+            statement: new AttachSellerStatementUseCase(repo, storage, plataforma, now),
+            resolve: new ResolveReceiptReviewUseCase(repo, avisos, now),
+            expire: new ExpireReceiptReviewsUseCase(repo, avisos, now),
+        };
+    }
+    const actor = (id: UniqueEntityID, role: UserRole) => ({ id: id.toString(), role });
+    const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
+
+    it('solo el comprador pide la revisión, y le avisa a la plataforma', async () => {
+        const op = rechazado();
+        const { request, enviadas } = armar(op);
+
+        await expect(request.execute(op.id.toString(), 'seller', {}, actor(SELLER, UserRole.SELLER))).rejects.toThrow(ForbiddenError);
+        await request.execute(op.id.toString(), 'seller', { bankReference: 'ABC123' }, actor(BUYER, UserRole.BUYER));
+
+        expect(seller(op).status).toBe('in_review');
+        expect(enviadas.map((n) => n.type)).toEqual(['revision_solicitada']);
+    });
+
+    it('la coherencia la resuelve un admin; coherente, el vendedor tiene 2 días hábiles y se le avisa', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        const { coherence, enviadas, deadlines } = armar(op);
+
+        await expect(coherence.execute(op.id.toString(), 'seller', { coherent: true }, actor(BUYER, UserRole.BUYER))).rejects.toThrow(ForbiddenError);
+        await coherence.execute(op.id.toString(), 'seller', { coherent: true }, actor(ADMIN, UserRole.ADMIN));
+
+        expect(seller(op).review?.sellerDeadline).toEqual(deadlines.sellerTransferConfirmation(LATER));
+        expect(enviadas.map((n) => [n.type, n.toSnapshot().props.userId.toString()])).toEqual([['revision_pendiente_vendedor', SELLER.toString()]]);
+        expect(enviadas[0].toSnapshot().props.occursAt).toEqual(deadlines.sellerTransferConfirmation(LATER));
+    });
+
+    it('incoherente, se rechaza y se le avisa al comprador', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        const { coherence, enviadas } = armar(op);
+
+        await coherence.execute(op.id.toString(), 'seller', { coherent: false, reason: 'El CUIT de destino no coincide.' }, actor(ADMIN, UserRole.ADMIN));
+
+        expect(seller(op).status).toBe('rejected');
+        expect(enviadas.map((n) => [n.type, n.toSnapshot().props.userId.toString()])).toEqual([['comprobante_rechazado', BUYER.toString()]]);
+    });
+
+    it('el vendedor adjunta sus movimientos: se guardan y se le avisa a la plataforma', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        op.resolveReceiptCoherence('seller', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+        const { statement, storage, enviadas } = armar(op);
+
+        await expect(statement.execute(op.id.toString(), PDF, actor(BUYER, UserRole.BUYER))).rejects.toThrow(ForbiddenError);
+        await statement.execute(op.id.toString(), PDF, actor(SELLER, UserRole.SELLER));
+
+        expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/^statements\/.+\.pdf$/), PDF, 'application/pdf');
+        expect(seller(op).review?.sellerStatement).toBeDefined();
+        expect(enviadas.map((n) => n.type)).toEqual(['revision_solicitada']);
+    });
+
+    it('resolver que se acreditó confirma el pago y avisa a las dos partes', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        op.resolveReceiptCoherence('seller', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+        const { resolve, enviadas } = armar(op);
+
+        await expect(resolve.execute(op.id.toString(), 'seller', { credited: true }, actor(SELLER, UserRole.SELLER))).rejects.toThrow(ForbiddenError);
+        await resolve.execute(op.id.toString(), 'seller', { credited: true }, actor(ADMIN, UserRole.ADMIN));
+
+        expect(op.status).toBe('payment_received');
+        expect(enviadas.map((n) => n.type).sort()).toEqual(['pago_confirmado', 'revision_resuelta', 'revision_resuelta']);
+    });
+
+    it('el job recuerda al vendedor y, vencido su plazo, da el pago por acreditado', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        op.resolveReceiptCoherence('seller', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+        const { expire, enviadas, clock, repo } = armar(op);
+
+        clock.now = new Date(SELLER_DEADLINE.getTime() - 12 * 3600_000);
+        expect(await expire.execute()).toEqual({ reminded: 1, confirmed: 0 });
+        expect(enviadas.map((n) => n.type)).toEqual(['revision_pendiente_vendedor']);
+
+        enviadas.length = 0;
+        clock.now = AFTER_DEADLINE;
+        expect(await expire.execute()).toEqual({ reminded: 0, confirmed: 1 });
+        expect(op.status).toBe('payment_received');
+        expect(enviadas.map((n) => n.type).sort()).toEqual(['pago_confirmado', 'revision_resuelta', 'revision_resuelta']);
+        expect(repo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('el comprador suma el ID COELSA después de pedir la revisión', async () => {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        const { addReference } = armar(op);
+
+        await expect(addReference.execute(op.id.toString(), 'seller', 'XYZ', actor(SELLER, UserRole.SELLER))).rejects.toThrow(ForbiddenError);
+        await addReference.execute(op.id.toString(), 'seller', 'XYZ', actor(BUYER, UserRole.BUYER));
+
+        expect(seller(op).review?.bankReference).toBe('XYZ');
     });
 });
