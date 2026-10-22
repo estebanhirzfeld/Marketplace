@@ -208,6 +208,28 @@ export interface OperationProps {
     recipientIdentity?: RecipientIdentity;
     deliveryVerification?: DeliveryVerification;
     completedAt?: Date;
+    /** Los hitos que no tienen otra constancia con fecha. Ausente en filas anteriores. */
+    milestones?: StoredMilestones;
+}
+
+/**
+ * Los hitos que se guardan: la firma no queda registrada en ningún otro lado,
+ * y la entrega de lo que no se comprueba solo la declara el vendedor.
+ */
+export interface StoredMilestones {
+    signedAt?: Date;
+    deliveredAt?: Date;
+}
+
+/**
+ * Las anclas de los plazos. La custodia y el pago se leen de sus constancias,
+ * que ya tienen fecha: guardarlas de nuevo sería tener dos fuentes.
+ */
+export interface OperationMilestones {
+    signedAt?: Date;
+    custodyAt?: Date;
+    paidAt?: Date;
+    deliveredAt?: Date;
 }
 
 export class Operation extends Entity<OperationProps> {
@@ -502,11 +524,23 @@ export class Operation extends Entity<OperationProps> {
 
     // ── Transiciones de estado ───────────────────────────────
 
-    public signContract(): void {
+    public signContract(at: Date = new Date()): void {
         if (this.props.status !== 'contract_pending') {
             throw new InvalidStateError('Esta operación no está esperando que se firme el contrato.');
         }
         this.props.status = 'contract_signed';
+        // La firma ancla el plazo del vendedor: no se vuelve a estampar aunque
+        // la operación vuelva a «contrato firmado».
+        this.props.milestones = { ...this.props.milestones, signedAt: this.props.milestones?.signedAt ?? at };
+    }
+
+    public get milestones(): OperationMilestones {
+        const m: OperationMilestones = {};
+        if (this.props.milestones?.signedAt) m.signedAt = this.props.milestones.signedAt;
+        if (this.props.custodyVerification) m.custodyAt = this.props.custodyVerification.verifiedAt;
+        if (this.props.payment) m.paidAt = this.props.payment.confirmedAt;
+        if (this.props.milestones?.deliveredAt) m.deliveredAt = this.props.milestones.deliveredAt;
+        return m;
     }
 
     /**

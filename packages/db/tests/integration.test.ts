@@ -1109,6 +1109,60 @@ describe("PrismaOperationRepository", () => {
     });
 });
 
+/**
+ * Los hitos que anclan los plazos del traspaso. La firma no se guardaba en la
+ * operación: ahora sí, y una fila anterior a la columna se lee sin hitos.
+ */
+describe("PrismaOperationRepository — hitos", () => {
+    async function unaOperacionPendienteDeFirma(prefix: string): Promise<Operation> {
+        const buyer = await createPersistedUser({ email: `buyer-${prefix}@test.com`, role: UserRole.BUYER });
+        const seller = await createPersistedUser({ email: `seller-${prefix}@test.com`, role: UserRole.SELLER });
+        const listing = await createPersistedListing(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1_000_000, "USD"),
+        });
+        operation.acceptCurrentOffer("seller");
+        return operation;
+    }
+
+    it("guarda cuándo se firmó y lo recupera", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-firma");
+        const at = new Date("2026-10-21T12:34:56.789Z");
+        operation.signContract(at);
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved!.milestones.signedAt).toEqual(at);
+    });
+
+    it("una operación sin hitos se lee sin hitos y guardarla de nuevo no los inventa", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-sin");
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+        await operationRepo.save(retrieved!);
+        const row = await prisma.operation.findUnique({ where: { id: operation.id.toString() } });
+
+        expect(retrieved!.milestones).toEqual({});
+        expect(row!.milestones).toBeNull();
+    });
+
+    it("rechaza una columna corrupta", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-cor");
+        await operationRepo.save(operation);
+        await prisma.operation.update({
+            where: { id: operation.id.toString() },
+            data: { milestones: { signedAt: "ayer" } },
+        });
+
+        await expect(operationRepo.findById(operation.id.toString())).rejects.toThrow(/corrupta/);
+    });
+});
+
 // ═════════════════════════════════════════════════════════
 // Denuncias
 // ═════════════════════════════════════════════════════════

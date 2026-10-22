@@ -12,6 +12,7 @@ import {
     PaymentRecord,
     RecipientIdentity,
     DeliveryVerification,
+    StoredMilestones,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -329,6 +330,41 @@ function serializeSettlementQuotes(quotes?: readonly SettlementQuote[]) {
     return quotes.map((q) => q.toSnapshot());
 }
 
+const MILESTONE_KEYS = ["signedAt", "deliveredAt"] as const;
+
+/** Lee la columna `milestones`. Una fila anterior a la columna no tiene hitos. */
+function parseMilestones(raw: unknown): StoredMilestones | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("Columna `milestones` corrupta: se esperaba un objeto.");
+    }
+    const m = raw as Record<string, unknown>;
+    const out: StoredMilestones = {};
+    for (const key of MILESTONE_KEYS) {
+        const value = m[key];
+        if (value === undefined || value === null) continue;
+        if (typeof value !== "string" || Number.isNaN(new Date(value).getTime())) {
+            throw new Error(`Columna \`milestones\` corrupta: \`${key}\` no es una fecha.`);
+        }
+        out[key] = new Date(value);
+    }
+    return out;
+}
+
+/**
+ * `undefined` y no `Prisma.DbNull`: los hitos solo se agregan, así que sin
+ * hitos la columna queda como está y en un update no se pisa.
+ */
+function serializeMilestones(m?: StoredMilestones) {
+    if (!m) return undefined;
+    const out: Record<string, string> = {};
+    for (const key of MILESTONE_KEYS) {
+        const value = m[key];
+        if (value) out[key] = value.toISOString();
+    }
+    return out;
+}
+
 /** Forma JSON-safe: sin Date, que Prisma no acepta como InputJson. */
 function serializeNegotiations(negotiations: readonly Negotiation[]) {
     return negotiations.map((n) => ({
@@ -363,6 +399,7 @@ export class OperationMapper {
             deliveryVerification: parseEntrega(raw.deliveryCheck),
             settlementQuotes: parseSettlementQuotes(raw.settlementQuotes),
             completedAt: raw.completedAt ?? undefined,
+            milestones: parseMilestones(raw.milestones),
         };
 
         return Operation.reconstitute(
@@ -397,6 +434,7 @@ export class OperationMapper {
             deliveryCheck: serializeEntrega(props.deliveryVerification),
             settlementQuotes: serializeSettlementQuotes(props.settlementQuotes),
             completedAt: props.completedAt ?? null,
+            milestones: serializeMilestones(props.milestones),
             createdAt,
         };
     }

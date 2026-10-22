@@ -237,6 +237,9 @@ model Operation {
   // pesos no la tiene.
   settlementQuotes Json?
   completedAt      DateTime?
+  // Hitos sin otra constancia con fecha (la firma, la entrega declarada), que
+  // anclan los plazos del traspaso. Nullable y aditiva.
+  milestones       Json?
   createdAt        DateTime        @default(now())
 
   listing   Listing    @relation(fields: [listingId], references: [id])
