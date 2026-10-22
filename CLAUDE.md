@@ -92,6 +92,21 @@ These override the rules above as each unit lands; `odd/tasks/recorrido-del-tras
 - TDD is expected. Vitest everywhere, `globals: true`. Domain tests mock the repository ports; the `packages/db` integration tests (and the API's HTTP tests) hit a real database, but never the development one: they wipe whole tables, so a `globalSetup` (`packages/db/test-support/`) points them at `marketplace_test` (derived from `DATABASE_URL`, or `TEST_DATABASE_URL` if set), creates and migrates it with `prisma migrate deploy`, and aborts the suite if the database name does not end in `_test` — each test creates its own data (no shared fixtures between tests) and uses typed value objects (`UniqueEntityID`, `Money`, `Email`), never raw strings.
 - **Identifiers are English; prose is Spanish.** Every name the compiler sees — functions, methods, classes, interfaces, type aliases, object and DTO properties, variables, React components, server actions, file names — is in English. Comments, error messages, UI copy and the `docs/` write-ups are in Spanish. Match the surrounding file.
 - Conventional commits. Never add `Co-Authored-By` or AI attribution.
+
+## UI copy: register and criteria
+
+Every user-facing string (screens, notifications, emails) follows this register. It was set by the user on 22/10/2026 by correcting the payment screen; existing copy that does not follow it gets fixed in a later phase, not ad hoc.
+
+- **Write as the person who reads it, never as the system.** Cut whatever the reader already knows or cannot act on: "sos el comprador", the counterpart's name, status badges as a header, internal references with no explanation (`OP-3F2B…`), or notes about how the system works ("no hace falta iniciar sesión: el QR ya dice…").
+- **The platform speaks in the first-person plural future:** "Te redirigiremos a Mercado Pago para realizar el pago", "te avisaremos cuando estén confirmados". Not "te llevamos" or "te avisamos".
+- **Processes are stated impersonally, with nouns:** "La confirmación es manual", "La revisión es manual y puede demorar", "Luego de la acreditación, se realizará la entrega del sitio". Not "la confirmamos a mano" or "puede tardar".
+- **Instructions use formal voseo and the future of obligation:** "Pagá tu compra", "Realizarás 2 transferencias", "Deberás adjuntar el comprobante", "Tenés tiempo hasta el 29 de octubre". Numbers are digits.
+- **Name the object instead of a pronoun:** "¿Tenés el comprobante en tu teléfono?", not "¿Lo tenés…?".
+- **Bold the data the reader acts on:** the amount, the date, the account (alias or CBU), and who the message is about when it matters ("**El comprador** recibirá el motivo").
+- **Labels use the infinitive** ("Transferir exactamente"); buttons say the action ("Confirmar la acreditación", "Adjuntar comprobante").
+- **Spelling is correct**, accents included ("Transferir", "realizará").
+- **Every state is drawn:** loading ("Registrando tu confirmación…"), success saying what happens next and who is told, and the unhappy path. Waits end with what we will do: "te avisaremos cuando…".
+- **Flows go one decision per step:** choose the method with two cards (the `/vender` pattern), then numbered steps ("Paso 1 de 2"). One attach button (the phone offers gallery or camera), always with a preview.
 - Each completed phase gets a write-up in `docs/fase-*.md`.
 
 ## Phase write-ups (`docs/fase-*.md`)

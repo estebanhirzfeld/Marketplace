@@ -1,0 +1,79 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "AdminCommission.dc.html": {
+      "h": 820,
+      "title": "Plataforma · confirmar la comisión",
+      "w": 720,
+      "x": 2070,
+      "y": 0
+    },
+    "BuyerReceipt.dc.html": {
+      "h": 900,
+      "title": "Comprador · confirmar que recibió el sitio",
+      "w": 720,
+      "x": 0,
+      "y": 1460
+    },
+    "Main.dc.html": {
+      "h": 1040,
+      "is_interactive": true,
+      "title": "Comprador · pagar la compra",
+      "w": 720,
+      "x": 0,
+      "y": 0
+    },
+    "QrUpload.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "Comprador · subir desde el teléfono",
+      "w": 390,
+      "x": 800,
+      "y": 0
+    },
+    "SellerConfirm.dc.html": {
+      "h": 760,
+      "is_interactive": true,
+      "title": "Vendedor · confirmar la acreditación",
+      "w": 720,
+      "x": 1270,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-22T19:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "row1": {
+      "kind": "title1",
+      "maxW": 2790,
+      "text": "Pago de la compra",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 2790,
+      "text": "Entrega y recepción",
+      "w": 240,
+      "x": 0,
+      "y": 1160
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "QrUpload.dc.html",
+    "SellerConfirm.dc.html",
+    "AdminCommission.dc.html",
+    "BuyerReceipt.dc.html"
+  ],
+  "pages": [],
+  "title": "Recorrido del traspaso"
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Comprador: confirmar que recibió el sitio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+</style>
+</helmet>
+<div style="width: 720px; height: 900px; box-sizing: border-box; padding: 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #5eead4; border: 1px solid #2a2e35; border-radius: 3px; padding: 4px 8px">PAGO CONFIRMADO</span>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">SOS EL COMPRADOR</span>
+  </div>
+
+  <section style="display: flex; flex-direction: column; gap: 18px; border: 1px solid #2a2e35; border-radius: 5px; background: #16191d; padding: 24px">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #cff245">TU PRÓXIMO PASO</span>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0; font-size: 22px; font-weight: 700; line-height: 1.2">Revisá que tengas todo el sitio</h1>
+      <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #8c939c">El dominio ya está en tu cuenta de Hostinger. Lo demás lo entregó el vendedor y solo vos podés comprobarlo.</p>
+      <p style="margin: 0; font-size: 13px; color: #e8a33d">Tenés hasta el 3 de noviembre de 2026. Si no respondés, lo damos por recibido.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">LO COMPROBAMOS NOSOTROS</span>
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span>deliaorrego.online está activo en tu cuenta tu.mail@ejemplo.com</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">LO CONFIRMÁS VOS</span>
+      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
+        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
+        <span>El hosting y los archivos del sitio<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
+      </label>
+      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
+        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
+        <span>El código y la base de datos<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
+      </label>
+      <label style="display: flex; align-items: flex-start; gap: 12px; min-height: 44px; font-size: 14px; line-height: 1.5">
+        <input type="checkbox" style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #cff245">
+        <span>Las cuentas asociadas (correo, analítica, redes)<br><span style="color: #8c939c; font-size: 13px">El vendedor lo declaró entregado el 30 de octubre.</span></span>
+      </label>
+    </div>
+
+    <button type="button" style="min-height: 48px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Recibí todo, cerrar la operación</button>
+
+    <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #1e2126; padding-top: 16px">
+      <span style="font-size: 14px; font-weight: 500">¿Falta algo o no funciona?</span>
+      <span style="font-size: 13px; line-height: 1.5; color: #8c939c">Abrí un reclamo: la operación no se cierra hasta que lo resolvamos.</span>
+      <button type="button" style="align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">Reclamar</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

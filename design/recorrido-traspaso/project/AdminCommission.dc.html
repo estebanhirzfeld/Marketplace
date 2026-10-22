@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Plataforma: comprobantes por confirmar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+</style>
+</helmet>
+<div style="width: 720px; height: 820px; box-sizing: border-box; padding: 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 20px">
+  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+    <h1 style="margin: 0; font-size: 22px; font-weight: 700">Comprobantes por confirmar</h1>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8c939c">3 PENDIENTES</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; border: 1px solid #1e2126; border-radius: 5px">
+    <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #1e2126; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #838a94">
+      <span>OPERACIÓN</span><span>QUÉ</span><span>MONTO</span><span>SUBIDO</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 16px; border-bottom: 1px solid #1e2126; background: #16191d">
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; font-size: 14px">
+        <span>deliaorrego.online</span>
+        <span>Comisión</span>
+        <span style="font-family: 'JetBrains Mono', monospace">AR$ 150.000</span>
+        <span style="color: #8c939c">hace 2 h</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Ver el comprobante →</a>
+        <span style="font-size: 13px; color: #8c939c">Referencia OP-3F2B8C1E · a la cuenta en pesos</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+        <button type="button" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 14px; font-weight: 700">Llegaron AR$ 150.000</button>
+        <button type="button" style="min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">No llegó o no coincide…</button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-bottom: 1px solid #1e2126">
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; font-size: 14px">
+        <span>Canal de recetas</span>
+        <span style="color: #e8a33d">Del vendedor, vencido</span>
+        <span style="font-family: 'JetBrains Mono', monospace">US$ 2.850</span>
+        <span style="color: #8c939c">hace 3 días</span>
+      </div>
+      <span style="font-size: 13px; line-height: 1.5; color: #8c939c">El vendedor no respondió en 2 días hábiles. Decidís vos, con el comprobante a la vista.</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; gap: 12px; align-items: baseline; padding: 16px; font-size: 14px">
+      <span>tiendaverde.com.ar</span>
+      <span>Comisión</span>
+      <span style="font-family: 'JetBrains Mono', monospace">AR$ 48.000</span>
+      <span style="color: #8c939c">ayer</span>
+    </div>
+  </div>
+
+  <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #838a94">El comprobante del vendedor aparece acá solo si se venció su plazo. Mientras tanto lo confirma él.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":820}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

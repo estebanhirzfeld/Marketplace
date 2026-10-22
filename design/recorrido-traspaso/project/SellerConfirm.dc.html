@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Vendedor: confirmar la acreditación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 720px; min-height: 760px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Confirmá el pago del comprador</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">deliaorrego.online · El comprador transfirió <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong> a tu cuenta. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">24 de octubre</strong>.</p>
+  </div>
+
+  <sc-if value="{{ isReview }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; gap: 20px; align-items: flex-start">
+        <a href="#" aria-label="Ver el comprobante en tamaño completo" style="width: 150px; height: 200px; flex-shrink: 0; border-radius: 5px; background: #e8e9ea; display: flex; flex-direction: column; gap: 8px; padding: 16px 12px; box-sizing: border-box; text-decoration: none">
+          <span style="height: 10px; width: 60%; background: #8c939c; border-radius: 2px"></span>
+          <span style="height: 6px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
+          <span style="height: 6px; width: 75%; background: #c9cdd2; border-radius: 2px"></span>
+          <span style="height: 16px; width: 55%; margin-top: 12px; background: #0b0c0e; border-radius: 2px"></span>
+          <span style="height: 6px; width: 80%; margin-top: 12px; background: #c9cdd2; border-radius: 2px"></span>
+        </a>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 15px; font-weight: 500">Comprobante del comprador</span>
+          <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Verificá en tu banco que se hayan acreditado <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong> en la cuenta <strong style="color: #e8e9ea; font-weight: 700">ana.vendedora.mp</strong>. Una vez confirmado, no se puede deshacer.</span>
+          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Ver el comprobante completo</a>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ confirm }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Confirmar la acreditación</button>
+        <button type="button" onClick="{{ openReject }}" style="min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">No se acreditó</button>
+      </div>
+      <span style="font-size: 13px; line-height: 1.5; color: #838a94">Si no respondés antes del <strong style="color: #e8e9ea; font-weight: 700">24 de octubre</strong>, la plataforma revisará el comprobante y resolverá si el pago se acreditó.</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isReject }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">¿Qué sucedió con la transferencia?</span>
+      <div style="display: flex; flex-direction: column; gap: 10px" role="radiogroup" aria-label="Motivo">
+        <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="3">
+          <button type="button" onClick="{{ r.pick }}" role="radio" aria-checked="{{ r.checked }}" style="display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 16px; border: 1px solid {{ r.border }}; border-radius: 5px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px; text-align: left">
+            <span style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid {{ r.border }}; background: {{ r.dot }}; flex-shrink: 0" aria-hidden="true"></span>
+            {{ r.label }}
+          </button>
+        </sc-for>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; color: #8c939c">Detalle para el comprador (opcional)</span>
+        <textarea rows="2" placeholder="Por ejemplo: se acreditaron AR$ 1.400.000." style="resize: none; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px; padding: 10px"></textarea>
+      </label>
+      <span style="font-size: 13px; line-height: 1.5; color: #838a94"><strong style="color: #e8e9ea; font-weight: 700">El comprador</strong> recibirá el motivo y deberá adjuntar un nuevo comprobante.</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ reject }}" style="min-height: 48px; padding: 0 22px; border: 1px solid #f87171; border-radius: 3px; background: transparent; color: #f87171; font: inherit; font-size: 15px">Rechazar el comprobante</button>
+        <button type="button" onClick="{{ back }}" style="min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Volver</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 120px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; box-sizing: border-box">
+      <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 15px">{{ sendingText }}</span>
+      <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isConfirmed }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">Registramos tu confirmación</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Le avisaremos al comprador que recibiste el pago. Cuando la plataforma confirme la comisión, te avisaremos para realizar la entrega del sitio.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isRejected }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">Rechazaste el comprobante</span>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Le informamos el motivo al comprador. Te avisaremos cuando adjunte uno nuevo.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":760}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'review', reason: 'not_credited', outcome: null };
+}
+renderVals() {
+const s = this.state;
+const options = [
+{ id: 'not_credited', label: 'Todavía no se acreditó' },
+{ id: 'amount', label: 'El monto no coincide' },
+{ id: 'other', label: 'Otro motivo' },
+];
+return {
+isReview: s.view === 'review',
+isReject: s.view === 'reject',
+isSending: s.view === 'sending',
+sendingText: s.outcome === 'rejected' ? 'Registrando el rechazo…' : 'Registrando tu confirmación…',
+isConfirmed: s.view === 'confirmed',
+isRejected: s.view === 'rejected',
+reasons: options.map((o) => ({
+label: o.label,
+checked: s.reason === o.id ? 'true' : 'false',
+border: s.reason === o.id ? '#cff245' : '#2a2e35',
+dot: s.reason === o.id ? '#cff245' : 'transparent',
+pick: () => this.setState({ reason: o.id }),
+})),
+confirm: () => this.setState({ view: 'sending', outcome: 'confirmed' }),
+openReject: () => this.setState({ view: 'reject' }),
+reject: () => this.setState({ view: 'sending', outcome: 'rejected' }),
+back: () => this.setState({ view: 'review' }),
+sent: () => this.setState({ view: s.outcome }),
+restart: () => this.setState({ view: 'review', reason: 'not_credited', outcome: null }),
+};
+}
+}
+</script>
+</body>
+</html>
