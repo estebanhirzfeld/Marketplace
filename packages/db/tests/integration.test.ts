@@ -1163,6 +1163,33 @@ describe("PrismaOperationRepository — hitos", () => {
         expect(retrieved!.transferInitiation?.sellerSourceIdentity).toBe("vendedor@correo.com");
     });
 
+    it("rechazar la cesión borra la declaración guardada y deja el motivo; declarar de nuevo lo borra", async () => {
+        const operation = await unaOperacionPendienteDeFirma("cesion-rechazo");
+        const signedAt = new Date("2026-10-21T12:00:00.000Z");
+        operation.signContract(signedAt);
+        const sellerId = operation.toSnapshot().props.sellerId;
+        operation.initiateTransfer({ declaredBy: sellerId, controlCeded: true, sellerSourceIdentity: "vendedor@correo.com" });
+        await operationRepo.save(operation);
+
+        const rejectedAt = new Date("2026-10-24T10:00:00.000Z");
+        const leida = (await operationRepo.findById(operation.id.toString()))!;
+        leida.rejectTransfer({ reason: "No llegó.", rejectedBy: new UniqueEntityID(), at: rejectedAt });
+        await operationRepo.save(leida);
+        const rechazada = (await operationRepo.findById(operation.id.toString()))!;
+
+        expect(rechazada.status).toBe("contract_signed");
+        expect(rechazada.transferInitiation).toBeUndefined();
+        expect(rechazada.transferRejection).toMatchObject({ reason: "No llegó.", rejectedAt });
+        expect(rechazada.milestones.signedAt).toEqual(signedAt);
+
+        rechazada.initiateTransfer({ declaredBy: sellerId, controlCeded: true, sellerSourceIdentity: "vendedor@correo.com" });
+        await operationRepo.save(rechazada);
+        const otraVez = (await operationRepo.findById(operation.id.toString()))!;
+
+        expect(otraVez.transferRejection).toBeUndefined();
+        expect(otraVez.transferInitiation?.controlCeded).toBe(true);
+    });
+
     it("rechaza una columna corrupta", async () => {
         const operation = await unaOperacionPendienteDeFirma("hito-cor");
         await operationRepo.save(operation);

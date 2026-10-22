@@ -57,6 +57,7 @@ import {
     DomainCustodyCheckDto,
     DomainDeliveryCheckDto,
     AttestTransferStepRequest,
+    RejectTransferRequest,
     TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
@@ -424,6 +425,11 @@ export class MarketplaceClient {
             `/admin/operations/${encodeURIComponent(operationId)}/steps/${encodeURIComponent(stepKey)}/attest`,
             { body },
         );
+    }
+
+    /** Admin: rechaza la declaración de cesión del vendedor, con el motivo. */
+    rejectTransfer(operationId: string, body: RejectTransferRequest): Promise<void> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/reject-transfer`, { body });
     }
 
     /** Pide el link de pago. Solo con el activo en custodia. */

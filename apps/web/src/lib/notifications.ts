@@ -122,6 +122,11 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
                 ? `La invitación al comprador venció el ${fechaLarga(n.occursAt)} sin aceptarse. Hay que volver a iniciar la entrega.`
                 : 'La invitación al comprador venció sin aceptarse. Hay que volver a iniciar la entrega.',
     },
+    cesion_rechazada: {
+        title: 'Revisá tu cesión',
+        cuerpo: () =>
+            'No nos llegó lo que declaraste haber cedido. En la operación está el motivo; corregilo y declaralo de nuevo.',
+    },
     operacion_completada: {
         title: 'Operación cerrada',
         cuerpo: () => 'El activo cambió de manos y el dinero se liquidó.',

@@ -101,6 +101,20 @@ export class NegotiationNotifier {
     }
 
     /** El admin no encontró la invitación: el vendedor tiene que revisarla y avisar de nuevo. */
+    /** La plataforma rechazó la cesión: al vendedor, que tiene que volver a ceder. */
+    async transferRejected(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+
+        await this.enviar([
+            Notification.create({
+                userId: props.sellerId,
+                type: 'cesion_rechazada',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+        ]);
+    }
+
     async platformAccessNotFound(listing: Listing): Promise<void> {
         const { props } = listing.toSnapshot();
 

@@ -216,6 +216,19 @@ export interface OperationProps {
     completedAt?: Date;
     /** Los hitos que no tienen otra constancia con fecha. Ausente en filas anteriores. */
     milestones?: StoredMilestones;
+    /** El último rechazo de una declaración de cesión, hasta que el vendedor declare de nuevo. */
+    transferRejection?: TransferRejection;
+}
+
+/**
+ * Un admin encontró falsa la declaración de cesión del vendedor: dijo que
+ * cedió y el activo no llegó. El motivo queda en la operación, a la vista del
+ * vendedor, como el de un activo rechazado en revisión.
+ */
+export interface TransferRejection {
+    reason: string;
+    rejectedBy: UniqueEntityID;
+    rejectedAt: Date;
 }
 
 /**
@@ -584,7 +597,31 @@ export class Operation extends Entity<OperationProps> {
         }
 
         this.props.transferInitiation = { ...data, declaredAt: new Date() };
+        this.props.transferRejection = undefined;
         this.props.status = 'transfer_in_progress';
+    }
+
+    /**
+     * La declaración de cesión era falsa: la operación vuelve a «contrato
+     * firmado» para que el vendedor ceda de verdad. La firma no se mueve, así
+     * que su plazo sigue corriendo desde ahí.
+     */
+    public rejectTransfer(data: { reason: string; rejectedBy: UniqueEntityID; at?: Date }): void {
+        if (this.props.status !== 'transfer_in_progress') {
+            throw new InvalidStateError('Solo se puede rechazar una cesión declarada que todavía no se verificó.');
+        }
+        const reason = data.reason.trim();
+        if (!reason) {
+            throw new ValidationError('Decile al vendedor por qué: el motivo es lo que le va a permitir corregirlo.');
+        }
+
+        this.props.transferRejection = { reason, rejectedBy: data.rejectedBy, rejectedAt: data.at ?? new Date() };
+        this.props.transferInitiation = undefined;
+        this.props.status = 'contract_signed';
+    }
+
+    public get transferRejection(): TransferRejection | undefined {
+        return this.props.transferRejection;
     }
 
     /**

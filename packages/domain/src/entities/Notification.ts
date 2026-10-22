@@ -52,7 +52,9 @@ export type NotificationType =
     /** Al comprador: tiene que aceptar el dominio en su cuenta de Hostinger; `occursAt` es cuándo vence la invitación. */
     | 'entrega_recordatorio'
     /** A la plataforma: venció la invitación al comprador sin aceptarse; `occursAt` es cuándo venció. */
-    | 'entrega_vencida';
+    | 'entrega_vencida'
+    /** Al vendedor: la plataforma rechazó su declaración de cesión; el motivo está en la operación. */
+    | 'cesion_rechazada';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

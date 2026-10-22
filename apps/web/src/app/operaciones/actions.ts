@@ -375,6 +375,32 @@ export async function checkDomainDeliveryAction(operationId: string, _estado: Ac
     );
 }
 
+/**
+ * El admin rechaza la declaración de cesión del vendedor. La operación vuelve a
+ * «contrato firmado» y el vendedor lee el motivo en la operación.
+ */
+export async function rejectTransferAction(
+    operationId: string,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!reason) {
+        return { error: 'Escribí el motivo: es lo que va a leer el vendedor.' };
+    }
+
+    try {
+        await api().rejectTransfer(operationId, { reason });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos rechazar la cesión. Probá de nuevo.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    return { ok: true, message: 'Rechazaste la cesión. El vendedor ve el motivo y puede volver a declararla.' };
+}
+
 export async function attestTransferStepAction(
     operationId: string,
     stepKey: string,

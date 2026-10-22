@@ -11,6 +11,7 @@ import type {
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
     AttestTransferStepRequest,
+    RejectTransferRequest,
     DomainCustodyCheckDto,
     DomainDeliveryCheckDto,
     InitiateTransferRequest,
@@ -198,6 +199,28 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                 notes,
             );
             return reply.send({ status });
+        },
+    );
+
+    /**
+     * Un admin rechaza la declaración de cesión: el vendedor dijo que cedió y
+     * el activo no llegó. La operación vuelve a «contrato firmado».
+     */
+    app.post<{ Params: IdParams; Body: RejectTransferRequest }>(
+        '/admin/operations/:id/reject-transfer',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['reason'],
+                    properties: { reason: { type: 'string', maxLength: MAX_NOTES_LENGTH } },
+                },
+            },
+        },
+        async (request, reply) => {
+            await c.rejectTransfer.execute(request.params.id, request.body.reason, actorOf(request));
+            return reply.code(204).send();
         },
     );
 

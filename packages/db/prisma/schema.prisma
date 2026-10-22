@@ -82,6 +82,8 @@ enum NotificationType {
   // Hostinger antes de que venza; a los administradores, que venció.
   entrega_recordatorio
   entrega_vencida
+  // Al vendedor: la plataforma rechazó su declaración de cesión.
+  cesion_rechazada
 }
 
 enum ContractType {
@@ -240,6 +242,9 @@ model Operation {
   // Hitos sin otra constancia con fecha (la firma, la entrega declarada), que
   // anclan los plazos del traspaso. Nullable y aditiva.
   milestones       Json?
+  // El rechazo de la última declaración de cesión, con su motivo, hasta que el
+  // vendedor declare de nuevo. Nullable y aditiva.
+  transferRejection Json?
   createdAt        DateTime        @default(now())
 
   listing   Listing    @relation(fields: [listingId], references: [id])

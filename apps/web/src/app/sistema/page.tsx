@@ -2,6 +2,7 @@ import { Reveal } from '@/components/Reveal';
 import { DemoBanner } from '@/components/DemoBanner';
 import { Timeline } from '@/components/Timeline';
 import { NextStepCard } from '@/components/NextStep';
+import { RejectTransferForm } from '@/components/RejectTransferForm';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
@@ -660,6 +661,10 @@ export default function Sistema() {
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ANTES DE OFERTAR</div>
                             <DomainLockNotice />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ADMIN · SI LA CESIÓN NO LLEGÓ</div>
+                            <RejectTransferForm action={async () => ({})} />
                         </div>
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR · ANTES DE VENDER</div>

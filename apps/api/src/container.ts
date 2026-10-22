@@ -94,6 +94,7 @@ import { ConfirmCustodyUseCase } from '@marketplace/domain/src/use-cases/operati
 import { CheckDomainCustodyUseCase } from '@marketplace/domain/src/use-cases/operation/CheckDomainCustodyUseCase';
 import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import { AttestTransferStepUseCase } from '@marketplace/domain/src/use-cases/operation/AttestTransferStepUseCase';
+import { RejectTransferUseCase } from '@marketplace/domain/src/use-cases/operation/RejectTransferUseCase';
 import {
     CheckDomainDeliveryUseCase,
     StartDomainDeliveryUseCase,
@@ -247,6 +248,7 @@ export interface Container {
      */
     runTransferStepChecks: RunTransferStepChecksUseCase;
     attestTransferStep: AttestTransferStepUseCase;
+    rejectTransfer: RejectTransferUseCase;
     /** Ausentes sin registrador: ver `domainRegistrar`. */
     startDomainDelivery?: StartDomainDeliveryUseCase;
     checkDomainDelivery?: CheckDomainDeliveryUseCase;
@@ -627,6 +629,7 @@ export function createContainer(
             checkDomainDelivery,
         ),
         attestTransferStep: new AttestTransferStepUseCase(operationRepo, listingRepo, transferStepProgressRepo),
+        rejectTransfer: new RejectTransferUseCase(operationRepo, avisos),
         startDomainDelivery: domainRegistrar
             ? new StartDomainDeliveryUseCase(operationRepo, listingRepo, transferStepProgressRepo, domainRegistrar)
             : undefined,

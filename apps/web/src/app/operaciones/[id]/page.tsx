@@ -16,6 +16,7 @@ import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
 import { NextStepCard } from '@/components/NextStep';
+import { RejectTransferForm } from '@/components/RejectTransferForm';
 import { nextStepCopy, partyStatusLine } from '@/lib/nextStepCopy';
 import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
 import { nicheLabel, money, fechaLarga } from '@/lib/format';
@@ -33,6 +34,7 @@ import {
     deliverDomainAction,
     goToCheckout,
     initiateTransfer,
+    rejectTransferAction,
     signContract,
 } from '../actions';
 import { AdminDomainTransferPanel, DomainDeliveryStatus, TransferStepsList } from '@/components/TransferSteps';
@@ -502,6 +504,11 @@ export default async function DetalleOperacion(props: {
                                 </Alert>
                             )}
 
+                            {/* El motivo del rechazo, para que el vendedor sepa qué corregir antes de volver a ceder. */}
+                            {op.miParte === 'seller' && op.status === 'contract_signed' && op.transferRejection && (
+                                <Alert tono="alerta">Rechazamos tu cesión: {op.transferRejection.reason}</Alert>
+                            )}
+
                             {copy && step && (
                                 <NextStepCard
                                     copy={copy}
@@ -558,6 +565,16 @@ export default async function DetalleOperacion(props: {
                                         checkDelivery: checkDomainDeliveryAction.bind(null, id),
                                     }}
                                 />
+                            )}
+
+                            {/*
+                                Si el vendedor declaró una cesión que no llegó, la operación
+                                vuelve a «contrato firmado» con el motivo a su vista.
+                            */}
+                            {isAdmin && op.status === 'transfer_in_progress' && (
+                                <Panel title="SI LA CESIÓN NO LLEGÓ">
+                                    <RejectTransferForm action={rejectTransferAction.bind(null, id)} />
+                                </Panel>
                             )}
 
                             {/* Hasta que el pago por transferencia tenga sus comprobantes, el admin lo registra a mano. */}

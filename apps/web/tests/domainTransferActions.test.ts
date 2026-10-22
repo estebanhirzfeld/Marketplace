@@ -11,6 +11,7 @@ const checkDomainCustody = vi.fn();
 const deliverDomain = vi.fn();
 const checkDomainDelivery = vi.fn();
 const attestTransferStep = vi.fn();
+const rejectTransfer = vi.fn();
 const revalidatePath = vi.fn();
 
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => revalidatePath(p) }));
@@ -21,7 +22,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/lib/guards', () => ({ requireSession: async () => ({ id: 'admin' }) }));
 vi.mock('@/lib/api', () => ({
-    api: () => ({ checkDomainCustody, deliverDomain, checkDomainDelivery, attestTransferStep }),
+    api: () => ({ checkDomainCustody, deliverDomain, checkDomainDelivery, attestTransferStep, rejectTransfer }),
 }));
 
 import {
@@ -29,6 +30,7 @@ import {
     deliverDomainAction,
     checkDomainDeliveryAction,
     attestTransferStepAction,
+    rejectTransferAction,
 } from '@/app/operaciones/actions';
 
 beforeEach(() => {
@@ -105,5 +107,30 @@ describe('attestTransferStepAction', () => {
         expect(attestTransferStep).toHaveBeenCalledWith('op1', 'hosting');
         expect(result).toEqual({ ok: true, message: 'Paso dado por cumplido.' });
         expect(revalidatePath).toHaveBeenCalledWith('/operaciones/op1');
+    });
+});
+
+describe('rejectTransferAction', () => {
+    function conMotivo(reason: string): FormData {
+        const form = new FormData();
+        form.set('reason', reason);
+        return form;
+    }
+
+    it('rechaza con el motivo y refresca la operación', async () => {
+        rejectTransfer.mockResolvedValue(undefined);
+
+        const result = await rejectTransferAction('op1', {}, conMotivo('  No llegó.  '));
+
+        expect(rejectTransfer).toHaveBeenCalledWith('op1', { reason: 'No llegó.' });
+        expect(result).toEqual({ ok: true, message: 'Rechazaste la cesión. El vendedor ve el motivo y puede volver a declararla.' });
+        expect(revalidatePath).toHaveBeenCalledWith('/operaciones/op1');
+    });
+
+    it('sin motivo no llama a la API', async () => {
+        const result = await rejectTransferAction('op1', {}, conMotivo('   '));
+
+        expect(rejectTransfer).not.toHaveBeenCalled();
+        expect(result).toEqual({ error: 'Escribí el motivo: es lo que va a leer el vendedor.' });
     });
 });

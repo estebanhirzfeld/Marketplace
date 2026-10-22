@@ -234,6 +234,37 @@ describe('/operaciones/[id] — tu próximo paso', () => {
         expect(t).not.toContain('No hace falta que hagas nada');
     });
 
+    it('el admin puede rechazar una cesión declarada, con el motivo', async () => {
+        const t = await pagina(unaOperacion({ next: turnoDe('seller', 'move_domain_to_platform') }), ADMIN);
+
+        expect(t).toContain('Rechazar la cesión');
+        expect(t).toContain('Motivo');
+    });
+
+    it('nadie más que el admin ve cómo rechazar la cesión', async () => {
+        const t = await pagina(
+            unaOperacion({ miParte: 'seller', next: turnoDe('seller', 'move_domain_to_platform') }),
+            VENDEDOR,
+        );
+
+        expect(t).not.toContain('Rechazar la cesión');
+    });
+
+    it('el vendedor con la cesión rechazada ve el motivo y vuelve a declarar', async () => {
+        const t = await pagina(
+            unaOperacion({
+                status: 'contract_signed',
+                miParte: 'seller',
+                transferRejection: { reason: 'El dominio nunca llegó a nuestra cuenta.', rejectedAt: '2026-10-24T10:00:00.000Z' },
+                next: turnoDe('seller', 'declare_handover'),
+            }),
+            VENDEDOR,
+        );
+
+        expect(t).toContain('Rechazamos tu cesión: El dominio nunca llegó a nuestra cuenta.');
+        expect(t).toContain('Iniciá el traslado del dominio');
+    });
+
     it('el admin ve en qué está cada parte', async () => {
         const t = await pagina(unaOperacion({ next: turnoDe('seller', 'move_domain_to_platform') }), ADMIN);
 

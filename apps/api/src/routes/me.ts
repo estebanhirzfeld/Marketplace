@@ -628,6 +628,10 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                 },
                 // declaredBy no viaja al DTO a propósito: asimetría
                 // documentada respecto de CustodyVerificationDto.verifiedBy.
+                transferRejection: operation.transferRejection && {
+                    reason: operation.transferRejection.reason,
+                    rejectedAt: operation.transferRejection.rejectedAt.toISOString(),
+                },
                 transferInitiation: operation.transferInitiation && {
                     declaredAt: operation.transferInitiation.declaredAt.toISOString(),
                     controlCeded: operation.transferInitiation.controlCeded,

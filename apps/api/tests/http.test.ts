@@ -1125,6 +1125,71 @@ describe('POST /operations/:id/transfer', () => {
     });
 });
 
+/** El admin rechaza una cesión que no llegó: vuelve a «contrato firmado» con el motivo a la vista. */
+describe('POST /admin/operations/:id/reject-transfer', () => {
+    async function unaCesionDeclarada(): Promise<{ id: string; sellerEmail: string; adminEmail: string }> {
+        const stamp = Date.now();
+        const sellerEmail = `seller-rechazo-${stamp}@test.com`;
+        const adminEmail = `admin-rechazo-${stamp}@test.com`;
+        const buyer = await crearUsuario(`buyer-rechazo-${stamp}@test.com`, UserRole.BUYER);
+        const seller = await crearUsuario(sellerEmail, UserRole.SELLER);
+        await crearUsuario(adminEmail, UserRole.ADMIN);
+        const listing = await crearListingPublicado(seller.id);
+
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        await new PrismaOperationRepository().save(operation);
+
+        return { id: operation.id.toString(), sellerEmail, adminEmail };
+    }
+
+    async function rechazar(id: string, email: string, payload: unknown) {
+        return app.inject({
+            method: 'POST',
+            url: `/admin/operations/${id}/reject-transfer`,
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('204: la operación vuelve a contrato firmado y el vendedor ve el motivo', async () => {
+        const { id, sellerEmail, adminEmail } = await unaCesionDeclarada();
+
+        const res = await rechazar(id, adminEmail, { reason: 'El canal no llegó a nuestra cuenta.' });
+        expect(res.statusCode).toBe(204);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe(sellerEmail)}` },
+        });
+        const cuerpo = detalle.json();
+        expect(cuerpo.status).toBe('contract_signed');
+        expect(cuerpo.transferInitiation).toBeUndefined();
+        expect(cuerpo.transferRejection).toEqual({ reason: 'El canal no llegó a nuestra cuenta.', rejectedAt: expect.any(String) });
+    });
+
+    it('403 si quien rechaza no es admin', async () => {
+        const { id, sellerEmail } = await unaCesionDeclarada();
+
+        expect((await rechazar(id, sellerEmail, { reason: 'x' })).statusCode).toBe(403);
+    });
+
+    it('400 sin motivo', async () => {
+        const { id, adminEmail } = await unaCesionDeclarada();
+
+        expect((await rechazar(id, adminEmail, {})).statusCode).toBe(400);
+        expect((await rechazar(id, adminEmail, { reason: '   ' })).statusCode).toBe(400);
+    });
+});
+
 /**
  * Confirmar la custodia dejó de ser un botón: el admin declara qué verificó.
  * La ruta se probó aparte del resto de los pasos porque es la única con cuerpo.

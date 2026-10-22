@@ -113,6 +113,14 @@ describe('avisos del traslado del dominio a la plataforma', () => {
         );
     });
 
+    it('la cesión rechazada le pide al vendedor que mire el motivo y vuelva a ceder', () => {
+        const { title, cuerpo } = textFor({ ...delTraslado, type: 'cesion_rechazada' });
+
+        expect(title).toBe('Revisá tu cesión');
+        expect(cuerpo).toBe('No nos llegó lo que declaraste haber cedido. En la operación está el motivo; corregilo y declaralo de nuevo.');
+        expect(linkFor({ ...delTraslado, type: 'cesion_rechazada' })).toBe('/operaciones/o1');
+    });
+
     it('los tres llevan a la operación', () => {
         for (const type of [
             'traspaso_recordatorio',

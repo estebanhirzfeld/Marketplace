@@ -13,6 +13,7 @@ import {
     RecipientIdentity,
     DeliveryVerification,
     StoredMilestones,
+    TransferRejection,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -87,8 +88,12 @@ function parseCesion(raw: unknown): TransferInitiation | undefined {
     };
 }
 
+/**
+ * `Prisma.DbNull` y no `undefined`: rechazar la cesión borra la declaración, y
+ * con `undefined` el update dejaba la vieja guardada.
+ */
 function serializeCesion(v?: TransferInitiation) {
-    if (!v) return undefined;
+    if (!v) return Prisma.DbNull;
     return {
         declaredBy: v.declaredBy.toString(),
         declaredAt: v.declaredAt.toISOString(),
@@ -332,6 +337,30 @@ function serializeSettlementQuotes(quotes?: readonly SettlementQuote[]) {
     return quotes.map((q) => q.toSnapshot());
 }
 
+/** Lee el rechazo de la última declaración de cesión. */
+function parseTransferRejection(raw: unknown): TransferRejection | undefined {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("Columna `transferRejection` corrupta: se esperaba un objeto.");
+    }
+    const r = raw as Record<string, unknown>;
+    if (
+        typeof r.reason !== "string" ||
+        typeof r.rejectedBy !== "string" ||
+        typeof r.rejectedAt !== "string" ||
+        Number.isNaN(new Date(r.rejectedAt).getTime())
+    ) {
+        throw new Error("Columna `transferRejection` corrupta: faltan el motivo, quién o cuándo.");
+    }
+    return { reason: r.reason, rejectedBy: new UniqueEntityID(r.rejectedBy), rejectedAt: new Date(r.rejectedAt) };
+}
+
+/** Una nueva declaración deja atrás el rechazo: se borra con `Prisma.DbNull`. */
+function serializeTransferRejection(r?: TransferRejection) {
+    if (!r) return Prisma.DbNull;
+    return { reason: r.reason, rejectedBy: r.rejectedBy.toString(), rejectedAt: r.rejectedAt.toISOString() };
+}
+
 const MILESTONE_KEYS = ["signedAt", "deliveredAt"] as const;
 
 /** Lee la columna `milestones`. Una fila anterior a la columna no tiene hitos. */
@@ -402,6 +431,7 @@ export class OperationMapper {
             settlementQuotes: parseSettlementQuotes(raw.settlementQuotes),
             completedAt: raw.completedAt ?? undefined,
             milestones: parseMilestones(raw.milestones),
+            transferRejection: parseTransferRejection(raw.transferRejection),
         };
 
         return Operation.reconstitute(
@@ -437,6 +467,7 @@ export class OperationMapper {
             settlementQuotes: serializeSettlementQuotes(props.settlementQuotes),
             completedAt: props.completedAt ?? null,
             milestones: serializeMilestones(props.milestones),
+            transferRejection: serializeTransferRejection(props.transferRejection),
             createdAt,
         };
     }

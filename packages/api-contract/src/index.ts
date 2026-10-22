@@ -833,6 +833,8 @@ export interface OperationDetailDto {
     delivery?: DeliveryVerificationDto;
     /** La declaración del vendedor de haber cedido el control del activo. */
     transferInitiation?: TransferInitiationDto;
+    /** Presente mientras la última declaración de cesión esté rechazada. */
+    transferRejection?: TransferRejectionDto;
     /**
      * Lo que le falta al vendedor ceder después de la firma. Ausente si quien
      * arma el DTO no resolvió cuenta de custodia.
@@ -922,6 +924,17 @@ export interface DomainDeliveryCheckDto {
 /** Lo que el admin anota al dar por cumplido un paso declarado de la entrega. */
 export interface AttestTransferStepRequest {
     notes?: string;
+}
+
+/** Por qué el admin rechaza la declaración de cesión del vendedor. */
+export interface RejectTransferRequest {
+    reason: string;
+}
+
+/** El último rechazo de la declaración de cesión, hasta que el vendedor declare de nuevo. */
+export interface TransferRejectionDto {
+    reason: string;
+    rejectedAt: string;
 }
 
 /** Cómo quedó el paso después de atestiguarlo. */
@@ -1180,7 +1193,9 @@ export type NotificationTypeDto =
     /** Al comprador: la invitación para recibir el dominio vence en `occursAt`. */
     | 'entrega_recordatorio'
     /** A la plataforma: la invitación de entrega al comprador venció en `occursAt`. */
-    | 'entrega_vencida';
+    | 'entrega_vencida'
+    /** Al vendedor: la plataforma rechazó su declaración de cesión; el motivo está en la operación. */
+    | 'cesion_rechazada';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia
