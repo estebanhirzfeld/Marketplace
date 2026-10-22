@@ -71,7 +71,7 @@ a{color:#cff245}a:hover{color:#e4ff7a}
                 <span style="height: 5px; width: 90%; background: #c9cdd2; border-radius: 2px"></span>
                 <span style="height: 5px; width: 70%; background: #c9cdd2; border-radius: 2px"></span>
               </span>
-              <span style="font-size: 13px">Movimientos del vendedor</span>
+              <span style="font-size: 13px">Respuesta del rastreo</span>
             </a>
           </sc-if>
           <div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
@@ -85,9 +85,11 @@ a{color:#cff245}a:hover{color:#e4ff7a}
               <div style="display: flex; flex-direction: column; gap: 8px" role="group" aria-label="Coherencia del comprobante">
                 <span style="font-size: 13px; color: #838a94">Coherencia del comprobante</span>
                 <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Monto: AR$ 1.425.000</label>
-                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Destino: ana.vendedora.mp</label>
-                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Fecha: 22/10, posterior a la custodia (21/10)</label>
-                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" style="width: 18px; height: 18px; accent-color: #cff245">Número de operación: <span style="font-family: 'JetBrains Mono', monospace">[N.º DE OPERACIÓN]</span></label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">Fecha: 22/10 17:16, posterior a la custodia (21/10)</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">CBU/CVU de destino: el declarado por el vendedor</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">CUIT de destino: el del KYC del vendedor</label>
+                <label style="display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #cff245">CUIT de origen: el del KYC del comprador</label>
+                <span style="font-size: 13px; color: #838a94">ID COELSA aportado por el comprador: <span style="font-family: 'JetBrains Mono', monospace; color: #e8e9ea">[ID COELSA]</span></span>
               </div>
             </sc-if>
             <span style="font-size: 13px; line-height: 1.5; color: #838a94">{{ sel.hint }}</span>
@@ -129,8 +131,8 @@ renderVals() {
 const s = this.state;
 const cases = [
 { id: 'commission', asset: 'deliaorrego.online', amount: 'AR$ 150.000', destination: 'la cuenta de la plataforma', age: 'hace 2 h', kind: 'Comisión', kindColor: '#8c939c', title: 'Confirmá la acreditación de la comisión', hint: 'Verificá en la cuenta de la plataforma que se haya acreditado el monto exacto.', primary: 'Confirmar la acreditación', secondary: 'No se acreditó', done: 'Registramos la acreditación. Le avisaremos al comprador.' },
-{ id: 'review', asset: 'deliaorrego.online', amount: 'AR$ 1.425.000', destination: 'ana.vendedora.mp', age: 'hace 40 min', kind: 'Revisión solicitada', kindColor: '#e8a33d', hasReason: true, hasChecks: true, title: 'El comprador solicitó la revisión', hint: 'Si el comprobante es coherente, solicitale los movimientos al vendedor. Tendrá 2 días hábiles; si no responde, el pago se dará por acreditado.', primary: 'Solicitar los movimientos al vendedor', secondary: 'Rechazar el comprobante', done: 'Solicitamos los movimientos. Le avisaremos al vendedor y al comprador.' },
-{ id: 'statement', asset: 'tiendaverde.com.ar', amount: 'AR$ 456.000', destination: 'verde.ventas', age: 'ayer', kind: 'Movimientos recibidos', kindColor: '#e8a33d', hasReason: true, hasStatement: true, title: 'Resolvé si el pago se acreditó', hint: 'Buscá en los movimientos del vendedor un crédito por el monto y la fecha del comprobante.', primary: 'El pago se acreditó', secondary: 'El pago no se acreditó', done: 'Registramos la resolución. Le avisaremos al comprador y al vendedor.' },
+{ id: 'review', asset: 'deliaorrego.online', amount: 'AR$ 1.425.000', destination: 'ana.vendedora.mp', age: 'hace 40 min', kind: 'Revisión solicitada', kindColor: '#e8a33d', hasReason: true, hasChecks: true, title: 'El comprador solicitó la revisión', hint: 'Si el comprobante es coherente, solicitá el rastreo bancario. El sitio permanece en custodia y el plazo de pago queda suspendido mientras dure la revisión.', primary: 'Solicitar el rastreo bancario', secondary: 'Rechazar el comprobante', done: 'Solicitamos el rastreo. Le avisaremos al vendedor y al comprador.' },
+{ id: 'statement', asset: 'tiendaverde.com.ar', amount: 'AR$ 456.000', destination: 'verde.ventas', age: 'ayer', kind: 'Rastreo recibido', kindColor: '#e8a33d', hasReason: true, hasStatement: true, title: 'Resolvé si el pago se acreditó', hint: 'Resolvé según la respuesta del rastreo bancario. Los movimientos del vendedor son información, no prueba.', primary: 'El pago se acreditó', secondary: 'El pago no se acreditó', done: 'Registramos la resolución. Le avisaremos al comprador y al vendedor.' },
 { id: 'overdue', asset: 'Canal de recetas', amount: 'US$ 2.850', destination: 'recetas.usd', age: 'hace 3 días', kind: 'Vendedor sin respuesta', kindColor: '#e8a33d', title: 'El vendedor no respondió a tiempo', hint: 'Venció el plazo del vendedor para confirmar. Verificá el comprobante y resolvé.', primary: 'Confirmar la acreditación', secondary: 'Rechazar el comprobante', done: 'Registramos la decisión. Le avisaremos al comprador y al vendedor.' },
 ];
 const open = cases.filter((c) => !s.resolved.includes(c.id));

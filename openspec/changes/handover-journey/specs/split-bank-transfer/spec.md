@@ -66,30 +66,43 @@ admin MUST poder decidir con el comprobante a la vista. Con los dos comprobantes
 
 ### Requirement: Revisión de la plataforma sobre un comprobante rechazado
 
-Con un comprobante rechazado por el vendedor, el comprador MUST poder adjuntar otro o solicitar la
-revisión de la plataforma; mientras dura la revisión, el plazo de pago MUST quedar suspendido. La
-plataforma MUST revisar primero la coherencia del comprobante (monto, destino, fecha posterior a la
-custodia y número de operación del banco) y rechazarlo si no la tiene. Si la tiene, MUST pedirle al
-vendedor los movimientos de su cuenta del día, con 2 días hábiles de plazo y el aviso de que su silencio
-da el pago por acreditado. Un mismo comprobante rechazado dos veces MUST pasar solo a revisión.
+Ningún documento aportado por las partes MUST tomarse como prueba de acreditación por sí solo. Con un
+comprobante rechazado por el vendedor, el comprador MUST poder adjuntar otro o solicitar la revisión de
+la plataforma. Mientras dura la revisión, el plazo de pago y la cancelación por plazo MUST quedar
+suspendidos, y el activo MUST seguir en custodia: nunca se devuelve al vendedor con una revisión abierta.
 
-#### Scenario: El vendedor muestra que no llegó
+La plataforma MUST revisar primero la coherencia del comprobante: monto exacto, fecha posterior a la
+custodia, CBU o CVU de destino igual al declarado, CUIT de destino igual al del KYC del vendedor y CUIT de
+origen igual al del KYC del comprador. Un comprobante incoherente MUST rechazarse sin pedirle nada al
+vendedor. Con uno coherente, la plataforma MUST pedirle al comprador el ID COELSA de la transferencia o su
+número de operación, y resolver por el rastreo entre bancos; los movimientos que aporte el vendedor son
+información, no prueba. Si el vendedor no responde a tiempo, con aviso por mail y en la app, el pago MUST
+darse por acreditado. Sin resolución, el activo MUST seguir en custodia hasta una mediación o resolución
+externa. Un mismo comprobante rechazado dos veces MUST pasar solo a revisión.
 
-- GIVEN una revisión con el comprobante coherente y los movimientos del vendedor sin el crédito
-- WHEN la plataforma resuelve
-- THEN el comprobante queda rechazado y el plazo de pago del comprador se reanuda
+#### Scenario: El vendedor niega un pago real
+
+- GIVEN un comprobante coherente rechazado por el vendedor
+- WHEN el rastreo bancario confirma la acreditación en el CBU del vendedor
+- THEN el pago queda confirmado y la entrega sigue, aunque el vendedor insista
+
+#### Scenario: Vence el plazo del comprador durante la revisión
+
+- GIVEN una revisión abierta
+- WHEN llega la fecha límite de pago del comprador
+- THEN la operación no se cancela y el activo sigue en custodia
+
+#### Scenario: El comprobante no es coherente
+
+- GIVEN un comprobante cuyo CUIT de destino no es el del vendedor
+- WHEN la plataforma lo revisa
+- THEN lo rechaza sin pedirle nada al vendedor
 
 #### Scenario: El vendedor no responde
 
 - GIVEN una revisión con el comprobante coherente
-- WHEN vencen los 2 días hábiles sin movimientos del vendedor
+- WHEN vence el plazo del vendedor después del doble aviso
 - THEN el comprobante queda confirmado
-
-#### Scenario: El comprobante no es coherente
-
-- GIVEN una revisión de un comprobante con otro monto o destino
-- WHEN la plataforma lo revisa
-- THEN lo rechaza sin pedirle nada al vendedor
 
 ### Requirement: Subir un comprobante desde el teléfono sin sesión
 

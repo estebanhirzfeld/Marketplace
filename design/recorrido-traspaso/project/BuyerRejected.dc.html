@@ -48,11 +48,16 @@ a{color:#cff245}a:hover{color:#e4ff7a}
     <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
       <span style="font-size: 20px; font-weight: 700">Solicitar la revisión de la plataforma</span>
       <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5">
-        <li>La plataforma verificará el comprobante: monto, destino, fecha y número de operación.</li>
-        <li>Si corresponde, le solicitará <strong>al vendedor</strong> los movimientos de su cuenta.</li>
-        <li>Con esa información, resolverá si el pago se acreditó.</li>
+        <li>La plataforma verificará que el comprobante coincida con tu cuenta y con la cuenta <strong>del vendedor</strong>.</li>
+        <li>Si coincide, solicitará el rastreo de la transferencia entre los bancos.</li>
+        <li>Con esa respuesta, resolverá si el pago se acreditó.</li>
       </ol>
-      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Mientras dure la revisión, el plazo de pago queda suspendido.</p>
+      <label style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 14px; font-weight: 500">ID COELSA o número de operación</span>
+        <input type="text" placeholder="Por ejemplo: 0AB12CD34EF56GH78IJ90K" style="min-height: 44px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font-family: 'JetBrains Mono', monospace; font-size: 14px; padding: 0 12px">
+        <span style="font-size: 13px; line-height: 1.5; color: #838a94">Solicitá a tu banco el <strong style="color: #e8e9ea">ID COELSA</strong> de la transferencia, o su número de operación. Si todavía no lo tenés, podrás agregarlo después.</span>
+      </label>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Mientras dure la revisión, el plazo de pago queda suspendido y el sitio permanece en custodia de la plataforma.</p>
       <div style="display: flex; flex-wrap: wrap; gap: 12px">
         <button type="button" onClick="{{ send }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Solicitar la revisión</button>
         <button type="button" onClick="{{ back }}" style="min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Volver</button>
@@ -71,7 +76,7 @@ a{color:#cff245}a:hover{color:#e4ff7a}
   <sc-if value="{{ isInReview }}" hint-placeholder-val="{{ false }}">
     <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
       <span style="font-size: 20px; font-weight: 700">El comprobante está en revisión</span>
-      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">La revisión es manual y puede demorar. El plazo de pago queda suspendido: te avisaremos cuando se resuelva.</p>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">La revisión es manual y puede demorar. El plazo de pago queda suspendido y el sitio permanece en custodia: te avisaremos cuando se resuelva.</p>
       <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
     </div>
   </sc-if>

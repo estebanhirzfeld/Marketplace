@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Vendedor: adjuntar los movimientos de la cuenta</title>
+<title>Vendedor: responder la revisión del pago</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -20,24 +20,24 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 <div style="width: 720px; min-height: 900px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
 
   <div style="display: flex; flex-direction: column; gap: 6px">
-    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Adjuntá los movimientos de tu cuenta</h1>
-    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c"><strong style="color: #e8e9ea; font-weight: 700">El comprador</strong> solicitó la revisión del pago de <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong>. Verificamos su comprobante y es coherente.</p>
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Respondé la revisión del pago</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c"><strong style="color: #e8e9ea; font-weight: 700">El comprador</strong> solicitó la revisión del pago de <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.425.000</strong>. Su comprobante coincide con tu cuenta y con tu CUIT.</p>
   </div>
 
   <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
       <div style="display: flex; flex-direction: column; gap: 10px">
-        <span style="font-size: 15px; font-weight: 500">Necesitamos los movimientos de la cuenta <strong>ana.vendedora.mp</strong> del <strong>22 de octubre</strong></span>
-        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Podés adjuntar una captura o el resumen en PDF de tu banco. Deben verse la fecha y los créditos del día.</span>
+        <span style="font-size: 15px; font-weight: 500">Verificá de nuevo los movimientos de <strong>ana.vendedora.mp</strong> del <strong>22 de octubre</strong></span>
+        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Solicitamos además el rastreo de la transferencia entre los bancos. Si el pago no figura, podés adjuntar los movimientos de ese día: los sumaremos a la revisión.</span>
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid #e8a33d; border-radius: 5px">
         <span style="font-size: 15px">Tenés tiempo hasta el <strong>27 de octubre</strong>.</span>
-        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Si no los adjuntás, daremos el pago por acreditado.</span>
+        <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Si no respondés, daremos el pago por acreditado. El sitio permanece en custodia mientras dure la revisión.</span>
       </div>
       <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Ver el comprobante del comprador</a>
       <button type="button" onClick="{{ attach }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Adjuntar los movimientos</button>
       <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1e2126; padding-top: 18px">
-        <span style="font-size: 14px; color: #8c939c">¿Revisaste de nuevo y el pago sí figura?</span>
+        <span style="font-size: 14px; color: #8c939c">¿El pago figura en tu cuenta?</span>
         <button type="button" onClick="{{ confirmNow }}" style="align-self: flex-start; min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Confirmar la acreditación</button>
       </div>
     </div>
