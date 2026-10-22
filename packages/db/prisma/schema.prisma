@@ -112,6 +112,7 @@ model User {
   contractsAsSigner  Contract[]
   notifications      Notification[]
   paymentAccount     SellerPaymentAccount?
+  bankAccounts       SellerBankAccount[]
   youtubeConnections YouTubeConnection[]
   reportsFiled      Report[]      @relation("ReportsFiled")
   reportsReceived    Report[]      @relation("ReportsReceived")
@@ -312,6 +313,24 @@ model SellerPaymentAccount {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("seller_payment_accounts")
+}
+
+/// La cuenta bancaria donde un vendedor cobra por transferencia, una por
+/// moneda. Va un CBU o un alias, nunca los dos.
+model SellerBankAccount {
+  id         String   @id @default(uuid())
+  userId     String
+  currency   String
+  cbu        String?
+  alias      String?
+  holder     String
+  declaredAt DateTime
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, currency])
+  @@map("seller_bank_accounts")
 }
 
 /// La conexión de un vendedor con un canal de YouTube. Una por vendedor y

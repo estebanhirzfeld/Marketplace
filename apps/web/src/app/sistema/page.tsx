@@ -2,6 +2,7 @@ import { Reveal } from '@/components/Reveal';
 import { DemoBanner } from '@/components/DemoBanner';
 import { Timeline } from '@/components/Timeline';
 import { NextStepCard } from '@/components/NextStep';
+import { BankAccountsView } from '@/components/BankAccountSection';
 import { RejectTransferForm } from '@/components/RejectTransferForm';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
@@ -596,6 +597,15 @@ export default function Sistema() {
                                 ]}
                             />
                         </div>
+                    </div>
+                </Section>
+
+                <Section title="Cuenta bancaria del vendedor" note="Dónde cobra el vendedor cuando el comprador paga por transferencia: una cuenta por moneda, con un CBU o un alias. Estas acciones son de muestra: no guardan nada.">
+                    <div className="max-w-[560px]">
+                        <BankAccountsView
+                            accounts={[{ currency: 'ARS', alias: 'delia.pesos', holder: 'Delia Orrego', declaredAt: '2026-10-22T10:00:00.000Z' }]}
+                            actionFor={() => async () => ({})}
+                        />
                     </div>
                 </Section>
 

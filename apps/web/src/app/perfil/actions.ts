@@ -68,3 +68,32 @@ export async function unlinkMercadoPagoAccount(_state: UnlinkState): Promise<Unl
     revalidatePath('/perfil');
     return { ok: true };
 }
+
+type BankAccountState = { error?: string; ok?: boolean; message?: string };
+
+/**
+ * El vendedor declara dónde cobrar por transferencia en una moneda. Un solo
+ * campo para el CBU o el alias: si son solo números, es un CBU.
+ */
+export async function declareBankAccountAction(
+    currency: 'ARS' | 'USD',
+    _estado: BankAccountState,
+    form: FormData,
+): Promise<BankAccountState> {
+    await requireCounterparty();
+
+    const raw = String(form.get('destination') ?? '').trim();
+    const holder = String(form.get('holder') ?? '').trim();
+    const digits = raw.replace(/\s+/g, '');
+    const destination = /^\d+$/.test(digits) ? { cbu: digits } : { alias: raw };
+
+    try {
+        await api().declareBankAccount({ currency, ...destination, holder });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos guardar la cuenta. Probá de nuevo.' };
+    }
+
+    revalidatePath('/perfil');
+    return { ok: true, message: 'Guardamos tu cuenta.' };
+}

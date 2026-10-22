@@ -18,6 +18,9 @@ import { PrismaReportRepository } from "../src/repositories/PrismaReportReposito
 import { CustodyAccount } from "@marketplace/domain/src/entities/CustodyAccount";
 import { PrismaCustodyAccountRepository } from "../src/repositories/PrismaCustodyAccountRepository";
 import { SellerPaymentAccount } from "@marketplace/domain/src/entities/SellerPaymentAccount";
+import { SellerBankAccount } from "@marketplace/domain/src/entities/SellerBankAccount";
+import { BankDestination } from "@marketplace/domain/src/value-objects/BankDestination";
+import { PrismaSellerBankAccountRepository } from "../src/repositories/PrismaSellerBankAccountRepository";
 import { ISecretCipher } from "@marketplace/domain/src/ports/ISecretCipher";
 import {
     PrismaSellerPaymentAccountRepository,
@@ -1312,6 +1315,35 @@ class FakeCipher implements ISecretCipher {
         return Buffer.from(payload.slice(5), "base64").reverse().toString("utf8");
     }
 }
+
+describe("PrismaSellerBankAccountRepository", () => {
+    const bankRepo = new PrismaSellerBankAccountRepository();
+
+    it("guarda una cuenta por moneda y la reemplaza al declararla de nuevo", async () => {
+        const seller = await createPersistedUser({ email: "banco@test.com", role: UserRole.SELLER });
+        const pesos = SellerBankAccount.declare({
+            userId: seller.id,
+            destination: BankDestination.create({ cbu: "0110599520000000000004", holder: "Delia Orrego", currency: "ARS" }),
+        });
+        const dolares = SellerBankAccount.declare({
+            userId: seller.id,
+            destination: BankDestination.create({ alias: "delia.dolares", holder: "Delia Orrego", currency: "USD" }),
+        });
+        await bankRepo.save(pesos);
+        await bankRepo.save(dolares);
+
+        pesos.replace(BankDestination.create({ alias: "delia.pesos", holder: "Delia Orrego", currency: "ARS" }));
+        await bankRepo.save(pesos);
+
+        const todas = await bankRepo.findByUser(seller.id.toString());
+        expect(todas.map((a) => [a.destination.currency, a.destination.cbu, a.destination.alias])).toEqual([
+            ["ARS", undefined, "delia.pesos"],
+            ["USD", undefined, "delia.dolares"],
+        ]);
+        expect((await bankRepo.findByUserAndCurrency(seller.id.toString(), "USD"))?.id.toString()).toBe(dolares.id.toString());
+        expect(await bankRepo.findByUserAndCurrency(new UniqueEntityID().toString(), "ARS")).toBeNull();
+    });
+});
 
 describe("PrismaSellerPaymentAccountRepository", () => {
     const paymentRepo = new PrismaSellerPaymentAccountRepository(new FakeCipher());

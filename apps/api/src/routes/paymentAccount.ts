@@ -1,11 +1,14 @@
 import { FastifyInstance, FastifyReply } from 'fastify';
 import type {
+    DeclareSellerBankAccountRequest,
+    SellerBankAccountDto,
     AuthorizationUrlDto,
     LinkMercadoPagoRequest,
     MercadoPagoAuthorizationRequest,
     SellerPaymentAccountStatusDto,
 } from '@marketplace/api-contract';
 import { Container } from '../container';
+import { SellerBankAccount } from '@marketplace/domain/src/entities/SellerBankAccount';
 import { authenticate, actorOf } from '../plugins/authenticate';
 
 /**
@@ -24,7 +27,52 @@ function noConfigurado(reply: FastifyReply) {
     } as never);
 }
 
+function aBankAccountDto(account: SellerBankAccount): SellerBankAccountDto {
+    const { destination, declaredAt } = account;
+    return {
+        currency: destination.currency,
+        ...(destination.cbu ? { cbu: destination.cbu } : {}),
+        ...(destination.alias ? { alias: destination.alias } : {}),
+        holder: destination.holder,
+        declaredAt: declaredAt.toISOString(),
+    };
+}
+
 export function registerPaymentAccountRoutes(app: FastifyInstance, c: Container): void {
+    // La cuenta bancaria donde el vendedor cobra por transferencia, una por moneda.
+    app.get<{ Reply: SellerBankAccountDto[] }>(
+        '/me/bank-accounts',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            const accounts = await c.getSellerBankAccounts.execute(actorOf(request));
+            return reply.send(accounts.map(aBankAccountDto));
+        },
+    );
+
+    app.put<{ Body: DeclareSellerBankAccountRequest; Reply: SellerBankAccountDto }>(
+        '/me/bank-accounts',
+        {
+            preHandler: [authenticate],
+            schema: {
+                body: {
+                    type: 'object',
+                    required: ['currency', 'holder'],
+                    additionalProperties: false,
+                    properties: {
+                        currency: { type: 'string', enum: ['ARS', 'USD'] },
+                        cbu: { type: 'string', maxLength: 40 },
+                        alias: { type: 'string', maxLength: 40 },
+                        holder: { type: 'string', maxLength: 200 },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
+            const account = await c.declareSellerBankAccount.execute(request.body, actorOf(request));
+            return reply.send(aBankAccountDto(account));
+        },
+    );
+
     app.get<{ Reply: SellerPaymentAccountStatusDto }>(
         '/me/mercadopago',
         { preHandler: [authenticate] },

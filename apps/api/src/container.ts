@@ -8,6 +8,7 @@ import {
     PrismaNotificationRepository,
     PrismaCustodyAccountRepository,
     PrismaSellerPaymentAccountRepository,
+    PrismaSellerBankAccountRepository,
     PrismaYouTubeConnectionRepository,
     PrismaYouTubeChannelListingFinder,
     PrismaTransferStepProgressRepository,
@@ -15,6 +16,10 @@ import {
 
 import { RegisterUserUseCase } from '@marketplace/domain/src/use-cases/auth/RegisterUserUseCase';
 import { LoginUseCase } from '@marketplace/domain/src/use-cases/auth/LoginUseCase';
+import {
+    DeclareSellerBankAccountUseCase,
+    GetSellerBankAccountsUseCase,
+} from '@marketplace/domain/src/use-cases/payment-account/SellerBankAccountUseCases';
 import { VerifyIdentityUseCase } from '@marketplace/domain/src/use-cases/auth/VerifyIdentityUseCase';
 import { GetMyProfileUseCase } from '@marketplace/domain/src/use-cases/auth/GetMyProfileUseCase';
 import { CreateListingUseCase } from '@marketplace/domain/src/use-cases/listing/CreateListingUseCase';
@@ -159,6 +164,8 @@ export interface Container {
     linkSellerPaymentAccount?: LinkSellerPaymentAccountUseCase;
     getSellerPaymentAccountStatus?: GetSellerPaymentAccountStatusUseCase;
     unlinkSellerPaymentAccount?: UnlinkSellerPaymentAccountUseCase;
+    declareSellerBankAccount: DeclareSellerBankAccountUseCase;
+    getSellerBankAccounts: GetSellerBankAccountsUseCase;
     /** Lo usa el cobro con split (`MERCADOPAGO_SPLIT_ENABLED`) para operar con el token del vendedor. */
     getSellerAccessToken?: GetSellerAccessTokenUseCase;
     /**
@@ -470,8 +477,12 @@ export function createContainer(
         },
     });
 
+    const bankAccountRepo = new PrismaSellerBankAccountRepository();
+
     return {
         listingRepo,
+        declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo),
+        getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,
         mercadoPagoOAuth: paymentAccountWiring?.oauth,
         linkSellerPaymentAccount: paymentAccountWiring

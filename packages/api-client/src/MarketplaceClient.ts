@@ -58,6 +58,8 @@ import {
     DomainDeliveryCheckDto,
     AttestTransferStepRequest,
     RejectTransferRequest,
+    SellerBankAccountDto,
+    DeclareSellerBankAccountRequest,
     TransferStepAttestationDto,
 } from '@marketplace/api-contract';
 import { ApiError } from './ApiError';
@@ -127,6 +129,18 @@ export class MarketplaceClient {
 
     marcarAvisoLeido(id: string): Promise<void> {
         return this.request('POST', `/me/notifications/${encodeURIComponent(id)}/read`);
+    }
+
+    // ── Cuenta bancaria del vendedor ─────────────────────
+
+    /** Las cuentas donde el vendedor cobra por transferencia, una por moneda. */
+    bankAccounts(): Promise<SellerBankAccountDto[]> {
+        return this.request('GET', '/me/bank-accounts');
+    }
+
+    /** Declara o reemplaza la cuenta de una moneda. */
+    declareBankAccount(body: DeclareSellerBankAccountRequest): Promise<SellerBankAccountDto> {
+        return this.request('PUT', '/me/bank-accounts', { body });
     }
 
     // ── Cuenta de Mercado Pago del vendedor ──────────────

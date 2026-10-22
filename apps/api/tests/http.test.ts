@@ -4031,3 +4031,52 @@ describe('Verificación del acceso de la plataforma con la cuenta de custodia', 
         });
     });
 });
+
+/** La cuenta bancaria del vendedor para cobrar por transferencia, una por moneda. */
+describe('/me/bank-accounts', () => {
+    async function declarar(email: string, payload: unknown) {
+        return app.inject({
+            method: 'PUT',
+            url: '/me/bank-accounts',
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+            payload,
+        });
+    }
+
+    it('el vendedor declara su cuenta y la ve en la lista', async () => {
+        const email = `vendedor-banco-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.SELLER);
+
+        const res = await declarar(email, { currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego' });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toMatchObject({ currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego' });
+
+        const lista = await app.inject({
+            method: 'GET',
+            url: '/me/bank-accounts',
+            headers: { authorization: `Bearer ${await tokenDe(email)}` },
+        });
+        expect(lista.json()).toEqual([
+            { currency: 'ARS', cbu: '0110599520000000000004', holder: 'Delia Orrego', declaredAt: expect.any(String) },
+        ]);
+    });
+
+    it('400 con un CBU que no valida, con el motivo', async () => {
+        const email = `vendedor-banco-mal-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.SELLER);
+
+        const res = await declarar(email, { currency: 'ARS', cbu: '0110599520000000000005', holder: 'Delia Orrego' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.json().message).toBe('El CBU no es válido: revisá los números.');
+    });
+
+    it('403 para un admin', async () => {
+        const email = `admin-banco-${Date.now()}@test.com`;
+        await crearUsuario(email, UserRole.ADMIN);
+
+        const res = await declarar(email, { currency: 'ARS', alias: 'plataforma.x', holder: 'Plataforma' });
+
+        expect(res.statusCode).toBe(403);
+    });
+});

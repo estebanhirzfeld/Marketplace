@@ -5,6 +5,8 @@ import { Operation, OperationStatus } from '../entities/Operation';
 import { Contract } from '../entities/Contract';
 import { CustodyAccount } from '../entities/CustodyAccount';
 import { SellerPaymentAccount } from '../entities/SellerPaymentAccount';
+import { SellerBankAccount } from '../entities/SellerBankAccount';
+import { BankCurrency } from '../value-objects/BankDestination';
 import { YouTubeConnection } from '../entities/YouTubeConnection';
 import { TransferStepProgress, TransferStepScope } from '../entities/TransferStepProgress';
 import { ListingStatus } from '../entities/Listing';
@@ -153,6 +155,14 @@ export interface IReportRepository {
     /** Las abiertas, para el tablero de la plataforma. */
     findOpen(): Promise<Report[]>;
     save(report: Report): Promise<void>;
+}
+
+/** Las cuentas bancarias donde el vendedor cobra por transferencia, una por moneda. */
+export interface ISellerBankAccountRepository {
+    findByUser(userId: string): Promise<SellerBankAccount[]>;
+    findByUserAndCurrency(userId: string, currency: BankCurrency): Promise<SellerBankAccount | null>;
+    /** Alta o reemplazo de la cuenta de esa moneda. */
+    save(account: SellerBankAccount): Promise<void>;
 }
 
 /**

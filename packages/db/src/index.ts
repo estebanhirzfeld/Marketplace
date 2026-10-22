@@ -20,6 +20,7 @@ export { PrismaContractRepository } from "./repositories/PrismaContractRepositor
 export { PrismaNotificationRepository } from "./repositories/PrismaNotificationRepository";
 export { PrismaCustodyAccountRepository } from "./repositories/PrismaCustodyAccountRepository";
 export { PrismaSellerPaymentAccountRepository } from "./repositories/PrismaSellerPaymentAccountRepository";
+export { PrismaSellerBankAccountRepository } from "./repositories/PrismaSellerBankAccountRepository";
 export { PrismaYouTubeConnectionRepository } from "./repositories/PrismaYouTubeConnectionRepository";
 export { PrismaYouTubeChannelListingFinder } from "./repositories/PrismaYouTubeChannelListingFinder";
 export { PrismaTransferStepProgressRepository } from "./repositories/PrismaTransferStepProgressRepository";

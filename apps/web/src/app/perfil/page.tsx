@@ -7,6 +7,7 @@ import { ButtonLink, Panel, Heading, EmptyState } from '@/components/ui';
 import { logoutAction } from '@/app/actions';
 import { nombreDePais } from '@/components/paises';
 import { MercadoPagoSection } from '@/components/MercadoPagoSection';
+import { BankAccountSection } from '@/components/BankAccountSection';
 import { parseLinkResult } from '@/lib/mercadopagoLink';
 
 export const metadata = { title: 'Mi perfil · Traspaso' };
@@ -95,6 +96,12 @@ export default async function Perfil({
                             para que el admin no deje un hueco vacío. */}
                         <Reveal delay={120}>
                             <MercadoPagoSection role={actor.role} result={resultadoMercadoPago} />
+                        </Reveal>
+
+                        <Reveal delay={140}>
+                            <div id="cuenta-bancaria" className="scroll-mt-24">
+                                <BankAccountSection role={actor.role} />
+                            </div>
                         </Reveal>
 
                         <Reveal delay={160}>

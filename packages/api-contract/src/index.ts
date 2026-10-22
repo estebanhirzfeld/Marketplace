@@ -352,6 +352,23 @@ export interface AuthorizationUrlDto {
 
 // ── Cuenta de Mercado Pago del vendedor ──────────────────
 
+/** La cuenta bancaria donde el vendedor cobra por transferencia, en una moneda. */
+export interface SellerBankAccountDto {
+    currency: 'ARS' | 'USD';
+    cbu?: string;
+    alias?: string;
+    holder: string;
+    declaredAt: string;
+}
+
+/** Declarar o reemplazar la cuenta de una moneda: un CBU o un alias, no los dos. */
+export interface DeclareSellerBankAccountRequest {
+    currency: 'ARS' | 'USD';
+    cbu?: string;
+    alias?: string;
+    holder: string;
+}
+
 /**
  * El estado de la vinculación. Nunca incluye los tokens: solo lo que el
  * vendedor necesita ver.
