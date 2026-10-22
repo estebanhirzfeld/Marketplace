@@ -247,7 +247,7 @@ export class GetOperationDetailsUseCase {
             // custodia ocurre en la operación, no al publicar.
             handoverSteps =
                 firmada && (listing.isReadyToTransfer() || isWebListing(listing))
-                    ? listing.handoverSteps(contexto, 'operation')
+                    ? listing.sellerSteps(contexto, 'operation')
                     : [];
         }
 

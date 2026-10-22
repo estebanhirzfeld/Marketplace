@@ -42,6 +42,24 @@ export interface TransferStepLink {
 export type TransferPhase = 'listing' | 'operation';
 
 /**
+ * En qué tramo del escrow cae un paso, en orden: mientras está publicado, la
+ * custodia, el pago, la entrega al comprador y el cierre. La fase de las
+ * pantallas se deriva de acá: `listing` es la publicación, lo demás es la
+ * operación.
+ */
+export type TransferStage = 'listing' | 'custody' | 'payment' | 'delivery' | 'closing';
+
+/** El orden de las etapas, para ordenar los pasos. */
+export const TRANSFER_STAGE_ORDER: readonly TransferStage[] = ['listing', 'custody', 'payment', 'delivery', 'closing'];
+
+/**
+ * Lo que un paso traba mientras no se cumple: la firma del tripartito, la
+ * custodia, el pago, la recepción del comprador o el cierre. Ausente en los
+ * pasos informativos.
+ */
+export type TransferGate = 'sign' | 'custody' | 'payment' | 'receipt' | 'complete';
+
+/**
  * Quién da fe de que un paso se cumplió.
  *
  * - `automatic`: lo comprueba el sistema solo, con una señal externa o el paso
@@ -59,13 +77,10 @@ export interface TransferStep {
      * que permite guardar el progreso de cada uno.
      */
     key: string;
-    /**
-     * Cuándo se le muestra el paso al vendedor. Ausente en los pasos que no son
-     * suyos —de la plataforma o del comprador— y en los del vendedor que son de
-     * la entrega y no de la cesión, que no se le piden en ninguna de las dos
-     * fases.
-     */
-    phase?: TransferPhase;
+    /** En qué tramo del escrow cae. Lo declara todo paso, de cualquier parte. */
+    stage: TransferStage;
+    /** Lo que el paso traba mientras no se cumple. */
+    gate?: TransferGate;
     /** Qué pasa en este paso, contado en tercera persona. */
     description: string;
     /**

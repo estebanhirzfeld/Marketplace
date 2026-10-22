@@ -53,23 +53,25 @@ describe('YouTubeStrategy.getTransferSteps sin contexto', () => {
         const iInvitacion = pasos.findIndex((p) => /invita a la plataforma/i.test(p.description));
         const iPromocion = pasos.findIndex((p) => /promueve a/i.test(p.description));
 
-        expect(pasos[iOptOut].phase).toBe('operation');
+        expect(pasos[iOptOut].stage).toBe('custody');
         expect(iOptOut).toBeGreaterThan(iInvitacion);
         expect(iOptOut).toBeLessThan(iPromocion);
     });
 
-    it('cada paso del vendedor declara su fase y los de la plataforma y el comprador no', () => {
-        const pasos = youtube().getTransferSteps();
+    it('los pasos del vendedor van en la publicación y en la custodia', () => {
+        const delVendedor = youtube()
+            .getTransferSteps()
+            .filter((p) => p.requiredActor === 'seller');
 
-        expect(pasos.filter((p) => p.phase === 'listing').map((p) => p.title)).toEqual([
+        expect(delVendedor.filter((p) => p.stage === 'listing').map((p) => p.title)).toEqual([
             'Pasá tu canal a una cuenta de marca',
             'Invitanos como administrador',
         ]);
-        expect(pasos.filter((p) => p.phase === 'operation').map((p) => p.title)).toEqual([
+        expect(delVendedor.filter((p) => p.stage === 'custody').map((p) => p.title)).toEqual([
             'Quitá tu acceso directo al canal',
             'Hacenos propietario principal',
         ]);
-        expect(pasos.filter((p) => p.requiredActor !== 'seller').every((p) => p.phase === undefined)).toBe(true);
+        expect(delVendedor.every((p) => p.stage === 'listing' || p.stage === 'custody')).toBe(true);
     });
 
     it('los id son posicionales y correlativos', () => {
@@ -180,7 +182,7 @@ describe('WebStrategy.getTransferSteps', () => {
         const haciaLaPlataforma = pasos.find((p) => p.key === 'domain-to-platform')!;
 
         expect(haciaLaPlataforma.requiredActor).toBe('seller');
-        expect(haciaLaPlataforma.phase).toBe('operation');
+        expect(haciaLaPlataforma.stage).toBe('custody');
         expect(haciaLaPlataforma.check).toBe('automatic');
         expect(haciaLaPlataforma.instruction).toContain('custodia@marketplace.com');
     });
@@ -196,7 +198,7 @@ describe('WebStrategy.getTransferSteps', () => {
     });
 
     it('antes de la venta se le pide al vendedor tener el dominio en Hostinger y se le avisa de los 60 días', () => {
-        const [previo, ...resto] = web().getTransferSteps().filter((p) => p.phase === 'listing');
+        const [previo, ...resto] = web().getTransferSteps().filter((p) => p.stage === 'listing');
 
         expect(resto).toHaveLength(0);
         expect(previo.requiredActor).toBe('seller');
@@ -208,7 +210,7 @@ describe('WebStrategy.getTransferSteps', () => {
     it('en la operación el vendedor traslada el dominio y declara hosting, código y cuentas', () => {
         const delVendedor = web()
             .getTransferSteps()
-            .filter((p) => p.phase === 'operation');
+            .filter((p) => p.requiredActor === 'seller' && p.stage !== 'listing');
 
         expect(delVendedor.map((p) => p.key)).toEqual(['domain-to-platform', 'hosting', 'code', 'accounts']);
         expect(delVendedor.filter((p) => p.key !== 'domain-to-platform').every((p) => p.check === 'declared')).toBe(true);
@@ -242,7 +244,7 @@ describe('WebStrategy.getTransferSteps', () => {
     it('los pasos del vendedor antes de la venta llevan título, dicho al vendedor', () => {
         const antes = web()
             .getTransferSteps()
-            .filter((p) => p.phase === 'listing');
+            .filter((p) => p.stage === 'listing');
 
         expect(antes.length).toBeGreaterThan(0);
         for (const paso of antes) {
@@ -409,7 +411,7 @@ describe.each([
 });
 
 describe('WebStrategy.getTransferSteps: pasos de la operación', () => {
-    it('hay pasos de fase operación, que es lo que muestra el detalle de la operación', () => {
-        expect(web().getTransferSteps().some((p) => p.phase === 'operation')).toBe(true);
+    it('hay pasos fuera de la publicación, que es lo que muestra el detalle de la operación', () => {
+        expect(web().getTransferSteps().some((p) => p.stage !== 'listing')).toBe(true);
     });
 });

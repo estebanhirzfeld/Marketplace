@@ -7,6 +7,7 @@ import {
     IAssetStrategy,
     TransferContext,
     TransferPhase,
+    TRANSFER_STAGE_ORDER,
     TransferReadiness,
     TransferStep,
 } from '../strategies/IAssetStrategy';
@@ -349,25 +350,30 @@ export class Listing extends Entity<ListingProps> {
         return this.props.assetStrategy.normalizeRecipientIdentifier(identifier);
     }
 
-    public handoverSteps(
-        context?: TransferContext,
-        phase: TransferPhase = 'listing',
-    ): HandoverStep[] {
-        /*
-         * La fase la declara cada paso en su estrategia, y acá solo se filtra.
-         * Antes se deducía de la posición —el tramo anterior al comprador, y
-         * «después del primer paso nuestro» para lo que llegaba con el
-         * contrato—, y esa inferencia dejó de alcanzar cuando hubo pasos del
-         * vendedor que no son de la cesión (migrar el hosting) y otros que se
-         * esconden a propósito hasta la operación.
-         *
-         * Por defecto es la fase de publicación: es lo único que se le muestra
-         * al vendedor mientras no haya una venta en curso.
-         */
+    /**
+     * Todos los pasos del traspaso, de todas las partes, ordenados por etapa.
+     * La etapa la declara cada paso en su estrategia; la fase que ven las
+     * pantallas se deriva de ella: la publicación o la operación.
+     */
+    public handoverSteps(context?: TransferContext): HandoverStep[] {
+        const order = (step: TransferStep) => TRANSFER_STAGE_ORDER.indexOf(step.stage);
         return this.props.assetStrategy
             .getTransferSteps(context)
-            .filter((p): p is TransferStep & { phase: TransferPhase } => p.phase === phase)
-            .map((paso) => ({ ...paso, afterPlatformStarts: paso.phase === 'operation' }));
+            .map((paso, i) => ({ paso, i }))
+            .sort((a, b) => order(a.paso) - order(b.paso) || a.i - b.i)
+            .map(({ paso }) => {
+                const phase: TransferPhase = paso.stage === 'listing' ? 'listing' : 'operation';
+                return { ...paso, phase, afterPlatformStarts: phase === 'operation' };
+            });
+    }
+
+    /**
+     * Los pasos del vendedor de una fase: lo que se le pide mientras está
+     * publicado, o con la venta firmada. Por defecto, la publicación: es lo
+     * único que se le muestra mientras no haya una venta en curso.
+     */
+    public sellerSteps(context?: TransferContext, phase: TransferPhase = 'listing'): HandoverStep[] {
+        return this.handoverSteps(context).filter((p) => p.requiredActor === 'seller' && p.phase === phase);
     }
 
     /**

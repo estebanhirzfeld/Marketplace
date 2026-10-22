@@ -155,7 +155,8 @@ export class WebStrategy implements IAssetStrategy {
                  */
                 key: 'domain-at-hostinger',
                 check: 'declared',
-                phase: 'listing',
+                stage: 'listing',
+                gate: 'sign',
                 description: 'El vendedor tiene el dominio en Hostinger, o planea mudarlo con el código EPP antes de vender',
                 title: 'Tené el dominio en Hostinger',
                 instruction: 'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger: si hoy está en otro registrador, pedí el código EPP y mudalo antes de recibir ofertas.',
@@ -169,7 +170,8 @@ export class WebStrategy implements IAssetStrategy {
             {
                 key: 'domain-to-platform',
                 check: 'automatic',
-                phase: 'operation',
+                stage: 'custody',
+                gate: 'custody',
                 description: `El vendedor traslada el dominio a la cuenta de Hostinger de ${aQuienTraslada}`,
                 title: 'Trasladá el dominio a nuestra cuenta',
                 instruction: `Con el contrato firmado, trasladá el dominio a la cuenta de Hostinger de ${aQuienTraslada}.`,
@@ -183,7 +185,8 @@ export class WebStrategy implements IAssetStrategy {
             {
                 key: 'hosting',
                 check: 'declared',
-                phase: 'operation',
+                stage: 'delivery',
+                gate: 'receipt',
                 description: 'El vendedor deja el hosting y los archivos del sitio listos para entregar',
                 title: 'Dejá el hosting y los archivos listos',
                 instruction: 'Dejá el hosting y los archivos del sitio listos para entregarle al comprador.',
@@ -192,7 +195,8 @@ export class WebStrategy implements IAssetStrategy {
             {
                 key: 'code',
                 check: 'declared',
-                phase: 'operation',
+                stage: 'delivery',
+                gate: 'receipt',
                 description: 'El vendedor deja el código y la base de datos listos para entregar',
                 title: 'Dejá el código y la base de datos listos',
                 instruction: 'Dejá el código y la base de datos del sitio listos para entregarle al comprador.',
@@ -201,7 +205,8 @@ export class WebStrategy implements IAssetStrategy {
             {
                 key: 'accounts',
                 check: 'declared',
-                phase: 'operation',
+                stage: 'delivery',
+                gate: 'receipt',
                 description: 'El vendedor deja listas las cuentas asociadas: analítica, afiliados o tienda',
                 title: 'Dejá listas las cuentas asociadas',
                 instruction: 'Dejá listas las cuentas asociadas al sitio, como la analítica, los programas de afiliados o la tienda, para cederlas al comprador.',
@@ -219,6 +224,8 @@ export class WebStrategy implements IAssetStrategy {
                  */
                 key: 'domain-to-buyer',
                 check: 'automatic',
+                stage: 'delivery',
+                gate: 'receipt',
                 description: comprador
                     ? `La plataforma traslada el dominio a la cuenta de Hostinger del comprador (${comprador})`
                     : 'La plataforma traslada el dominio a la cuenta de Hostinger del comprador',

@@ -4,8 +4,8 @@ import {
     ICustodyAccountRepository,
 } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
-import { Listing, ListingStatus, OwnershipVerification } from '../../entities/Listing';
-import { AssetTypeDescriptor, TransferContext, TransferStep } from '../../strategies/IAssetStrategy';
+import { HandoverStep, Listing, ListingStatus, OwnershipVerification } from '../../entities/Listing';
+import { AssetTypeDescriptor, TransferContext } from '../../strategies/IAssetStrategy';
 import { NotFoundError } from '../../errors/DomainError';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { UserRole } from '@marketplace/shared-types';
@@ -31,7 +31,7 @@ export interface ListingDetailView {
     transferable: boolean;
     transferableFrom?: Date;
     /** Lo que le falta al vendedor para cedernos el activo. */
-    handoverSteps: TransferStep[];
+    handoverSteps: HandoverStep[];
     /** Lo que este tipo de activo sabe de sí mismo. */
     descriptor: AssetTypeDescriptor;
     createdAt: Date;
@@ -141,7 +141,7 @@ export class GetListingDetailsUseCase {
             isOwnedByViewer: esDuenio,
             transferable: listing.isReadyToTransfer(),
             transferableFrom: listing.transferableFrom(),
-            handoverSteps: puedeVerPasos ? listing.handoverSteps(contexto) : [],
+            handoverSteps: puedeVerPasos ? listing.sellerSteps(contexto) : [],
             descriptor: listing.describeAssetType(),
             createdAt: listing.toSnapshot().createdAt,
         };

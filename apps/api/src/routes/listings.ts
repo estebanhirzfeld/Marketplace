@@ -140,10 +140,13 @@ export function registerListingRoutes(app: FastifyInstance, c: Container): void 
                     monthlyRevenueCents: view.ownership.monthlyRevenueCents,
                 },
                 transferableFrom: view.transferableFrom?.toISOString(),
-                handoverSteps: view.handoverSteps.map(({ id, key, check, description, instruction, title, details, links, phase }) => ({
+                handoverSteps: view.handoverSteps.map(({ id, key, check, description, instruction, title, details, links, phase, stage, gate, requiredActor }) => ({
                     id,
                     key,
                     check,
+                    stage,
+                    gate,
+                    requiredActor,
                     description,
                     instruction,
                     title,

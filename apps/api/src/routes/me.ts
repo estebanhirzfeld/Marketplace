@@ -63,7 +63,7 @@ function aMyListingDto(
     custodyAccountIdentifier?: string,
 ): MyListingDto {
     const { id, createdAt, props } = listing.toSnapshot();
-    const pasos = handoverSteps ?? listing.handoverSteps();
+    const pasos = handoverSteps ?? listing.sellerSteps();
     return {
         id,
         status: props.status,
@@ -90,10 +90,13 @@ function aMyListingDto(
         },
         transferable: listing.isReadyToTransfer(),
         transferableFrom: listing.transferableFrom()?.toISOString(),
-        handoverSteps: pasos.map(({ id, key, check, description, instruction, title, details, links, phase, afterPlatformStarts }) => ({
+        handoverSteps: pasos.map(({ id, key, check, description, instruction, title, details, links, phase, afterPlatformStarts, stage, gate, requiredActor }) => ({
             id,
             key,
             check,
+            stage,
+            gate,
+            requiredActor,
             description,
             instruction,
             title,

@@ -64,7 +64,7 @@ export class GetMyListingsUseCase {
 
             return {
                 listing,
-                handoverSteps: listing.handoverSteps(
+                handoverSteps: listing.sellerSteps(
                     identifier ? { custodyAccountIdentifier: identifier } : undefined,
                 ),
                 custodyAccountIdentifier: identifier,

@@ -644,6 +644,10 @@ export type PlatformAccessStatusDto = 'pending' | 'verifying' | 'waiting' | 'imm
 /** Quién da fe de que un paso se cumplió: el sistema, quien lo declara o el admin. */
 export type TransferStepCheckDto = 'automatic' | 'declared' | 'admin';
 
+export type TransferStageDto = 'listing' | 'custody' | 'payment' | 'delivery' | 'closing';
+
+export type TransferGateDto = 'sign' | 'custody' | 'payment' | 'receipt' | 'complete';
+
 export interface HandoverStepDto {
     id: string;
     /** Clave estable del paso dentro de su tipo de activo. Ausente en respuestas anteriores. */
@@ -652,6 +656,12 @@ export interface HandoverStepDto {
     check?: TransferStepCheckDto;
     /** Cuándo se le pide. Los pasos de la fase `operation` aparecen recién con la venta firmada. */
     phase?: TransferPhaseDto;
+    /** En qué tramo del escrow cae. Ausente en respuestas anteriores. */
+    stage?: TransferStageDto;
+    /** Lo que traba mientras no se cumple. Ausente en los pasos informativos. */
+    gate?: TransferGateDto;
+    /** Quién lo hace. Ausente en respuestas anteriores. */
+    requiredActor?: 'seller' | 'buyer' | 'platform';
     /** Contado en tercera persona: es lo que lee la plataforma al atestiguar. */
     description: string;
     /** El mismo paso dicho al vendedor, que es quien lo hace. */

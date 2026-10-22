@@ -55,7 +55,7 @@ export class AttestTransferStepUseCase {
             throw new NotFoundError('Activo no encontrado');
         }
 
-        const step = listing.handoverSteps(undefined, 'operation').find((s) => s.key === stepKey);
+        const step = listing.sellerSteps(undefined, 'operation').find((s) => s.key === stepKey);
         if (!step) {
             throw new ValidationError('Ese paso no es parte de la entrega de este activo.');
         }

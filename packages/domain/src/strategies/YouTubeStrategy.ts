@@ -319,7 +319,8 @@ export class YouTubeStrategy implements IAssetStrategy {
     // viajan al DTO como clave de render.
     const pasos: Omit<TransferStep, 'id'>[] = [
       {
-        phase: 'listing',
+        stage: 'listing',
+        gate: 'sign',
         description: 'El vendedor convierte el canal a Cuenta de Marca si todavía no lo es',
         title: 'Pasá tu canal a una cuenta de marca',
         instruction: 'Pasá tu canal a una cuenta de marca si todavía no lo es: este paso va antes de invitarnos.',
@@ -352,7 +353,8 @@ export class YouTubeStrategy implements IAssetStrategy {
          * negativo el vendedor la puede verificar en la interfaz de Google;
          * una en positivo le pide que nos crea.
          */
-        phase: 'listing',
+        stage: 'listing',
+        gate: 'sign',
         description: `El vendedor invita a ${aQuienInvita} como administrador del canal`,
         title: 'Invitanos como administrador',
         instruction: `Invitá a ${aQuienInvita} con el rol Administrador desde la administración de tu Cuenta de Marca.`,
@@ -371,6 +373,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // administradora, y de ahí cuenta el plazo de Google. No se afirma si
         // el plazo corre desde la invitación o desde la aceptación: no está
         // verificado.
+        stage: 'listing',
+        gate: 'sign',
         description: 'La plataforma acepta la invitación como administradora desde la cuenta de custodia',
         requiredActor: 'platform',
         key: 'platform-accepts',
@@ -380,6 +384,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // Verificar la titularidad por API es posible con un OAuth del
         // vendedor (`channels.list` con `mine=true`), pero todavía no está
         // implementado: hasta que lo esté, esto lo hace una persona.
+        stage: 'listing',
+        gate: 'sign',
         description: 'La plataforma verifica la titularidad, los accesos de recuperación y toma una foto de las métricas',
         requiredActor: 'platform',
         key: 'verify-ownership',
@@ -389,6 +395,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // Informativo: a los 7 días se cumple el requisito de Google, pero no
         // pasa nada solo. El cambio de propietario principal lo hace el
         // vendedor, y es el paso siguiente.
+        stage: 'listing',
+        gate: 'sign',
         description: 'Pasados 7 días como administradora, la plataforma ya cumple el requisito de Google para poder recibir la titularidad',
         requiredActor: 'platform',
         key: 'seven-day-wait',
@@ -399,7 +407,8 @@ export class YouTubeStrategy implements IAssetStrategy {
         // Studio, el cambio de propietario principal falla sin explicar por
         // qué. Va en la operación y justo ANTES de la promoción: es la causa
         // de ese error incomprensible, y recién ahí hay una venta que lo pida.
-        phase: 'operation',
+        stage: 'custody',
+        gate: 'custody',
         description: 'El vendedor sale de los permisos de canal en YouTube Studio (Configuración → Permisos), que conviven con la Cuenta de Marca y bloquean el cambio de propietario principal',
         title: 'Quitá tu acceso directo al canal',
         instruction: 'Quitá tu propio acceso de nivel de canal en YouTube Studio: solo tiene que quedar el de la Cuenta de Marca.',
@@ -422,7 +431,8 @@ export class YouTubeStrategy implements IAssetStrategy {
          * convertiría en una sorpresa tardía, que es la desconfianza que el
          * producto intenta eliminar.
          */
-        phase: 'operation',
+        stage: 'custody',
+        gate: 'custody',
         description: `El vendedor promueve a ${aQuienInvita} de administrador a propietario principal`,
         title: 'Hacenos propietario principal',
         instruction: 'Con el contrato ya firmado, hacenos propietario principal desde la Cuenta de Marca.',
@@ -437,12 +447,17 @@ export class YouTubeStrategy implements IAssetStrategy {
         check: 'declared',
       },
       {
-        description: 'El comprador transfiere el dinero, que queda retenido por la plataforma',
+        stage: 'payment',
+        gate: 'payment',
+        description: 'El comprador paga, con el canal ya en custodia de la plataforma',
+        title: 'Pagá la compra',
+        instruction: 'Con el canal ya en nuestra custodia, pagá desde esta operación con el medio que elijas.',
         requiredActor: 'buyer',
         key: 'buyer-pays',
         check: 'automatic',
       },
       {
+        stage: 'delivery',
         description: comprador
           ? `La plataforma invita al comprador (${comprador}) como propietario del canal`
           : 'La plataforma invita al comprador como propietario del canal',
@@ -451,13 +466,21 @@ export class YouTubeStrategy implements IAssetStrategy {
         check: 'admin',
       },
       {
+        stage: 'delivery',
+        gate: 'receipt',
         description: 'El comprador acepta la invitación e inicia su propia espera de 7 días',
+        title: 'Aceptá la invitación al canal',
+        instruction: 'Aceptá la invitación que te llega por mail a la cuenta de Google que nos indicaste: desde ahí corren tus 7 días.',
         requiredActor: 'buyer',
         key: 'buyer-accepts',
         check: 'declared',
       },
       {
+        stage: 'delivery',
+        gate: 'receipt',
         description: 'El comprador se convierte en propietario principal y asegura sus accesos (correos, teléfonos, AdSense)',
+        title: 'Asegurá tus accesos',
+        instruction: 'Cuando seas propietario principal, cambiá los correos y teléfonos de recuperación y vinculá tu cuenta de AdSense.',
         requiredActor: 'buyer',
         key: 'buyer-secures-access',
         check: 'declared',
@@ -465,6 +488,8 @@ export class YouTubeStrategy implements IAssetStrategy {
       {
         // Quitar a un propietario se hace a mano en la interfaz de Cuentas de
         // Marca: no hay endpoint.
+        stage: 'closing',
+        gate: 'complete',
         description: 'La plataforma quita al vendedor del canal, le liquida su parte y cierra la operación',
         requiredActor: 'platform',
         key: 'remove-seller',
