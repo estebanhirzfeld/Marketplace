@@ -153,6 +153,27 @@ export class TransferStepProgress extends Entity<TransferStepProgressProps> {
         this.observe(now, evidence);
     }
 
+    /**
+     * Un intento nuevo del mismo paso (otro traslado, con su propia
+     * invitación): vuelve a pendiente desde cero, sin la evidencia del
+     * anterior. Un paso cumplido o rechazado no se reabre.
+     */
+    public restart(startedAt: Date, deadlineAt?: Date): void {
+        if (this.props.status === 'done' || this.props.status === 'rejected') {
+            throw new InvalidStateError('Un paso cumplido o rechazado no se reabre.');
+        }
+        if (deadlineAt && deadlineAt.getTime() <= startedAt.getTime()) {
+            throw new ValidationError('El plazo del paso debe ser posterior a su inicio.');
+        }
+        this.props.status = 'pending';
+        this.props.startedAt = startedAt;
+        this.props.deadlineAt = deadlineAt;
+        this.props.evidence = {};
+        this.props.lastCheckedAt = undefined;
+        this.props.remindedAt = undefined;
+        this.props.escalatedAt = undefined;
+    }
+
     /** Solo vence pasado el plazo. */
     public markExpired(now: Date): void {
         if (!this.isOverdue(now)) {

@@ -140,12 +140,20 @@ export class CheckDomainCustodyUseCase {
                 return progress.status;
             }
 
-            // Un paso vencido solo se cumple con el dominio en la cartera.
+            const move = await this.registrar.getIncomingMove(domain);
+            // El paso arranca con la invitación del traslado: otra fecha es otro
+            // traslado (el anterior se cayó o la cesión se rechazó), y se
+            // atiende como un intento nuevo, aunque el anterior haya vencido.
+            const isNewMove = !!move && !!existing && existing.startedAt.getTime() !== move.createdAt.getTime();
+            if (move && existing && isNewMove) {
+                existing.restart(move.createdAt, invitationDeadline(move));
+            }
+
+            // Un paso vencido sin un traslado nuevo solo se cumple con el dominio en la cartera.
             if (existing?.status === 'expired') {
                 return existing.status;
             }
 
-            const move = await this.registrar.getIncomingMove(domain);
             if (!move) {
                 if (existing) {
                     existing.recordCheck(now);

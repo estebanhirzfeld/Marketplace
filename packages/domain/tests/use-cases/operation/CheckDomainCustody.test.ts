@@ -410,6 +410,49 @@ describe('CheckDomainCustodyUseCase', () => {
         });
     });
 
+    /*
+     * Si el traslado del vendedor se cae en Hostinger y vuelve a iniciar otro
+     * (por ejemplo, después de que la plataforma rechazó su cesión), el nuevo
+     * es otro intento: se acepta y su plazo es el de la invitación nueva.
+     */
+    describe('un traslado nuevo', () => {
+        const NEW_INVITE = new Date(INVITED_AT.getTime() + 12 * DAY_MS);
+        const aNewMove = (status: RegistrarMove['status']): RegistrarMove => ({
+            domain: DomainName.parse(DOMAIN),
+            status,
+            createdAt: NEW_INVITE,
+            updatedAt: NEW_INVITE,
+        });
+
+        it('sobre un paso en curso, se acepta y reinicia el plazo', async () => {
+            const { useCase, id, registrar, registrarState, clock, row } = setup({ incoming: aMove('initiated') });
+            await useCase.execute(id);
+
+            clock.now = new Date(NEW_INVITE.getTime() + DAY_MS);
+            registrarState.incoming = aNewMove('initiated');
+            const status = await useCase.execute(id);
+
+            expect(status).toBe('waiting');
+            expect(registrar.acceptIncomingMove).toHaveBeenCalledTimes(2);
+            expect(row()?.startedAt).toEqual(NEW_INVITE);
+            expect(row()?.deadlineAt).toEqual(new Date(NEW_INVITE.getTime() + 10 * DAY_MS));
+        });
+
+        it('sobre un paso vencido, también se acepta', async () => {
+            const { useCase, id, registrar, registrarState, clock, row } = setup({ incoming: aMove('initiated') });
+            await useCase.execute(id);
+            clock.now = new Date(INVITED_AT.getTime() + 11 * DAY_MS);
+            row()!.markExpired(clock.now);
+
+            clock.now = new Date(NEW_INVITE.getTime() + DAY_MS);
+            registrarState.incoming = aNewMove('initiated');
+            const status = await useCase.execute(id);
+
+            expect(status).toBe('waiting');
+            expect(registrar.acceptIncomingMove).toHaveBeenCalledTimes(2);
+        });
+    });
+
     describe('guarda de aceptación', () => {
         it('no consulta ni acepta nada si la operación no está en transfer_in_progress', async () => {
             const { useCase, id, registrar } = setup({ state: 'contract_signed', incoming: aMove('initiated') });
