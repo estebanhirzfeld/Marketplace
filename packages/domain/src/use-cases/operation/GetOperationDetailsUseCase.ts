@@ -21,6 +21,9 @@ import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ConfidentialAccess } from '../../services/ConfidentialAccess';
 import { isWebListing } from '../../services/WebCustody';
 import { NotFoundError } from '../../errors/DomainError';
+import { nextActions, NextActionsInput, NextActionsResult, PaymentAvailability } from '../../services/NextActions';
+import { HandoverDeadlines } from '../../value-objects/HandoverDeadlines';
+import { GetPaymentOptionsUseCase } from './GetPaymentOptionsUseCase';
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -117,6 +120,8 @@ export interface OperationDetailView {
      * no está en el padrón, que no es lo mismo que no haberse registrado nunca.
      */
     custodyAccountNames?: { declared?: string; verified?: string };
+    /** La próxima acción de cada rol, a quién le toca y la línea de tiempo común. */
+    next: NextActionsResult;
 }
 
 /**
@@ -139,6 +144,12 @@ export class GetOperationDetailsUseCase {
         private readonly custodyRepo?: ICustodyAccountRepository,
         /** Opcional por la misma razón: sin él, `stepProgress` queda `undefined`. */
         private readonly progressRepo?: ITransferStepProgressRepository,
+        /**
+         * Los medios de pago, para saber a quién le toca con el activo en
+         * custodia. Sin él, la próxima acción da el pago por no disponible.
+         */
+        private readonly paymentOptions?: GetPaymentOptionsUseCase,
+        private readonly deadlines: HandoverDeadlines = new HandoverDeadlines(),
     ) {}
 
     /**
@@ -271,6 +282,22 @@ export class GetOperationDetailsUseCase {
               )
             : undefined;
 
+        const next = nextActions({
+            status: operation.status,
+            assetType: listing?.describeAssetType().assetType ?? '',
+            pendingResponseFrom: operation.pendingResponseFrom,
+            contract: this.tripartiteFacts(contratos),
+            // Un sitio se comprueba al firmar; un canal, con su acceso y su espera.
+            signReady: !!listing && (!listing.requiresPlatformAccess() || listing.isReadyToTransfer()),
+            platformAccessFrom: listing?.transferableFrom(),
+            recipientDeclared: operation.recipientIdentity !== undefined,
+            progress: (stepProgress ?? []).map(({ stepKey, status, deadlineAt }) => ({ stepKey, status, deadlineAt })),
+            milestones: operation.milestones,
+            payment: await this.paymentAvailability(operation, actor),
+            completedAt: props.completedAt,
+            deadlines: this.deadlines,
+        });
+
         return {
             operation,
             asset,
@@ -283,7 +310,35 @@ export class GetOperationDetailsUseCase {
             handoverSteps,
             stepProgress,
             custodyAccountNames,
+            next,
         };
+    }
+
+    private tripartiteFacts(contratos: Contract[]): NextActionsInput['contract'] {
+        const tripartito = contratos.find((c) => c.type === 'tripartite');
+        return {
+            exists: tripartito !== undefined,
+            signedBy: {
+                buyer: tripartito?.hasSignedBy('buyer') ?? false,
+                seller: tripartito?.hasSignedBy('seller') ?? false,
+            },
+        };
+    }
+
+    /** Solo con el activo en custodia: antes y después no hay nada que pagar. */
+    private async paymentAvailability(operation: Operation, actor: Actor): Promise<PaymentAvailability | undefined> {
+        if (operation.status !== 'asset_in_custody' || !this.paymentOptions) return undefined;
+        try {
+            const options = await this.paymentOptions.execute(operation.id.toString(), actor);
+            return {
+                mercadopago: { available: options.mercadopago.available, reason: options.mercadopago.reason },
+                transfer: { available: options.transfer.available },
+            };
+        } catch {
+            // Una cotización caída no puede dejar la operación sin abrir: se
+            // informa como sin medios, y le toca a la plataforma.
+            return undefined;
+        }
     }
 
     /**

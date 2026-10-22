@@ -14,6 +14,7 @@ import { Actor } from '../../../src/ports/Actor';
 import { Operation } from '../../../src/entities/Operation';
 import { Listing } from '../../../src/entities/Listing';
 import { CustodyAccount } from '../../../src/entities/CustodyAccount';
+import { Contract } from '../../../src/entities/Contract';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../../../src/strategies/WebStrategy';
 import { Money } from '../../../src/value-objects/Money';
@@ -572,5 +573,63 @@ describe('GetOperationDetailsUseCase — handoverSteps', () => {
         );
 
         expect(vista.handoverSteps).toBeUndefined();
+    });
+});
+
+/**
+ * El detalle trae la próxima acción de cada rol, calculada con lo que el caso
+ * de uso ya sabe: el contrato y sus firmas, el activo, los pasos y, con el
+ * activo en custodia, los medios de pago.
+ */
+describe('GetOperationDetailsUseCase — próxima acción', () => {
+    const usuarios: IUserRepository = {
+        findById: vi.fn().mockResolvedValue(null),
+        findByEmail: vi.fn().mockResolvedValue(null),
+        findByRole: vi.fn().mockResolvedValue([]),
+        save: vi.fn().mockResolvedValue(undefined),
+    };
+
+    function unSitio(): Listing {
+        return Listing.create({
+            sellerId: SELLER_ID,
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(120000, 'USD'), domain: 'ejemplo.com' }),
+            askingPrice: Money.fromCents(500000, 'USD'),
+        });
+    }
+
+    function armarCon(op: Operation, listing: Listing, contratos: Contract[] = []) {
+        return new GetOperationDetailsUseCase(
+            createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) }),
+            createMockContractRepo({ findByOperation: vi.fn().mockResolvedValue(contratos) }),
+            usuarios,
+            createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) }),
+        );
+    }
+
+    it('con el contrato firmado de un sitio, le toca al vendedor ceder, con el plazo desde la firma', async () => {
+        const op = unaOperacion();
+        op.acceptCurrentOffer('seller');
+        const firmadoEl = new Date('2026-10-21T12:00:00Z');
+        op.signContract(firmadoEl);
+
+        const vista = await armarCon(op, unSitio()).execute(op.id.toString(), actorDe(SELLER_ID, UserRole.SELLER));
+
+        expect(vista.next.turn).toEqual(['seller']);
+        expect(vista.next.byRole.seller).toMatchObject({ kind: 'act', id: 'declare_handover' });
+        expect(vista.next.timeline.find((s) => s.key === 'contract')).toEqual({ key: 'contract', state: 'done', at: firmadoEl });
+    });
+
+    it('con el tripartito firmado por el comprador, le toca firmar solo al vendedor', async () => {
+        const op = unaOperacion();
+        op.acceptCurrentOffer('seller');
+        const listing = unSitio();
+        const tripartito = Contract.createTripartite(listing.id, op.id);
+        tripartito.attachDocument('a'.repeat(64));
+        tripartito.sign('buyer', '10.0.0.1');
+
+        const vista = await armarCon(op, listing, [tripartito]).execute(op.id.toString(), actorDe(BUYER_ID));
+
+        expect(vista.next.turn).toEqual(['seller']);
+        expect(vista.next.byRole.seller).toMatchObject({ kind: 'act', id: 'sign_contract' });
     });
 });
