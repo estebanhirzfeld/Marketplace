@@ -6,16 +6,27 @@ Una sola próxima acción por rol, calculada en un solo lugar.
 
 ### Requirement: A lo sumo un rol tiene acción en cada momento
 
-`NextActions` MUST devolver, para una operación, un rol y un instante, la acción de ese rol (texto,
-botón y plazo) o a quién se está esperando. En cada combinación de estado y tipo de activo, a lo sumo
-un rol MUST tener acción, o los tres MUST estar esperando a la plataforma.
+`NextActions` MUST devolver, para una operación, la acción de cada rol (qué acción, si traba la
+operación y su plazo) o a quién está esperando. En cada combinación de estado y tipo de activo, a lo
+sumo un rol MUST trabar la operación, o los tres MUST estar esperando a la plataforma o a un plazo.
+La firma del tripartito es la única excepción: las dos partes la traban a la vez, porque ninguna
+necesita a la otra para firmar. La declaración de la cuenta receptora del comprador, con el precio
+acordado, es una tarea que no traba nada mientras espera a otro rol, y pasa a trabar cuando hace
+falta para entregar. Los textos los arma cada pantalla a partir de la acción.
 
 #### Scenario: Contrato firmado de un sitio
 
 - GIVEN una operación de un sitio en `contract_signed` sin cuenta receptora declarada
 - WHEN se calcula la próxima acción de cada rol
-- THEN el comprador tiene que declarar el mail de su cuenta de Hostinger, con su plazo
-- AND el vendedor y el admin esperan al comprador
+- THEN el vendedor tiene que iniciar el traslado del dominio, con su plazo desde la firma
+- AND el admin espera al vendedor
+- AND el comprador puede declarar el mail de su cuenta de Hostinger sin trabar nada
+
+#### Scenario: Pago confirmado de un sitio sin cuenta receptora
+
+- GIVEN una operación de un sitio en `payment_received` sin cuenta receptora declarada
+- WHEN se calcula la próxima acción de cada rol
+- THEN el comprador traba la operación: tiene que declarar el mail de su cuenta de Hostinger
 
 #### Scenario: Activo en custodia sin medio de pago
 

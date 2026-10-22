@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { OperationDetailDto, StepProgressDto } from '@marketplace/api-contract';
+import type {
+    NextActionIdDto,
+    OperationDetailDto,
+    OperationNextDto,
+    OperationRoleDto,
+    StepProgressDto,
+} from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -32,6 +38,16 @@ vi.mock('@/lib/api', () => ({ api: () => ({ operation, paymentOptions: vi.fn(asy
 import DetalleOperacion from '@/app/operaciones/[id]/page';
 
 const DEADLINE = '2026-10-30T09:00:00.000Z';
+
+/** Lo que calcularía la API cuando le toca a una sola parte. */
+function turnoDe(role: OperationRoleDto, id: NextActionIdDto): OperationNextDto {
+    const espera = { kind: 'wait' as const, waitingOn: [role] };
+    return {
+        byRole: { buyer: espera, seller: espera, platform: espera, [role]: { kind: 'act', id, blocking: true } },
+        turn: [role],
+        timeline: [],
+    };
+}
 
 function unaOperacion(over: Partial<OperationDetailDto>): OperationDetailDto {
     return {
@@ -96,10 +112,13 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
                 miParte: 'buyer',
                 recipientIdentity: { identifier: 'comprador@correo.com', declaredAt: '2026-10-02T00:00:00.000Z' },
                 stepProgress: [entrega],
+                next: turnoDe('buyer', 'accept_delivery'),
             }),
             COMPRADOR,
         );
 
+        expect(t).toContain('TU PRÓXIMO PASO');
+        expect(t).toContain('Aceptá el dominio en Hostinger');
         expect(t).toContain('Te mandamos la invitación a comprador@correo.com');
         expect(t).not.toContain('PASOS DEL TRASPASO');
         expect(t).not.toContain('Iniciar la entrega del dominio');
@@ -136,6 +155,15 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
  * pantalla escondía el botón esperando un acceso que un sitio nunca tiene.
  */
 describe('/operaciones/[id] — firma del contrato', () => {
+    const firmanLasDos: OperationNextDto = {
+        byRole: {
+            buyer: { kind: 'act', id: 'sign_contract', blocking: true },
+            seller: { kind: 'act', id: 'sign_contract', blocking: true },
+            platform: { kind: 'wait', waitingOn: ['buyer', 'seller'] },
+        },
+        turn: ['buyer', 'seller'],
+        timeline: [],
+    };
     const pendiente = (over: Partial<OperationDetailDto>) =>
         unaOperacion({
             status: 'contract_pending',
@@ -146,29 +174,71 @@ describe('/operaciones/[id] — firma del contrato', () => {
         });
 
     it('las partes de un sitio pueden firmar sin acceso de la plataforma', async () => {
-        const t = await pagina(pendiente({ miParte: 'buyer' }), COMPRADOR);
+        const t = await pagina(pendiente({ miParte: 'buyer', next: firmanLasDos }), COMPRADOR);
 
         expect(t).toContain('Firmar el contrato');
         expect(t).not.toContain('acceso al activo');
     });
 
     it('el admin de un sitio no ve el aviso de registrar el acceso', async () => {
-        const t = await pagina(pendiente({}), ADMIN);
+        const t = await pagina(pendiente({ next: firmanLasDos }), ADMIN);
 
         expect(t).not.toContain('Registrar el acceso al activo');
         expect(t).not.toContain('constancia de que tenemos acceso');
     });
 
     it('un canal sin acceso sigue sin ofrecer la firma, y el vendedor lee por qué', async () => {
-        const t = await pagina(pendiente({ assetType: 'youtube', miParte: 'seller', handoverSteps: [] }), VENDEDOR);
+        const t = await pagina(
+            pendiente({ assetType: 'youtube', miParte: 'seller', handoverSteps: [], next: turnoDe('platform', 'register_platform_access') }),
+            VENDEDOR,
+        );
 
         expect(t).not.toContain('Firmar el contrato');
-        expect(t).toContain('necesitamos que nos des acceso al activo');
+        expect(t).toContain('Le toca a la plataforma: registrar su acceso al canal.');
     });
 
     it('el admin de un canal sin acceso sigue viendo su próximo paso', async () => {
-        const t = await pagina(pendiente({ assetType: 'youtube', handoverSteps: [] }), ADMIN);
+        const t = await pagina(
+            pendiente({ assetType: 'youtube', handoverSteps: [], next: turnoDe('platform', 'register_platform_access') }),
+            ADMIN,
+        );
 
+        expect(t).toContain('Registrá el acceso al canal');
         expect(t).toContain('Registrar el acceso al activo');
+    });
+});
+
+/**
+ * Lo que se vio en la prueba local del 21/10/2026: el comprador sin medio de
+ * pago terminaba en «abrí un reclamo», y al vendedor de un sitio se le decía
+ * que no hiciera nada mientras el dominio seguía en su cuenta.
+ */
+describe('/operaciones/[id] — tu próximo paso', () => {
+    it('sin medio de pago, el comprador espera a la plataforma y no se le pide un reclamo', async () => {
+        const t = await pagina(
+            unaOperacion({ status: 'asset_in_custody', miParte: 'buyer', next: turnoDe('platform', 'enable_payment_method') }),
+            COMPRADOR,
+        );
+
+        expect(t).toContain('Le toca a la plataforma: habilitar un medio de pago.');
+        expect(t).not.toMatch(/Abrí un reclamo/i);
+    });
+
+    it('el vendedor de un sitio ve que le toca trasladar el dominio, con su plazo', async () => {
+        const next = turnoDe('seller', 'move_domain_to_platform');
+        next.byRole.seller = { kind: 'act', id: 'move_domain_to_platform', blocking: true, deadline: DEADLINE };
+        const t = await pagina(unaOperacion({ miParte: 'seller', next }), VENDEDOR);
+
+        expect(t).toContain('Trasladá el dominio a nuestra cuenta');
+        expect(t).toContain('Tenés hasta el 30 de octubre de 2026.');
+        expect(t).not.toContain('No hace falta que hagas nada');
+    });
+
+    it('el admin ve en qué está cada parte', async () => {
+        const t = await pagina(unaOperacion({ next: turnoDe('seller', 'move_domain_to_platform') }), ADMIN);
+
+        expect(t).toContain('LAS PARTES');
+        expect(t).toContain('Vendedor · Le toca: trasladar el dominio a nuestra cuenta de Hostinger.');
+        expect(t).toContain('Comprador · Espera al vendedor.');
     });
 });

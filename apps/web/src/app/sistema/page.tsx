@@ -1,6 +1,7 @@
 import { Reveal } from '@/components/Reveal';
 import { DemoBanner } from '@/components/DemoBanner';
 import { Timeline } from '@/components/Timeline';
+import { NextStepCard } from '@/components/NextStep';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
@@ -566,15 +567,67 @@ export default function Sistema() {
                     </div>
                 </Section>
 
-                <Section title="Línea de tiempo del escrow" note="El mismo componente en dos momentos distintos. La etapa de custodia está marcada como punto de control porque es donde la plataforma asume el riesgo.">
+                <Section title="Línea de tiempo del escrow" note="La misma para las tres partes, en dos momentos distintos. Cada etapa cumplida lleva su fecha; la custodia está marcada como punto de control porque es donde la plataforma toma el activo.">
                     <div className="grid gap-10 lg:grid-cols-2">
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">NEGOCIANDO</div>
-                            <Timeline actual="negotiating" />
+                            <Timeline
+                                stages={[
+                                    { key: 'negotiation', state: 'current' },
+                                    { key: 'contract', state: 'pending' },
+                                    { key: 'custody', state: 'pending' },
+                                    { key: 'payment', state: 'pending' },
+                                    { key: 'delivery', state: 'pending' },
+                                    { key: 'closing', state: 'pending' },
+                                ]}
+                            />
                         </div>
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">EN CUSTODIA</div>
-                            <Timeline actual="asset_in_custody" />
+                            <Timeline
+                                stages={[
+                                    { key: 'negotiation', state: 'done' },
+                                    { key: 'contract', state: 'done', at: '2026-10-21T12:00:00.000Z' },
+                                    { key: 'custody', state: 'done', at: '2026-10-23T18:00:00.000Z' },
+                                    { key: 'payment', state: 'current' },
+                                    { key: 'delivery', state: 'pending' },
+                                    { key: 'closing', state: 'pending' },
+                                ]}
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section title="Tu próximo paso" note="Lo primero que lee cada parte en una operación: qué le toca, con el formulario al lado, o a quién espera y hasta cuándo. La tarea que no traba nada va aparte, como «mientras tanto».">
+                    <div className="grid gap-6 lg:grid-cols-3">
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">LE TOCA · CON PLAZO</div>
+                            <NextStepCard
+                                copy={{
+                                    title: 'Iniciá el traslado del dominio',
+                                    body: 'Seguí los pasos para trasladar el dominio a nuestra cuenta de Hostinger y declaralo acá.',
+                                    deadline: 'Tenés hasta el 31 de octubre de 2026.',
+                                }}
+                            >
+                                <Button type="button">Ya lo hice</Button>
+                            </NextStepCard>
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ESPERA · CON TAREA</div>
+                            <NextStepCard
+                                copy={{
+                                    title: 'Le toca al vendedor: iniciar el traslado del dominio a nuestra cuenta.',
+                                    deadline: 'Tiene hasta el 31 de octubre de 2026.',
+                                    meanwhile: {
+                                        title: 'Decinos dónde recibir el dominio',
+                                        body: 'El mail de tu cuenta de Hostinger: ahí te vamos a trasladar el dominio.',
+                                    },
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ESPERA A LA PLATAFORMA</div>
+                            <NextStepCard copy={{ title: 'Le toca a la plataforma: habilitar un medio de pago.' }} />
                         </div>
                     </div>
                 </Section>

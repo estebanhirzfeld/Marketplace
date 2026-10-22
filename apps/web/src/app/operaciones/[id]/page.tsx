@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ApiError } from '@marketplace/api-client';
-import type { OperationDetailDto, PaymentOptionsDto } from '@marketplace/api-contract';
+import type { NextActionIdDto, OperationDetailDto, OperationRoleDto, PaymentOptionsDto } from '@marketplace/api-contract';
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
@@ -14,7 +14,9 @@ import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm'
 import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
-import { PaymentChoice, SellerPaymentWait, showSellerPaymentWait } from '@/components/PaymentChoice';
+import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
+import { NextStepCard } from '@/components/NextStep';
+import { nextStepCopy, partyStatusLine } from '@/lib/nextStepCopy';
 import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
 import { nicheLabel, money, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
@@ -35,89 +37,6 @@ import {
 } from '../actions';
 import { AdminDomainTransferPanel, DomainDeliveryStatus, TransferStepsList } from '@/components/TransferSteps';
 import { fileReport } from '../../denuncias/actions';
-
-/**
- * Qué está pasando y qué se espera de quien mira.
- *
- * El panel de acciones se armaba solo con los botones que correspondían, así
- * que en las etapas donde a alguien no le toca hacer nada quedaba vacío: el
- * vendedor apretaba "Iniciar la transferencia" y la pantalla se quedaba muda,
- * sin decirle si algo había salido mal o si simplemente había que esperar. Una
- * etapa en la que no hay que hacer nada es información, no un hueco.
- *
- * Devuelve siempre un texto: cubrir todas las combinaciones de estado y
- * posición es justamente el punto.
- */
-function queEsperar(
-    status: OperationDetailDto['status'],
-    parte: 'buyer' | 'seller' | 'platform',
-): string {
-    if (status === 'cancelled') {
-        return parte === 'platform'
-            ? 'La operación se canceló. Si el activo no tiene otra operación en curso, volvió al mercado.'
-            : 'Esta operación se canceló y no se puede retomar. El activo vuelve al mercado si no quedó ninguna otra operación en curso sobre él.';
-    }
-
-    if (status === 'completed') {
-        return 'La operación se cerró. El comprador tiene el activo y el vendedor cobró su parte.';
-    }
-
-    if (status === 'offer_sent' || status === 'negotiating') {
-        if (parte === 'platform') {
-            return 'Las partes están negociando el precio. La plataforma no interviene hasta que una de las dos acepte.';
-        }
-        return 'Mientras el precio se negocia, cualquiera de los dos puede aceptar lo que está sobre la mesa o proponer otro monto. Aceptar cancela las demás ofertas sobre el activo.';
-    }
-
-    if (status === 'contract_pending') {
-        if (parte === 'seller') {
-            return 'El precio ya está acordado. Falta que firmen las dos partes: la venta no queda cerrada hasta entonces, y hasta firmar todavía se puede cancelar.';
-        }
-        if (parte === 'buyer') {
-            return 'El precio ya está acordado. Falta que firmen las dos partes; hasta entonces todavía podés cancelar sin costo.';
-        }
-        return 'Las partes tienen que firmar el contrato tripartito. La plataforma firma sola con la primera de las dos.';
-    }
-
-    if (status === 'contract_signed') {
-        if (parte === 'seller') {
-            return 'El contrato está firmado. Queda un último paso tuyo: cedernos el control del activo. Cuando lo hagas, declaralo acá y lo verificamos.';
-        }
-        if (parte === 'buyer') {
-            return 'El contrato está firmado. Todavía no te toca pagar, y es a propósito: primero tomamos el activo en custodia y verificamos que lo tengamos de verdad. Si nunca llega, no pusiste un peso.';
-        }
-        return 'El contrato está firmado. Esperamos que el vendedor nos ceda el control y lo declare.';
-    }
-
-    if (status === 'transfer_in_progress') {
-        if (parte === 'seller') {
-            return 'Estamos completando el cambio de titularidad sobre el activo que cediste. No hace falta que hagas nada: te avisamos cuando quede en nuestra custodia y le pidamos el pago al comprador.';
-        }
-        if (parte === 'buyer') {
-            return 'Estamos tomando el activo en custodia. Recién cuando verifiquemos que lo tenemos de verdad te vamos a pedir la transferencia — si el activo nunca llega, no pusiste un peso.';
-        }
-        return 'Punto de control: hay que verificar el activo y declarar la custodia. Recién después se le pide el pago al comprador.';
-    }
-
-    if (status === 'asset_in_custody') {
-        if (parte === 'seller') {
-            return 'El activo ya está en nuestra custodia. Le pedimos el pago al comprador; cuando entre, te liquidamos tu parte y se cierra la operación.';
-        }
-        if (parte === 'buyer') {
-            return 'El activo ya está en custodia de la plataforma y verificado. Recién ahora corresponde pagar.';
-        }
-        return 'El activo está en custodia. Se está esperando el pago del comprador; si entró por transferencia bancaria, se registra desde acá.';
-    }
-
-    // payment_received
-    if (parte === 'seller') {
-        return 'El comprador ya pagó y el dinero está retenido por la plataforma. Estamos entregándole el activo y liquidando tu parte.';
-    }
-    if (parte === 'buyer') {
-        return 'Ya pagaste y el dinero quedó retenido por la plataforma. Estamos entregándote el activo; cuando termine, la operación se cierra.';
-    }
-    return 'El pago está confirmado. Falta entregar el activo al comprador, liquidar al vendedor y cerrar la operación.';
-}
 
 /**
  * Detalle de una operación.
@@ -159,29 +78,121 @@ export default async function DetalleOperacion(props: {
             paymentOptions = undefined;
         }
     }
-    const miTurno = op.miParte !== undefined && op.pendingResponseFrom === op.miParte;
-    const negociando = op.status === 'offer_sent' || op.status === 'negotiating';
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
-    // Un canal se firma con el acceso de la plataforma y su espera cumplidos.
-    // Un sitio no usa ese acceso: lo que se comprueba al firmar es el dominio,
-    // y si no está listo la firma devuelve qué hacer.
-    const firmaHabilitada = op.transferable || op.assetType === 'web';
 
-    // La identidad receptora es tarea pendiente del comprador: disponible desde
-    // que hay contrato, exigible recién al cerrar, y urgente desde la custodia
-    // porque a partir de ahí demora su propia entrega.
-    const puedeDeclararDestino =
-        op.miParte === 'buyer' &&
-        ['contract_pending', 'contract_signed', 'transfer_in_progress', 'asset_in_custody', 'payment_received'].includes(
-            op.status,
-        );
-    const destinoUrgente = op.status === 'asset_in_custody' || op.status === 'payment_received';
+    // Qué le toca a quien mira, o a quién espera: lo calcula la API para los
+    // tres roles con la misma regla, así lo que lee cada uno no se contradice.
+    const role: OperationRoleDto = op.miParte ?? 'platform';
+    const step = op.next?.byRole[role];
+    const copy = op.next ? nextStepCopy(op.next, role, op.assetType) : undefined;
 
     // Mi propuesta anterior: contra ella se compara la convergencia, no contra
     // la que está sobre la mesa.
     const miUltima = op.miParte
         ? [...op.negotiations].reverse().find((n) => n.proposedBy === op.miParte)
         : undefined;
+
+    /** El formulario de una acción, para quien la tiene que hacer. */
+    const formFor = (id: NextActionIdDto, blocking: boolean) => {
+        switch (id) {
+            case 'respond_offer':
+                return (
+                    <div className="flex flex-col gap-5">
+                        <OperationAction
+                            action={advanceOperation.bind(null, op.id, 'accept')}
+                            text="Aceptar la oferta"
+                            note="Al aceptar se cancelan automáticamente las demás ofertas sobre este activo."
+                        />
+                        <div className="border-t border-[var(--color-borde)] pt-5">
+                            <CounterOfferForm
+                                action={counterOffer.bind(null, op.id, op.currentOfferPrice.currency)}
+                                currency={op.currentOfferPrice.currency}
+                                precioActual={Math.round(op.currentOfferPrice.cents / 100)}
+                                miParte={op.miParte!}
+                                miUltima={miUltima ? Math.round(miUltima.amount / 100) : undefined}
+                            />
+                        </div>
+                    </div>
+                );
+            case 'sign_contract':
+                return tripartito ? (
+                    <div className="flex flex-col gap-3">
+                        {/* Leer antes de firmar: el enlace va primero. */}
+                        <Link href={`/contratos/${tripartito.id}`} className="text-[14px] text-[var(--color-acento)]">
+                            Leer el contrato antes de firmar →
+                        </Link>
+                        <OperationAction
+                            action={signContract.bind(null, op.id, tripartito.id)}
+                            text="Firmar el contrato"
+                            note="Requiere identidad verificada. Se registran la fecha, la IP y la huella del documento."
+                        />
+                    </div>
+                ) : null;
+            case 'register_platform_access':
+                return (
+                    <Link href={`/listings/${op.listingId}`} className="text-[14px] text-[var(--color-acento)]">
+                        Registrar el acceso al activo →
+                    </Link>
+                );
+            case 'declare_recipient':
+                return (
+                    <RecipientIdentityForm
+                        action={declareRecipientIdentity.bind(null, op.id)}
+                        urgente={blocking}
+                        assetType={op.assetType}
+                    />
+                );
+            case 'declare_handover':
+                return <TransferInitiationForm action={initiateTransfer.bind(null, op.id)} steps={op.handoverSteps ?? []} />;
+            case 'move_domain_to_platform': {
+                const traslado = op.handoverSteps?.find((s) => s.key === 'domain-to-platform');
+                return traslado?.details ? (
+                    <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                        {traslado.details.map((d) => (
+                            <li key={d}>{d}</li>
+                        ))}
+                    </ul>
+                ) : null;
+            }
+            case 'verify_custody':
+                return <CustodyVerificationForm action={confirmCustody.bind(null, op.id)} />;
+            case 'pay':
+                return (
+                    <PaymentChoice
+                        options={paymentOptions}
+                        buyerPays={op.buyerPays}
+                        checkoutAction={goToCheckout.bind(null, op.id)}
+                    />
+                );
+            case 'link_payment_account':
+                return <SellerPaymentWait options={paymentOptions} />;
+            case 'accept_delivery':
+                return op.recipientIdentity ? (
+                    <DomainDeliveryStatus
+                        recipient={op.recipientIdentity.identifier}
+                        progress={op.stepProgress?.find((p) => p.stepKey === 'domain-to-buyer')}
+                    />
+                ) : null;
+            case 'deliver_asset':
+                // La entrega de un dominio se inicia desde las herramientas del
+                // traspaso, abajo; la de un canal se registra al terminarla.
+                return op.assetType === 'web' ? null : (
+                    <DeliveryVerificationForm
+                        action={completeOperation.bind(null, op.id)}
+                        recipientIdentifier={op.recipientIdentity?.identifier}
+                    />
+                );
+            case 'complete_operation':
+                return (
+                    <DeliveryVerificationForm
+                        action={completeOperation.bind(null, op.id)}
+                        recipientIdentifier={op.recipientIdentity?.identifier}
+                    />
+                );
+            case 'enable_payment_method':
+                return null;
+        }
+    };
 
     return (
         <div className="mx-auto max-w-[1400px] px-6 py-14 sm:px-12">
@@ -229,7 +240,7 @@ export default async function DetalleOperacion(props: {
             <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr]">
                 <Reveal>
                     <Panel title="ETAPA DE LA OPERACIÓN">
-                        <Timeline actual={op.status} />
+                        {op.next && <Timeline stages={op.next.timeline} cancelled={op.status === 'cancelled'} />}
                     </Panel>
                 </Reveal>
 
@@ -473,278 +484,131 @@ export default async function DetalleOperacion(props: {
                         </Reveal>
                     )}
 
-                    {/* Acciones disponibles según el estado y la posición */}
+                    {/* Lo que le toca a quien mira, y lo demás que puede hacer */}
                     <Reveal delay={160}>
-                        <Panel title="QUÉ PODÉS HACER">
-                            <div className="flex flex-col gap-5">
-                                {/*
-                                    El cobro puede no estar disponible —la API
-                                    responde 503 sin credenciales de la pasarela— y
-                                    el comprador volvía acá sin ningún aviso: el
-                                    botón parecía recargar la página y nada más.
-                                */}
-                                {/*
-                                    Siempre primero: en qué está la operación y qué
-                                    se espera de quien mira. Los botones vienen
-                                    después, y el reclamo al final de todo.
-                                */}
-                                <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                    {queEsperar(op.status, op.miParte ?? 'platform')}
-                                </p>
+                        <div className="flex flex-col gap-6">
+                            {query.pago === 'no-disponible' && (
+                                <Alert tono="alerta">
+                                    No pudimos abrir el pago. El activo sigue en custodia, así que no
+                                    perdiste nada: probá de nuevo en unos minutos.
+                                </Alert>
+                            )}
 
-                                {query.pago === 'no-disponible' && (
-                                    <Alert tono="alerta">
-                                        No pudimos abrir el pago. El activo sigue en custodia, así
-                                        que no perdiste nada: probá de nuevo o pagá por
-                                        transferencia.
-                                    </Alert>
+                            {copy && step && (
+                                <NextStepCard
+                                    copy={copy}
+                                    meanwhile={step.kind === 'act' && !step.blocking ? formFor(step.id, false) : undefined}
+                                >
+                                    {step.kind === 'act' && step.blocking ? formFor(step.id, true) : null}
+                                </NextStepCard>
+                            )}
+
+                            {/*
+                                El admin opera: ve en qué está cada parte y tiene a mano las
+                                herramientas del traspaso aunque el turno sea de otro.
+                            */}
+                            {isAdmin && op.next && (
+                                <Panel title="LAS PARTES">
+                                    <ul className="flex flex-col gap-2 text-[13px] leading-relaxed">
+                                        <li>
+                                            <span className="text-[var(--color-apagado)]">Comprador · </span>
+                                            {partyStatusLine(op.next, 'buyer', op.assetType)}
+                                        </li>
+                                        <li>
+                                            <span className="text-[var(--color-apagado)]">Vendedor · </span>
+                                            {partyStatusLine(op.next, 'seller', op.assetType)}
+                                        </li>
+                                    </ul>
+                                </Panel>
+                            )}
+
+                            {/*
+                                El traspaso de un sitio paso a paso, desde que el vendedor
+                                cedió el activo: él ve qué le falta; el admin, además, los
+                                botones que lo hacen avanzar.
+                            */}
+                            {op.assetType === 'web' &&
+                                (isAdmin || op.miParte === 'seller') &&
+                                ['transfer_in_progress', 'asset_in_custody', 'payment_received', 'completed'].includes(
+                                    op.status,
+                                ) &&
+                                (op.handoverSteps?.length ?? 0) > 0 && (
+                                    <Panel title="PASOS DEL TRASPASO">
+                                        <TransferStepsList steps={op.handoverSteps ?? []} progress={op.stepProgress ?? []} />
+                                    </Panel>
                                 )}
-                                {negociando && miTurno && (
-                                    <>
-                                        <OperationAction
-                                            action={advanceOperation.bind(null, id, 'accept')}
-                                            text="Aceptar la oferta"
-                                            note="Al aceptar se cancelan automáticamente las demás ofertas sobre este activo."
-                                        />
-                                        <div className="border-t border-[var(--color-borde)] pt-5">
-                                            <CounterOfferForm
-                                                action={counterOffer.bind(null, id, op.currentOfferPrice.currency)}
-                                                currency={op.currentOfferPrice.currency}
-                                                precioActual={Math.round(op.currentOfferPrice.cents / 100)}
-                                                miParte={op.miParte!}
-                                                miUltima={
-                                                    miUltima ? Math.round(miUltima.amount / 100) : undefined
-                                                }
+
+                            {isAdmin && op.assetType === 'web' && (
+                                <AdminDomainTransferPanel
+                                    status={op.status}
+                                    steps={op.handoverSteps ?? []}
+                                    progress={op.stepProgress ?? []}
+                                    actions={{
+                                        checkCustody: checkDomainCustodyAction.bind(null, id),
+                                        attest: (stepKey) => attestTransferStepAction.bind(null, id, stepKey),
+                                        deliver: deliverDomainAction.bind(null, id),
+                                        checkDelivery: checkDomainDeliveryAction.bind(null, id),
+                                    }}
+                                />
+                            )}
+
+                            {/* Hasta que el pago por transferencia tenga sus comprobantes, el admin lo registra a mano. */}
+                            {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (
+                                <OperationAction
+                                    action={confirmBankTransfer.bind(null, id, op.buyerPays.cents, op.buyerPays.currency)}
+                                    text="Registrar una transferencia recibida"
+                                    variant="secundario"
+                                />
+                            )}
+
+                            {/* Con el dominio ya entregado, el comprador ve que lo tiene. */}
+                            {op.miParte === 'buyer' && op.assetType === 'web' && op.recipientIdentity && op.status === 'completed' && (
+                                <DomainDeliveryStatus
+                                    recipient={op.recipientIdentity.identifier}
+                                    progress={op.stepProgress?.find((p) => p.stepKey === 'domain-to-buyer')}
+                                    completed
+                                />
+                            )}
+
+                            {/*
+                                Lo secundario, al final: corregir dónde recibir, cancelar
+                                antes de firmar y reclamar después.
+                            */}
+                            {op.miParte === 'buyer' && op.recipientIdentity && op.status !== 'completed' && op.status !== 'cancelled' && (
+                                <div className="flex flex-col gap-2 text-[13px]">
+                                    <RecipientIdentitySaved identifier={op.recipientIdentity.identifier} assetType={op.assetType} />
+                                    <details>
+                                        <summary className="cursor-pointer text-[var(--color-tenue)]">Cambiar la cuenta</summary>
+                                        <div className="mt-3">
+                                            <RecipientIdentityForm
+                                                action={declareRecipientIdentity.bind(null, id)}
+                                                urgente={false}
+                                                valorActual={op.recipientIdentity.identifier}
+                                                assetType={op.assetType}
                                             />
                                         </div>
-                                    </>
-                                )}
+                                    </details>
+                                </div>
+                            )}
 
-                                {negociando && !miTurno && op.miParte && (
-                                    <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                        Ahora le toca responder{' '}
-                                        {op.pendingResponseFrom === 'buyer' ? 'al comprador' : 'al vendedor'}.
-                                    </p>
-                                )}
-
-                                {op.status === 'contract_pending' && op.miParte && (
-                                    <div className="flex flex-col gap-3">
-                                        {!tripartito ? (
-                                            <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                                                Estamos preparando el contrato de esta operación.
-                                                Apenas esté vas a poder leerlo y firmarlo desde acá.
-                                            </p>
-                                        ) : (
-                                            <>
-                                                {/* Leer antes de firmar: el enlace va primero. */}
-                                                <Link
-                                                    href={`/contratos/${tripartito.id}`}
-                                                    className="text-[14px] text-[var(--color-acento)]"
-                                                >
-                                                    Leer el contrato antes de firmar →
-                                                </Link>
-                                                {/*
-                                                    Firmar exige que la plataforma ya pueda tomar la
-                                                    custodia del activo. Ofrecer el botón igual dejaba
-                                                    a las dos partes apretando contra un error que la
-                                                    pantalla nunca les había anticipado.
-                                                */}
-                                                {firmaHabilitada ? (
-                                                    <OperationAction
-                                                        action={signContract.bind(null, id, tripartito.id)}
-                                                        text="Firmar el contrato"
-                                                        note="Requiere identidad verificada. Se registran la fecha, la IP y la huella del documento."
-                                                    />
-                                                ) : (
-                                                    <p className="rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4 text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                                        {op.transferableFrom
-                                                            ? `El activo está en su período de espera: recién se puede transferir a partir del ${fechaLarga(op.transferableFrom)}. La firma se habilita ese día, para que nadie quede comprometido con una operación que todavía no podemos cerrar.`
-                                                            : op.miParte === 'seller'
-                                                              ? 'Para habilitar la firma necesitamos que nos des acceso al activo: sin eso no podemos garantizar la custodia y nadie debería quedar comprometido. Te vamos a escribir para coordinarlo.'
-                                                              : 'Todavía no tomamos la custodia del activo, así que la firma no se habilita. Lo estamos coordinando con el vendedor y te avisamos apenas esté.'}
-                                                    </p>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/*
-                                    El paso que le toca a la plataforma en esta etapa. No es
-                                    ceremonia: sin la constancia de acceso el dominio rechaza la
-                                    firma, así que la operación queda detenida esperándonos.
-                                */}
-                                {isAdmin && op.status === 'contract_pending' && !firmaHabilitada && (
-                                    <div className="flex flex-col gap-3">
-                                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            {op.transferableFrom
-                                                ? `Ya tenemos acceso al activo. El período de espera termina el ${fechaLarga(op.transferableFrom)} y recién ahí las partes pueden firmar.`
-                                                : 'Las partes no pueden firmar hasta que dejemos constancia de que tenemos acceso al activo. Es el próximo paso y es nuestro.'}
-                                        </p>
-                                        {!op.transferableFrom && (
-                                            <Link
-                                                href={`/listings/${op.listingId}`}
-                                                className="text-[14px] text-[var(--color-acento)]"
-                                            >
-                                                Registrar el acceso al activo →
-                                            </Link>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/*
-                                    La cuenta receptora del comprador. Aparece como pendiente
-                                    desde que hay contrato y no bloquea nada hasta el cierre;
-                                    desde la custodia sube de tono. Una vez declarada, deja de
-                                    figurar como tarea y queda un enlace discreto para corregirla.
-                                */}
-                                {puedeDeclararDestino && !op.recipientIdentity && (
-                                    <RecipientIdentityForm
-                                        action={declareRecipientIdentity.bind(null, id)}
-                                        urgente={destinoUrgente}
-                                        assetType={op.assetType}
-                                    />
-                                )}
-                                {puedeDeclararDestino && op.recipientIdentity && (
-                                    <div className="flex flex-col gap-2 text-[13px]">
-                                        <RecipientIdentitySaved
-                                            identifier={op.recipientIdentity.identifier}
-                                            assetType={op.assetType}
-                                        />
-                                        <details>
-                                            <summary className="cursor-pointer text-[var(--color-tenue)]">
-                                                Cambiar la cuenta
-                                            </summary>
-                                            <div className="mt-3">
-                                                <RecipientIdentityForm
-                                                    action={declareRecipientIdentity.bind(null, id)}
-                                                    urgente={false}
-                                                    valorActual={op.recipientIdentity.identifier}
-                                                    assetType={op.assetType}
-                                                />
-                                            </div>
-                                        </details>
-                                    </div>
-                                )}
-
-                                {op.status === 'contract_signed' && op.miParte === 'seller' && (
-                                    <TransferInitiationForm
-                                        action={initiateTransfer.bind(null, id)}
-                                        steps={op.handoverSteps ?? []}
-                                    />
-                                )}
-
-                                {/*
-                                    El traspaso de un sitio paso a paso, desde que el vendedor
-                                    cedió el activo: él ve qué le falta; el admin, además, los
-                                    botones que lo hacen avanzar.
-                                */}
-                                {op.assetType === 'web' &&
-                                    (isAdmin || op.miParte === 'seller') &&
-                                    ['transfer_in_progress', 'asset_in_custody', 'payment_received', 'completed'].includes(
-                                        op.status,
-                                    ) &&
-                                    (op.handoverSteps?.length ?? 0) > 0 && (
-                                        <div className="flex flex-col gap-3">
-                                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-tenue)]">
-                                                PASOS DEL TRASPASO
-                                            </span>
-                                            <TransferStepsList
-                                                steps={op.handoverSteps ?? []}
-                                                progress={op.stepProgress ?? []}
-                                            />
-                                        </div>
-                                    )}
-
-                                {isAdmin && op.assetType === 'web' && (
-                                    <AdminDomainTransferPanel
-                                        status={op.status}
-                                        steps={op.handoverSteps ?? []}
-                                        progress={op.stepProgress ?? []}
-                                        actions={{
-                                            checkCustody: checkDomainCustodyAction.bind(null, id),
-                                            attest: (stepKey) => attestTransferStepAction.bind(null, id, stepKey),
-                                            deliver: deliverDomainAction.bind(null, id),
-                                            checkDelivery: checkDomainDeliveryAction.bind(null, id),
-                                        }}
-                                    />
-                                )}
-
-                                {!isAdmin &&
-                                    op.miParte === 'buyer' &&
-                                    op.assetType === 'web' &&
-                                    op.recipientIdentity &&
-                                    ['payment_received', 'completed'].includes(op.status) && (
-                                        <DomainDeliveryStatus
-                                            recipient={op.recipientIdentity.identifier}
-                                            progress={op.stepProgress?.find((p) => p.stepKey === 'domain-to-buyer')}
-                                            completed={op.status === 'completed'}
-                                        />
-                                    )}
-
-                                {isAdmin && op.status === 'transfer_in_progress' && (
-                                    <CustodyVerificationForm action={confirmCustody.bind(null, id)} />
-                                )}
-
-                                {/*
-                                    Con el activo en custodia, el comprador elige cómo pagar y
-                                    el vendedor espera. Un admin ve solo su formulario de abajo.
-                                */}
-                                {!isAdmin && op.miParte === 'buyer' && op.status === 'asset_in_custody' && (
-                                    <PaymentChoice
-                                        options={paymentOptions}
-                                        buyerPays={op.buyerPays}
-                                        checkoutAction={goToCheckout.bind(null, id)}
-                                    />
-                                )}
-
-                                {showSellerPaymentWait({ status: op.status, miParte: op.miParte, isAdmin }) && (
-                                    <SellerPaymentWait options={paymentOptions} />
-                                )}
-
-                                {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (
+                            {['offer_sent', 'negotiating', 'contract_pending'].includes(op.status) && op.miParte && (
+                                <div className="border-t border-[var(--color-borde)] pt-5">
                                     <OperationAction
-                                        action={confirmBankTransfer.bind(
-                                            null,
-                                            id,
-                                            op.buyerPays.cents,
-                                            op.buyerPays.currency,
-                                        )}
-                                        text="Registrar una transferencia recibida"
-                                        variant="secundario"
+                                        action={advanceOperation.bind(null, id, 'cancel')}
+                                        text="Cancelar la operación"
+                                        variant="peligro"
+                                        note="Después de firmar el contrato ya no se puede cancelar."
                                     />
+                                </div>
+                            )}
+
+                            {op.miParte &&
+                                !['offer_sent', 'negotiating', 'contract_pending', 'cancelled'].includes(op.status) && (
+                                    <div className="border-t border-[var(--color-borde)] pt-5">
+                                        <ReportForm action={fileReport.bind(null, id)} />
+                                    </div>
                                 )}
-
-                                {isAdmin && op.status === 'payment_received' && (
-                                    <DeliveryVerificationForm
-                                        action={completeOperation.bind(null, id)}
-                                        recipientIdentifier={op.recipientIdentity?.identifier}
-                                    />
-                                )}
-
-                                {['offer_sent', 'negotiating', 'contract_pending'].includes(op.status) &&
-                                    op.miParte && (
-                                        <div className="border-t border-[var(--color-borde)] pt-5">
-                                            <OperationAction
-                                                action={advanceOperation.bind(null, id, 'cancel')}
-                                                text="Cancelar la operación"
-                                                variant="peligro"
-                                                note="Después de firmar el contrato ya no se puede cancelar."
-                                            />
-                                        </div>
-                                    )}
-
-                                {op.miParte &&
-                                    !['offer_sent', 'negotiating', 'contract_pending', 'cancelled'].includes(
-                                        op.status,
-                                    ) && (
-                                        <div className="border-t border-[var(--color-borde)] pt-5">
-                                            <ReportForm action={fileReport.bind(null, id)} />
-                                        </div>
-                                    )}
-
-                            </div>
-                        </Panel>
+                        </div>
                     </Reveal>
                 </div>
             </div>

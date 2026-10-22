@@ -1,113 +1,89 @@
-import type { OperationStatusDto } from '@marketplace/api-contract';
+import type { TimelineStageDto } from '@marketplace/api-contract';
+import { stageCopy } from '@/lib/nextStepCopy';
+import { fechaLarga } from '@/lib/format';
 
 /**
- * Las etapas del escrow, en el orden real del dominio.
+ * Las etapas de una venta, iguales para las tres partes: negociación, contrato,
+ * custodia, pago, entrega y cierre. La API dice cuál está hecha, cuál en curso
+ * y cuándo se cumplió cada una.
  *
- * `cancelled` no es una etapa del flujo sino una salida, así que no se dibuja
- * en el riel.
+ * Una operación cancelada no tiene etapa en curso: se dice arriba y se
+ * conservan las que llegaron a cumplirse.
  */
-const ETAPAS: Array<{ state: OperationStatusDto; title: string; text: string }> = [
-    { state: 'offer_sent', title: 'Oferta enviada', text: 'El comprador puso un precio sobre la mesa.' },
-    { state: 'negotiating', title: 'Negociación', text: 'Van y vienen contraofertas hasta que una parte acepta.' },
-    { state: 'contract_pending', title: 'Contrato pendiente', text: 'Falta que firmen comprador y vendedor.' },
-    { state: 'contract_signed', title: 'Contrato firmado', text: 'Las tres partes quedaron obligadas.' },
-    /*
-     * Decía "Transferencia" / "La plataforma completa el cambio de
-     * titularidad sobre el activo cedido", que ponía a la plataforma como
-     * protagonista en un momento en que, antes de este cambio, todavía no
-     * había ninguna declaración del vendedor detrás del estado. Ahora sí la
-     * hay —`initiateTransfer` la exige—, así que el texto puede decir lo que
-     * de verdad pasa acá: el vendedor ya declaró, y lo que resta es nuestra
-     * verificación.
-     */
-    { state: 'transfer_in_progress', title: 'Verificación', text: 'El vendedor declaró haber cedido el control. La plataforma verifica y toma la custodia.' },
-    { state: 'asset_in_custody', title: 'Activo en custodia', text: 'La plataforma verificó el activo. Recién acá se pide el pago.' },
-    { state: 'payment_received', title: 'Pago recibido', text: 'El comprador transfirió. Falta liquidar y entregar.' },
-    { state: 'completed', title: 'Operación cerrada', text: 'El comprador tiene el activo; el vendedor, su plata.' },
-];
-
-const ORDEN = ETAPAS.map((e) => e.state);
-
-export function Timeline({ actual }: { actual: OperationStatusDto }) {
-    if (actual === 'cancelled') {
-        return (
-            <div className="rounded-[var(--radius-medio)] border border-[var(--color-borde)] p-6">
-                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                    OPERACIÓN CANCELADA
-                </div>
-                <p className="mt-2 text-[14px] leading-relaxed text-[var(--color-tenue)]">
-                    Se canceló antes de que las partes quedaran comprometidas. Después de firmar el
-                    contrato la cancelación ya no es posible.
-                </p>
-            </div>
-        );
-    }
-
-    const indiceActual = ORDEN.indexOf(actual);
-
+export function Timeline({ stages, cancelled = false }: { stages: TimelineStageDto[]; cancelled?: boolean }) {
     return (
-        <ol className="flex flex-col">
-            {ETAPAS.map((etapa, i) => {
-                const hecha = i < indiceActual;
-                const esActual = i === indiceActual;
-                const isCustodyStage = etapa.state === 'asset_in_custody';
+        <div className="flex flex-col gap-5">
+            {cancelled && (
+                <div className="rounded-[var(--radius-medio)] border border-[var(--color-borde)] p-4">
+                    <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                        OPERACIÓN CANCELADA
+                    </div>
+                </div>
+            )}
+            <ol className="flex flex-col">
+                {stages.map((stage, i) => {
+                    const hecha = stage.state === 'done';
+                    const esActual = stage.state === 'current';
+                    const { title, text } = stageCopy(stage.key);
 
-                return (
-                    <li key={etapa.state} className="flex gap-4">
-                        {/* Riel: punto + línea que conecta con la etapa siguiente */}
-                        <div className="flex flex-col items-center">
-                            {/*
-                                Una etapa cumplida se marcaba solo por color y opacidad,
-                                así que quien no distingue el verde del gris no podía
-                                saber por dónde va la operación. El tilde dice lo mismo
-                                sin depender del color, y el texto para lectores de
-                                pantalla lo dice sin depender de la forma.
-                            */}
-                            {hecha ? (
-                                <span
-                                    className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--color-acento)]/20 text-[11px] font-bold leading-none text-[var(--color-acento)]"
-                                    aria-hidden
-                                >
-                                    ✓
-                                </span>
-                            ) : (
-                                <span
-                                    className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
-                                        esActual
-                                            ? 'border-[var(--color-acento)] bg-[var(--color-acento)] late'
-                                            : 'border-[var(--color-borde-fuerte)] bg-transparent'
-                                    }`}
-                                    aria-hidden
-                                />
-                            )}
-                            <span className="sr-only">
-                                {hecha ? 'Etapa cumplida' : esActual ? 'Etapa actual' : 'Etapa pendiente'}
-                            </span>
-                            {i < ETAPAS.length - 1 && (
-                                <span
-                                    className={`w-px flex-1 ${
-                                        hecha ? 'bg-[var(--color-acento)]/40' : 'bg-[var(--color-borde)]'
-                                    }`}
-                                />
-                            )}
-                        </div>
-
-                        <div className={`pb-7 ${esActual ? '' : 'opacity-60'}`}>
-                            <div className="flex items-center gap-2.5">
-                                <span className="text-[15px] font-medium">{etapa.title}</span>
-                                {isCustodyStage && (
-                                    <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-acento)]">
-                                        PUNTO DE CONTROL
+                    return (
+                        <li key={stage.key} className="flex gap-4">
+                            {/* Riel: punto + línea que conecta con la etapa siguiente */}
+                            <div className="flex flex-col items-center">
+                                {/*
+                                    El tilde dice que la etapa se cumplió sin depender del
+                                    color, y el texto para lectores de pantalla lo dice sin
+                                    depender de la forma.
+                                */}
+                                {hecha ? (
+                                    <span
+                                        className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--color-acento)]/20 text-[11px] font-bold leading-none text-[var(--color-acento)]"
+                                        aria-hidden
+                                    >
+                                        ✓
                                     </span>
+                                ) : (
+                                    <span
+                                        className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
+                                            esActual
+                                                ? 'border-[var(--color-acento)] bg-[var(--color-acento)] late'
+                                                : 'border-[var(--color-borde-fuerte)] bg-transparent'
+                                        }`}
+                                        aria-hidden
+                                    />
+                                )}
+                                <span className="sr-only">
+                                    {hecha ? 'Etapa cumplida' : esActual ? 'Etapa actual' : 'Etapa pendiente'}
+                                </span>
+                                {i < stages.length - 1 && (
+                                    <span
+                                        className={`w-px flex-1 ${
+                                            hecha ? 'bg-[var(--color-acento)]/40' : 'bg-[var(--color-borde)]'
+                                        }`}
+                                    />
                                 )}
                             </div>
-                            <p className="mt-1 max-w-[440px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                {etapa.text}
-                            </p>
-                        </div>
-                    </li>
-                );
-            })}
-        </ol>
+
+                            <div className={`pb-7 ${esActual ? '' : 'opacity-60'}`}>
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    <span className="text-[15px] font-medium">{title}</span>
+                                    {stage.key === 'custody' && (
+                                        <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--color-acento)]">
+                                            PUNTO DE CONTROL
+                                        </span>
+                                    )}
+                                    {stage.at && (
+                                        <span className="text-[12px] text-[var(--color-apagado)]">{fechaLarga(stage.at)}</span>
+                                    )}
+                                </div>
+                                <p className="mt-1 max-w-[440px] text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                    {text}
+                                </p>
+                            </div>
+                        </li>
+                    );
+                })}
+            </ol>
+        </div>
     );
 }

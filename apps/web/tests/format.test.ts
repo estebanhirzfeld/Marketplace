@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { fieldValue, subscribersLabel } from '@/lib/format';
+import { fechaLarga, fieldValue, subscribersLabel } from '@/lib/format';
+
+describe('fechaLarga', () => {
+    /*
+     * Un plazo en días hábiles vence a las 23:59 de Argentina, que en UTC ya es
+     * el día siguiente. Con la zona del servidor (UTC en el VPS) se mostraba un
+     * día de más.
+     */
+    it('escribe el día de Argentina aunque en UTC ya sea el siguiente', () => {
+        expect(fechaLarga('2026-11-03T02:59:59.999Z')).toBe('2 de noviembre de 2026');
+    });
+});
 
 describe('fieldValue', () => {
     it('una fecha ISO se escribe como el resto de la app, no cruda', () => {

@@ -63,12 +63,16 @@ export function percentage(n: number): string {
  * Una fecha escrita como se lee en voz alta. Se usa donde la fecha es la
  * explicación de por qué algo todavía no se puede hacer: ahí un `12/9/2026`
  * obliga a descifrar, y el punto es que se entienda de una.
+ *
+ * Siempre en hora de Argentina: los plazos vencen al terminar el día acá, y
+ * con la zona del servidor (UTC) se mostraba el día siguiente.
  */
 export function fechaLarga(iso: string): string {
     return new Date(iso).toLocaleDateString('es-AR', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
+        timeZone: 'America/Argentina/Buenos_Aires',
     });
 }
 
