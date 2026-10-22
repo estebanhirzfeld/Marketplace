@@ -21,7 +21,7 @@ import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { DomainName } from '../../../src/value-objects/DomainName';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
-import { InvalidStateError, ServiceUnavailableError } from '../../../src/errors/DomainError';
+import { InvalidStateError, ServiceUnavailableError, ValidationError } from '../../../src/errors/DomainError';
 import { AssetType, UserRole } from '@marketplace/shared-types';
 
 const BUYER_ID = new UniqueEntityID();
@@ -122,6 +122,59 @@ const inPortfolio: RegistrarPortfolioEntry = {
     expiresAt: null,
 };
 
+/*
+ * Si la operación se cancela con el dominio en custodia, la plataforma se lo
+ * devuelve al vendedor por un traslado saliente, y para eso necesita su cuenta
+ * de Hostinger. Hostinger no la informa en el traslado entrante, así que la
+ * declara el vendedor al iniciarlo.
+ */
+describe('InitiateTransferUseCase — la cuenta de origen del vendedor de un sitio', () => {
+    function iniciar(input: { controlCeded: boolean; sellerSourceIdentity?: string }, listing = aWebListing()) {
+        const op = anOperation('contract_signed');
+        const useCase = new InitiateTransferUseCase(
+            operationRepoWith(op),
+            listingRepoWith(listing),
+            undefined,
+            custodyRepoWith([anAccount(AssetType.WEB, 'custodia-web@traspaso.com')]),
+        );
+        return { op, run: () => useCase.execute(op.id.toString(), input, SELLER) };
+    }
+
+    it('guarda el mail de Hostinger desde el que el vendedor traslada el dominio', async () => {
+        const { op, run } = iniciar({ controlCeded: true, sellerSourceIdentity: '  Vendedor@Correo.com ' });
+
+        await run();
+
+        expect(op.transferInitiation?.sellerSourceIdentity).toBe('vendedor@correo.com');
+    });
+
+    it('sin ese mail no deja iniciar el traslado', async () => {
+        const { op, run } = iniciar({ controlCeded: true });
+
+        await expect(run()).rejects.toThrow(
+            new ValidationError(
+                'Decinos el mail de la cuenta de Hostinger desde la que trasladás el dominio: ahí te lo devolvemos si la operación se cancela.',
+            ),
+        );
+        expect(op.status).toBe('contract_signed');
+    });
+
+    it('un mail mal escrito se rechaza', async () => {
+        const { run } = iniciar({ controlCeded: true, sellerSourceIdentity: 'no-es-un-mail' });
+
+        await expect(run()).rejects.toThrow(ValidationError);
+    });
+
+    it('un canal no lo pide', async () => {
+        const { op, run } = iniciar({ controlCeded: true }, aYouTubeListing());
+
+        await run();
+
+        expect(op.status).toBe('transfer_in_progress');
+        expect(op.transferInitiation?.sellerSourceIdentity).toBeUndefined();
+    });
+});
+
 describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platformAccess', () => {
     it('congela la primera cuenta de custodia activa de tipo web', async () => {
         const web = anAccount(AssetType.WEB, 'custodia-web@traspaso.com');
@@ -135,7 +188,7 @@ describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platfor
             listingRepoWith(aWebListing()),
             undefined,
             custodyRepo,
-        ).execute(op.id.toString(), { controlCeded: true }, SELLER);
+        ).execute(op.id.toString(), { controlCeded: true, sellerSourceIdentity: 'vendedor@correo.com' }, SELLER);
 
         expect(custodyRepo.findActive).toHaveBeenCalledWith(AssetType.WEB);
         expect(op.transferInitiation?.custodyAccountId?.toString()).toBe(web.id.toString());
@@ -166,7 +219,7 @@ describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platfor
         const custodyRepo = custodyRepoWith([anAccount(AssetType.WEB, 'otra@traspaso.com'), vigente]);
 
         await new InitiateTransferUseCase(operationRepoWith(op), listingRepoWith(listing), undefined, custodyRepo)
-            .execute(op.id.toString(), { controlCeded: true }, SELLER);
+            .execute(op.id.toString(), { controlCeded: true, sellerSourceIdentity: 'vendedor@correo.com' }, SELLER);
 
         expect(custodyRepo.findActive).not.toHaveBeenCalled();
         expect(op.transferInitiation?.custodyAccountId?.toString()).toBe(vigente.id.toString());
@@ -180,7 +233,7 @@ describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platfor
             listingRepoWith(aWebListing()),
             undefined,
             custodyRepoWith([anAccount(AssetType.YOUTUBE, 'custodia-yt@traspaso.com')]),
-        ).execute(op.id.toString(), { controlCeded: true }, SELLER);
+        ).execute(op.id.toString(), { controlCeded: true, sellerSourceIdentity: 'vendedor@correo.com' }, SELLER);
 
         expect(op.transferInitiation?.custodyAccountId).toBeUndefined();
     });
@@ -190,7 +243,7 @@ describe('InitiateTransferUseCase — cuenta de custodia de un sitio sin platfor
         const custodyRepo = custodyRepoWith([anAccount(AssetType.YOUTUBE, 'custodia-yt@traspaso.com')]);
 
         await new InitiateTransferUseCase(operationRepoWith(op), listingRepoWith(aYouTubeListing()), undefined, custodyRepo)
-            .execute(op.id.toString(), { controlCeded: true }, SELLER);
+            .execute(op.id.toString(), { controlCeded: true, sellerSourceIdentity: 'vendedor@correo.com' }, SELLER);
 
         expect(custodyRepo.findActive).not.toHaveBeenCalled();
         expect(op.transferInitiation?.custodyAccountId).toBeUndefined();

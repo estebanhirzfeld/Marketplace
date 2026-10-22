@@ -1151,6 +1151,18 @@ describe("PrismaOperationRepository — hitos", () => {
         expect(row!.milestones).toBeNull();
     });
 
+    it("guarda la cuenta de origen del vendedor en la declaración de cesión", async () => {
+        const operation = await unaOperacionPendienteDeFirma("cesion-origen");
+        operation.signContract();
+        const sellerId = operation.toSnapshot().props.sellerId;
+        operation.initiateTransfer({ declaredBy: sellerId, controlCeded: true, sellerSourceIdentity: "vendedor@correo.com" });
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved!.transferInitiation?.sellerSourceIdentity).toBe("vendedor@correo.com");
+    });
+
     it("rechaza una columna corrupta", async () => {
         const operation = await unaOperacionPendienteDeFirma("hito-cor");
         await operationRepo.save(operation);

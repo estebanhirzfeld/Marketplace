@@ -83,6 +83,7 @@ function parseCesion(raw: unknown): TransferInitiation | undefined {
         custodyAccountId:
             typeof c.custodyAccountId === "string" ? new UniqueEntityID(c.custodyAccountId) : undefined,
         notes: typeof c.notes === "string" ? c.notes : undefined,
+        sellerSourceIdentity: typeof c.sellerSourceIdentity === "string" ? c.sellerSourceIdentity : undefined,
     };
 }
 
@@ -94,6 +95,7 @@ function serializeCesion(v?: TransferInitiation) {
         controlCeded: v.controlCeded,
         custodyAccountId: v.custodyAccountId ? v.custodyAccountId.toString() : null,
         notes: v.notes ?? null,
+        sellerSourceIdentity: v.sellerSourceIdentity ?? null,
     };
 }
 

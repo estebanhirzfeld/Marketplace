@@ -101,11 +101,13 @@ export async function initiateTransfer(
     }
 
     const notes = String(form.get('notes') ?? '').trim();
+    const sellerSourceIdentity = String(form.get('sellerSourceIdentity') ?? '').trim();
 
     try {
         await api().initiateTransfer(operationId, {
             controlCeded,
             notes: notes || undefined,
+            sellerSourceIdentity: sellerSourceIdentity || undefined,
         });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };

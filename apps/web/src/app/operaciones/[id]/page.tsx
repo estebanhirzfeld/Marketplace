@@ -143,7 +143,13 @@ export default async function DetalleOperacion(props: {
                     />
                 );
             case 'declare_handover':
-                return <TransferInitiationForm action={initiateTransfer.bind(null, op.id)} steps={op.handoverSteps ?? []} />;
+                return (
+                    <TransferInitiationForm
+                        action={initiateTransfer.bind(null, op.id)}
+                        steps={op.handoverSteps ?? []}
+                        askSourceAccount={op.assetType === 'web'}
+                    />
+                );
             case 'move_domain_to_platform': {
                 const traslado = op.handoverSteps?.find((s) => s.key === 'domain-to-platform');
                 return traslado?.details ? (

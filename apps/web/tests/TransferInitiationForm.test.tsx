@@ -1,7 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { HandoverStepDto } from '@marketplace/api-contract';
+
+const initiateTransferApi = vi.fn();
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/navigation', () => ({
+    redirect: (url: string) => {
+        throw new Error(`NEXT_REDIRECT:${url}`);
+    },
+    useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock('@/lib/guards', () => ({ requireSession: async () => ({ id: 'seller' }) }));
+vi.mock('@/lib/api', () => ({ api: () => ({ initiateTransfer: initiateTransferApi }) }));
+
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
+import { initiateTransfer } from '@/app/operaciones/actions';
+
+beforeEach(() => {
+    vi.resetAllMocks();
+});
 
 /**
  * El formulario reemplaza al botón sin registro: el vendedor tiene que
@@ -85,5 +102,52 @@ describe('TransferInitiationForm', () => {
 
         expect(conDetalle).toContain('Ver cómo hacerlo');
         expect(sinDetalle).not.toContain('Ver cómo hacerlo');
+    });
+
+    /*
+     * Si la operación se cancela con el dominio en custodia, se lo devolvemos al
+     * vendedor por Hostinger: necesitamos saber a qué cuenta.
+     */
+    it('en un sitio pide el mail de la cuenta de Hostinger desde la que sale el dominio', () => {
+        const html = renderToStaticMarkup(<TransferInitiationForm action={accion} steps={[]} askSourceAccount />);
+
+        expect(html).toContain('name="sellerSourceIdentity"');
+        expect(html).toContain('type="email"');
+        expect(html).toContain('Tu cuenta de Hostinger');
+    });
+
+    it('en un canal no lo pide', () => {
+        const html = renderToStaticMarkup(<TransferInitiationForm action={accion} steps={[]} />);
+
+        expect(html).not.toContain('sellerSourceIdentity');
+        expect(html).not.toContain('Hostinger');
+    });
+});
+
+describe('initiateTransfer', () => {
+    it('manda la cuenta de origen del vendedor a la API', async () => {
+        initiateTransferApi.mockResolvedValue(undefined);
+        const form = new FormData();
+        form.set('controlCeded', 'on');
+        form.set('sellerSourceIdentity', ' vendedor@correo.com ');
+
+        const result = await initiateTransfer('op1', {}, form);
+
+        expect(initiateTransferApi).toHaveBeenCalledWith('op1', {
+            controlCeded: true,
+            notes: undefined,
+            sellerSourceIdentity: 'vendedor@correo.com',
+        });
+        expect(result.ok).toBe(true);
+    });
+
+    it('sin cuenta de origen no la manda: la exige el dominio, solo en un sitio', async () => {
+        initiateTransferApi.mockResolvedValue(undefined);
+        const form = new FormData();
+        form.set('controlCeded', 'on');
+
+        await initiateTransfer('op1', {}, form);
+
+        expect(initiateTransferApi).toHaveBeenCalledWith('op1', { controlCeded: true, notes: undefined, sellerSourceIdentity: undefined });
     });
 });

@@ -85,6 +85,7 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                     properties: {
                         controlCeded: { type: 'boolean' },
                         notes: { type: 'string', maxLength: 2000 },
+                        sellerSourceIdentity: { type: 'string', maxLength: 320 },
                     },
                 },
             },

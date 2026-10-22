@@ -24,9 +24,15 @@ type State = { error?: string };
 export function TransferInitiationForm({
     action,
     steps,
+    askSourceAccount = false,
 }: {
     action: (state: State, form: FormData) => Promise<State>;
     steps: HandoverStepDto[];
+    /**
+     * En un sitio: el mail de la cuenta de Hostinger desde la que sale el
+     * dominio, para devolvérselo al vendedor si la operación se cancela.
+     */
+    askSourceAccount?: boolean;
 }) {
     const [state, submit, pending] = useActionState(action, {});
     const [controlCeded, setControlCeded] = useState(false);
@@ -82,6 +88,23 @@ export function TransferInitiationForm({
                     </span>
                 </span>
             </label>
+
+            {askSourceAccount && (
+                <label className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-medium">Tu cuenta de Hostinger</span>
+                    <input
+                        type="email"
+                        name="sellerSourceIdentity"
+                        required
+                        autoComplete="email"
+                        placeholder="El mail con el que entrás a Hostinger"
+                        className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 text-[14px] outline-none placeholder:text-[var(--color-apagado)] focus:border-[var(--color-acento)]"
+                    />
+                    <span className="text-[12px] leading-relaxed text-[var(--color-apagado)]">
+                        Si la venta se cae con el dominio en nuestra cuenta, te lo devolvemos a esta.
+                    </span>
+                </label>
+            )}
 
             <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium">Observaciones</span>

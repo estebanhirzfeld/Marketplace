@@ -1,14 +1,30 @@
 import { IOperationRepository, IListingRepository, ICustodyAccountRepository } from '../../ports/Repositories';
 import { Actor } from '../../ports/Actor';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
-import { resolveCustodyAccountId } from '../../services/WebCustody';
+import { isWebListing, resolveCustodyAccountId } from '../../services/WebCustody';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
-import { NotFoundError } from '../../errors/DomainError';
+import { Email } from '../../value-objects/Email';
+import { NotFoundError, ValidationError } from '../../errors/DomainError';
 
 export interface InitiateTransferInput {
     /** El vendedor afirma haber cedido el control del activo. */
     controlCeded: boolean;
     notes?: string;
+    /** En un sitio, el mail de la cuenta de Hostinger desde la que sale el dominio. */
+    sellerSourceIdentity?: string;
+}
+
+/**
+ * Sin la cuenta de origen, devolverle el dominio al vendedor si la operación
+ * se cancela quedaría a cargo de una persona averiguándola.
+ */
+function sourceAccountOf(raw: string | undefined): string {
+    if (!raw?.trim()) {
+        throw new ValidationError(
+            'Decinos el mail de la cuenta de Hostinger desde la que trasladás el dominio: ahí te lo devolvemos si la operación se cancela.',
+        );
+    }
+    return Email.create(raw).getValue();
 }
 
 /**
@@ -47,6 +63,7 @@ export class InitiateTransferUseCase {
             controlCeded: input.controlCeded,
             custodyAccountId: await resolveCustodyAccountId(listing, this.custodyRepo),
             notes: input.notes,
+            sellerSourceIdentity: isWebListing(listing) ? sourceAccountOf(input.sellerSourceIdentity) : undefined,
         });
         await this.operationRepo.save(operation);
 

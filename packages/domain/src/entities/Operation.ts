@@ -60,6 +60,12 @@ export interface TransferInitiation {
      */
     custodyAccountId?: UniqueEntityID;
     notes?: string;
+    /**
+     * La cuenta desde la que el vendedor cede el activo, para devolvérselo si
+     * la operación se cancela con el activo en custodia. En un sitio, el mail
+     * de su cuenta de Hostinger: Hostinger no la informa en el traslado.
+     */
+    sellerSourceIdentity?: string;
 }
 
 export type TransferInitiationInput = Omit<TransferInitiation, 'declaredAt'>;

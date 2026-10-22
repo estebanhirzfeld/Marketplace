@@ -1002,6 +1002,8 @@ export interface TransferInitiationDto {
 export interface InitiateTransferRequest {
     controlCeded: boolean;
     notes?: string;
+    /** En un sitio, el mail de la cuenta de Hostinger desde la que sale el dominio. */
+    sellerSourceIdentity?: string;
 }
 
 export interface CustodyVerificationDto {
