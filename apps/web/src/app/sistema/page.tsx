@@ -64,6 +64,7 @@ import {
     AdminDomainTransferPanel,
     DomainDeliveryStatus,
     DomainLockNotice,
+    SaleRequirementsPanel,
     TransferStepsList,
 } from '@/components/TransferSteps';
 import type { ConnectionReason } from '@/lib/youtubeConnection';
@@ -606,6 +607,25 @@ export default function Sistema() {
                         <div>
                             <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ANTES DE OFERTAR</div>
                             <DomainLockNotice />
+                        </div>
+                        <div>
+                            <div className="mb-4 font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR · ANTES DE VENDER</div>
+                            <SaleRequirementsPanel
+                                steps={[
+                                    {
+                                        id: '1',
+                                        key: 'domain-at-hostinger',
+                                        check: 'declared',
+                                        description: 'El vendedor tiene el dominio en Hostinger',
+                                        title: 'Tené el dominio en Hostinger',
+                                        instruction:
+                                            'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger: si hoy está en otro registrador, pedí el código EPP y mudalo antes de recibir ofertas.',
+                                        details: [
+                                            'Hostinger es el único registrador con el que trabajamos: desde ahí podemos recibir el dominio y entregárselo al comprador.',
+                                        ],
+                                    },
+                                ]}
+                            />
                         </div>
                     </div>
                 </Section>

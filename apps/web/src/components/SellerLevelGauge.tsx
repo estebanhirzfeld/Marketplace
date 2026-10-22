@@ -27,18 +27,21 @@ export function SellerLevelGauge({
     assetType,
     ownershipVerified,
     accessRegistered,
+    accessApplies = true,
     mercadoPago = 'not_linked',
 }: {
     /** De qué es el activo: la fila de titularidad lleva la marca de su tipo. */
     assetType: string;
     ownershipVerified: boolean;
     accessRegistered: boolean;
+    /** `false` en un sitio: el acceso de la plataforma no le corresponde. */
+    accessApplies?: boolean;
     mercadoPago?: MercadoPagoState;
 }) {
-    const input = { ownershipVerified, accessRegistered, mercadoPago };
+    const input = { ownershipVerified, accessRegistered, accessApplies, mercadoPago };
     const level = sellerLevel(input);
     const rows = levelBreakdown(input);
-    const max = maxSellerLevel(mercadoPago);
+    const max = maxSellerLevel(mercadoPago, accessApplies);
     const filled = (Math.min(Math.max(level, 0), max) / max) * CIRCUMFERENCE;
 
     return (

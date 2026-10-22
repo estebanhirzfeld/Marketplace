@@ -22,6 +22,7 @@ import {
     AdminDomainTransferPanel,
     DomainDeliveryStatus,
     DomainLockNotice,
+    SaleRequirementsPanel,
     TransferStepsList,
 } from '@/components/TransferSteps';
 
@@ -379,5 +380,81 @@ describe('un sitio web no hereda texto ni íconos de un canal', () => {
             renderToStaticMarkup(<PublishListingForm action={noop} estimate={async () => null} types={['web']} />),
         );
         expectNoYouTube(listingDraftNotice('web'));
+    });
+});
+
+/**
+ * Un sitio entra en custodia por un traslado del dominio: el acceso de la
+ * plataforma, sus niveles y la transferencia inmediata son de canales. La
+ * pantalla del vendedor de un sitio arma con estos componentes, así que acá
+ * no puede aparecer nada de eso.
+ */
+describe('un sitio web no muestra nada del acceso de la plataforma', () => {
+    const ACCESS_WORDS: readonly RegExp[] = [/transferencia inmediata/i, /NIVELES/, /acceso/i];
+
+    function expectNoAccess(html: string): void {
+        const text = html.replace(/<[^>]+>/g, ' ');
+        for (const pattern of ACCESS_WORDS) {
+            expect(text, `aparece ${pattern} en un sitio web`).not.toMatch(pattern);
+        }
+    }
+
+    it('lo que tiene que tener resuelto antes de vender', () => {
+        // El paso que `WebStrategy` declara hoy antes de la venta.
+        const step: HandoverStepDto = {
+            id: '1',
+            key: 'domain-at-hostinger',
+            check: 'declared',
+            phase: 'listing',
+            description: 'El vendedor tiene el dominio en Hostinger, o planea mudarlo con el código EPP antes de vender',
+            title: 'Tené el dominio en Hostinger',
+            instruction:
+                'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger: si hoy está en otro registrador, pedí el código EPP y mudalo antes de recibir ofertas.',
+            details: [
+                'Hostinger es el único registrador con el que trabajamos: desde ahí podemos recibir el dominio y entregárselo al comprador.',
+                'Si lo registraste o lo mudaste hace menos de 60 días, puede que todavía no se pueda mover: la ICANN lo bloquea durante ese plazo.',
+            ],
+        };
+        const html = renderToStaticMarkup(<SaleRequirementsPanel steps={[step]} />);
+
+        expectNoYouTube(html);
+        expectNoAccess(html);
+    });
+
+    it('el nivel de vendedor, sin la fila del acceso', () => {
+        for (const mercadoPago of ['not_linked', 'linked', 'unavailable'] as const) {
+            expectNoAccess(
+                renderToStaticMarkup(
+                    <SellerLevelGauge
+                        assetType="web"
+                        ownershipVerified
+                        accessRegistered={false}
+                        accessApplies={false}
+                        mercadoPago={mercadoPago}
+                    />,
+                ),
+            );
+        }
+    });
+
+    it('las tarjetas de verificación, sin la del acceso', () => {
+        expectNoAccess(
+            renderToStaticMarkup(
+                <VerificationCards
+                    ownership={{ done: true, sourceLabel: WEB_SOURCE }}
+                    mercadoPago={{ done: false }}
+                    ownershipSource={WEB_SOURCE}
+                    kycVerified={false}
+                    verifyAction={noopVoid}
+                    dnsVerification={dnsButton}
+                />,
+            ),
+        );
+    });
+
+    it('«Vendé más rápido», sin pedir acceso', () => {
+        expectNoAccess(
+            renderToStaticMarkup(<SellMoreAside accessHref="#" subject="sitio" showAccess={false} showMercadoPago />),
+        );
     });
 });

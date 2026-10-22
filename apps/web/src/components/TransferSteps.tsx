@@ -1,6 +1,6 @@
 import type { HandoverStepDto, OperationStatusDto, StepProgressDto } from '@marketplace/api-contract';
 import { OperationAction } from './OperationAction';
-import { Alert } from './ui';
+import { Alert, Panel } from './ui';
 import { fechaLarga } from '@/lib/format';
 
 /*
@@ -171,6 +171,40 @@ export function AdminDomainTransferPanel({
     const visibles = items.filter(Boolean);
     if (visibles.length === 0) return null;
     return <div className="flex flex-col gap-3">{visibles}</div>;
+}
+
+/**
+ * Lo que el vendedor de un sitio tiene que tener resuelto antes de vender. No
+ * se declara: el dominio se consulta en el registro público al firmar, y si
+ * falta algo la firma dice qué.
+ */
+export function SaleRequirementsPanel({ steps }: { steps: HandoverStepDto[] }) {
+    if (steps.length === 0) return null;
+
+    return (
+        <Panel title="ANTES DE VENDER">
+            <div className="flex flex-col gap-5">
+                {steps.map((step) => (
+                    <div key={step.key ?? step.id} className="flex flex-col gap-2">
+                        <h3 className="text-[16px] font-medium">{step.title ?? step.description}</h3>
+                        {step.instruction && (
+                            <p className="text-[14px] leading-relaxed text-[var(--color-tenue)]">{step.instruction}</p>
+                        )}
+                        {step.details && step.details.length > 0 && (
+                            <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                {step.details.map((d) => (
+                                    <li key={d}>{d}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                ))}
+                <p className="text-[13px] leading-relaxed text-[var(--color-apagado)]">
+                    Lo comprobamos solos cuando se firme el contrato: si falta algo, te decimos qué.
+                </p>
+            </div>
+        </Panel>
+    );
 }
 
 /** Antes de ofertar por un sitio: qué implica recibir el dominio. */

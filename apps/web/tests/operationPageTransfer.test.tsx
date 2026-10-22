@@ -129,3 +129,46 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
         expect(t).not.toContain('Comprobar el dominio en Hostinger');
     });
 });
+
+/**
+ * Un sitio no necesita acceso de la plataforma para firmar: lo que se comprueba
+ * es el dominio, y si no está listo la firma devuelve la instrucción. Antes la
+ * pantalla escondía el botón esperando un acceso que un sitio nunca tiene.
+ */
+describe('/operaciones/[id] — firma del contrato', () => {
+    const pendiente = (over: Partial<OperationDetailDto>) =>
+        unaOperacion({
+            status: 'contract_pending',
+            contracts: [{ id: 'c1', type: 'tripartite', isFullySigned: false }],
+            stepProgress: [],
+            transferable: false,
+            ...over,
+        });
+
+    it('las partes de un sitio pueden firmar sin acceso de la plataforma', async () => {
+        const t = await pagina(pendiente({ miParte: 'buyer' }), COMPRADOR);
+
+        expect(t).toContain('Firmar el contrato');
+        expect(t).not.toContain('acceso al activo');
+    });
+
+    it('el admin de un sitio no ve el aviso de registrar el acceso', async () => {
+        const t = await pagina(pendiente({}), ADMIN);
+
+        expect(t).not.toContain('Registrar el acceso al activo');
+        expect(t).not.toContain('constancia de que tenemos acceso');
+    });
+
+    it('un canal sin acceso sigue sin ofrecer la firma, y el vendedor lee por qué', async () => {
+        const t = await pagina(pendiente({ assetType: 'youtube', miParte: 'seller', handoverSteps: [] }), VENDEDOR);
+
+        expect(t).not.toContain('Firmar el contrato');
+        expect(t).toContain('necesitamos que nos des acceso al activo');
+    });
+
+    it('el admin de un canal sin acceso sigue viendo su próximo paso', async () => {
+        const t = await pagina(pendiente({ assetType: 'youtube', handoverSteps: [] }), ADMIN);
+
+        expect(t).toContain('Registrar el acceso al activo');
+    });
+});

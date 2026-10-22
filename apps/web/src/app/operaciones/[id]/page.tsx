@@ -162,6 +162,10 @@ export default async function DetalleOperacion(props: {
     const miTurno = op.miParte !== undefined && op.pendingResponseFrom === op.miParte;
     const negociando = op.status === 'offer_sent' || op.status === 'negotiating';
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
+    // Un canal se firma con el acceso de la plataforma y su espera cumplidos.
+    // Un sitio no usa ese acceso: lo que se comprueba al firmar es el dominio,
+    // y si no está listo la firma devuelve qué hacer.
+    const firmaHabilitada = op.transferable || op.assetType === 'web';
 
     // La identidad receptora es tarea pendiente del comprador: disponible desde
     // que hay contrato, exigible recién al cerrar, y urgente desde la custodia
@@ -545,7 +549,7 @@ export default async function DetalleOperacion(props: {
                                                     a las dos partes apretando contra un error que la
                                                     pantalla nunca les había anticipado.
                                                 */}
-                                                {op.transferable ? (
+                                                {firmaHabilitada ? (
                                                     <OperationAction
                                                         action={signContract.bind(null, id, tripartito.id)}
                                                         text="Firmar el contrato"
@@ -570,7 +574,7 @@ export default async function DetalleOperacion(props: {
                                     ceremonia: sin la constancia de acceso el dominio rechaza la
                                     firma, así que la operación queda detenida esperándonos.
                                 */}
-                                {isAdmin && op.status === 'contract_pending' && !op.transferable && (
+                                {isAdmin && op.status === 'contract_pending' && !firmaHabilitada && (
                                     <div className="flex flex-col gap-3">
                                         <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
                                             {op.transferableFrom

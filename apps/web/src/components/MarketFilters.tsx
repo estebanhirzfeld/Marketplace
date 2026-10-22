@@ -126,24 +126,31 @@ export function MarketFilters({ actuales }: { actuales: FiltrosDeBusqueda }) {
                     </Select>
                 </Bloque>
 
-                <Bloque titulo="DISPONIBILIDAD">
-                    <label className="flex items-start gap-2.5 text-[13px] text-[var(--color-tenue)]">
-                        <input
-                            type="checkbox"
-                            name="onlyTransferable"
-                            value="true"
-                            defaultChecked={actuales.onlyTransferable}
-                            className="mt-0.5 size-4 accent-[var(--color-listo)]"
-                        />
-                        <span className="flex flex-col gap-1">
-                            Solo transferencia inmediata
-                            <span className="text-[11px] leading-relaxed text-[var(--color-apagado)]">
-                                La plataforma ya tiene el acceso, así que la entrega no queda
-                                esperando ningún plazo.
+                {/*
+                    La transferencia inmediata es de canales: depende del acceso de la
+                    plataforma y su espera. Con todos los tipos, el filtro dejaba afuera
+                    a todos los sitios sin decirlo.
+                */}
+                {esCanal && (
+                    <Bloque titulo="DISPONIBILIDAD">
+                        <label className="flex items-start gap-2.5 text-[13px] text-[var(--color-tenue)]">
+                            <input
+                                type="checkbox"
+                                name="onlyTransferable"
+                                value="true"
+                                defaultChecked={actuales.onlyTransferable}
+                                className="mt-0.5 size-4 accent-[var(--color-listo)]"
+                            />
+                            <span className="flex flex-col gap-1">
+                                Solo transferencia inmediata
+                                <span className="text-[11px] leading-relaxed text-[var(--color-apagado)]">
+                                    La plataforma ya tiene el acceso, así que la entrega no queda
+                                    esperando ningún plazo.
+                                </span>
                             </span>
-                        </span>
-                    </label>
-                </Bloque>
+                        </label>
+                    </Bloque>
+                )}
 
                 <Bloque titulo="PRECIO">
                     <div className="flex flex-col gap-3">

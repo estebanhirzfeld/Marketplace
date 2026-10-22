@@ -6,6 +6,7 @@ import {
     DomainDeliveryStatus,
     AdminDomainTransferPanel,
     DomainLockNotice,
+    SaleRequirementsPanel,
 } from '@/components/TransferSteps';
 import { fechaLarga } from '@/lib/format';
 
@@ -212,6 +213,37 @@ describe('AdminDomainTransferPanel', () => {
                 <AdminDomainTransferPanel status="completed" steps={PASOS} progress={[]} actions={acciones} />,
             ),
         ).toBe('');
+    });
+});
+
+/*
+ * El vendedor de un sitio, antes de vender, solo tiene que tener el dominio en
+ * Hostinger. No hay nada que declarar: se comprueba solo al firmar.
+ */
+describe('SaleRequirementsPanel', () => {
+    const PASO: HandoverStepDto = {
+        id: '1',
+        key: 'domain-at-hostinger',
+        check: 'declared',
+        description: 'd',
+        title: 'Tené el dominio en Hostinger',
+        instruction: 'Para venderlo, el dominio tiene que estar en una cuenta de Hostinger.',
+        details: ['Hostinger es el único registrador con el que trabajamos.'],
+    };
+
+    it('muestra el paso con su instrucción y lo que conviene saber, sin nada que declarar', () => {
+        const t = texto(renderToStaticMarkup(<SaleRequirementsPanel steps={[PASO]} />));
+
+        expect(t).toContain('ANTES DE VENDER');
+        expect(t).toContain('Tené el dominio en Hostinger');
+        expect(t).toContain('Para venderlo, el dominio tiene que estar en una cuenta de Hostinger.');
+        expect(t).toContain('Hostinger es el único registrador con el que trabajamos.');
+        expect(t).toContain('Lo comprobamos solos cuando se firme el contrato');
+        expect(t).not.toMatch(/Ya lo hice|TRANSFERENCIA INMEDIATA|NIVELES/i);
+    });
+
+    it('sin pasos no muestra nada', () => {
+        expect(renderToStaticMarkup(<SaleRequirementsPanel steps={[]} />)).toBe('');
     });
 });
 

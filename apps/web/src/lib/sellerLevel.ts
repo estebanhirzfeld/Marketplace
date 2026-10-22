@@ -10,9 +10,24 @@ export const MAX_SELLER_LEVEL = 4;
  */
 export type MercadoPagoState = 'linked' | 'not_linked' | 'unavailable';
 
-/** Sin Mercado Pago disponible el techo es titularidad 1 + acceso 2. */
-export function maxSellerLevel(mercadoPago: MercadoPagoState): number {
-    return mercadoPago === 'unavailable' ? MAX_SELLER_LEVEL - POINTS.mercadoPago : MAX_SELLER_LEVEL;
+/**
+ * Sin Mercado Pago disponible el techo es titularidad 1 + acceso 2. Un activo
+ * que no usa el acceso de la plataforma (un sitio) no lo cuenta en el techo.
+ */
+export function maxSellerLevel(mercadoPago: MercadoPagoState, accessApplies = true): number {
+    return (
+        MAX_SELLER_LEVEL -
+        (mercadoPago === 'unavailable' ? POINTS.mercadoPago : 0) -
+        (accessApplies ? 0 : POINTS.access)
+    );
+}
+
+/** Lo que el nivel necesita saber. `accessApplies` es `false` en un sitio. */
+export interface SellerLevelInput {
+    ownershipVerified: boolean;
+    accessRegistered: boolean;
+    mercadoPago: MercadoPagoState;
+    accessApplies?: boolean;
 }
 
 const POINTS = { ownership: 1, access: 2, mercadoPago: 1 } as const;
@@ -26,14 +41,11 @@ export function isAccessRegistered(status: PlatformAccessStatusDto): boolean {
     return status === 'waiting' || status === 'immediate';
 }
 
-export function sellerLevel(input: {
-    ownershipVerified: boolean;
-    accessRegistered: boolean;
-    mercadoPago: MercadoPagoState;
-}): number {
+export function sellerLevel(input: SellerLevelInput): number {
+    const accessApplies = input.accessApplies ?? true;
     return (
         (input.ownershipVerified ? POINTS.ownership : 0) +
-        (input.accessRegistered ? POINTS.access : 0) +
+        (accessApplies && input.accessRegistered ? POINTS.access : 0) +
         (input.mercadoPago === 'linked' ? POINTS.mercadoPago : 0)
     );
 }
@@ -51,15 +63,13 @@ export interface LevelRow {
  * Qué suma cada logro y cuáles ya están, para el desglose bajo el anillo. Sin
  * Mercado Pago disponible la fila no se ofrece: tampoco suma al máximo.
  */
-export function levelBreakdown(input: {
-    ownershipVerified: boolean;
-    accessRegistered: boolean;
-    mercadoPago: MercadoPagoState;
-}): LevelRow[] {
+export function levelBreakdown(input: SellerLevelInput): LevelRow[] {
     const rows: LevelRow[] = [
         { key: 'ownership', label: 'Titularidad', points: POINTS.ownership, done: input.ownershipVerified },
-        { key: 'access', label: 'Acceso', points: POINTS.access, done: input.accessRegistered },
     ];
+    if (input.accessApplies ?? true) {
+        rows.push({ key: 'access', label: 'Acceso', points: POINTS.access, done: input.accessRegistered });
+    }
     if (input.mercadoPago !== 'unavailable') {
         rows.push({
             key: 'mercadoPago',

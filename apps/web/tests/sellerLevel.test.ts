@@ -74,3 +74,26 @@ describe('levelBreakdown', () => {
         expect(total).toBe(sellerLevel(input));
     });
 });
+
+/**
+ * Un sitio no usa el acceso de la plataforma: con esa fila, su vendedor nunca
+ * llegaba al nivel máximo y la pantalla le pedía algo que no puede hacer.
+ */
+describe('un activo sin acceso de la plataforma', () => {
+    const sitio = { ownershipVerified: true, accessRegistered: false, accessApplies: false } as const;
+
+    it('no tiene la fila de acceso', () => {
+        expect(levelBreakdown({ ...sitio, mercadoPago: 'linked' }).map((r) => r.key)).toEqual(['ownership', 'mercadoPago']);
+    });
+
+    it('llega al máximo con titularidad y Mercado Pago', () => {
+        expect(sellerLevel({ ...sitio, mercadoPago: 'linked' })).toBe(2);
+        expect(maxSellerLevel('linked', false)).toBe(2);
+        expect(maxSellerLevel('unavailable', false)).toBe(1);
+    });
+
+    it('un canal sigue contando el acceso', () => {
+        expect(maxSellerLevel('linked')).toBe(MAX_SELLER_LEVEL);
+        expect(levelBreakdown({ ownershipVerified: true, accessRegistered: true, mercadoPago: 'linked' }).map((r) => r.key)).toContain('access');
+    });
+});

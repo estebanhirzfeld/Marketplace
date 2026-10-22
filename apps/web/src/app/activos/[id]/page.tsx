@@ -14,6 +14,7 @@ import { ListingStatusBadge } from '@/components/ListingStatusBadge';
 import { Alert, OperationStatusBadge, Panel, EmptyState, ButtonLink } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { AccessPanel } from '@/components/AccessPanel';
+import { SaleRequirementsPanel } from '@/components/TransferSteps';
 import { DraftPanel } from '@/components/DraftPanel';
 import { SellMoreAside } from '@/components/SellMoreAside';
 import { EditListingDialog } from '@/components/EditListingDialog';
@@ -159,6 +160,9 @@ export default async function DetalleDeActivo(props: {
         listingSteps.length === 2 &&
         listingSteps.every((p) => p.details && p.details.length > 0);
     const accessRegistered = mio.transferable || isAccessRegistered(mio.platformAccessStatus);
+    // Un sitio no usa el acceso de la plataforma: entra en custodia por un
+    // traslado del dominio. Nada del acceso se le muestra a su vendedor.
+    const requiresAccess = listing.descriptor.requiresPlatformAccess;
     const sourceLabel = ownershipSourceLabel(listing.descriptor.ownershipSource);
     const accessHref = `/activos/${id}?ver=verificaciones#acceso`;
     const subject = mio.assetType === 'youtube' ? 'canal' : 'sitio';
@@ -415,7 +419,7 @@ export default async function DetalleDeActivo(props: {
                                     ))}
                             </AssetSummaryCard>
                         )}
-                        <SellerLevelGauge assetType={mio.assetType} ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} mercadoPago={mercadoPago} />
+                        <SellerLevelGauge assetType={mio.assetType} ownershipVerified={!!mio.ownership} accessRegistered={accessRegistered} accessApplies={requiresAccess} mercadoPago={mercadoPago} />
                     </div>
 
                     <div className="mt-4 flex flex-col gap-4">
@@ -425,7 +429,7 @@ export default async function DetalleDeActivo(props: {
                                 sourceLabel: ownershipSourceLabel(mio.ownership?.source ?? ''),
                                 verifiedAt: mio.ownership?.verifiedAt,
                             }}
-                            access={{ done: accessRegistered }}
+                            access={requiresAccess ? { done: accessRegistered } : undefined}
                             mercadoPago={{ done: mercadoPago === 'linked', unavailable: mercadoPago === 'unavailable' }}
                             ownershipSource={sourceLabel}
                             kycVerified={kycVerified}
@@ -439,7 +443,8 @@ export default async function DetalleDeActivo(props: {
                             mientras el activo está publicado, y cuando se cumple queda
                             marcado como de transferencia inmediata.
                         */}
-                        {listingSteps.length > 0 && (
+                        {!requiresAccess && <SaleRequirementsPanel steps={listingSteps} />}
+                        {requiresAccess && listingSteps.length > 0 && (
                             <AccessPanel
                                 listingId={id}
                                 subject={subject}
@@ -488,7 +493,7 @@ export default async function DetalleDeActivo(props: {
                                 <SellMoreAside
                                             accessHref={accessHref}
                                             subject={subject}
-                                            showAccess={mio.platformAccessStatus === 'pending'}
+                                            showAccess={requiresAccess && mio.platformAccessStatus === 'pending'}
                                     showMercadoPago={mercadoPago === 'not_linked'}
                                 />
                             )}

@@ -139,13 +139,16 @@ export default async function DetalleListing(props: { params: Promise<{ id: stri
                 {/* Acción */}
                 <Reveal delay={100}>
                     <div className="flex flex-col gap-5">
-                        <TransferStatus
-                            transferable={listing.transferable}
-                            transferableFrom={listing.transferableFrom}
-                            now={new Date().toISOString()}
-                        />
+                        {/* La transferencia inmediata y el acceso son de canales: un sitio no los usa. */}
+                        {listing.descriptor.requiresPlatformAccess && (
+                            <TransferStatus
+                                transferable={listing.transferable}
+                                transferableFrom={listing.transferableFrom}
+                                now={new Date().toISOString()}
+                            />
+                        )}
 
-                        {actor?.role === UserRole.ADMIN && (
+                        {actor?.role === UserRole.ADMIN && listing.descriptor.requiresPlatformAccess && (
                             <Panel title="ACCESO DE LA PLATAFORMA">
                                 <PlatformAccessForm
                                     registerUser={registerPlatformAccess.bind(null, id)}
