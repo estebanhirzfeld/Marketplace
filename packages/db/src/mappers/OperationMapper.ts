@@ -15,6 +15,8 @@ import {
     StoredMilestones,
     TransferRejection,
     PaymentReceipt,
+    RECEIPT_REJECTION_CODES,
+    ReceiptRejectionCode,
 } from "@marketplace/domain/src/entities/Operation";
 import { UniqueEntityID } from "@marketplace/domain/src/value-objects/UniqueEntityID";
 import { Money } from "@marketplace/domain/src/value-objects/Money";
@@ -368,6 +370,9 @@ function parsePaymentReceipts(raw: unknown): PaymentReceipt[] | undefined {
             uploadedAt: new Date(r.uploadedAt),
             decidedBy: typeof r.decidedBy === "string" ? new UniqueEntityID(r.decidedBy) : undefined,
             decidedAt: typeof r.decidedAt === "string" ? new Date(r.decidedAt) : undefined,
+            rejectionCode: RECEIPT_REJECTION_CODES.includes(r.rejectionCode as ReceiptRejectionCode)
+                ? (r.rejectionCode as ReceiptRejectionCode)
+                : undefined,
             rejectionReason: typeof r.rejectionReason === "string" ? r.rejectionReason : undefined,
         };
     });
@@ -385,6 +390,7 @@ function serializePaymentReceipts(receipts?: readonly PaymentReceipt[]) {
         uploadedAt: r.uploadedAt.toISOString(),
         decidedBy: r.decidedBy?.toString() ?? null,
         decidedAt: r.decidedAt?.toISOString() ?? null,
+        rejectionCode: r.rejectionCode ?? null,
         rejectionReason: r.rejectionReason ?? null,
     }));
 }

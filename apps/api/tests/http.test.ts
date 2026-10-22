@@ -4188,7 +4188,7 @@ describe('/operations/:id/receipts', () => {
     it('el detalle dice en qué está cada comprobante y a quién le toca confirmarlo', async () => {
         const { id, buyerEmail, sellerEmail } = await enCustodia();
         await subir(id, 'seller', buyerEmail, PDF);
-        await decidir(id, 'seller', sellerEmail, { confirm: false, reason: 'No me llegó.' });
+        await decidir(id, 'seller', sellerEmail, { confirm: false, code: 'not_credited', detail: 'No me llegó.' });
         await subir(id, 'platform', buyerEmail, PDF);
 
         const detalle = await app.inject({
@@ -4198,7 +4198,7 @@ describe('/operations/:id/receipts', () => {
         });
 
         expect(detalle.json().paymentReceipts).toEqual([
-            expect.objectContaining({ recipient: 'seller', status: 'rejected', rejectionReason: 'No me llegó.' }),
+            expect.objectContaining({ recipient: 'seller', status: 'rejected', rejectionCode: 'not_credited', rejectionReason: 'No me llegó.' }),
             expect.objectContaining({ recipient: 'platform', status: 'pending' }),
         ]);
         // El comprador corrige el suyo mientras la plataforma confirma la comisión.
@@ -4238,12 +4238,13 @@ describe('/operations/:id/receipts', () => {
         expect((await subir(id, 'otro', buyerEmail, PDF)).statusCode).toBe(400);
     });
 
-    it('rechazar sin motivo es 400; con motivo deja subir otro', async () => {
+    it('rechazar sin motivo o con uno desconocido es 400; con motivo deja subir otro', async () => {
         const { id, buyerEmail, sellerEmail } = await enCustodia();
         await subir(id, 'seller', buyerEmail, PDF);
 
         expect((await decidir(id, 'seller', sellerEmail, { confirm: false })).statusCode).toBe(400);
-        expect((await decidir(id, 'seller', sellerEmail, { confirm: false, reason: 'No me llegó.' })).statusCode).toBe(204);
+        expect((await decidir(id, 'seller', sellerEmail, { confirm: false, code: 'porque_si' })).statusCode).toBe(400);
+        expect((await decidir(id, 'seller', sellerEmail, { confirm: false, code: 'not_credited' })).statusCode).toBe(204);
         expect((await subir(id, 'seller', buyerEmail, PDF)).statusCode).toBe(204);
     });
 });

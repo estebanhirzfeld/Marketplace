@@ -1202,7 +1202,7 @@ describe("PrismaOperationRepository — hitos", () => {
         const uploadedAt = new Date("2026-10-22T13:00:00.000Z");
         operation.uploadReceipt("seller", { fileKey: "receipts/x/seller.pdf", contentType: "application/pdf", sizeBytes: 1200 }, uploadedAt);
         operation.uploadReceipt("platform", { fileKey: "receipts/x/platform.png", contentType: "image/png", sizeBytes: 900 }, uploadedAt);
-        operation.decideReceipt("seller", { confirm: false, reason: "No me llegó." }, sellerId);
+        operation.decideReceipt("seller", { confirm: false, code: "not_credited", detail: "No me llegó." }, sellerId);
 
         await operationRepo.save(operation);
         const retrieved = await operationRepo.findById(operation.id.toString());
@@ -1217,6 +1217,7 @@ describe("PrismaOperationRepository — hitos", () => {
                 uploadedAt,
                 decidedBy: sellerId,
                 decidedAt: expect.any(Date),
+                rejectionCode: "not_credited",
                 rejectionReason: "No me llegó.",
             },
             {
@@ -1228,6 +1229,7 @@ describe("PrismaOperationRepository — hitos", () => {
                 uploadedAt,
                 decidedBy: undefined,
                 decidedAt: undefined,
+                rejectionCode: undefined,
                 rejectionReason: undefined,
             },
         ]);

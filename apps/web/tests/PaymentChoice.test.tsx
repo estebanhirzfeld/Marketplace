@@ -411,11 +411,11 @@ describe('PaymentChoice — transferencia dividida', () => {
     it('un comprobante rechazado muestra el motivo y deja subir otro', () => {
         const html = conComprobantes([
             { recipient: 'seller', status: 'confirmed', uploadedAt: '2026-10-22T12:00:00.000Z' },
-            { recipient: 'platform', status: 'rejected', uploadedAt: '2026-10-22T12:00:00.000Z', rejectionReason: 'El monto no coincide.' },
+            { recipient: 'platform', status: 'rejected', uploadedAt: '2026-10-22T12:00:00.000Z', rejectionCode: 'amount_mismatch', rejectionReason: 'Llegaron AR$ 90.000.' },
         ]);
 
         expect(texto(html)).toContain('Confirmada: la transferencia llegó.');
-        expect(texto(html)).toContain('Rechazaron este comprobante: El monto no coincide.');
+        expect(texto(html)).toContain('Rechazaron este comprobante: El monto no coincide: Llegaron AR$ 90.000.');
         expect(texto(html)).toContain('Subí otro comprobante');
         expect(camposDeArchivo(html)).toBe(1);
     });

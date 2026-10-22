@@ -1014,14 +1014,18 @@ export type TransferDestinationDto =
     | { recipient: 'platform'; amount: MoneyDto; instructions: string };
 
 /** Quien recibió la plata confirma su comprobante, o lo rechaza con el motivo. */
-export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; reason: string };
+export type ReceiptRejectionCodeDto = 'not_credited' | 'amount_mismatch' | 'other';
+
+export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; code: ReceiptRejectionCodeDto; detail?: string };
 
 /** En qué está un comprobante. El archivo se pide aparte, a quien le corresponde verlo. */
 export interface PaymentReceiptDto {
     recipient: ReceiptRecipientDto;
     status: 'pending' | 'confirmed' | 'rejected';
     uploadedAt: string;
-    /** Por qué se rechazó, para que el comprador sepa qué corregir. */
+    /** El motivo elegido. Ausente en rechazos anteriores a los motivos. */
+    rejectionCode?: ReceiptRejectionCodeDto;
+    /** El detalle que escribió quien rechazó, si escribió uno. */
     rejectionReason?: string;
 }
 

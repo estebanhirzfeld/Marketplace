@@ -79,15 +79,34 @@ describe('Operation — comprobantes de la transferencia', () => {
         });
     });
 
-    it('rechazar pide el motivo y deja subir otro comprobante', () => {
+    it('rechazar se hace eligiendo un motivo; el detalle es opcional', () => {
         const op = enCustodia();
         op.uploadReceipt('seller', file, UPLOADED);
 
-        expect(() => op.decideReceipt('seller', { confirm: false, reason: '  ' }, SELLER)).toThrow(
-            new ValidationError('Decile al comprador qué está mal: el motivo es lo que le va a permitir corregirlo.'),
+        op.decideReceipt('seller', { confirm: false, code: 'not_credited' }, SELLER);
+        expect(op.paymentReceipts[0]).toMatchObject({ status: 'rejected', rejectionCode: 'not_credited' });
+        expect(op.paymentReceipts[0].rejectionReason).toBeUndefined();
+
+        op.uploadReceipt('seller', { ...file, fileKey: 'receipts/op/seller-2.pdf' }, UPLOADED);
+        op.decideReceipt('seller', { confirm: false, code: 'amount_mismatch', detail: '  Llegaron AR$ 1.400.000.  ' }, SELLER);
+        expect(op.paymentReceipts[0]).toMatchObject({ rejectionCode: 'amount_mismatch', rejectionReason: 'Llegaron AR$ 1.400.000.' });
+    });
+
+    it('con «otro motivo», el detalle es obligatorio', () => {
+        const op = enCustodia();
+        op.uploadReceipt('seller', file, UPLOADED);
+
+        expect(() => op.decideReceipt('seller', { confirm: false, code: 'other', detail: '  ' }, SELLER)).toThrow(
+            new ValidationError('Contale al comprador qué sucedió: es lo que le va a permitir corregirlo.'),
         );
-        op.decideReceipt('seller', { confirm: false, reason: 'No me llegó.' }, SELLER);
-        expect(op.paymentReceipts[0]).toMatchObject({ status: 'rejected', rejectionReason: 'No me llegó.' });
+        op.decideReceipt('seller', { confirm: false, code: 'other', detail: 'El comprobante es de otra operación.' }, SELLER);
+        expect(op.paymentReceipts[0]).toMatchObject({ status: 'rejected', rejectionCode: 'other' });
+    });
+
+    it('un comprobante rechazado se puede volver a subir', () => {
+        const op = enCustodia();
+        op.uploadReceipt('seller', file, UPLOADED);
+        op.decideReceipt('seller', { confirm: false, code: 'not_credited' }, SELLER);
 
         op.uploadReceipt('seller', { ...file, fileKey: 'receipts/op/seller-2.pdf' }, UPLOADED);
         expect(op.paymentReceipts[0]).toMatchObject({ status: 'pending', fileKey: 'receipts/op/seller-2.pdf' });
@@ -225,7 +244,7 @@ describe('UploadPaymentReceiptUseCase y DecidePaymentReceiptUseCase', () => {
         await upload.execute(op.id.toString(), 'seller', PDF, actor(BUYER, UserRole.BUYER));
         enviadas.length = 0;
 
-        await decide.execute(op.id.toString(), 'seller', { confirm: false, reason: 'No me llegó.' }, actor(SELLER, UserRole.SELLER));
+        await decide.execute(op.id.toString(), 'seller', { confirm: false, code: 'not_credited' }, actor(SELLER, UserRole.SELLER));
 
         expect(enviadas.map((n) => [n.type, n.toSnapshot().props.userId.toString()])).toEqual([['comprobante_rechazado', BUYER.toString()]]);
     });

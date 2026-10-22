@@ -30,9 +30,13 @@ describe('ReceiptReviewForm', () => {
         expect(html).toContain('rel="noopener"');
     });
 
-    it('confirma con el monto a la vista, y rechazar pide el motivo escrito', () => {
+    it('confirma con el monto a la vista; rechazar es elegir un motivo, con el detalle opcional', () => {
         expect(texto(html)).toContain('Me llegaron AR$ 9.500');
-        expect(html).toMatch(/<textarea[^>]*name="reason"[^>]*required/);
+        expect(html.match(/<input[^>]*type="radio"[^>]*name="code"/g)).toHaveLength(3);
+        expect(texto(html)).toContain('Todavía no se acreditó');
+        expect(texto(html)).toContain('El monto no coincide');
+        expect(html).toMatch(/<textarea[^>]*name="detail"/);
+        expect(html).not.toMatch(/<textarea[^>]*required/);
         expect(texto(html)).toContain('Rechazar el comprobante');
     });
 });

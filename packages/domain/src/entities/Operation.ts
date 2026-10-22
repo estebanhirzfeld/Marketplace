@@ -238,10 +238,17 @@ export interface PaymentReceipt {
     status: 'pending' | 'confirmed' | 'rejected';
     decidedBy?: UniqueEntityID;
     decidedAt?: Date;
+    /** Por qué se rechazó. Ausente en los rechazos guardados antes de elegir un motivo. */
+    rejectionCode?: ReceiptRejectionCode;
+    /** El detalle que escribió quien rechazó, para el comprador. */
     rejectionReason?: string;
 }
 
-export type ReceiptDecision = { confirm: true } | { confirm: false; reason: string };
+/** Por qué no llegó lo que dice el comprobante: lo que el vendedor ve en su banco. */
+export type ReceiptRejectionCode = 'not_credited' | 'amount_mismatch' | 'other';
+export const RECEIPT_REJECTION_CODES: readonly ReceiptRejectionCode[] = ['not_credited', 'amount_mismatch', 'other'];
+
+export type ReceiptDecision = { confirm: true } | { confirm: false; code: ReceiptRejectionCode; detail?: string };
 
 const RECIPIENT_ORDER: readonly ReceiptRecipient[] = ['seller', 'platform'];
 
@@ -719,13 +726,17 @@ export class Operation extends Entity<OperationProps> {
             throw new InvalidStateError('No hay un comprobante esperando confirmación.');
         }
         if (decision.confirm) {
-            Object.assign(receipt, { status: 'confirmed', decidedBy: by, decidedAt: at, rejectionReason: undefined });
+            Object.assign(receipt, { status: 'confirmed', decidedBy: by, decidedAt: at, rejectionCode: undefined, rejectionReason: undefined });
         } else {
-            const reason = decision.reason.trim();
-            if (!reason) {
-                throw new ValidationError('Decile al comprador qué está mal: el motivo es lo que le va a permitir corregirlo.');
+            if (!RECEIPT_REJECTION_CODES.includes(decision.code)) {
+                throw new ValidationError('Elegí qué sucedió con la transferencia.');
             }
-            Object.assign(receipt, { status: 'rejected', decidedBy: by, decidedAt: at, rejectionReason: reason });
+            // El motivo elegido ya le dice al comprador qué corregir; «otro» necesita las palabras.
+            const detail = decision.detail?.trim() || undefined;
+            if (decision.code === 'other' && !detail) {
+                throw new ValidationError('Contale al comprador qué sucedió: es lo que le va a permitir corregirlo.');
+            }
+            Object.assign(receipt, { status: 'rejected', decidedBy: by, decidedAt: at, rejectionCode: decision.code, rejectionReason: detail });
         }
 
         const confirmed = (this.props.paymentReceipts ?? []).filter((r) => r.status === 'confirmed');

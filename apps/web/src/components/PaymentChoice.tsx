@@ -9,6 +9,7 @@ import { exactMoney, money } from '@/lib/format';
 import { Alert, Button, ButtonLink } from './ui';
 import { SubmitButton } from './SubmitButton';
 import { ReceiptUploadForm } from './ReceiptForms';
+import { rejectionText } from '@/lib/receiptCopy';
 
 type FormAction = (state: { error?: string; ok?: boolean; message?: string }, form: FormData) => Promise<{
     error?: string;
@@ -278,7 +279,7 @@ function ReceiptState({ receipt, uploadAction }: { receipt?: PaymentReceiptDto; 
         <>
             {receipt?.status === 'rejected' && (
                 <Alert tono="alerta">
-                    Rechazaron este comprobante: {receipt.rejectionReason}
+                    Rechazaron este comprobante: {rejectionText(receipt)}
                 </Alert>
             )}
             {uploadAction && <ReceiptUploadForm action={uploadAction} replacing={receipt?.status === 'rejected'} />}

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { Alert, Button } from './ui';
+import { REJECTION_CODES, REJECTION_LABEL } from '@/lib/receiptCopy';
 
 type State = { error?: string; ok?: boolean; message?: string };
 type FormAction = (state: State, form: FormData) => Promise<State>;
@@ -39,8 +40,8 @@ export function ReceiptUploadForm({ action, replacing = false }: { action: FormA
 }
 
 /**
- * Quien recibió la plata mira el comprobante y responde: le llegó, o qué está
- * mal. El motivo es lo que va a leer el comprador, así que se pide escrito.
+ * Quien recibió la plata mira el comprobante y responde: le llegó, o qué
+ * sucedió. El motivo se elige; el detalle es opcional, salvo con «otro».
  */
 export function ReceiptReviewForm({
     fileHref,
@@ -71,16 +72,24 @@ export function ReceiptReviewForm({
                 </Button>
             </form>
             <details className="text-[13px]">
-                <summary className="cursor-pointer text-[var(--color-tenue)]">No llegó o no coincide</summary>
+                <summary className="cursor-pointer text-[var(--color-tenue)]">No se acreditó</summary>
                 <form action={reject} className="mt-3 flex flex-col gap-3">
+                    <fieldset className="flex flex-col gap-2">
+                        <legend className="mb-1 text-[13px] font-medium">¿Qué sucedió con la transferencia?</legend>
+                        {REJECTION_CODES.map((code, i) => (
+                            <label key={code} className="flex min-h-[44px] items-center gap-3 text-[14px]">
+                                <input type="radio" name="code" value={code} required defaultChecked={i === 0} />
+                                {REJECTION_LABEL[code]}
+                            </label>
+                        ))}
+                    </fieldset>
                     <label className="flex flex-col gap-1.5">
-                        <span className="text-[13px] font-medium">Qué está mal</span>
+                        <span className="text-[13px] font-medium">Detalle para el comprador (opcional)</span>
                         <textarea
-                            name="reason"
+                            name="detail"
                             rows={2}
-                            required
                             maxLength={2000}
-                            placeholder="Por ejemplo: el monto no coincide, o todavía no se acreditó."
+                            placeholder="Por ejemplo: se acreditaron AR$ 1.400.000."
                             className="rounded-lg border border-[var(--color-borde)] bg-transparent p-2.5 text-[13px] leading-relaxed outline-none placeholder:text-[var(--color-apagado)] focus:border-[var(--color-acento)]"
                         />
                     </label>

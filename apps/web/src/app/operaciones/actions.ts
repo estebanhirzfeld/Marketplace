@@ -14,6 +14,8 @@ import { ApiError } from '@marketplace/api-client';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/guards';
 import { money } from '@/lib/format';
+import { REJECTION_CODES } from '@/lib/receiptCopy';
+import type { ReceiptRejectionCodeDto } from '@marketplace/api-contract';
 
 /** Ver el comentario en `listings/[id]/actions.ts`: el éxito también se cuenta. */
 export type ActionState = { error?: string; ok?: boolean; message?: string };
@@ -322,8 +324,8 @@ export async function uploadReceiptAction(
 }
 
 /**
- * Quien recibió la plata confirma su comprobante o lo rechaza. El motivo del
- * rechazo es lo que va a leer el comprador para corregirlo.
+ * Quien recibió la plata confirma su comprobante o lo rechaza eligiendo un
+ * motivo, que es lo que va a leer el comprador para corregirlo.
  */
 export async function decideReceiptAction(
     operationId: string,
@@ -335,13 +337,14 @@ export async function decideReceiptAction(
     await requireSession();
     if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
 
-    const reason = String(form.get('reason') ?? '').trim();
-    if (!confirm && !reason) {
-        return { error: 'Escribí qué está mal: es lo que va a leer el comprador.' };
+    const code = String(form.get('code') ?? '') as ReceiptRejectionCodeDto;
+    const detail = String(form.get('detail') ?? '').trim() || undefined;
+    if (!confirm && !REJECTION_CODES.includes(code)) {
+        return { error: 'Elegí qué sucedió con la transferencia.' };
     }
 
     try {
-        await api().decideReceipt(operationId, recipient, confirm ? { confirm: true } : { confirm: false, reason });
+        await api().decideReceipt(operationId, recipient, confirm ? { confirm: true } : { confirm: false, code, detail });
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
         return { error: 'No pudimos guardar la respuesta. Probá de nuevo.' };
@@ -349,8 +352,8 @@ export async function decideReceiptAction(
 
     revalidatePath(`/operaciones/${operationId}`);
     return confirm
-        ? { ok: true, message: 'Confirmaste la transferencia.' }
-        : { ok: true, message: 'Rechazaste el comprobante. El comprador ve el motivo y puede subir otro.' };
+        ? { ok: true, message: 'Registramos tu confirmación.' }
+        : { ok: true, message: 'Rechazaste el comprobante. El comprador recibirá el motivo.' };
 }
 
 /* ── Traspaso de un sitio (admin) ─────────────────────────*/

@@ -245,13 +245,23 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
                 body: {
                     type: 'object',
                     required: ['confirm'],
-                    properties: { confirm: { type: 'boolean' }, reason: { type: 'string', maxLength: MAX_NOTES_LENGTH } },
+                    additionalProperties: false,
+                    properties: {
+                        confirm: { type: 'boolean' },
+                        code: { type: 'string', enum: ['not_credited', 'amount_mismatch', 'other'] },
+                        detail: { type: 'string', maxLength: MAX_NOTES_LENGTH },
+                    },
+                    // Rechazar es elegir un motivo: sin él, no hay qué decirle al comprador.
+                    if: { properties: { confirm: { const: false } } },
+                    then: { required: ['code'] },
                 },
             },
         },
         async (request, reply) => {
             const body = request.body;
-            const decision = body.confirm ? { confirm: true as const } : { confirm: false as const, reason: body.reason ?? '' };
+            const decision = body.confirm
+                ? { confirm: true as const }
+                : { confirm: false as const, code: body.code, detail: body.detail };
             await c.decidePaymentReceipt.execute(request.params.id, request.params.recipient, decision, actorOf(request));
             return reply.code(204).send();
         },

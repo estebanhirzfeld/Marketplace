@@ -637,6 +637,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     recipient: r.recipient,
                     status: r.status,
                     uploadedAt: r.uploadedAt.toISOString(),
+                    rejectionCode: r.rejectionCode,
                     rejectionReason: r.rejectionReason,
                 })),
                 transferInitiation: operation.transferInitiation && {
