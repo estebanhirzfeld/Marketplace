@@ -285,10 +285,13 @@ export class WebStrategy implements IAssetStrategy {
                 instruction: `El registro muestra el dominio ${domain.value} con el estado «${blocking}», que impide traspasarlo. Resolvelo en Hostinger antes de firmar.`,
             };
         }
-        if (
-            registry.expiresAt &&
-            registry.expiresAt.getTime() - facts.now.getTime() < MIN_DAYS_BEFORE_EXPIRY * MS_PER_DAY
-        ) {
+        if (!registry.expiresAt) {
+            return {
+                ready: false,
+                instruction: `El registro público no informa el vencimiento del dominio ${domain.value}, así que no podemos asegurar que no venza durante el traspaso. Por ahora, un dominio sin vencimiento publicado no se puede vender acá.`,
+            };
+        }
+        if (registry.expiresAt.getTime() - facts.now.getTime() < MIN_DAYS_BEFORE_EXPIRY * MS_PER_DAY) {
             return {
                 ready: false,
                 instruction:

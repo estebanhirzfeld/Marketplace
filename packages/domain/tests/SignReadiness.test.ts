@@ -134,6 +134,12 @@ describe('Listo para firmar — sitio', () => {
         },
     );
 
+    it('si el registro no publica el vencimiento no está listo: no se puede saber si vence en medio del traspaso', () => {
+        const text = instruccion(unSitio(), enHostinger({ expiresAt: undefined }));
+
+        expect(text).toContain('vencimiento');
+    });
+
     it('si el registro no conoce el dominio no está listo', () => {
         expect(instruccion(unSitio(), null)).toContain('deliaorrego.online');
     });
