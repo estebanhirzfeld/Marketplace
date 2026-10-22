@@ -112,7 +112,6 @@ import {
     CheckDomainDeliveryUseCase,
     StartDomainDeliveryUseCase,
 } from '@marketplace/domain/src/use-cases/operation/DomainDeliveryUseCases';
-import { ConfirmPaymentUseCase } from '@marketplace/domain/src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '@marketplace/domain/src/use-cases/operation/CompleteOperationUseCase';
 import { DeclareRecipientIdentityUseCase } from '@marketplace/domain/src/use-cases/operation/DeclareRecipientIdentityUseCase';
 import {
@@ -282,7 +281,6 @@ export interface Container {
     misDenuncias: GetMyReportsUseCase;
     cerrarDenuncia: CloseReportUseCase;
     legajo: GetEvidenceDossierUseCase;
-    confirmPayment: ConfirmPaymentUseCase;
     completeOperation: CompleteOperationUseCase;
     declareRecipientIdentity: DeclareRecipientIdentityUseCase;
     crearCuentaCustodia: CreateCustodyAccountUseCase;
@@ -696,7 +694,6 @@ export function createContainer(
             contractRepo,
             userRepo,
         ),
-        confirmPayment: new ConfirmPaymentUseCase(operationRepo, avisos, avisosDePlataforma),
         completeOperation: new CompleteOperationUseCase(operationRepo, listingRepo, avisos, checkDomainDelivery),
         declareRecipientIdentity: new DeclareRecipientIdentityUseCase(operationRepo, listingRepo),
         crearCuentaCustodia: new CreateCustodyAccountUseCase(custodyRepo),

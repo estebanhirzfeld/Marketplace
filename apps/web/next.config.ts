@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: repoRoot,
   },
+
+  // Los comprobantes de pago llegan por una Server Action, y el límite por
+  // defecto (1 MB) es menor que lo que acepta la API (5 MB) más el envoltorio.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "6mb",
+    },
+  },
 };
 
 export default nextConfig;

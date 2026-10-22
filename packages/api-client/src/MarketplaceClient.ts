@@ -12,7 +12,6 @@ import {
     CheckoutDto,
     PaymentOptionsDto,
     ConfirmCustodyRequest,
-    ConfirmPaymentRequest,
     InitiateTransferRequest,
     EvidenceDossierDto,
     FileReportRequest,
@@ -477,11 +476,6 @@ export class MarketplaceClient {
     /** Cómo puede pagar el comprador: Mercado Pago y transferencia, con su disponibilidad. */
     paymentOptions(operationId: string): Promise<PaymentOptionsDto> {
         return this.request('GET', `/operations/${encodeURIComponent(operationId)}/payment-options`);
-    }
-
-    /** Registra una transferencia bancaria. Los pagos de MercadoPago los confirma el webhook. */
-    confirmPayment(operationId: string, body: ConfirmPaymentRequest): Promise<void> {
-        return this.operationStep(operationId, 'payment', body);
     }
 
     /** El comprador declara dónde quiere recibir el activo. */

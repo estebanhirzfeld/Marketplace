@@ -357,6 +357,126 @@ describe('PaymentChoice — vocabulario', () => {
     });
 });
 
+/** Las dos transferencias, como las manda la API al comprador. */
+const DESTINOS: NonNullable<PaymentOptionsDto['transfer']['destinations']> = [
+    { recipient: 'seller', amount: { cents: 950_000, currency: 'ARS' }, bankAccount: { alias: 'vendedor.cuenta', holder: 'Ana Vendedora' } },
+    { recipient: 'platform', amount: { cents: 100_000, currency: 'ARS' }, instructions: INSTRUCCIONES },
+];
+
+async function subir() {
+    return {};
+}
+
+function conComprobantes(receipts: Parameters<typeof PaymentChoice>[0]['receipts']) {
+    return renderToStaticMarkup(
+        <PaymentChoice
+            options={opciones({ transfer: { destinations: DESTINOS } })}
+            checkoutAction={pagar}
+            receipts={receipts}
+            uploadAction={() => subir}
+        />,
+    );
+}
+
+function camposDeArchivo(html: string): number {
+    return (html.match(/<input[^>]*type="file"/g) ?? []).length;
+}
+
+describe('PaymentChoice — transferencia dividida', () => {
+    it('muestra las dos cuentas, cada una con su monto exacto y dónde subir el comprobante', () => {
+        const html = conComprobantes([]);
+
+        expect(texto(html)).toContain('Al vendedor');
+        expect(texto(html)).toContain(exactMoney({ cents: 950_000, currency: 'ARS' }));
+        expect(texto(html)).toContain('vendedor.cuenta');
+        expect(texto(html)).toContain('Ana Vendedora');
+        expect(texto(html)).toContain('La comisión, a la plataforma');
+        expect(texto(html)).toContain(exactMoney({ cents: 100_000, currency: 'ARS' }));
+        expect(texto(html)).toContain('Plataforma SA');
+        expect(texto(html)).toContain(OPERACION);
+        expect(camposDeArchivo(html)).toBe(2);
+        // Antes de transferir, todavía puede elegir Mercado Pago.
+        expect(texto(html)).toContain('Elegí cómo pagar');
+    });
+
+    it('con un comprobante subido ya no ofrece Mercado Pago: sería pagar dos veces', () => {
+        const html = conComprobantes([{ recipient: 'seller', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z' }]);
+
+        expect(texto(html)).toContain('Tus transferencias');
+        expect(html).not.toContain('Pagar con Mercado Pago');
+        expect(texto(html)).toMatch(/Comprobante enviado/);
+        expect(camposDeArchivo(html)).toBe(1);
+    });
+
+    it('un comprobante rechazado muestra el motivo y deja subir otro', () => {
+        const html = conComprobantes([
+            { recipient: 'seller', status: 'confirmed', uploadedAt: '2026-10-22T12:00:00.000Z' },
+            { recipient: 'platform', status: 'rejected', uploadedAt: '2026-10-22T12:00:00.000Z', rejectionReason: 'El monto no coincide.' },
+        ]);
+
+        expect(texto(html)).toContain('Confirmada: la transferencia llegó.');
+        expect(texto(html)).toContain('Rechazaron este comprobante: El monto no coincide.');
+        expect(texto(html)).toContain('Subí otro comprobante');
+        expect(camposDeArchivo(html)).toBe(1);
+    });
+});
+
+describe('SellerPaymentWait — dónde cobrar', () => {
+    it('sin ningún medio y sin cuentas, le pide una de las dos con su enlace', () => {
+        const html = vendedor(
+            opciones({
+                mercadopago: { available: false, reason: 'seller_not_linked' },
+                transfer: { available: false, reason: 'seller_bank_missing', instructions: undefined },
+            }),
+        );
+
+        expect(texto(html)).toContain('Decinos dónde cobrar');
+        expect(html).toContain('href="/perfil#mercadopago"');
+        expect(html).toContain('href="/perfil#cuenta-bancaria"');
+        expect(texto(html)).not.toContain('No tenés nada que hacer');
+    });
+
+    it('sin Mercado Pago en la plataforma y sin cuenta bancaria, la tarea es declarar la cuenta', () => {
+        const html = vendedor(
+            opciones({
+                mercadopago: { available: false, reason: 'not_configured' },
+                transfer: { available: false, reason: 'seller_bank_missing', instructions: undefined },
+            }),
+        );
+
+        expect(texto(html)).toContain('Decinos dónde cobrar');
+        expect(html).toContain('href="/perfil#cuenta-bancaria"');
+        expect(html).not.toContain('href="/perfil#mercadopago"');
+    });
+
+    it('con Mercado Pago disponible y sin cuenta bancaria, espera y avisa que solo puede pagar así', () => {
+        const html = vendedor(opciones({ transfer: { available: false, reason: 'seller_bank_missing', instructions: undefined } }));
+
+        expect(texto(html)).toContain('Esperando el pago del comprador');
+        expect(texto(html)).toMatch(/solo puede pagar con Mercado Pago/);
+        expect(html).toContain('href="/perfil#cuenta-bancaria"');
+    });
+});
+
+describe('PaymentChoice — vocabulario de los comprobantes', () => {
+    it('los estados nuevos tampoco usan vocabulario del sistema', () => {
+        const estados = [
+            conComprobantes([]),
+            conComprobantes([{ recipient: 'seller', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z' }]),
+            vendedor(
+                opciones({
+                    mercadopago: { available: false, reason: 'seller_not_linked' },
+                    transfer: { available: false, reason: 'seller_bank_missing', instructions: undefined },
+                }),
+            ),
+        ];
+        for (const html of estados) {
+            expect(texto(html)).not.toMatch(VOCABULARIO_INTERNO);
+            expect(texto(html)).not.toMatch(/seller_bank_missing|recipient|platform\b/);
+        }
+    });
+});
+
 describe('exactMoney', () => {
     it('muestra los centavos solo cuando los hay', () => {
         expect(exactMoney({ cents: 1_050_000, currency: 'ARS' })).toBe('AR$ 10.500');

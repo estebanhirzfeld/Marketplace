@@ -87,6 +87,32 @@ describe('nextStepCopy', () => {
         );
     });
 
+    it('con los comprobantes subidos, el vendedor y la plataforma confirman a la vez lo suyo', () => {
+        const n = next(
+            {
+                buyer: wait('seller', 'platform'),
+                seller: { kind: 'act', id: 'confirm_seller_receipt', blocking: true, deadline: DEADLINE },
+                platform: { kind: 'act', id: 'confirm_commission_receipt', blocking: true },
+            },
+            ['seller', 'platform'],
+        );
+
+        expect(nextStepCopy(n, 'seller', 'web')).toMatchObject({
+            title: 'Confirmá que te llegó la transferencia',
+            deadline: 'Tenés hasta el 31 de octubre de 2026.',
+        });
+        expect(nextStepCopy(n, 'platform', 'web').title).toBe('Confirmá la transferencia de la comisión');
+        expect(nextStepCopy(n, 'buyer', 'web').title).toBe('Le toca al vendedor: confirmar que le llegó la transferencia.');
+    });
+
+    it('sin dónde cobrar, el vendedor lee las dos formas, no solo Mercado Pago', () => {
+        const n = next({ buyer: wait('seller'), seller: { kind: 'act', id: 'link_payment_account', blocking: true }, platform: wait('seller') }, ['seller']);
+
+        expect(nextStepCopy(n, 'seller', 'web')).toMatchObject({ title: 'Decinos dónde cobrar' });
+        expect(nextStepCopy(n, 'seller', 'web').body).toMatch(/Mercado Pago.*cuenta bancaria/);
+        expect(nextStepCopy(n, 'buyer', 'web').title).toBe('Le toca al vendedor: decir dónde cobra.');
+    });
+
     const IDS: NextActionIdDto[] = [
         'respond_offer',
         'sign_contract',
@@ -98,6 +124,8 @@ describe('nextStepCopy', () => {
         'pay',
         'enable_payment_method',
         'link_payment_account',
+        'confirm_seller_receipt',
+        'confirm_commission_receipt',
         'deliver_asset',
         'accept_delivery',
         'complete_operation',

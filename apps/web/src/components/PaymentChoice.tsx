@@ -1,7 +1,20 @@
-import type { MoneyDto, PaymentOptionsDto } from '@marketplace/api-contract';
+import type {
+    MoneyDto,
+    PaymentOptionsDto,
+    PaymentReceiptDto,
+    ReceiptRecipientDto,
+    TransferDestinationDto,
+} from '@marketplace/api-contract';
 import { exactMoney, money } from '@/lib/format';
 import { Alert, Button, ButtonLink } from './ui';
 import { SubmitButton } from './SubmitButton';
+import { ReceiptUploadForm } from './ReceiptForms';
+
+type FormAction = (state: { error?: string; ok?: boolean; message?: string }, form: FormData) => Promise<{
+    error?: string;
+    ok?: boolean;
+    message?: string;
+}>;
 
 /**
  * Cómo paga el comprador.
@@ -33,12 +46,18 @@ export function PaymentChoice({
     options,
     buyerPays,
     checkoutAction,
+    receipts = [],
+    uploadAction,
 }: {
     /** `undefined` cuando no se pudieron consultar: se cae a lo que había antes. */
     options?: PaymentOptionsDto;
     /** Lo que paga el comprador, para el botón de respaldo cuando no hay `options`. */
     buyerPays?: MoneyDto;
     checkoutAction: () => Promise<void>;
+    /** Los comprobantes que ya subió, uno por transferencia. */
+    receipts?: PaymentReceiptDto[];
+    /** Sube el comprobante de una de las dos transferencias. */
+    uploadAction?: (recipient: ReceiptRecipientDto) => FormAction;
 }) {
     if (!options) {
         return (
@@ -63,13 +82,25 @@ export function PaymentChoice({
         );
     }
 
+    // Con una transferencia ya hecha, ofrecer Mercado Pago sería invitar a pagar dos veces.
+    if (receipts.length > 0 && transfer.available) {
+        return (
+            <section aria-labelledby="elegir-pago" className="flex flex-col gap-4">
+                <h3 id="elegir-pago" className="text-[17px] font-medium">
+                    Tus transferencias
+                </h3>
+                <TransferOption options={options} receipts={receipts} uploadAction={uploadAction} />
+            </section>
+        );
+    }
+
     return (
         <section aria-labelledby="elegir-pago" className="flex flex-col gap-4">
             <h3 id="elegir-pago" className="text-[17px] font-medium">
                 Elegí cómo pagar
             </h3>
             <MercadoPagoOption options={options} checkoutAction={checkoutAction} />
-            <TransferOption options={options} />
+            <TransferOption options={options} receipts={receipts} uploadAction={uploadAction} />
         </section>
     );
 }
@@ -119,40 +150,139 @@ function MercadoPagoOption({
     );
 }
 
-function TransferOption({ options }: { options: PaymentOptionsDto }) {
+function TransferOption({
+    options,
+    receipts,
+    uploadAction,
+}: {
+    options: PaymentOptionsDto;
+    receipts: PaymentReceiptDto[];
+    uploadAction?: (recipient: ReceiptRecipientDto) => FormAction;
+}) {
     const { transfer } = options;
 
-    return (
-        <div className={ESTILO_OPCION}>
-            <span className="text-[15px] font-medium">Transferencia bancaria</span>
-            {transfer.available ? (
-                <>
-                    <p className={ESTILO_TEXTO}>
-                        Transferí exactamente{' '}
-                        <span className="font-mono text-[var(--color-tinta)]">
-                            {exactMoney(options.amount)}
-                        </span>{' '}
-                        a esta cuenta:
-                    </p>
-                    {/* Texto, nunca HTML: lo carga la plataforma, pero se escapa igual. */}
-                    <p className="whitespace-pre-line rounded-[var(--radius-chico)] border border-[var(--color-borde)] bg-[var(--color-fondo)] p-3 font-mono text-[13px] leading-relaxed">
-                        {transfer.instructions}
-                    </p>
-                    <p className={ESTILO_TEXTO}>
-                        Indicá esta referencia:{' '}
-                        <span className="font-mono text-[var(--color-tinta)]">{transfer.reference}</span>
-                    </p>
-                    <p className={ESTILO_TEXTO}>
-                        Cuando recibamos la transferencia la registramos y te avisamos.
-                    </p>
-                </>
-            ) : (
+    if (!transfer.available) {
+        return (
+            <div className={ESTILO_OPCION}>
+                <span className="text-[15px] font-medium">Transferencia bancaria</span>
                 <p className={ESTILO_TEXTO}>
                     La transferencia no está disponible por ahora. Si la necesitás, abrí un reclamo
                     más abajo y te ayudamos.
                 </p>
-            )}
+            </div>
+        );
+    }
+
+    // Sin los destinos (una respuesta vieja), queda la cuenta única de antes.
+    if (!transfer.destinations) {
+        return (
+            <div className={ESTILO_OPCION}>
+                <span className="text-[15px] font-medium">Transferencia bancaria</span>
+                <p className={ESTILO_TEXTO}>
+                    Transferí exactamente{' '}
+                    <span className="font-mono text-[var(--color-tinta)]">{exactMoney(options.amount)}</span> a
+                    esta cuenta:
+                </p>
+                {/* Texto, nunca HTML: lo carga la plataforma, pero se escapa igual. */}
+                <p className="whitespace-pre-line rounded-[var(--radius-chico)] border border-[var(--color-borde)] bg-[var(--color-fondo)] p-3 font-mono text-[13px] leading-relaxed">
+                    {transfer.instructions}
+                </p>
+                <p className={ESTILO_TEXTO}>
+                    Indicá esta referencia:{' '}
+                    <span className="font-mono text-[var(--color-tinta)]">{transfer.reference}</span>
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className={ESTILO_OPCION}>
+            <span className="text-[15px] font-medium">Transferencia bancaria</span>
+            {/* El porqué de las dos cuentas, en una línea: cada uno recibe lo suyo. */}
+            <p className={ESTILO_TEXTO}>
+                Son dos transferencias: lo del vendedor va directo a su cuenta y la comisión, a la de
+                la plataforma. Después de cada una, subí el comprobante.
+            </p>
+            <p className={ESTILO_TEXTO}>
+                En las dos, indicá esta referencia:{' '}
+                <span className="font-mono text-[var(--color-tinta)]">{transfer.reference}</span>
+            </p>
+            {transfer.destinations.map((d) => (
+                <TransferDestination
+                    key={d.recipient}
+                    destination={d}
+                    receipt={receipts.find((r) => r.recipient === d.recipient)}
+                    uploadAction={uploadAction?.(d.recipient)}
+                />
+            ))}
         </div>
+    );
+}
+
+const DESTINATION_TITLE: Record<ReceiptRecipientDto, string> = {
+    seller: 'Al vendedor',
+    platform: 'La comisión, a la plataforma',
+};
+
+function TransferDestination({
+    destination,
+    receipt,
+    uploadAction,
+}: {
+    destination: TransferDestinationDto;
+    receipt?: PaymentReceiptDto;
+    uploadAction?: FormAction;
+}) {
+    return (
+        <div className="flex flex-col gap-2.5 border-t border-[var(--color-borde)] pt-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-[14px] font-medium">{DESTINATION_TITLE[destination.recipient]}</span>
+                <span className="font-mono text-[14px] text-[var(--color-tinta)]">{exactMoney(destination.amount)}</span>
+            </div>
+            {destination.recipient === 'seller' ? (
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[13px]">
+                    {destination.bankAccount.cbu && (
+                        <>
+                            <dt className="text-[var(--color-apagado)]">CBU</dt>
+                            <dd>{destination.bankAccount.cbu}</dd>
+                        </>
+                    )}
+                    {destination.bankAccount.alias && (
+                        <>
+                            <dt className="text-[var(--color-apagado)]">Alias</dt>
+                            <dd>{destination.bankAccount.alias}</dd>
+                        </>
+                    )}
+                    <dt className="text-[var(--color-apagado)]">Titular</dt>
+                    <dd>{destination.bankAccount.holder}</dd>
+                </dl>
+            ) : (
+                <p className="whitespace-pre-line rounded-[var(--radius-chico)] border border-[var(--color-borde)] bg-[var(--color-fondo)] p-3 font-mono text-[13px] leading-relaxed">
+                    {destination.instructions}
+                </p>
+            )}
+            <ReceiptState receipt={receipt} uploadAction={uploadAction} />
+        </div>
+    );
+}
+
+/** En qué está el comprobante de una transferencia, y subirlo si falta o lo rechazaron. */
+function ReceiptState({ receipt, uploadAction }: { receipt?: PaymentReceiptDto; uploadAction?: FormAction }) {
+    if (receipt?.status === 'confirmed') {
+        return <Alert tono="listo">Confirmada: la transferencia llegó.</Alert>;
+    }
+    if (receipt?.status === 'pending') {
+        return <p className={ESTILO_TEXTO}>Comprobante enviado. Falta que confirmen que llegó.</p>;
+    }
+    return (
+        <>
+            {receipt?.status === 'rejected' && (
+                <Alert tono="alerta">
+                    Rechazaron este comprobante: {receipt.rejectionReason}
+                </Alert>
+            )}
+            {uploadAction && <ReceiptUploadForm action={uploadAction} replacing={receipt?.status === 'rejected'} />}
+        </>
     );
 }
 
@@ -185,6 +315,38 @@ export function showSellerPaymentWait({
  */
 export function SellerPaymentWait({ options }: { options?: PaymentOptionsDto }) {
     const needsLink = options?.mercadopago.reason === 'seller_not_linked';
+    const needsBank = options?.transfer.reason === 'seller_bank_missing';
+    const buyerCanPay = options?.mercadopago.available === true || options?.transfer.available === true;
+
+    // Sin ningún medio, lo que falta es dónde cobra él: es su tarea, no una espera.
+    if (!buyerCanPay && (needsLink || needsBank)) {
+        return (
+            <section
+                aria-labelledby="donde-cobrar"
+                className="flex flex-col gap-3 rounded-[var(--radius-chico)] border border-[var(--color-borde)] p-4"
+            >
+                <h3 id="donde-cobrar" className="text-[15px] font-medium">
+                    Decinos dónde cobrar
+                </h3>
+                <p className={ESTILO_TEXTO}>
+                    {needsLink && needsBank
+                        ? 'El comprador no puede pagar hasta que vincules Mercado Pago o declares la cuenta bancaria donde querés recibir la transferencia. Con una alcanza.'
+                        : needsLink
+                          ? 'El comprador no puede pagar hasta que vincules tu cuenta de Mercado Pago.'
+                          : 'El comprador no puede pagar hasta que declares la cuenta bancaria donde querés recibir la transferencia.'}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                    {needsLink && <ButtonLink href="/perfil#mercadopago">Vincular Mercado Pago</ButtonLink>}
+                    {needsBank && (
+                        <ButtonLink href="/perfil#cuenta-bancaria" variant={needsLink ? 'secundario' : 'primario'}>
+                            Declarar la cuenta bancaria
+                        </ButtonLink>
+                    )}
+                </div>
+            </section>
+        );
+    }
+
     // El aviso importa mientras Mercado Pago sea una forma posible de cobrar:
     // disponible, o a un vínculo de distancia. Si la pasarela o la cotización
     // no están, el comprador solo puede transferir y no hay nada que avisar.
@@ -211,7 +373,7 @@ export function SellerPaymentWait({ options }: { options?: PaymentOptionsDto }) 
                     monto acordado, sin ese descuento.
                 </p>
             )}
-            {needsLink && (
+            {needsLink && buyerCanPay && (
                 <>
                     <Alert tono="alerta">
                         Todavía no vinculaste tu cuenta de Mercado Pago, así que el comprador solo
@@ -219,6 +381,17 @@ export function SellerPaymentWait({ options }: { options?: PaymentOptionsDto }) 
                     </Alert>
                     <ButtonLink href="/perfil#mercadopago" className="self-start">
                         Vincular Mercado Pago
+                    </ButtonLink>
+                </>
+            )}
+            {needsBank && buyerCanPay && (
+                <>
+                    <Alert tono="alerta">
+                        Todavía no declaraste tu cuenta bancaria, así que el comprador solo puede
+                        pagar con Mercado Pago.
+                    </Alert>
+                    <ButtonLink href="/perfil#cuenta-bancaria" className="self-start">
+                        Declarar la cuenta bancaria
                     </ButtonLink>
                 </>
             )}

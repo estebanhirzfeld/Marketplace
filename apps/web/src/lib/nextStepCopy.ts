@@ -52,7 +52,11 @@ function doing(id: NextActionIdDto, kind: AssetKind): string {
         case 'enable_payment_method':
             return 'habilitar un medio de pago';
         case 'link_payment_account':
-            return 'vincular su cuenta de Mercado Pago';
+            return 'decir dónde cobra';
+        case 'confirm_seller_receipt':
+            return 'confirmar que le llegó la transferencia';
+        case 'confirm_commission_receipt':
+            return 'confirmar la transferencia de la comisión';
         case 'deliver_asset':
             return kind === 'web' ? 'entregarle el dominio al comprador' : 'entregarle el canal al comprador';
         case 'accept_delivery':
@@ -127,8 +131,18 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
             };
         case 'link_payment_account':
             return {
-                title: 'Vinculá tu cuenta de Mercado Pago',
-                body: 'El comprador paga con Mercado Pago y vos cobrás directo en tu cuenta. Sin vincularla, no puede pagar.',
+                title: 'Decinos dónde cobrar',
+                body: 'Vinculá Mercado Pago o declará tu cuenta bancaria: el comprador te paga directo ahí. Hasta entonces no puede pagar.',
+            };
+        case 'confirm_seller_receipt':
+            return {
+                title: 'Confirmá que te llegó la transferencia',
+                body: 'El comprador subió el comprobante de lo que te transfirió. Fijate en tu cuenta que se haya acreditado y confirmalo, o decile qué está mal.',
+            };
+        case 'confirm_commission_receipt':
+            return {
+                title: 'Confirmá la transferencia de la comisión',
+                body: 'El comprador subió el comprobante de la comisión. Fijate que se haya acreditado en la cuenta de la plataforma y confirmalo, o decile qué está mal.',
             };
         case 'deliver_asset':
             return kind === 'web'

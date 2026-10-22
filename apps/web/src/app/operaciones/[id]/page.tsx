@@ -17,9 +17,10 @@ import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
 import { NextStepCard } from '@/components/NextStep';
 import { RejectTransferForm } from '@/components/RejectTransferForm';
+import { ReceiptReviewForm } from '@/components/ReceiptForms';
 import { nextStepCopy, partyStatusLine } from '@/lib/nextStepCopy';
 import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
-import { nicheLabel, money, fechaLarga } from '@/lib/format';
+import { nicheLabel, money, exactMoney, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
     advanceOperation,
@@ -27,15 +28,16 @@ import {
     checkDomainCustodyAction,
     checkDomainDeliveryAction,
     completeOperation,
-    confirmBankTransfer,
     confirmCustody,
     counterOffer,
+    decideReceiptAction,
     declareRecipientIdentity,
     deliverDomainAction,
     goToCheckout,
     initiateTransfer,
     rejectTransferAction,
     signContract,
+    uploadReceiptAction,
 } from '../actions';
 import { AdminDomainTransferPanel, DomainDeliveryStatus, TransferStepsList } from '@/components/TransferSteps';
 import { fileReport } from '../../denuncias/actions';
@@ -82,6 +84,14 @@ export default async function DetalleOperacion(props: {
     }
     const tripartito = op.contracts.find((c) => c.type === 'tripartite');
 
+    // El vendedor tiene un plazo para confirmar lo que le transfirieron; vencido, decide la plataforma.
+    const sellerStep = op.next?.byRole.seller;
+    const sellerReceiptOverdue =
+        sellerStep?.kind === 'act' &&
+        sellerStep.id === 'confirm_seller_receipt' &&
+        !!sellerStep.deadline &&
+        new Date(sellerStep.deadline).getTime() < new Date().getTime();
+
     // Qué le toca a quien mira, o a quién espera: lo calcula la API para los
     // tres roles con la misma regla, así lo que lee cada uno no se contradice.
     const role: OperationRoleDto = op.miParte ?? 'platform';
@@ -93,6 +103,16 @@ export default async function DetalleOperacion(props: {
     const miUltima = op.miParte
         ? [...op.negotiations].reverse().find((n) => n.proposedBy === op.miParte)
         : undefined;
+
+    /** Mirar un comprobante y responder si llegó, para quien recibió esa plata. */
+    const receiptReview = (recipient: 'seller' | 'platform', confirmText: string) => (
+        <ReceiptReviewForm
+            fileHref={`/operaciones/${op.id}/comprobantes/${recipient}`}
+            confirmAction={decideReceiptAction.bind(null, op.id, recipient, true)}
+            rejectAction={decideReceiptAction.bind(null, op.id, recipient, false)}
+            confirmText={confirmText}
+        />
+    );
 
     /** El formulario de una acción, para quien la tiene que hacer. */
     const formFor = (id: NextActionIdDto, blocking: boolean) => {
@@ -172,10 +192,22 @@ export default async function DetalleOperacion(props: {
                         options={paymentOptions}
                         buyerPays={op.buyerPays}
                         checkoutAction={goToCheckout.bind(null, op.id)}
+                        receipts={op.paymentReceipts}
+                        uploadAction={(recipient) => uploadReceiptAction.bind(null, op.id, recipient)}
                     />
                 );
             case 'link_payment_account':
                 return <SellerPaymentWait options={paymentOptions} />;
+            case 'confirm_seller_receipt':
+                return receiptReview(
+                    'seller',
+                    op.sellerReceives ? `Me llegaron ${exactMoney(op.sellerReceives)}` : 'Me llegó la transferencia',
+                );
+            case 'confirm_commission_receipt':
+                return receiptReview(
+                    'platform',
+                    op.platformEarns ? `Llegaron ${exactMoney(op.platformEarns)} de comisión` : 'Llegó la comisión',
+                );
             case 'accept_delivery':
                 return op.recipientIdentity ? (
                     <DomainDeliveryStatus
@@ -577,13 +609,19 @@ export default async function DetalleOperacion(props: {
                                 </Panel>
                             )}
 
-                            {/* Hasta que el pago por transferencia tenga sus comprobantes, el admin lo registra a mano. */}
-                            {isAdmin && op.status === 'asset_in_custody' && op.buyerPays && (
-                                <OperationAction
-                                    action={confirmBankTransfer.bind(null, id, op.buyerPays.cents, op.buyerPays.currency)}
-                                    text="Registrar una transferencia recibida"
-                                    variant="secundario"
-                                />
+                            {/*
+                                Si el vendedor no confirma su transferencia a tiempo, la
+                                decide la plataforma con el comprobante a la vista.
+                            */}
+                            {isAdmin && sellerReceiptOverdue && (
+                                <Panel title="EL VENDEDOR NO CONFIRMÓ SU TRANSFERENCIA">
+                                    <div className="flex flex-col gap-3">
+                                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                            Venció su plazo para responder. Mirá el comprobante y decidí vos.
+                                        </p>
+                                        {receiptReview('seller', 'La transferencia al vendedor llegó')}
+                                    </div>
+                                </Panel>
                             )}
 
                             {/* Con el dominio ya entregado, el comprador ve que lo tiene. */}

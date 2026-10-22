@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { InitiateTransferUseCase } from '../../../src/use-cases/operation/InitiateTransferUseCase';
 import { ConfirmCustodyUseCase } from '../../../src/use-cases/operation/ConfirmCustodyUseCase';
-import { ConfirmPaymentUseCase } from '../../../src/use-cases/operation/ConfirmPaymentUseCase';
 import { CompleteOperationUseCase } from '../../../src/use-cases/operation/CompleteOperationUseCase';
 import { IOperationRepository, IListingRepository } from '../../../src/ports/Repositories';
 import { Operation } from '../../../src/entities/Operation';
@@ -333,29 +332,6 @@ describe('ConfirmCustodyUseCase', () => {
 });
 
 // ═════════════════════════════════════════════════════════
-// ConfirmPaymentUseCase
-// ═════════════════════════════════════════════════════════
-
-describe('ConfirmPaymentUseCase', () => {
-    it('debería confirmar el pago del buyer', async () => {
-        const op = createOperationInState('asset_in_custody');
-        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
-
-        await new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), ADMIN);
-
-        expect(op.status).toBe('payment_received');
-    });
-
-    it('debería fallar si el activo no está en custodia', async () => {
-        const op = createOperationInState('transfer_in_progress');
-        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
-
-        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), ADMIN))
-            .rejects.toThrow('El activo debe estar en custodia');
-    });
-});
-
-// ═════════════════════════════════════════════════════════
 // CompleteOperationUseCase
 // ═════════════════════════════════════════════════════════
 
@@ -528,14 +504,6 @@ describe('Autorización de los pasos de la operación', () => {
         });
 
         await expect(new ConfirmCustodyUseCase(repo, listingRepo).execute(op.id.toString(), CUSTODIA_OK, SELLER))
-            .rejects.toThrow(ForbiddenError);
-    });
-
-    it('confirmar el pago es exclusivo de la plataforma', async () => {
-        const op = createOperationInState('asset_in_custody');
-        const repo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
-
-        await expect(new ConfirmPaymentUseCase(repo).execute(op.id.toString(), unPagoDe(op), BUYER))
             .rejects.toThrow(ForbiddenError);
     });
 });

@@ -4151,6 +4151,31 @@ describe('/operations/:id/receipts', () => {
             headers: { authorization: `Bearer ${await tokenDe(buyerEmail)}` },
         });
         expect(detalle.json().status).toBe('payment_received');
+        expect(detalle.json().paymentReceipts.map((r: { recipient: string; status: string }) => [r.recipient, r.status])).toEqual([
+            ['seller', 'confirmed'],
+            ['platform', 'confirmed'],
+        ]);
+    });
+
+    it('el detalle dice en qué está cada comprobante y a quién le toca confirmarlo', async () => {
+        const { id, buyerEmail, sellerEmail } = await enCustodia();
+        await subir(id, 'seller', buyerEmail, PDF);
+        await decidir(id, 'seller', sellerEmail, { confirm: false, reason: 'No me llegó.' });
+        await subir(id, 'platform', buyerEmail, PDF);
+
+        const detalle = await app.inject({
+            method: 'GET',
+            url: `/operations/${id}`,
+            headers: { authorization: `Bearer ${await tokenDe(sellerEmail)}` },
+        });
+
+        expect(detalle.json().paymentReceipts).toEqual([
+            expect.objectContaining({ recipient: 'seller', status: 'rejected', rejectionReason: 'No me llegó.' }),
+            expect.objectContaining({ recipient: 'platform', status: 'pending' }),
+        ]);
+        // El comprador corrige el suyo mientras la plataforma confirma la comisión.
+        expect(detalle.json().next.turn).toEqual(['buyer', 'platform']);
+        expect(detalle.json().next.byRole.platform).toMatchObject({ kind: 'act', id: 'confirm_commission_receipt' });
     });
 
     it('el archivo se descarga con su tipo y sin caché', async () => {

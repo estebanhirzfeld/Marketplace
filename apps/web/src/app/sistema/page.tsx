@@ -4,6 +4,7 @@ import { Timeline } from '@/components/Timeline';
 import { NextStepCard } from '@/components/NextStep';
 import { BankAccountsView } from '@/components/BankAccountSection';
 import { RejectTransferForm } from '@/components/RejectTransferForm';
+import { ReceiptReviewForm } from '@/components/ReceiptForms';
 import { LockIcon } from '@/components/LockIcon';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { TransferStatus, TransferableBadge } from '@/components/Transferability';
@@ -290,6 +291,19 @@ const PAGO_AMBAS: PaymentOptionsDto = {
         available: true,
         instructions: 'Banco de ejemplo\nTitular: Plataforma de ejemplo\nCBU: 0000000000000000000000\nAlias: ejemplo.plataforma',
         reference: '3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b',
+        // Cada uno recibe lo suyo: el precio menos su 5 % al vendedor, el 10 % a la plataforma.
+        destinations: [
+            {
+                recipient: 'seller',
+                amount: { cents: 142_500_000, currency: 'ARS' },
+                bankAccount: { alias: 'ejemplo.vendedor', holder: 'Vendedor de ejemplo' },
+            },
+            {
+                recipient: 'platform',
+                amount: { cents: 15_000_000, currency: 'ARS' },
+                instructions: 'Banco de ejemplo\nTitular: Plataforma de ejemplo\nCBU: 0000000000000000000000\nAlias: ejemplo.plataforma',
+            },
+        ],
     },
 };
 const PAGO_EN_DOLARES: PaymentOptionsDto = {
@@ -961,7 +975,7 @@ export default function Sistema() {
 
                 <Section
                     title="Elegir cómo pagar"
-                    note="Lo que ve el comprador con el activo en custodia: una sola decisión con dos opciones, cada una con lo necesario para ejecutarla ahí mismo. Mercado Pago deshabilitado es un botón deshabilitado de verdad, con el motivo y la alternativa; si no hay ninguna opción se dice una sola vez en lugar de mostrar dos callejones. El vendedor no decide nada: espera, y solo ve un aviso con un botón cuando su cuenta de Mercado Pago no está vinculada. Las acciones son de muestra: no cobran nada."
+                    note="Lo que ve el comprador con el activo en custodia: una sola decisión con dos opciones, cada una con lo necesario para ejecutarla ahí mismo. Mercado Pago deshabilitado es un botón deshabilitado de verdad, con el motivo y la alternativa; si no hay ninguna opción se dice una sola vez en lugar de mostrar dos callejones. La transferencia son dos: lo del vendedor a su cuenta y la comisión a la de la plataforma, cada una con su comprobante; con uno ya subido, Mercado Pago deja de ofrecerse. El vendedor espera, salvo que no tenga dónde cobrar; con un comprobante subido, confirma que le llegó o dice qué está mal, igual que la plataforma con la comisión. Las acciones son de muestra: no cobran nada."
                 >
                     <div className="grid gap-8 lg:grid-cols-2">
                         <div className="flex flex-col gap-3">
@@ -1029,6 +1043,42 @@ export default function Sistema() {
                                 options={{
                                     ...PAGO_AMBAS,
                                     mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'not_configured' },
+                                }}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR — UN COMPROBANTE EN REVISIÓN Y OTRO RECHAZADO</div>
+                            <PaymentChoice
+                                options={PAGO_AMBAS}
+                                checkoutAction={noopVoid}
+                                receipts={[
+                                    { recipient: 'seller', status: 'pending', uploadedAt: '2026-10-22T12:00:00.000Z' },
+                                    {
+                                        recipient: 'platform',
+                                        status: 'rejected',
+                                        uploadedAt: '2026-10-22T12:00:00.000Z',
+                                        rejectionReason: 'El monto no coincide con la comisión.',
+                                    },
+                                ]}
+                                uploadAction={() => async () => ({})}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR O PLATAFORMA — CONFIRMAR UN COMPROBANTE</div>
+                            <ReceiptReviewForm
+                                fileHref="/sistema"
+                                confirmAction={async () => ({})}
+                                rejectAction={async () => ({})}
+                                confirmText="Me llegaron AR$ 1.425.000"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">VENDEDOR — SIN DÓNDE COBRAR</div>
+                            <SellerPaymentWait
+                                options={{
+                                    ...PAGO_AMBAS,
+                                    mercadopago: { ...PAGO_AMBAS.mercadopago, available: false, reason: 'seller_not_linked' },
+                                    transfer: { available: false, reason: 'seller_bank_missing', reference: PAGO_AMBAS.transfer.reference },
                                 }}
                             />
                         </div>

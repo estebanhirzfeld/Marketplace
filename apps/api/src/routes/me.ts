@@ -632,6 +632,13 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     reason: operation.transferRejection.reason,
                     rejectedAt: operation.transferRejection.rejectedAt.toISOString(),
                 },
+                // Quién decidió no viaja: alcanza con saber en qué está cada uno.
+                paymentReceipts: operation.paymentReceipts.map((r) => ({
+                    recipient: r.recipient,
+                    status: r.status,
+                    uploadedAt: r.uploadedAt.toISOString(),
+                    rejectionReason: r.rejectionReason,
+                })),
                 transferInitiation: operation.transferInitiation && {
                     declaredAt: operation.transferInitiation.declaredAt.toISOString(),
                     controlCeded: operation.transferInitiation.controlCeded,

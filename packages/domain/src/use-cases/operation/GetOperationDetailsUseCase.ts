@@ -24,6 +24,14 @@ import { NotFoundError } from '../../errors/DomainError';
 import { nextActions, NextActionsInput, NextActionsResult, PaymentAvailability } from '../../services/NextActions';
 import { HandoverDeadlines } from '../../value-objects/HandoverDeadlines';
 import { GetPaymentOptionsUseCase } from './GetPaymentOptionsUseCase';
+
+/** En qué está cada comprobante, para saber a quién le toca con el activo en custodia. */
+function receiptFacts(operation: Operation): NextActionsInput['receipts'] {
+    const byRecipient = (r: 'seller' | 'platform') => operation.paymentReceipts.find((x) => x.recipient === r);
+    const seller = byRecipient('seller');
+    const platform = byRecipient('platform');
+    return { seller: seller?.status, platform: platform?.status, sellerUploadedAt: seller?.uploadedAt };
+}
 import { UserRole } from '@marketplace/shared-types';
 
 /**
@@ -294,6 +302,7 @@ export class GetOperationDetailsUseCase {
             progress: (stepProgress ?? []).map(({ stepKey, status, deadlineAt }) => ({ stepKey, status, deadlineAt })),
             milestones: operation.milestones,
             payment: await this.paymentAvailability(operation, actor),
+            receipts: receiptFacts(operation),
             completedAt: props.completedAt,
             deadlines: this.deadlines,
         });
@@ -332,7 +341,7 @@ export class GetOperationDetailsUseCase {
             const options = await this.paymentOptions.execute(operation.id.toString(), actor);
             return {
                 mercadopago: { available: options.mercadopago.available, reason: options.mercadopago.reason },
-                transfer: { available: options.transfer.available },
+                transfer: { available: options.transfer.available, reason: options.transfer.reason },
             };
         } catch {
             // Una cotización caída no puede dejar la operación sin abrir: se

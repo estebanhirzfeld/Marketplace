@@ -9,7 +9,6 @@ import type {
     CheckoutDto,
     CompleteOperationRequest,
     ConfirmCustodyRequest,
-    ConfirmPaymentRequest,
     CounterOfferRequest,
     DeclareRecipientIdentityRequest,
     AttestTransferStepRequest,
@@ -321,32 +320,6 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
         '/operations/:id/payment-options',
         { preHandler: [authenticate] },
         async (request) => c.paymentOptions.execute(request.params.id, actorOf(request)),
-    );
-
-    /**
-     * Registro de una transferencia bancaria. Los pagos de MercadoPago no pasan
-     * por acá: los confirma el webhook contra la propia pasarela.
-     */
-    app.post<{ Params: IdParams; Body: ConfirmPaymentRequest }>(
-        '/operations/:id/payment',
-        {
-            preHandler: [authenticate],
-            schema: {
-                body: {
-                    type: 'object',
-                    required: ['method', 'amountCents', 'currency'],
-                    properties: {
-                        method: { type: 'string', minLength: 1 },
-                        amountCents: { type: 'integer', minimum: 1 },
-                        currency: { type: 'string', minLength: 3, maxLength: 3 },
-                    },
-                },
-            },
-        },
-        async (request, reply) => {
-            await c.confirmPayment.execute(request.params.id, request.body, actorOf(request));
-            return reply.code(204).send();
-        },
     );
 
     /**

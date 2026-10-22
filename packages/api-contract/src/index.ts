@@ -776,6 +776,8 @@ export type NextActionIdDto =
     | 'pay'
     | 'enable_payment_method'
     | 'link_payment_account'
+    | 'confirm_seller_receipt'
+    | 'confirm_commission_receipt'
     | 'deliver_asset'
     | 'accept_delivery'
     | 'complete_operation';
@@ -852,6 +854,8 @@ export interface OperationDetailDto {
     transferInitiation?: TransferInitiationDto;
     /** Presente mientras la última declaración de cesión esté rechazada. */
     transferRejection?: TransferRejectionDto;
+    /** Los comprobantes de la transferencia dividida, uno por destinatario. */
+    paymentReceipts?: PaymentReceiptDto[];
     /**
      * Lo que le falta al vendedor ceder después de la firma. Ausente si quien
      * arma el DTO no resolvió cuenta de custodia.
@@ -1008,11 +1012,13 @@ export type TransferDestinationDto =
 /** Quien recibió la plata confirma su comprobante, o lo rechaza con el motivo. */
 export type ReceiptDecisionRequest = { confirm: true } | { confirm: false; reason: string };
 
-/** Registro de una transferencia bancaria que solo una persona pudo ver llegar. */
-export interface ConfirmPaymentRequest {
-    method: string;
-    amountCents: number;
-    currency: string;
+/** En qué está un comprobante. El archivo se pide aparte, a quien le corresponde verlo. */
+export interface PaymentReceiptDto {
+    recipient: ReceiptRecipientDto;
+    status: 'pending' | 'confirmed' | 'rejected';
+    uploadedAt: string;
+    /** Por qué se rechazó, para que el comprador sepa qué corregir. */
+    rejectionReason?: string;
 }
 
 /**

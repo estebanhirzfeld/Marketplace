@@ -277,38 +277,80 @@ export async function goToCheckout(operationId: string): Promise<void> {
     redirect(url);
 }
 
+/** Lo mismo que acepta la API: más grande no llega a subirse. */
+const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
+
+const RECEIPT_RECIPIENTS = ['seller', 'platform'] as const;
+type ReceiptRecipient = (typeof RECEIPT_RECIPIENTS)[number];
+
 /**
- * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
- * acá: los confirma el webhook contra la propia pasarela.
+ * El comprador sube el comprobante de una de las dos transferencias. Qué
+ * formato es lo decide la API por el contenido, no por el nombre del archivo.
  */
-/**
- * Registra una transferencia bancaria. Los pagos de MercadoPago no pasan por
- * acá: los confirma el webhook contra la propia pasarela.
- *
- * Devolvía `void` y se tragaba el error con un comentario que decía que se
- * vería al recargar. No se veía: la pantalla quedaba igual, sin registrar el
- * pago y sin decir por qué.
- */
-export async function confirmBankTransfer(
+export async function uploadReceiptAction(
     operationId: string,
-    amountCents: number,
-    currency: string,
+    recipient: ReceiptRecipient,
     _estado: ActionState,
+    form: FormData,
 ): Promise<ActionState> {
     await requireSession();
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+
+    const file = form.get('file');
+    if (!(file instanceof File) || file.size === 0) {
+        return { error: 'Elegí el comprobante: una imagen o un PDF.' };
+    }
+    if (file.size > MAX_RECEIPT_BYTES) {
+        return { error: 'El comprobante pesa más de 5 MB. Subí una captura o un PDF más liviano.' };
+    }
+
     try {
-        await api().confirmPayment(operationId, {
-            method: 'transferencia_bancaria',
-            amountCents,
-            currency,
-        });
+        await api().uploadReceipt(operationId, recipient, new Uint8Array(await file.arrayBuffer()));
     } catch (e) {
         if (e instanceof ApiError) return { error: e.message };
-        return { error: 'No pudimos registrar la transferencia. Probá de nuevo.' };
+        return { error: 'No pudimos subir el comprobante. Probá de nuevo.' };
     }
 
     revalidatePath(`/operaciones/${operationId}`);
-    return { ok: true, message: 'Registramos el pago. Falta entregar el activo y liquidar al vendedor.' };
+    return {
+        ok: true,
+        message:
+            recipient === 'seller'
+                ? 'Recibimos el comprobante. El vendedor confirma que le llegó y te avisamos.'
+                : 'Recibimos el comprobante. Confirmamos que llegó la comisión y te avisamos.',
+    };
+}
+
+/**
+ * Quien recibió la plata confirma su comprobante o lo rechaza. El motivo del
+ * rechazo es lo que va a leer el comprador para corregirlo.
+ */
+export async function decideReceiptAction(
+    operationId: string,
+    recipient: ReceiptRecipient,
+    confirm: boolean,
+    _estado: ActionState,
+    form: FormData,
+): Promise<ActionState> {
+    await requireSession();
+    if (!RECEIPT_RECIPIENTS.includes(recipient)) return { error: 'No reconocemos ese comprobante.' };
+
+    const reason = String(form.get('reason') ?? '').trim();
+    if (!confirm && !reason) {
+        return { error: 'Escribí qué está mal: es lo que va a leer el comprador.' };
+    }
+
+    try {
+        await api().decideReceipt(operationId, recipient, confirm ? { confirm: true } : { confirm: false, reason });
+    } catch (e) {
+        if (e instanceof ApiError) return { error: e.message };
+        return { error: 'No pudimos guardar la respuesta. Probá de nuevo.' };
+    }
+
+    revalidatePath(`/operaciones/${operationId}`);
+    return confirm
+        ? { ok: true, message: 'Confirmaste la transferencia.' }
+        : { ok: true, message: 'Rechazaste el comprobante. El comprador ve el motivo y puede subir otro.' };
 }
 
 /* ── Traspaso de un sitio (admin) ─────────────────────────*/

@@ -9,8 +9,10 @@ Una sola próxima acción por rol, calculada en un solo lugar.
 `NextActions` MUST devolver, para una operación, la acción de cada rol (qué acción, si traba la
 operación y su plazo) o a quién está esperando. En cada combinación de estado y tipo de activo, a lo
 sumo un rol MUST trabar la operación, o los tres MUST estar esperando a la plataforma o a un plazo.
-La firma del tripartito es la única excepción: las dos partes la traban a la vez, porque ninguna
-necesita a la otra para firmar. La declaración de la cuenta receptora del comprador, con el precio
+Hay dos excepciones, por la misma razón: ninguna parte necesita a la otra para hacer lo suyo. La
+firma del tripartito, que las dos partes traban a la vez. Y la transferencia dividida: con los
+comprobantes subidos, el vendedor confirma el suyo, la plataforma el de la comisión y el comprador
+reemplaza el que le rechazaron, cada uno por su lado. La declaración de la cuenta receptora del comprador, con el precio
 acordado, es una tarea que no traba nada mientras espera a otro rol, y pasa a trabar cuando hace
 falta para entregar. Los textos los arma cada pantalla a partir de la acción.
 
@@ -36,11 +38,28 @@ falta para entregar. Los textos los arma cada pantalla a partir de la acción.
 - AND el admin tiene que habilitar un medio de pago
 - AND ningún texto le pide al comprador abrir un reclamo
 
+#### Scenario: Comprobantes de la transferencia en revisión
+
+- GIVEN una operación en `asset_in_custody` con el comprobante del vendedor rechazado y el de la
+  comisión pendiente
+- WHEN se calcula la próxima acción de cada rol
+- THEN el comprador tiene que subir otro comprobante, dentro de su plazo para pagar
+- AND el admin tiene que confirmar el de la comisión
+- AND el vendedor espera, sin acción
+
+#### Scenario: Activo en custodia sin dónde cobrar
+
+- GIVEN una operación en `asset_in_custody` donde ningún medio está disponible porque el vendedor
+  no vinculó Mercado Pago o no declaró su cuenta bancaria
+- WHEN se calcula la próxima acción
+- THEN el vendedor tiene que decir dónde cobra, y los demás lo esperan
+
 #### Scenario: Tabla completa
 
 - GIVEN cada estado de `Operation` y cada tipo de activo
 - WHEN se calcula la próxima acción de comprador, vendedor y admin
-- THEN se cumple que a lo sumo un rol tiene acción, o todos esperan a la plataforma
+- THEN se cumple que a lo sumo un rol tiene acción, o todos esperan a la plataforma, salvo las dos
+  excepciones de arriba
 
 ### Requirement: La línea de tiempo es la misma para los tres roles
 

@@ -27,6 +27,8 @@ export type NextActionId =
     | 'pay'
     | 'enable_payment_method'
     | 'link_payment_account'
+    | 'confirm_seller_receipt'
+    | 'confirm_commission_receipt'
     | 'deliver_asset'
     | 'accept_delivery'
     | 'complete_operation';
@@ -54,7 +56,15 @@ export interface StepProgressFact {
 
 export interface PaymentAvailability {
     mercadopago: { available: boolean; reason?: string };
-    transfer: { available: boolean };
+    transfer: { available: boolean; reason?: string };
+}
+
+/** En qué está cada comprobante de la transferencia dividida. */
+export interface ReceiptFacts {
+    seller?: 'pending' | 'confirmed' | 'rejected';
+    platform?: 'pending' | 'confirmed' | 'rejected';
+    /** Cuándo subió el comprador el del vendedor: ancla su plazo para confirmarlo. */
+    sellerUploadedAt?: Date;
 }
 
 export interface NextActionsInput {
@@ -72,6 +82,8 @@ export interface NextActionsInput {
     milestones: OperationMilestones;
     /** Los medios de pago, con el activo en custodia. */
     payment?: PaymentAvailability;
+    /** Los comprobantes de la transferencia, si el comprador ya subió alguno. */
+    receipts?: ReceiptFacts;
     completedAt?: Date;
     deadlines: HandoverDeadlines;
 }
@@ -166,11 +178,14 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
         }
 
         case 'asset_in_custody': {
+            const receipts = input.receipts ?? {};
+            if (receipts.seller || receipts.platform) return receiptSteps(input, receipts);
+
             const payment = input.payment;
             const anyAvailable = !!payment && (payment.mercadopago.available || payment.transfer.available);
             if (!anyAvailable) {
-                // Si lo único que falta es la cuenta del vendedor, le toca a él.
-                if (payment?.mercadopago.reason === 'seller_not_linked') {
+                // Si lo único que falta es dónde cobra el vendedor, le toca a él.
+                if (payment?.mercadopago.reason === 'seller_not_linked' || payment?.transfer.reason === 'seller_bank_missing') {
                     return turnOf('seller', act('link_payment_account'));
                 }
                 return turnOf('platform', act('enable_payment_method'));
@@ -200,6 +215,30 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
             return { buyer: cancelled, seller: cancelled, platform: cancelled };
         }
     }
+}
+
+/**
+ * La transferencia dividida, comprobante por comprobante. Cada uno lo
+ * confirma quien recibió la plata, y el comprador corrige el que le rechacen:
+ * son independientes, así que pueden avanzar a la vez.
+ */
+function receiptSteps(input: NextActionsInput, receipts: ReceiptFacts): Record<Role, NextStep> {
+    const buyerPending = !receipts.seller || receipts.seller === 'rejected' || !receipts.platform || receipts.platform === 'rejected';
+    const sellerDeadline = receipts.sellerUploadedAt ? input.deadlines.sellerTransferConfirmation(receipts.sellerUploadedAt) : undefined;
+    const payDeadline = input.milestones.custodyAt ? input.deadlines.buyerPayment(input.milestones.custodyAt) : undefined;
+
+    const acting: Partial<Record<Role, NextStep>> = {};
+    if (buyerPending) acting.buyer = act('pay', payDeadline);
+    if (receipts.seller === 'pending') acting.seller = act('confirm_seller_receipt', sellerDeadline);
+    if (receipts.platform === 'pending') acting.platform = act('confirm_commission_receipt');
+
+    const waitingOn = (['buyer', 'seller', 'platform'] as const).filter((r) => acting[r]);
+    const others = wait(waitingOn);
+    return {
+        buyer: acting.buyer ?? others,
+        seller: acting.seller ?? wait(waitingOn.filter((r) => r !== 'seller')),
+        platform: acting.platform ?? wait(waitingOn.filter((r) => r !== 'platform')),
+    };
 }
 
 const CURRENT_STAGE: Record<OperationStatus, TimelineStageKey | undefined> = {

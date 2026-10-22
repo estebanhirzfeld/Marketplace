@@ -47,7 +47,7 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
     },
     pago_confirmado: {
         title: 'Se confirmó el pago',
-        cuerpo: (n) => (n.amount ? `Vas a recibir ${money(n.amount)} al cerrarse la operación.` : 'La operación está por cerrarse.'),
+        cuerpo: (n) => (n.amount ? `El comprador pagó la compra. Tu parte es ${money(n.amount)}.` : 'El comprador pagó la compra.'),
     },
     revision_pendiente: {
         title: 'Hay un activo esperando revisión',

@@ -55,6 +55,9 @@ describe('NextActions — una parte por vez', () => {
             expect(blocking).toEqual(turn);
             if (status === 'contract_pending') {
                 expect(turn.every((r) => r !== 'platform')).toBe(true);
+            } else if (status === 'asset_in_custody') {
+                // Cada comprobante es independiente; sin comprobantes, le toca a una sola parte.
+                expect(turn.length).toBeLessThanOrEqual(1);
             } else {
                 expect(turn.length).toBeLessThanOrEqual(1);
             }
@@ -214,6 +217,59 @@ describe('NextActions — pago', () => {
         expect(turn).toEqual(['seller']);
         expect(byRole.seller).toMatchObject({ kind: 'act', id: 'link_payment_account' });
         expect(byRole.buyer).toMatchObject({ kind: 'wait', waitingOn: ['seller'] });
+    });
+
+    it('si a la transferencia le falta la cuenta del vendedor, le toca al vendedor decir dónde cobrar', () => {
+        const { byRole, turn } = nextActions(
+            input({
+                status: 'asset_in_custody',
+                recipientDeclared: true,
+                payment: { mercadopago: { available: false, reason: 'not_configured' }, transfer: { available: false, reason: 'seller_bank_missing' } },
+            }),
+        );
+
+        expect(turn).toEqual(['seller']);
+        expect(byRole.seller).toMatchObject({ kind: 'act', id: 'link_payment_account' });
+    });
+});
+
+/*
+ * Con la transferencia dividida, cada comprobante es independiente: el
+ * vendedor confirma el suyo, la plataforma la comisión y el comprador corrige
+ * el que le rechacen, a la vez y sin esperarse.
+ */
+describe('NextActions — comprobantes de la transferencia', () => {
+    const UPLOADED = new Date('2026-10-22T10:00:00-03:00');
+    const enCustodia = (receipts: NextActionsInput['receipts']) =>
+        nextActions(input({ status: 'asset_in_custody', recipientDeclared: true, milestones: { custodyAt: CUSTODY }, receipts }));
+
+    it('con los dos subidos, el vendedor confirma el suyo, con su plazo, y la plataforma la comisión', () => {
+        const { byRole, turn } = enCustodia({ seller: 'pending', platform: 'pending', sellerUploadedAt: UPLOADED });
+
+        expect(turn).toEqual(['seller', 'platform']);
+        expect(byRole.seller).toMatchObject({
+            kind: 'act',
+            id: 'confirm_seller_receipt',
+            deadline: deadlines.sellerTransferConfirmation(UPLOADED),
+        });
+        expect(byRole.platform).toMatchObject({ kind: 'act', id: 'confirm_commission_receipt' });
+        expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['seller', 'platform'] });
+    });
+
+    it('con uno rechazado, el comprador lo vuelve a subir mientras el otro se confirma', () => {
+        const { byRole, turn } = enCustodia({ seller: 'rejected', platform: 'pending' });
+
+        expect(turn).toEqual(['buyer', 'platform']);
+        expect(byRole.buyer).toMatchObject({ kind: 'act', id: 'pay' });
+        // El vendedor espera primero al comprador, que es lo que destraba su parte.
+        expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['buyer', 'platform'] });
+    });
+
+    it('con uno solo subido, al comprador le falta el otro', () => {
+        const { byRole, turn } = enCustodia({ platform: 'confirmed' });
+
+        expect(turn).toEqual(['buyer']);
+        expect(byRole.buyer).toMatchObject({ kind: 'act', id: 'pay' });
     });
 });
 
