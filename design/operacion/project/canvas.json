@@ -2,19 +2,28 @@
   "v": 3,
   "createdOnFiles": { "v": 1, "at": "2026-10-23T14:00:00Z" },
   "title": "Página de la operación",
-  "launch": { "view": "canvas" },
-  "pages": [],
+  "launch": { "view": "canvas", "page": "vista" },
+  "pages": [
+    { "id": "vista", "name": "Vista completa" },
+    { "id": "pasos", "name": "Pasos por rol" }
+  ],
   "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 880, "h": 1600, "title": "Comprador · pagar", "is_interactive": true },
-    "BuyerWaiting.dc.html": { "x": 960, "y": 0, "w": 760, "h": 1000, "title": "Comprador · esperar al vendedor", "is_interactive": true },
-    "BuyerReceive.dc.html": { "x": 1800, "y": 0, "w": 760, "h": 1000, "title": "Comprador · recibir el canal", "is_interactive": true },
-    "QrUpload.dc.html": { "x": 2640, "y": 0, "w": 390, "h": 844, "title": "Comprador · subir el comprobante desde el teléfono", "is_interactive": true },
-    "PaymentFlow.dc.html": { "x": 3110, "y": 0, "w": 720, "h": 980, "title": "Componente del pago (el mismo de la página)", "is_interactive": true },
-    "SellerHandover.dc.html": { "x": 0, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · ceder el acceso", "is_interactive": true },
-    "SellerClosed.dc.html": { "x": 840, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · operación cerrada", "is_interactive": true },
-    "PlatformOperation.dc.html": { "x": 0, "y": 3440, "w": 760, "h": 1000, "title": "Plataforma · quitar al vendedor", "is_interactive": true }
+    "PageBuyer.dc.html": { "page": "vista", "x": 0, "y": 0, "w": 1440, "h": 1700, "expand": "fill", "title": "Comprador · pagar (página completa)", "is_interactive": true },
+    "PageSeller.dc.html": { "page": "vista", "x": 1520, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "Vendedor · ceder el acceso (página completa)", "is_interactive": true },
+    "PagePlatform.dc.html": { "page": "vista", "x": 3040, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "Plataforma · quitar al vendedor (página completa)", "is_interactive": true },
+    "Main.dc.html": { "page": "pasos", "x": 0, "y": 0, "w": 880, "h": 1600, "title": "Comprador · pagar", "is_interactive": true },
+    "BuyerWaiting.dc.html": { "page": "pasos", "x": 960, "y": 0, "w": 760, "h": 1000, "title": "Comprador · esperar al vendedor", "is_interactive": true },
+    "BuyerReceive.dc.html": { "page": "pasos", "x": 1800, "y": 0, "w": 760, "h": 1000, "title": "Comprador · recibir el canal", "is_interactive": true },
+    "QrUpload.dc.html": { "page": "pasos", "x": 2640, "y": 0, "w": 390, "h": 844, "title": "Comprador · subir el comprobante desde el teléfono", "is_interactive": true },
+    "PaymentFlow.dc.html": { "page": "pasos", "x": 3110, "y": 0, "w": 720, "h": 980, "title": "Componente del pago (el mismo de la página)", "is_interactive": true },
+    "SellerHandover.dc.html": { "page": "pasos", "x": 0, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · ceder el acceso", "is_interactive": true },
+    "SellerClosed.dc.html": { "page": "pasos", "x": 840, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · operación cerrada", "is_interactive": true },
+    "PlatformOperation.dc.html": { "page": "pasos", "x": 0, "y": 3440, "w": 760, "h": 1000, "title": "Plataforma · quitar al vendedor", "is_interactive": true }
   },
   "order": [
+    "PageBuyer.dc.html",
+    "PageSeller.dc.html",
+    "PagePlatform.dc.html",
     "Main.dc.html",
     "BuyerWaiting.dc.html",
     "BuyerReceive.dc.html",
@@ -25,9 +34,10 @@
     "PlatformOperation.dc.html"
   ],
   "notes": {
-    "rowBuyer": { "x": 0, "y": -300, "text": "Comprador", "kind": "title1", "maxW": 3830 },
-    "rowSeller": { "x": 0, "y": 1720, "text": "Vendedor", "kind": "title1", "maxW": 1600 },
-    "rowPlatform": { "x": 0, "y": 3140, "text": "Plataforma", "kind": "title1", "maxW": 760 }
+    "rowPages": { "page": "vista", "x": 0, "y": -300, "text": "La página de la operación, por rol", "kind": "title1", "maxW": 4480 },
+    "rowBuyer": { "page": "pasos", "x": 0, "y": -300, "text": "Comprador", "kind": "title1", "maxW": 3830 },
+    "rowSeller": { "page": "pasos", "x": 0, "y": 1720, "text": "Vendedor", "kind": "title1", "maxW": 1600 },
+    "rowPlatform": { "page": "pasos", "x": 0, "y": 3140, "text": "Plataforma", "kind": "title1", "maxW": 760 }
   },
   "designSystems": []
 }
