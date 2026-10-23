@@ -13,6 +13,7 @@ import { TransferInitiationForm } from '@/components/TransferInitiationForm';
 import { DeliveryVerificationForm } from '@/components/DeliveryVerificationForm';
 import { RecipientIdentityForm, RecipientIdentitySaved } from '@/components/RecipientIdentityForm';
 import { ReportForm } from '@/components/ReportForm';
+import { DeliveryStep } from '@/components/DeliveryStep';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
 import { NextStepCard } from '@/components/NextStep';
@@ -38,6 +39,7 @@ import {
     rejectTransferAction,
     signContract,
     uploadReceiptAction,
+    deliveryStepAction,
     requestReceiptReviewAction,
     addReviewBankReferenceAction,
     resolveReceiptCoherenceAction,
@@ -300,6 +302,25 @@ export default async function DetalleOperacion(props: {
                     <DeliveryVerificationForm
                         action={completeOperation.bind(null, op.id)}
                         recipientIdentifier={op.recipientIdentity?.identifier}
+                    />
+                );
+            case 'invite_buyer':
+                return <DeliveryStep action={deliveryStepAction.bind(null, op.id, 'invited')} label="Ya lo invité" />;
+            case 'accept_invitation':
+                return <DeliveryStep action={deliveryStepAction.bind(null, op.id, 'accepted')} label="Ya acepté la invitación" />;
+            case 'make_buyer_owner':
+                return <DeliveryStep action={deliveryStepAction.bind(null, op.id, 'owner')} label="Ya lo hice" />;
+            case 'confirm_receipt':
+                return (
+                    <DeliveryStep
+                        action={deliveryStepAction.bind(null, op.id, 'received')}
+                        label="Confirmar la recepción"
+                        checks={[
+                            'Sos propietario principal del canal.',
+                            'El vendedor ya no figura en los permisos.',
+                            'Los mails y teléfonos de recuperación son tuyos.',
+                        ]}
+                        claimHref="#reclamo"
                     />
                 );
             case 'complete_operation':
@@ -755,7 +776,7 @@ export default async function DetalleOperacion(props: {
 
                             {op.miParte &&
                                 !['offer_sent', 'negotiating', 'contract_pending', 'cancelled'].includes(op.status) && (
-                                    <div className="border-t border-[var(--color-borde)] pt-5">
+                                    <div id="reclamo" className="border-t border-[var(--color-borde)] pt-5">
                                         <ReportForm action={fileReport.bind(null, id)} />
                                     </div>
                                 )}

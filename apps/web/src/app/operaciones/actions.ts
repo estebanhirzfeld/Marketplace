@@ -565,3 +565,24 @@ export async function attestTransferStepAction(
         'No pudimos dar el paso por cumplido. Probá de nuevo.',
     );
 }
+
+/** Un paso de la entrega de un canal: la invitación, su aceptación, la propiedad principal y la recepción. */
+export type DeliveryStepId = 'invited' | 'accepted' | 'owner' | 'received';
+
+const DELIVERY_STEP_DONE: Record<DeliveryStepId, string> = {
+    invited: 'Registramos la invitación. Te avisaremos cuando el comprador la acepte.',
+    accepted: 'Registramos tu aceptación. Te avisaremos cuando seas propietario principal.',
+    owner: 'Registramos la entrega. Le avisaremos al comprador para que confirme la recepción.',
+    received: 'Registramos la recepción. La operación se cerrará y te avisaremos.',
+};
+
+export async function deliveryStepAction(operationId: string, step: DeliveryStepId, _estado: ActionState, _form: FormData): Promise<ActionState> {
+    if (!(step in DELIVERY_STEP_DONE)) return { error: 'No reconocemos ese paso.' };
+    const run = {
+        invited: () => api().markBuyerInvited(operationId),
+        accepted: () => api().acceptInvitation(operationId),
+        owner: () => api().makeBuyerOwner(operationId),
+        received: () => api().confirmAssetReceipt(operationId),
+    }[step];
+    return reviewStep(operationId, run, DELIVERY_STEP_DONE[step]);
+}

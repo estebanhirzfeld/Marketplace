@@ -40,6 +40,7 @@ import { DnsVerificationTrigger } from '@/components/DnsVerificationTrigger';
 import { ImmediateBadge, ShimmerBolt } from '@/components/ShimmerBolt';
 import { CheckLine } from '@/components/ui';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
+import { DeliveryStep } from '@/components/DeliveryStep';
 import { noop, noopDnsChallenge, noopDnsCheck, noopEstimate, noopVoid } from './actions';
 import { AccessInbox, InboxTabs } from '@/components/AdminInbox';
 import { DraftChoice } from '@/components/DraftChoice';
@@ -1128,6 +1129,19 @@ export default function Sistema() {
                                 deadline="2026-10-27T02:59:59.000Z"
                                 confirmAction={noop}
                                 statementAction={noop}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ENTREGA DE UN CANAL — PASO DE LA PLATAFORMA</div>
+                            <DeliveryStep action={noop} label="Ya lo invité" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">ENTREGA DE UN CANAL — RECEPCIÓN DEL COMPRADOR</div>
+                            <DeliveryStep
+                                action={noop}
+                                label="Confirmar la recepción"
+                                checks={['Sos propietario principal del canal.', 'El vendedor ya no figura en los permisos.', 'Los mails y teléfonos de recuperación son tuyos.']}
+                                claimHref="#reclamo"
                             />
                         </div>
                         <div className="flex flex-col gap-3">

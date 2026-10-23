@@ -191,12 +191,12 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
         case 'invite_buyer':
             return {
                 title: 'Invitá al comprador al canal',
-                body: 'Agregalo como administrador de la cuenta de marca, al mail que declaró.',
+                body: 'Agregá al comprador como administrador de la cuenta de marca, con el mail que declaró.',
             };
         case 'accept_invitation':
             return {
                 title: 'Aceptá la invitación al canal',
-                body: 'La enviamos al mail que declaraste. Luego de aceptarla, serás propietario principal en 7 días.',
+                body: 'Enviamos la invitación al mail que declaraste. 7 días después de aceptarla, la plataforma te hará propietario principal.',
             };
         case 'make_buyer_owner':
             return {

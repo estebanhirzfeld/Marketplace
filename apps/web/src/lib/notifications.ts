@@ -145,16 +145,19 @@ const TEXTOS: Record<NotificationTypeDto, { title: string; cuerpo: (n: Notificat
                 : 'El comprobante del comprador coincide con tu cuenta. Si no respondés a tiempo, daremos el pago por acreditado.',
     },
     invitacion_enviada: {
-        title: 'Te invitamos a tu compra',
-        cuerpo: () => 'Aceptá la invitación que enviamos a tu mail. Te avisaremos el próximo paso.',
+        title: 'Aceptá la invitación',
+        cuerpo: () => 'Enviamos la invitación a tu mail. Te avisaremos el próximo paso.',
     },
     recepcion_pendiente: {
         title: 'Confirmá la recepción',
-        cuerpo: () => 'Confirmá en la operación que recibiste tu compra. Si no respondés antes del plazo, se dará por recibida.',
+        cuerpo: (n) =>
+            n.occursAt
+                ? `Confirmá en la operación que recibiste tu compra. Si no respondés antes del ${fechaLarga(n.occursAt)}, se dará por recibida.`
+                : 'Confirmá en la operación que recibiste tu compra. Si no respondés antes del plazo, se dará por recibida.',
     },
     activo_recibido: {
-        title: 'Entrega confirmada',
-        cuerpo: () => 'El comprador confirmó la recepción. La operación se cerrará y te avisaremos.',
+        title: 'Recepción confirmada',
+        cuerpo: () => 'La recepción de la compra quedó confirmada. La operación se cerrará y te avisaremos.',
     },
     revision_en_curso: {
         title: 'Tu comprobante está en revisión',
