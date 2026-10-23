@@ -79,7 +79,14 @@ describe('CoherenceReview — la plataforma', () => {
             renderToStaticMarkup(
                 <CoherenceReview
                     fileHref="/x"
-                    facts={{ amount: 'AR$ 1.425.000', destination: 'ana.vendedora.mp', destinationTaxId: '20123456786', custodyDate: '21 de octubre de 2026' }}
+                    facts={{
+                        recipient: 'seller',
+                        amount: 'AR$ 1.425.000',
+                        destination: 'ana.vendedora.mp',
+                        destinationTaxId: '20123456786',
+                        originDni: '30123456',
+                        custodyDate: '21 de octubre de 2026',
+                    }}
                     coherentAction={accion}
                     incoherentAction={accion}
                 />,
@@ -89,10 +96,41 @@ describe('CoherenceReview — la plataforma', () => {
         expect(t).toContain('Monto: AR$ 1.425.000');
         expect(t).toContain('CBU o alias de destino: ana.vendedora.mp');
         expect(t).toContain('CUIT de destino: 20123456786');
-        expect(t).toContain('CUIT de origen: el del KYC del comprador');
+        expect(t).toContain('CUIT de origen: contiene el DNI 30123456 del comprador');
         expect(t).toContain('todavía no lo agregó');
         expect(t).toContain('Solicitar el rastreo bancario');
         expect(t).toContain('Rechazar el comprobante');
+    });
+});
+
+describe('CoherenceReview — las comprobaciones traban la decisión', () => {
+    it('pedir el rastreo exige tildar cada comprobación', () => {
+        const html = renderToStaticMarkup(
+            <CoherenceReview fileHref="/x" facts={{ recipient: 'seller', amount: 'AR$ 1', originDni: '30123456' }} coherentAction={accion} incoherentAction={accion} />,
+        );
+
+        const boton = html.match(/<button[^>]*>Solicitar el rastreo bancario<\/button>/)?.[0] ?? '';
+        expect(boton).toMatch(/\sdisabled=""/);
+        expect(html.match(/type="checkbox"/g)?.length).toBeGreaterThan(0);
+    });
+
+    it('el comprobante de la comisión se compara con la cuenta de la plataforma, no con el CUIT del vendedor', () => {
+        const t = texto(
+            renderToStaticMarkup(
+                <CoherenceReview fileHref="/x" facts={{ recipient: 'platform', amount: 'AR$ 150.000', originDni: '30123456' }} coherentAction={accion} incoherentAction={accion} />,
+            ),
+        );
+
+        expect(t).toContain('Destino: la cuenta de la plataforma');
+        expect(t).not.toContain('KYC del vendedor');
+    });
+
+    it('sin la identidad verificada del comprador, lo dice en lugar de inventar un CUIT', () => {
+        const t = texto(
+            renderToStaticMarkup(<CoherenceReview fileHref="/x" facts={{ recipient: 'seller' }} coherentAction={accion} incoherentAction={accion} />),
+        );
+
+        expect(t).toContain('CUIT de origen: el comprador no tiene la identidad verificada');
     });
 });
 

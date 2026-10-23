@@ -258,6 +258,8 @@ export default async function DetalleOperacion(props: {
                     <CoherenceReview
                         fileHref={`/operaciones/${op.id}/comprobantes/${reviewed.recipient}`}
                         facts={{
+                            recipient: reviewed.recipient,
+                            originDni: op.buyer.verifiedDni,
                             amount:
                                 reviewed.recipient === 'seller'
                                     ? op.sellerReceives && exactMoney(op.sellerReceives)
@@ -679,8 +681,8 @@ export default async function DetalleOperacion(props: {
                                 Si el vendedor declaró una cesión que no llegó, la operación
                                 vuelve a «contrato firmado» con el motivo a su vista.
                             */}
-                            {/* El comprador espera la revisión: sabe en qué está y puede sumar el ID COELSA. */}
-                            {op.miParte === 'buyer' && reviewed && (
+                            {/* El comprador espera la revisión: sabe en qué está y puede sumar el ID COELSA. Si le toca pagar, la revisión ya está en el pago. */}
+                            {op.miParte === 'buyer' && reviewed && !(step?.kind === 'act' && step.id === 'pay') && (
                                 <Panel title="REVISIÓN DEL COMPROBANTE">
                                     <ReviewStatus
                                         hasBankReference={!!reviewed.review?.bankReference}

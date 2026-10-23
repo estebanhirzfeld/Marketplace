@@ -195,19 +195,53 @@ function TransferSteps({
     const stage = transferStage(receipts);
     const [platform, seller] = orderedDestinations(options);
 
-    // Con un comprobante en revisión no hay nada que transferir: se espera la resolución.
+    // Un comprobante en revisión espera su resolución; el otro sigue su curso, así que su paso se muestra debajo.
     const inReview = receipts.find((r) => r.status === 'in_review');
-    if (inReview) {
-        return (
-            <section className={PANEL} aria-label="Revisión del comprobante">
-                <ReviewStatus
-                    hasBankReference={!!inReview.review?.bankReference}
-                    addReferenceAction={reviewActions?.addReference[inReview.recipient] ?? unavailable}
-                />
-            </section>
-        );
-    }
+    const reviewPanel = inReview && (
+        <section className={PANEL} aria-label="Revisión del comprobante">
+            <ReviewStatus
+                hasBankReference={!!inReview.review?.bankReference}
+                addReferenceAction={reviewActions?.addReference[inReview.recipient] ?? unavailable}
+            />
+        </section>
+    );
+    if (reviewPanel && stage === 'done') return reviewPanel;
+    const nextStep = (
+        <TransferStep
+            stage={stage}
+            platform={platform}
+            seller={seller}
+            receipts={receipts}
+            uploadActions={uploadActions}
+            reviewActions={reviewActions}
+        />
+    );
+    return reviewPanel ? (
+        <div className="flex flex-col gap-6">
+            {reviewPanel}
+            {nextStep}
+        </div>
+    ) : (
+        nextStep
+    );
+}
 
+/** El paso de la transferencia que falta: la comisión, el pago al vendedor, o el aviso de que están los dos. */
+function TransferStep({
+    stage,
+    platform,
+    seller,
+    receipts,
+    uploadActions,
+    reviewActions,
+}: {
+    stage: ReturnType<typeof transferStage>;
+    platform: TransferDestinationDto | undefined;
+    seller: TransferDestinationDto | undefined;
+    receipts: PaymentReceiptDto[];
+    uploadActions: Record<ReceiptRecipientDto, ReceiptUploadAction>;
+    reviewActions?: ReviewActions;
+}) {
     if (stage === 'done') {
         return (
             <section className={PANEL} aria-labelledby="pago-listo">

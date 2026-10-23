@@ -765,6 +765,8 @@ export interface PlatformDashboardDto {
 export interface OperationPartyDto {
     id: string;
     fullName: string;
+    /** Solo para la plataforma: el DNI de la identidad verificada, para comprobar el CUIT de un comprobante. */
+    verifiedDni?: string;
 }
 
 export type OperationRoleDto = 'buyer' | 'seller' | 'platform';

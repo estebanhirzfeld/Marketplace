@@ -176,11 +176,15 @@ export function SellerReviewResponse({
 
 /** Lo que el admin compara contra el comprobante. */
 export interface CoherenceFacts {
+    /** A quién iba la transferencia: el vendedor, o la plataforma por la comisión. */
+    recipient: 'seller' | 'platform';
     amount?: string;
     destination?: string;
     destinationTaxId?: string;
     custodyDate?: string;
     bankReference?: string;
+    /** El DNI verificado del comprador: el CUIT de origen tiene que contenerlo. */
+    originDni?: string;
 }
 
 /** El admin revisa la coherencia del comprobante con las cuentas y los CUIT. */
@@ -198,16 +202,31 @@ export function CoherenceReview({
     const [coherent, markCoherent, markingCoherent] = useActionState(coherentAction, {});
     const [incoherent, markIncoherent] = useActionState(incoherentAction, {});
     const [rejecting, setRejecting] = useState(false);
+    const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
     const done = (coherent.ok && coherent) || (incoherent.ok && incoherent);
     if (done) return <Done state={done} />;
 
+    const toSeller = facts.recipient === 'seller';
     const checks = [
         facts.amount && `Monto: ${facts.amount}`,
         facts.custodyDate && `Fecha: posterior a la custodia (${facts.custodyDate})`,
-        facts.destination && `CBU o alias de destino: ${facts.destination}`,
-        `CUIT de destino: ${facts.destinationTaxId ?? 'el del KYC del vendedor'}`,
-        'CUIT de origen: el del KYC del comprador',
+        toSeller
+            ? facts.destination && `CBU o alias de destino: ${facts.destination}`
+            : 'Destino: la cuenta de la plataforma',
+        toSeller && `CUIT de destino: ${facts.destinationTaxId ?? 'el vendedor no lo declaró'}`,
+        facts.originDni
+            ? `CUIT de origen: contiene el DNI ${facts.originDni} del comprador`
+            : 'CUIT de origen: el comprador no tiene la identidad verificada',
     ].filter(Boolean) as string[];
+    // Pedir el rastreo afirma que todo coincide: sin cada comprobación tildada, no se puede.
+    const allChecked = checks.every((c) => checked.has(c));
+    const toggle = (c: string) =>
+        setChecked((prev) => {
+            const next = new Set(prev);
+            if (next.has(c)) next.delete(c);
+            else next.add(c);
+            return next;
+        });
 
     return (
         <div className="flex flex-col gap-4">
@@ -218,7 +237,7 @@ export function CoherenceReview({
                 <legend className="mb-1 text-[13px] text-[var(--color-apagado)]">Coherencia del comprobante</legend>
                 {checks.map((c) => (
                     <label key={c} className="flex min-h-[40px] items-center gap-3 text-[14px]">
-                        <input type="checkbox" className="size-[18px]" />
+                        <input type="checkbox" className="size-[18px]" checked={checked.has(c)} onChange={() => toggle(c)} />
                         {c}
                     </label>
                 ))}
@@ -231,7 +250,7 @@ export function CoherenceReview({
             {!rejecting ? (
                 <div className="flex flex-wrap gap-3">
                     <form action={markCoherent}>
-                        <Button type="submit" disabled={markingCoherent}>
+                        <Button type="submit" disabled={markingCoherent || !allChecked}>
                             {markingCoherent ? 'Registrando la decisión…' : 'Solicitar el rastreo bancario'}
                         </Button>
                     </form>

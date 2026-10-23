@@ -1135,6 +1135,8 @@ export default function Sistema() {
                             <CoherenceReview
                                 fileHref="/sistema"
                                 facts={{
+                                recipient: 'seller',
+                                originDni: '30123456',
                                     amount: 'AR$ 1.425.000',
                                     destination: 'ejemplo.vendedor',
                                     destinationTaxId: '20123456786',

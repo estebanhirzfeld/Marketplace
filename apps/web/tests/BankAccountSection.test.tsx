@@ -55,6 +55,30 @@ describe('BankAccountsView', () => {
         expect(texto(html)).toContain('Delia Orrego');
         expect(texto(html)).toContain('Cambiar la cuenta');
     });
+
+    it('una cuenta sin CUIT pide completarlo, porque sin él no se puede pagar por transferencia', () => {
+        const html = renderToStaticMarkup(
+            <BankAccountsView
+                accounts={[{ currency: 'ARS', alias: 'delia.pesos', holder: 'Delia Orrego', declaredAt: '2026-10-22T10:00:00.000Z' }]}
+                actionFor={() => noop}
+            />,
+        );
+
+        expect(texto(html)).toContain('Completá el CUIT o CUIL del titular: sin él, el comprador no podrá pagarte por transferencia.');
+        expect(html).toMatch(/<details open="">/);
+    });
+
+    it('con el CUIT declarado no pide nada', () => {
+        const html = renderToStaticMarkup(
+            <BankAccountsView
+                accounts={[{ currency: 'ARS', alias: 'delia.pesos', holder: 'Delia Orrego', holderTaxId: '20123456786', declaredAt: '2026-10-22T10:00:00.000Z' }]}
+                actionFor={() => noop}
+            />,
+        );
+
+        expect(texto(html)).not.toContain('Completá el CUIT');
+        expect(html).not.toMatch(/<details open="">/);
+    });
 });
 
 describe('declareBankAccountAction', () => {

@@ -214,6 +214,28 @@ describe('PaymentChoice — transferencia', () => {
         expect(t).toContain('Banco Ejemplo');
     });
 
+    it('con la comisión en revisión, sigue el pago al vendedor: la revisión no tapa la otra transferencia', () => {
+        const enRevision = comprobante('platform', 'in_review', {
+            review: { stage: 'coherence', requestedBy: 'buyer', hasSellerStatement: false },
+        });
+        const t = texto(comprador(opciones({}), { receipts: [enRevision] }));
+
+        expect(t).toContain('El comprobante está en revisión');
+        expect(t).toContain('El pago, al vendedor');
+        expect(t).toContain('Adjuntar comprobante');
+    });
+
+    it('con un comprobante en revisión y el otro enviado, solo queda esperar la revisión', () => {
+        const enRevision = comprobante('seller', 'in_review', {
+            review: { stage: 'awaiting_seller', requestedBy: 'buyer', hasSellerStatement: false },
+        });
+        const t = texto(comprador(opciones({}), { receipts: [comprobante('platform', 'pending'), enRevision] }));
+
+        expect(t).toContain('El comprobante está en revisión');
+        expect(t).not.toContain('Adjuntar comprobante');
+        expect(t).not.toContain('Recibimos los dos comprobantes');
+    });
+
     it('con los dos enviados, avisa que la revisión es manual', () => {
         const t = texto(
             comprador(opciones({}), { receipts: [comprobante('platform', 'pending'), comprobante('seller', 'pending')] }),

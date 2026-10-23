@@ -3,7 +3,7 @@ import type { SellerBankAccountDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { declareBankAccountAction } from '@/app/perfil/actions';
 import { BankAccountForm } from './BankAccountForm';
-import { Panel } from './ui';
+import { Alert, Panel } from './ui';
 
 type Action = (state: { error?: string; ok?: boolean; message?: string }, form: FormData) => Promise<{ error?: string; ok?: boolean; message?: string }>;
 
@@ -39,7 +39,13 @@ export function BankAccountsView({
                                 <div className="flex flex-col gap-2 text-[14px]">
                                     <span className="font-mono">{destination}</span>
                                     <span className="text-[13px] text-[var(--color-tenue)]">{account.holder}</span>
-                                    <details>
+                                    {/* Una cuenta declarada antes de pedir el CUIT no se ofrece al comprador. */}
+                                    {!account.holderTaxId && (
+                                        <Alert tono="alerta">
+                                            Completá el CUIT o CUIL del titular: sin él, el comprador no podrá pagarte por transferencia.
+                                        </Alert>
+                                    )}
+                                    <details open={!account.holderTaxId}>
                                         <summary className="cursor-pointer text-[13px] text-[var(--color-tenue)]">Cambiar la cuenta</summary>
                                         <div className="mt-3">
                                             <BankAccountForm action={actionFor(currency)} current={{ destination, holder: account.holder, holderTaxId: account.holderTaxId }} />

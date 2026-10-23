@@ -18,6 +18,8 @@ import { Contract } from '../../../src/entities/Contract';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
 import { WebStrategy } from '../../../src/strategies/WebStrategy';
 import { Money } from '../../../src/value-objects/Money';
+import { User } from '../../../src/entities/User';
+import { Email } from '../../../src/value-objects/Email';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { ForbiddenError, NotFoundError } from '../../../src/errors/DomainError';
 import { AssetType, UserRole } from '@marketplace/shared-types';
@@ -235,6 +237,46 @@ describe('GetOperationDetailsUseCase', () => {
     it('falla si la operación no existe', async () => {
         await expect(armar(null).execute('no-existe', actorDe(BUYER_ID)))
             .rejects.toThrow(NotFoundError);
+    });
+
+    /**
+     * Para revisar un comprobante, la plataforma compara el CUIT de origen con
+     * la identidad verificada del comprador. Solo ella ve ese DNI.
+     */
+    describe('DNI verificado de las partes', () => {
+        function conUsuarios(operacion: Operation) {
+            const comprador = User.reconstitute(
+                { email: Email.create('comprador@correo.com'), fullName: 'Juan Comprador', passwordHash: 'x'.repeat(60), role: UserRole.BUYER, dni: '30123456', isKycVerified: true },
+                BUYER_ID,
+                new Date('2026-10-01T00:00:00Z'),
+            );
+            const users: IUserRepository = {
+                findById: vi.fn(async (id: string) => (id === BUYER_ID.toString() ? comprador : null)),
+                findByEmail: vi.fn().mockResolvedValue(null),
+                findByRole: vi.fn().mockResolvedValue([]),
+                save: vi.fn().mockResolvedValue(undefined),
+            };
+            return new GetOperationDetailsUseCase(
+                createMockOperationRepo({ findById: vi.fn().mockResolvedValue(operacion) }),
+                createMockContractRepo(),
+                users,
+                createMockListingRepo(),
+            );
+        }
+
+        it('la plataforma ve el DNI verificado del comprador', async () => {
+            const op = unaOperacion();
+            const vista = await conUsuarios(op).execute(op.id.toString(), actorDe('admin', UserRole.ADMIN));
+
+            expect(vista.buyer).toEqual({ id: BUYER_ID.toString(), fullName: 'Juan Comprador', verifiedDni: '30123456' });
+        });
+
+        it('las partes no lo ven', async () => {
+            const op = unaOperacion();
+            const vista = await conUsuarios(op).execute(op.id.toString(), actorDe(SELLER_ID, UserRole.SELLER));
+
+            expect(vista.buyer).toEqual({ id: BUYER_ID.toString(), fullName: 'Juan Comprador' });
+        });
     });
 });
 

@@ -62,6 +62,8 @@ function receiptFacts(operation: Operation): NextActionsInput['receipts'] {
 export interface OperationParty {
     id: string;
     fullName: string;
+    /** Solo para la plataforma: el DNI de la identidad verificada, para comprobar el CUIT de un comprobante. */
+    verifiedDni?: string;
 }
 
 /**
@@ -240,8 +242,8 @@ export class GetOperationDetailsUseCase {
 
         const { props } = operation.toSnapshot();
         const [buyer, seller, listing] = await Promise.all([
-            this.parte(props.buyerId.toString()),
-            this.parte(props.sellerId.toString()),
+            this.parte(props.buyerId.toString(), actor.role === UserRole.ADMIN),
+            this.parte(props.sellerId.toString(), actor.role === UserRole.ADMIN),
             this.listingRepo.findById(props.listingId.toString()),
         ]);
 
@@ -384,11 +386,14 @@ export class GetOperationDetailsUseCase {
      * constancias siguen siendo válidos y la contraparte tiene derecho a
      * verlos. Se muestra sin nombre antes que fallar.
      */
-    private async parte(userId: string): Promise<OperationParty> {
+    private async parte(userId: string, withVerifiedDni: boolean): Promise<OperationParty> {
         const user = await this.userRepo.findById(userId);
+        const props = user?.toSnapshot().props;
+        const verifiedDni = withVerifiedDni && props?.isKycVerified ? props.dni : undefined;
         return {
             id: userId,
-            fullName: user?.toSnapshot().props.fullName ?? 'Usuario dado de baja',
+            fullName: props?.fullName ?? 'Usuario dado de baja',
+            ...(verifiedDni ? { verifiedDni } : {}),
         };
     }
 }
