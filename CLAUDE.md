@@ -81,6 +81,8 @@ It touches four places and will fail at runtime if you miss the mapper:
 
 These override the rules above as each unit lands; `odd/tasks/recorrido-del-traspaso.md` tracks which ones are live.
 
+**Website sales are paused since 22/10/2026** (`WEBSITE_SALES_ENABLED` in `apps/web/src/lib/assetAvailability.ts`): `/vender` shows the website card as «Próximamente» and publishing rejects one. The website code stays; the remaining units are built for YouTube. Research on handing over the site itself is in `odd/tasks/entrega-de-un-sitio.md`.
+
 - **Deadline cancellation** is the only exception to "committed after signing": a seller who does not hand over within their deadline cancels the operation and the listing returns to the market; a buyer who does not pay with the asset in custody cancels it and the platform returns the asset to the seller. Manual cancellation after signing stays illegal.
 - **Ready to sign** is decided per strategy (`transferReadiness`): YouTube needs the platform's 7-day manager access; a website needs its domain at Hostinger, active and 45+ days from expiry (RDAP). A website never needs `platformAccess`.
 - **Bank transfer is split like Mercado Pago**: the buyer sends `sellerReceives` to the seller's own account and `platformEarns` to the platform's, uploading one receipt each; the seller confirms theirs, an admin confirms the commission. The platform never receives the seller's money (holding third-party funds would make it a PSP under BCRA rules).

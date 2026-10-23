@@ -42,6 +42,8 @@ La premisa del negocio: si el traspaso de la propiedad principal no funciona com
 
 ## Etapa 1b · Sitios web
 
+> **En pausa desde el 22/10/2026.** La venta de sitios está deshabilitada («Próximamente» en `/vender`): el dominio se pone en custodia, pero el sitio en sí no tiene una entrega comprobable. Lo investigado (competencia, Hostinger, GitHub, casos infelices) está en [`odd/tasks/entrega-de-un-sitio.md`](tasks/entrega-de-un-sitio.md). Se retoma después de cerrar YouTube. [usuario]
+
 El equivalente para sitios web de lo que ya se hizo con los canales de YouTube. Hasta ahora casi todo el trabajo se centró en YouTube. [usuario]
 
 - [x] **Reglas reales del traspaso de un dominio, verificadas el 13/10/2026:** el bloqueo de ICANN de 60 días después de un cambio de titular (y si se puede pedir que no se aplique), y qué más se transfiere además del dominio: hosting, código, cuentas de analítica, plataforma de tienda. Define qué se le promete al comprador, como hicieron los 7 días en YouTube. [análisis]
