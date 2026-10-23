@@ -17,77 +17,51 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 @media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
 </style>
 </helmet>
-<div style="width: 720px; min-height: 1000px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
-
-  <div style="display: flex; flex-direction: column; gap: 8px">
-    <h1 style="margin: 0; font-size: 28px; font-weight: 700; line-height: 1.2">Te ofrecen <span style="font-family: 'JetBrains Mono', monospace">USD 12.000</span> por Pc Lover</h1>
-    <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">Recibirás <strong style="color: #e8e9ea; font-weight: 700">USD 11.400</strong>, luego de la comisión de la plataforma (5%).</p>
-  </div>
+<div style="width: 720px; min-height: 800px; box-sizing: border-box; padding: 56px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px">
 
   <sc-if value="{{ isDecide }}" hint-placeholder-val="{{ true }}">
-    <div style="display: flex; flex-direction: column; gap: 24px">
-      <article aria-label="Condiciones del contrato" style="border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-        <header style="padding: 18px 28px; border-bottom: 1px solid #2a2e35">
-          <span style="font-size: 17px; font-weight: 700">Contrato de compraventa</span>
-        </header>
-        <dl style="margin: 0; padding: 8px 28px; display: grid; grid-template-columns: 200px minmax(0, 1fr); row-gap: 0">
-          <dt style="padding: 12px 0; border-bottom: 1px solid #1f2227; font-size: 14px; color: #8c939c">Precio</dt>
-          <dd style="margin: 0; padding: 12px 0; border-bottom: 1px solid #1f2227; font-family: 'JetBrains Mono', monospace; font-size: 15px">USD 12.000</dd>
-          <dt style="padding: 12px 0; border-bottom: 1px solid #1f2227; font-size: 14px; color: #8c939c">Recibirás</dt>
-          <dd style="margin: 0; padding: 12px 0; border-bottom: 1px solid #1f2227; font-family: 'JetBrains Mono', monospace; font-size: 15px">USD 11.400</dd>
-          <dt style="padding: 12px 0; border-bottom: 1px solid #1f2227; font-size: 14px; color: #8c939c">Plazo para el traspaso</dt>
-          <dd style="margin: 0; padding: 12px 0; border-bottom: 1px solid #1f2227; font-size: 15px">10 días desde la firma</dd>
-          <dt style="padding: 12px 0; font-size: 14px; color: #8c939c">Si no se cumple</dt>
-          <dd style="margin: 0; padding: 12px 0; font-size: 15px; line-height: 1.5">La operación se cancela y el canal vuelve al mercado.</dd>
-        </dl>
-        <footer style="padding: 12px 28px 16px; border-top: 1px solid #2a2e35">
-          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Leer el contrato completo</a>
-        </footer>
-      </article>
-
+    <div style="display: flex; flex-direction: column; gap: 28px">
       <div style="display: flex; flex-direction: column; gap: 12px">
-        <div style="display: flex; flex-wrap: wrap; gap: 12px">
-          <button type="button" onClick="{{ accept }}" style="min-height: 48px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">{{ acceptLabel }}</button>
-          <a href="#" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; color: #e8e9ea; font-size: 15px; text-decoration: none">Contraofertar</a>
-        </div>
-        <span style="font-size: 13px; line-height: 1.5; color: #838a94">{{ acceptNote }} Las otras <strong style="color: #e8e9ea; font-weight: 700">2 ofertas</strong> se cancelarán.</span>
+        <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Te ofrecen <span style="font-family: 'JetBrains Mono', monospace">USD 12.000</span> por Pc Lover</h1>
+        <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Recibirás <strong style="color: #e8e9ea; font-weight: 700">USD 11.400</strong>.</p>
       </div>
+
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Leer el contrato</a>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ accept }}" style="min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">{{ acceptLabel }}</button>
+        <a href="#" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; color: #e8e9ea; font-size: 16px; text-decoration: none">Contraofertar</a>
+      </div>
+      <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">Se cancelarán las otras <strong style="color: #e8e9ea; font-weight: 700">2 ofertas</strong>.</span>
     </div>
   </sc-if>
 
   <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
-    <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 140px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; box-sizing: border-box">
-      <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
-      <span style="font-size: 15px">{{ sendingText }}</span>
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; padding-top: 40px">
+      <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 17px">{{ sendingText }}</span>
       <button type="button" onClick="{{ done }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
     </div>
   </sc-if>
 
   <sc-if value="{{ isSigned }}" hint-placeholder-val="{{ false }}">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-      <div style="display: flex; align-items: center; gap: 10px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-        <span style="font-size: 20px; font-weight: 700">Aceptaste y firmaste el contrato</span>
-      </div>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">Le avisaremos al comprador para que firme. Cuando firme, te avisaremos para pasarle la propiedad del canal a la plataforma.</p>
-      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Firmaste el contrato</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Te avisaremos cuando firme <strong style="color: #e8e9ea; font-weight: 700">el comprador</strong>.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
     </div>
   </sc-if>
 
   <sc-if value="{{ isAccepted }}" hint-placeholder-val="{{ false }}">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-      <div style="display: flex; align-items: center; gap: 10px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-        <span style="font-size: 20px; font-weight: 700">Aceptaste la oferta</span>
-      </div>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">El precio queda fijado. Para firmar, la plataforma tiene que ser administradora del canal durante <strong style="color: #e8e9ea; font-weight: 700">7 días</strong>: invitala hoy y la firma se habilitará el <strong style="color: #e8e9ea; font-weight: 700">30 de octubre</strong>. Te avisaremos a vos y al comprador.</p>
-      <a href="SellerAccess.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 3px; background: #cff245; color: #0b0c0e; font-size: 15px; font-weight: 700; text-decoration: none">Invitar a la plataforma</a>
-      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Aceptaste la oferta</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Firmarás el <strong style="color: #e8e9ea; font-weight: 700">30 de octubre</strong>. Antes, deberás invitar a la plataforma como administrador del canal.</p>
+      <a href="SellerAccess.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 52px; padding: 0 28px; border-radius: 3px; background: #cff245; color: #0b0c0e; font-size: 16px; font-weight: 700; text-decoration: none">Invitar a la plataforma</a>
     </div>
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"immediate":{"editor":"boolean","default":true},"$preview":{"width":720,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"immediate":{"editor":"boolean","default":true},"$preview":{"width":720,"height":800}}'>
 class Component extends DCLogic {
 constructor(props) {
 super(props);
@@ -101,10 +75,7 @@ isDecide: v === 'decide',
 isSending: v === 'sending',
 isSigned: v === 'signed',
 isAccepted: v === 'accepted',
-acceptLabel: immediate ? 'Aceptar y firmar' : 'Aceptar la oferta',
-acceptNote: immediate
-? 'Firmarás con [PROVEEDOR DE FIRMA] en el mismo paso.'
-: 'Firmarás cuando la plataforma cumpla 7 días como administradora del canal.',
+acceptLabel: immediate ? 'Aceptar y firmar' : 'Aceptar',
 sendingText: immediate ? 'Registrando tu firma…' : 'Registrando tu aceptación…',
 accept: () => this.setState({ view: 'sending' }),
 done: () => this.setState({ view: immediate ? 'signed' : 'accepted' }),

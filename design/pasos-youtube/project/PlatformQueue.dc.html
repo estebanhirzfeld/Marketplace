@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Lo que le toca a la plataforma</title>
+<title>Pendientes de la plataforma</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -15,95 +15,52 @@ body{margin:0;background:#0b0c0e}
 a{color:#cff245}a:hover{color:#e4ff7a}
 </style>
 </helmet>
-<div style="width: 1280px; min-height: 900px; box-sizing: border-box; padding: 40px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+<div style="width: 1280px; min-height: 720px; box-sizing: border-box; padding: 48px 56px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
 
-  <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 24px">
-    <h1 style="margin: 0; font-size: 26px; font-weight: 700">Pendientes de la plataforma</h1>
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #a3a9b1">{{ total }} PENDIENTES · ORDENADOS POR VENCIMIENTO</span>
-  </div>
+  <h1 style="margin: 0; font-size: 28px; font-weight: 700">Pendientes</h1>
 
-  <div role="tablist" aria-label="Filtrar por acción" style="display: flex; flex-wrap: wrap; gap: 8px">
-    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
-      <button type="button" role="tab" aria-selected="{{ t.selected }}" onClick="{{ t.pick }}" style="min-height: 40px; padding: 0 14px; border: 1px solid {{ t.border }}; border-radius: 3px; background: transparent; color: {{ t.color }}; font: inherit; font-size: 14px">{{ t.label }} <span style="font-family: 'JetBrains Mono', monospace; color: #8c939c">{{ t.count }}</span></button>
+  <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid #2a2e35">
+    <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+      <li style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 200px; gap: 24px; align-items: center; padding: 16px 0; border-bottom: 1px solid #2a2e35">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+          <span style="font-size: 16px; font-weight: 700">{{ r.action }} · {{ r.channel }}</span>
+          <span style="font-size: 14px; color: #a3a9b1">{{ r.detail }}</span>
+        </div>
+        <span style="font-size: 14px; color: {{ r.dueColor }}">{{ r.due }}</span>
+        <div style="display: flex; justify-content: flex-end">
+          <sc-if value="{{ r.pending }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ r.run }}" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">{{ r.cta }}</button>
+          </sc-if>
+          <sc-if value="{{ r.busy }}" hint-placeholder-val="{{ false }}">
+            <span aria-busy="true" style="font-size: 14px; color: #a3a9b1">Registrando…</span>
+          </sc-if>
+          <sc-if value="{{ r.done }}" hint-placeholder-val="{{ false }}">
+            <span style="font-size: 14px; color: #5eead4">Avisamos a las partes</span>
+          </sc-if>
+        </div>
+      </li>
     </sc-for>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; font-size: 14px">
-    <thead>
-      <tr style="text-align: left; color: #8c939c; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em">
-        <th scope="col" style="padding: 12px 12px 12px 0; border-bottom: 1px solid #2a2e35; font-weight: 500">ACCIÓN</th>
-        <th scope="col" style="padding: 12px; border-bottom: 1px solid #2a2e35; font-weight: 500">CANAL</th>
-        <th scope="col" style="padding: 12px; border-bottom: 1px solid #2a2e35; font-weight: 500">DATO A VERIFICAR</th>
-        <th scope="col" style="padding: 12px; border-bottom: 1px solid #2a2e35; font-weight: 500">VENCE</th>
-        <th scope="col" style="padding: 12px 0 12px 12px; border-bottom: 1px solid #2a2e35; font-weight: 500; text-align: right"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Acción</span></th>
-      </tr>
-    </thead>
-    <tbody>
-      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
-        <tr>
-          <td style="padding: 14px 12px 14px 0; border-bottom: 1px solid #1f2227; font-weight: 500">{{ r.action }}</td>
-          <td style="padding: 14px 12px; border-bottom: 1px solid #1f2227">{{ r.channel }}</td>
-          <td style="padding: 14px 12px; border-bottom: 1px solid #1f2227; color: #a3a9b1; font-family: 'JetBrains Mono', monospace; font-size: 13px">{{ r.detail }}</td>
-          <td style="padding: 14px 12px; border-bottom: 1px solid #1f2227; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: {{ r.dueColor }}">{{ r.due }}</td>
-          <td style="padding: 10px 0 10px 12px; border-bottom: 1px solid #1f2227; text-align: right">
-            <sc-if value="{{ r.pending }}" hint-placeholder-val="{{ true }}">
-              <button type="button" onClick="{{ r.run }}" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 14px; font-weight: 700">{{ r.cta }}</button>
-            </sc-if>
-            <sc-if value="{{ r.busy }}" hint-placeholder-val="{{ false }}">
-              <span aria-busy="true" style="font-size: 13px; color: #a3a9b1">Registrando…</span>
-            </sc-if>
-            <sc-if value="{{ r.done }}" hint-placeholder-val="{{ false }}">
-              <span style="font-size: 13px; color: #5eead4">Hecho · avisamos a las partes</span>
-            </sc-if>
-          </td>
-        </tr>
-      </sc-for>
-    </tbody>
-  </table>
-
-  <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
-    <p style="margin: 0; padding: 40px 0; font-size: 15px; color: #a3a9b1; text-align: center">No hay pendientes de este tipo.</p>
-  </sc-if>
+  </ul>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
 class Component extends DCLogic {
 constructor(props) {
 super(props);
-this.state = { filter: 'all', status: {} };
+this.state = { status: {} };
 }
 renderVals() {
 const s = this.state;
 const all = [
-{ id: 'a1', kind: 'invite', action: 'Aceptar la invitación', channel: 'Pc Lover', detail: 'Invitación a [CUENTA DE CUSTODIA]', due: 'Hoy', urgent: true, cta: 'Aceptada' },
-{ id: 'a2', kind: 'custody', action: 'Confirmar la custodia', channel: 'Recetas Rápidas', detail: 'Propietario principal: plataforma', due: '24 oct', urgent: true, cta: 'Confirmar' },
-{ id: 'a3', kind: 'receipt', action: 'Revisar la comisión', channel: 'Tecno Ya', detail: 'AR$ 142.500 · CUIT 20-30123456-7', due: '25 oct', urgent: false, cta: 'Revisar' },
-{ id: 'a4', kind: 'buyer', action: 'Invitar al comprador', channel: 'Gaming Sur', detail: 'comprador@correo.com', due: '26 oct', urgent: false, cta: 'Invitado' },
-{ id: 'a5', kind: 'owner', action: 'Hacer propietario al comprador', channel: 'Viajes 360', detail: '7 días cumplidos el 23 oct', due: '27 oct', urgent: false, cta: 'Hecho' },
-{ id: 'a6', kind: 'claim', action: 'Resolver un reclamo', channel: 'Fitness Diario', detail: 'El vendedor sigue en los permisos', due: '28 oct', urgent: false, cta: 'Abrir' },
+{ id: 'a1', action: 'Aceptar la invitación', channel: 'Pc Lover', detail: 'Enviada a [CUENTA DE CUSTODIA]', due: 'Hoy', urgent: true, cta: 'Ya la acepté' },
+{ id: 'a2', action: 'Confirmar el traspaso', channel: 'Recetas Rápidas', detail: 'La plataforma tiene que figurar como propietario principal', due: 'Mañana', urgent: true, cta: 'Confirmar' },
+{ id: 'a3', action: 'Revisar la comisión', channel: 'Tecno Ya', detail: 'AR$ 142.500 · CUIT 20-30123456-7', due: '25 de octubre', urgent: false, cta: 'Ver el comprobante' },
+{ id: 'a4', action: 'Invitar al comprador', channel: 'Gaming Sur', detail: 'comprador@correo.com', due: '26 de octubre', urgent: false, cta: 'Ya lo invité' },
+{ id: 'a5', action: 'Hacer propietario al comprador', channel: 'Viajes 360', detail: 'Lleva 7 días como administrador', due: '27 de octubre', urgent: false, cta: 'Ya lo hice' },
+{ id: 'a6', action: 'Resolver un reclamo', channel: 'Fitness Diario', detail: 'El vendedor sigue en los permisos', due: '28 de octubre', urgent: false, cta: 'Ver el reclamo' },
 ];
-const tabsDef = [
-{ id: 'all', label: 'Todos' },
-{ id: 'invite', label: 'Invitaciones' },
-{ id: 'custody', label: 'Custodias' },
-{ id: 'receipt', label: 'Comprobantes' },
-{ id: 'buyer', label: 'Entregas' },
-{ id: 'claim', label: 'Reclamos' },
-];
-const inTab = (r, id) => id === 'all' || r.kind === id || (id === 'buyer' && r.kind === 'owner');
-const open = all.filter((r) => s.status[r.id] !== 'done');
-const rows = all.filter((r) => inTab(r, s.filter));
 return {
-total: open.length,
-tabs: tabsDef.map((t) => ({
-label: t.label,
-count: open.filter((r) => inTab(r, t.id)).length,
-selected: s.filter === t.id ? 'true' : 'false',
-border: s.filter === t.id ? '#cff245' : '#2a2e35',
-color: s.filter === t.id ? '#e8e9ea' : '#a3a9b1',
-pick: () => this.setState({ filter: t.id }),
-})),
-rows: rows.map((r) => {
+rows: all.map((r) => {
 const st = s.status[r.id];
 return {
 ...r,
@@ -117,7 +74,6 @@ setTimeout(() => this.setState({ status: { ...this.state.status, [r.id]: 'done' 
 },
 };
 }),
-empty: rows.length === 0,
 };
 }
 }

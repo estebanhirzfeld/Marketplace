@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>La operación, en custodia</title>
+<title>Pasar la propiedad del canal</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -17,132 +17,86 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 @media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
 </style>
 </helmet>
-<div style="width: 720px; min-height: 1000px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+<div style="width: 720px; min-height: 800px; box-sizing: border-box; padding: 56px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px">
 
-  <div style="display: flex; flex-direction: column; gap: 6px">
-    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Venta de Pc Lover</h1>
-    <p style="margin: 0; font-size: 15px; color: #a3a9b1">Recibirás <strong style="color: #e8e9ea; font-weight: 700">USD 11.400</strong></p>
-  </div>
+  <sc-if value="{{ isOwner }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <span style="font-size: 14px; color: #a3a9b1">Paso 1 de 2</span>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Hacé propietario principal a la plataforma</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
+      <button type="button" onClick="{{ toLeave }}" style="align-self: flex-start; min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Continuar</button>
+    </div>
+  </sc-if>
 
-  <nav aria-label="Etapas de la operación" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px">
-    <sc-for list="{{ stages }}" as="st" hint-placeholder-count="5">
-      <div aria-current="{{ st.current }}" style="display: flex; flex-direction: column; gap: 8px">
-        <span style="height: 3px; border-radius: 2px; background: {{ st.bar }}"></span>
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: {{ st.color }}">{{ st.label }}</span>
-      </div>
-    </sc-for>
-  </nav>
-
-  <sc-if value="{{ isAction }}" hint-placeholder-val="{{ true }}">
-    <section aria-label="Tu próximo paso" style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #cff245; border-radius: 8px; background: #141619">
-      <div style="display: flex; flex-direction: column; gap: 8px">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #cff245">TU PRÓXIMO PASO</span>
-        <h2 style="margin: 0; font-size: 22px; font-weight: 700">Pasale la propiedad del canal a la plataforma</h2>
-        <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">El canal quedará en custodia hasta que el comprador pague. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
-      </div>
-      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
-        <li style="display: flex; gap: 16px; padding: 18px; border: 1px solid #2a2e35; border-radius: 5px">
-          <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #cff245">1</span>
-          <div style="display: flex; flex-direction: column; gap: 6px">
-            <span style="font-size: 15px; font-weight: 700">Hacé propietaria principal a la plataforma</span>
-            <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">En los permisos de la cuenta de marca, cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>.</span>
-            <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
-          </div>
-        </li>
-        <li style="display: flex; gap: 16px; padding: 18px; border: 1px solid #2a2e35; border-radius: 5px">
-          <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #cff245">2</span>
-          <div style="display: flex; flex-direction: column; gap: 6px">
-            <span style="font-size: 15px; font-weight: 700">Quitá tu acceso al canal</span>
-            <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">Salí de la cuenta de marca y de los permisos de YouTube Studio (Configuración → Permisos).</span>
-            <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Abrir YouTube Studio</a>
-          </div>
-        </li>
-      </ol>
-      <button type="button" onClick="{{ declare }}" style="align-self: flex-start; min-height: 48px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Ya pasé la propiedad</button>
-    </section>
+  <sc-if value="{{ isLeave }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <span style="font-size: 14px; color: #a3a9b1">Paso 2 de 2</span>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Quitá tu acceso al canal</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Salí de la cuenta de marca y de los permisos de YouTube Studio.</p>
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir YouTube Studio</a>
+      <button type="button" onClick="{{ declare }}" style="align-self: flex-start; min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya quité mi acceso</button>
+    </div>
   </sc-if>
 
   <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
-    <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 120px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; box-sizing: border-box">
-      <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
-      <span style="font-size: 15px">Registrando tu traspaso…</span>
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; padding-top: 40px">
+      <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 17px">Registrando el traspaso…</span>
       <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
     </div>
   </sc-if>
 
   <sc-if value="{{ isVerifying }}" hint-placeholder-val="{{ false }}">
-    <section style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-      <span style="font-size: 20px; font-weight: 700">La plataforma verificará el traspaso</span>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">La verificación es manual y puede demorar hasta <strong style="color: #e8e9ea; font-weight: 700">1 día hábil</strong>. Te avisaremos cuando el canal esté en custodia.</p>
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Verificaremos el traspaso</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">La verificación es manual y puede demorar hasta <strong style="color: #e8e9ea; font-weight: 700">1 día hábil</strong>. Te avisaremos cuando esté confirmado.</p>
       <div style="display: flex; gap: 8px; flex-wrap: wrap">
-        <button type="button" onClick="{{ custody }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular custodia</button>
-        <button type="button" onClick="{{ reject }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular rechazo</button>
+        <button type="button" onClick="{{ custody }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular confirmado</button>
+        <button type="button" onClick="{{ reject }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular incompleto</button>
       </div>
-    </section>
+    </div>
   </sc-if>
 
   <sc-if value="{{ isCustody }}" hint-placeholder-val="{{ false }}">
-    <section style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-      <div style="display: flex; align-items: center; gap: 10px">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
-        <span style="font-size: 20px; font-weight: 700">El canal está en custodia</span>
-      </div>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1"><strong style="color: #e8e9ea; font-weight: 700">El comprador</strong> tiene tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">6 de noviembre</strong> para pagar. Te avisaremos cuando el pago esté confirmado. Si no paga, la plataforma te devolverá el canal.</p>
-      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
-    </section>
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Confirmamos el traspaso</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Te avisaremos cuando <strong style="color: #e8e9ea; font-weight: 700">el comprador</strong> pague. Recibirás <strong style="color: #e8e9ea; font-weight: 700">USD 11.400</strong>.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
   </sc-if>
 
   <sc-if value="{{ isRejected }}" hint-placeholder-val="{{ false }}">
-    <section role="alert" style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #f87171; border-radius: 8px; background: #141619">
-      <span style="font-size: 20px; font-weight: 700">El traspaso no está completo</span>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">La plataforma todavía no figura como propietaria principal. Revisá el paso 1 y volvé a confirmar. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
-      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Ver los pasos</button>
-    </section>
+    <div role="alert" style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">El traspaso no está completo</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1"><strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> todavía no es propietario principal. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 52px; padding: 0 24px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 16px">Volver al paso 1</button>
+    </div>
   </sc-if>
-
-  <section aria-label="Lo que sigue" style="display: flex; flex-direction: column; gap: 0; border-top: 1px solid #2a2e35">
-    <sc-for list="{{ next }}" as="n" hint-placeholder-count="3">
-      <div style="display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #1f2227">
-        <span style="font-size: 14px">{{ n.what }}</span>
-        <span style="font-size: 14px; color: #8c939c; text-align: right">{{ n.who }}</span>
-      </div>
-    </sc-for>
-  </section>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":800}}'>
 class Component extends DCLogic {
 constructor(props) {
 super(props);
-this.state = { view: 'action' };
+this.state = { view: 'owner' };
 }
 renderVals() {
 const v = this.state.view;
-const labels = ['FIRMA', 'CUSTODIA', 'PAGO', 'ENTREGA', 'CIERRE'];
-const current = v === 'custody' ? 2 : 1;
 const go = (view) => () => this.setState({ view });
 return {
-stages: labels.map((label, i) => ({
-label,
-current: i === current ? 'step' : 'false',
-bar: i < current ? '#5eead4' : i === current ? '#cff245' : '#2a2e35',
-color: i === current ? '#e8e9ea' : i < current ? '#a3a9b1' : '#8c939c',
-})),
-isAction: v === 'action',
+isOwner: v === 'owner',
+isLeave: v === 'leave',
 isSending: v === 'sending',
 isVerifying: v === 'verifying',
 isCustody: v === 'custody',
 isRejected: v === 'rejected',
-next: [
-{ what: 'Pago del comprador', who: 'Te avisaremos' },
-{ what: 'Entrega del canal al comprador', who: 'La realiza la plataforma' },
-{ what: 'Cierre de la operación', who: 'Automático' },
-],
+toLeave: go('leave'),
 declare: go('sending'),
 sent: go('verifying'),
 custody: go('custody'),
 reject: go('rejected'),
-restart: go('action'),
+restart: go('owner'),
 };
 }
 }

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Traspaso inmediato</title>
+<title>Habilitar el traspaso inmediato</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -17,111 +17,102 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 @media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
 </style>
 </helmet>
-<div style="width: 720px; min-height: 1080px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+<div style="width: 720px; min-height: 800px; box-sizing: border-box; padding: 56px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 32px">
 
-  <div style="display: flex; gap: 16px; align-items: center">
-    <span style="width: 56px; height: 56px; border-radius: 50%; background: #2a2e35; flex-shrink: 0" role="img" aria-label="Avatar del canal"></span>
-    <div style="display: flex; flex-direction: column; gap: 4px">
-      <span style="font-size: 22px; font-weight: 700">Pc Lover</span>
-      <span style="font-size: 14px; color: #a3a9b1">Publicado · 12.400 suscriptores</span>
+  <sc-if value="{{ isIntro }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Habilitá el traspaso inmediato</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Podrás aceptar y firmar una oferta en un solo paso.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <button type="button" onClick="{{ start }}" style="min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Habilitar</button>
+        <button type="button" style="min-height: 52px; padding: 0 20px; border: 0; background: transparent; color: #a3a9b1; font: inherit; font-size: 15px">Ahora no</button>
+      </div>
     </div>
-  </div>
+  </sc-if>
 
-  <section aria-label="Traspaso inmediato" style="display: flex; flex-direction: column; gap: 22px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
-    <div style="display: flex; flex-direction: column; gap: 8px">
-      <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #8c939c">OPCIONAL</span>
-      <h2 style="margin: 0; font-size: 22px; font-weight: 700">Prepará el traspaso inmediato</h2>
-      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">Con la plataforma como administradora del canal, podrás <strong style="color: #e8e9ea; font-weight: 700">aceptar y firmar una oferta en un solo paso</strong>, y el canal se mostrará con el sello de traspaso inmediato. Sin esto, la firma esperará 7 días después de aceptar.</p>
+  <sc-if value="{{ isBrand }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <span style="font-size: 14px; color: #a3a9b1">Paso 1 de 2</span>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Pasá el canal a una cuenta de marca</h1>
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir YouTube</a>
+      <button type="button" onClick="{{ toInvite }}" style="align-self: flex-start; min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Continuar</button>
+      <span style="font-size: 14px; color: #a3a9b1">Si el canal ya está en una cuenta de marca, continuá.</span>
     </div>
+  </sc-if>
 
-    <sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
-      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px">
-        <li style="display: flex; gap: 16px; padding: 18px; border: 1px solid #2a2e35; border-radius: 5px">
-          <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #cff245">1</span>
-          <div style="display: flex; flex-direction: column; gap: 6px">
-            <span style="font-size: 15px; font-weight: 700">Pasá el canal a una cuenta de marca</span>
-            <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">Si el canal ya está en una cuenta de marca, seguí con el paso 2.</span>
-            <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Abrir la configuración de YouTube</a>
-          </div>
-        </li>
-        <li style="display: flex; gap: 16px; padding: 18px; border: 1px solid #2a2e35; border-radius: 5px">
-          <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #cff245">2</span>
-          <div style="display: flex; flex-direction: column; gap: 8px">
-            <span style="font-size: 15px; font-weight: 700">Invitá a la plataforma como administradora</span>
-            <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">En los permisos de la cuenta de marca, agregá este mail con el rol <strong style="color: #e8e9ea; font-weight: 700">Administrador</strong>:</span>
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
-              <code style="padding: 10px 14px; border: 1px solid #2a2e35; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 500">[CUENTA DE CUSTODIA]</code>
-              <button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">Copiar</button>
-            </div>
-            <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
-          </div>
-        </li>
-      </ol>
-      <button type="button" onClick="{{ invited }}" style="align-self: flex-start; min-height: 48px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Ya envié la invitación</button>
-    </sc-if>
-
-    <sc-if value="{{ isChecking }}" hint-placeholder-val="{{ false }}">
-      <div aria-busy="true" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #2a2e35; border-radius: 5px">
-        <div style="display: flex; align-items: center; gap: 12px">
-          <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
-          <span style="font-size: 15px">La plataforma aceptará la invitación</span>
-        </div>
-        <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">La aceptación es manual y puede demorar hasta <strong style="color: #e8e9ea; font-weight: 700">1 día hábil</strong>. Luego comprobaremos que administramos el canal y te avisaremos.</span>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap">
-          <button type="button" onClick="{{ accepted }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular aceptada</button>
-          <button type="button" onClick="{{ notFound }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular sin invitación</button>
-        </div>
+  <sc-if value="{{ isInvite }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <span style="font-size: 14px; color: #a3a9b1">Paso 2 de 2</span>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Invitá a la plataforma como administrador</h1>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap">
+        <strong style="padding: 12px 16px; border: 1px solid #2a2e35; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500">[CUENTA DE CUSTODIA]</strong>
+        <button type="button" style="min-height: 48px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Copiar</button>
       </div>
-    </sc-if>
+      <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
+      <button type="button" onClick="{{ invited }}" style="align-self: flex-start; min-height: 52px; padding: 0 28px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya envié la invitación</button>
+    </div>
+  </sc-if>
 
-    <sc-if value="{{ isWaiting }}" hint-placeholder-val="{{ false }}">
-      <div style="display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid #2a2e35; border-radius: 5px">
-        <span style="font-size: 15px; font-weight: 700">La plataforma ya administra el canal</span>
-        <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">Google exige 7 días como administradora antes de poder recibir la propiedad. El traspaso inmediato se habilitará el <strong style="color: #e8e9ea; font-weight: 700">30 de octubre</strong>.</span>
-        <div role="progressbar" aria-valuemin="0" aria-valuemax="7" aria-valuenow="2" aria-label="Días cumplidos" style="height: 6px; border-radius: 3px; background: #2a2e35"><div style="width: 28%; height: 6px; border-radius: 3px; background: #cff245"></div></div>
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8c939c">2 DE 7 DÍAS</span>
-        <button type="button" onClick="{{ ready }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular 7 días</button>
-      </div>
-    </sc-if>
+  <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; padding-top: 40px">
+      <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 17px">Registrando la invitación…</span>
+      <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+    </div>
+  </sc-if>
 
-    <sc-if value="{{ isReady }}" hint-placeholder-val="{{ false }}">
-      <div style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #cff245; border-radius: 5px">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.1em; color: #cff245">TRASPASO INMEDIATO</span>
-        <span style="font-size: 15px; line-height: 1.5">El canal está listo para venderse. Cuando aceptes una oferta, firmarás en el mismo paso.</span>
-        <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+  <sc-if value="{{ isWaiting }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">El traspaso inmediato se habilitará el 30 de octubre</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Aceptaremos la invitación y te avisaremos si falta algo.</p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap">
+        <button type="button" onClick="{{ ready }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular habilitado</button>
+        <button type="button" onClick="{{ notFound }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular sin invitación</button>
       </div>
-    </sc-if>
+    </div>
+  </sc-if>
 
-    <sc-if value="{{ isNotFound }}" hint-placeholder-val="{{ false }}">
-      <div role="alert" style="display: flex; flex-direction: column; gap: 12px; padding: 20px; border: 1px solid #f87171; border-radius: 5px">
-        <span style="font-size: 15px; font-weight: 700">No encontramos la invitación</span>
-        <span style="font-size: 14px; line-height: 1.5; color: #a3a9b1">Verificá que el mail sea <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> y el rol <strong style="color: #e8e9ea; font-weight: 700">Administrador</strong>, y volvé a enviarla.</span>
-        <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Ver los pasos de nuevo</button>
-      </div>
-    </sc-if>
-  </section>
+  <sc-if value="{{ isReady }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">Traspaso inmediato habilitado</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Pc Lover se mostrará con el sello en el mercado.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isNotFound }}" hint-placeholder-val="{{ false }}">
+    <div role="alert" style="display: flex; flex-direction: column; gap: 20px; padding-top: 40px">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2">No recibimos la invitación</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Enviala a <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> con el rol <strong style="color: #e8e9ea; font-weight: 700">Administrador</strong>.</p>
+      <button type="button" onClick="{{ toInvite }}" style="align-self: flex-start; min-height: 52px; padding: 0 24px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 16px">Volver a invitar</button>
+    </div>
+  </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":1080}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":800}}'>
 class Component extends DCLogic {
 constructor(props) {
 super(props);
-this.state = { view: 'start' };
+this.state = { view: 'intro' };
 }
 renderVals() {
 const v = this.state.view;
 const go = (view) => () => this.setState({ view });
 return {
-isStart: v === 'start',
-isChecking: v === 'checking',
+isIntro: v === 'intro',
+isBrand: v === 'brand',
+isInvite: v === 'invite',
+isSending: v === 'sending',
 isWaiting: v === 'waiting',
 isReady: v === 'ready',
 isNotFound: v === 'notFound',
-invited: go('checking'),
-accepted: go('waiting'),
-notFound: go('notFound'),
+start: go('brand'),
+toInvite: go('invite'),
+invited: go('sending'),
+sent: go('waiting'),
 ready: go('ready'),
-restart: go('start'),
+notFound: go('notFound'),
+restart: go('intro'),
 };
 }
 }
