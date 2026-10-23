@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Variante C en el teléfono: comprador</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 1900px; box-sizing: border-box; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="border-bottom: 1px solid #2a2e35">
+    <nav aria-label="Principal" style="padding: 14px 16px; display: flex; align-items: center; justify-content: space-between">
+      <a href="#" style="display: flex; align-items: center; gap: 10px; color: #e8e9ea; text-decoration: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cff245" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18l6-7 4 4 6-9"></path></svg>
+        <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.02em">TRASPASO</span>
+      </a>
+      <button type="button" aria-label="Abrir el menú" style="width: 44px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid #3a3f47; border-radius: 3px; background: transparent">
+        <span style="width: 16px; height: 1px; background: #a3a9b1"></span><span style="width: 16px; height: 1px; background: #a3a9b1"></span><span style="width: 16px; height: 1px; background: #a3a9b1"></span>
+      </button>
+    </nav>
+  </header>
+
+  <main style="padding: 24px 16px; display: flex; flex-direction: column; gap: 22px">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em">Pc Lover</h1>
+      <span style="font-size: 15px; color: #a3a9b1">Pagarás <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.575.000</strong></span>
+    </div>
+
+    <details style="display: flex; flex-direction: column; gap: 10px">
+      <summary style="list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 44px">
+        <div role="progressbar" aria-label="Etapa de la operación" aria-valuemin="1" aria-valuemax="6" aria-valuenow="4" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px">
+          <span style="height: 4px; border-radius: 2px; background: #5eead4"></span>
+          <span style="height: 4px; border-radius: 2px; background: #5eead4"></span>
+          <span style="height: 4px; border-radius: 2px; background: #5eead4"></span>
+          <span style="height: 4px; border-radius: 2px; background: #cff245"></span>
+          <span style="height: 4px; border-radius: 2px; background: #2a2e35"></span>
+          <span style="height: 4px; border-radius: 2px; background: #2a2e35"></span>
+        </div>
+        <span style="display: flex; justify-content: space-between; font-size: 14px"><span>Etapa 4 de 6 · <strong style="font-weight: 700">Pago del canal</strong></span><span style="color: #cff245">Ver todas</span></span>
+      </summary>
+      <ol style="margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: 15px; border-top: 1px solid #2a2e35">
+        <li style="display: flex; justify-content: space-between; padding: 10px 0; color: #a3a9b1"><span>Precio acordado</span><span style="color: #8c939c">18 oct</span></li>
+        <li style="display: flex; justify-content: space-between; padding: 10px 0; color: #a3a9b1"><span>Contrato firmado</span><span style="color: #8c939c">20 oct</span></li>
+        <li style="display: flex; justify-content: space-between; padding: 10px 0; color: #a3a9b1"><span>Acceso cedido</span><span style="color: #8c939c">23 oct</span></li>
+        <li style="display: flex; justify-content: space-between; padding: 10px 0; font-weight: 700"><span>Pago del canal</span><span>Hasta el 6 nov</span></li>
+        <li style="padding: 10px 0; color: #8c939c">Entrega del canal</li>
+        <li style="padding: 10px 0; color: #8c939c">Cierre</li>
+      </ol>
+    </details>
+
+    <dc-import name="PaymentFlowMobile" hint-size="358px,900px"></dc-import>
+
+    <aside aria-label="Resumen de la operación" style="display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <dl style="margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; font-size: 15px">
+        <dt style="color: #a3a9b1">Precio</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">AR$ 1.500.000</dd>
+        <dt style="color: #a3a9b1">Comisión</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">AR$ 75.000</dd>
+        <dt style="font-weight: 700">Pagarás</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-weight: 700">AR$ 1.575.000</dd>
+      </dl>
+      <dl style="margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; border-top: 1px solid #2a2e35; padding-top: 12px">
+        <dt style="color: #a3a9b1">Recibirás el canal en</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">comprador@correo.com</dd>
+      </dl>
+      <div style="display: flex; flex-direction: column; border-top: 1px solid #2a2e35; padding-top: 4px">
+        <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Ver el contrato firmado</a>
+        <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Ver la publicación</a>
+      </div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

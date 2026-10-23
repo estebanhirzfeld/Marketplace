@@ -63,16 +63,9 @@ a{color:#cff245}a:hover{color:#e4ff7a}
             <h2 style="margin: 0; font-size: 26px; font-weight: 700">Hacé propietario principal a la plataforma</h2>
             <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
-              <button type="button" onClick="{{ declare }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya hice el cambio</button>
+              <button type="button" onClick="{{ declare }}" disabled="{{ busy }}" aria-busy="{{ busy }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: {{ btnBg }}; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">{{ ctaLabel }}</button>
               <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
             </div>
-          </div>
-        </sc-if>
-        <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
-          <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; min-height: 60px">
-            <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
-            <span style="font-size: 16px">Registrando el cambio…</span>
-            <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
           </div>
         </sc-if>
         <sc-if value="{{ isVerifying }}" hint-placeholder-val="{{ false }}">
@@ -131,11 +124,12 @@ bar: s.state === 'done' ? '#5eead4' : s.state === 'current' ? '#cff245' : '#2a2e
 color: s.state === 'pending' ? '#8c939c' : s.state === 'current' ? '#e8e9ea' : '#a3a9b1',
 weight: s.state === 'current' ? '700' : '400',
 })),
-isOwner: v === 'owner',
-isSending: v === 'sending',
+isOwner: v === 'owner' || v === 'sending',
+busy: v === 'sending',
+ctaLabel: v === 'sending' ? 'Registrando…' : 'Ya hice el cambio',
+btnBg: v === 'sending' ? '#a7c43a' : '#cff245',
 isVerifying: v === 'verifying',
-declare: go('sending'),
-sent: go('verifying'),
+declare: () => { this.setState({ view: 'sending' }); setTimeout(() => this.setState({ view: 'verifying' }), 900); },
 restart: go('owner'),
 };
 }
