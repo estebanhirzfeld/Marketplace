@@ -793,6 +793,7 @@ export type NextActionIdDto =
     | 'accept_invitation'
     | 'make_buyer_owner'
     | 'confirm_receipt'
+    | 'resolve_claim'
     | 'complete_operation';
 
 /**

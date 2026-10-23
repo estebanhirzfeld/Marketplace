@@ -342,18 +342,13 @@ describe('CompleteOperationUseCase', () => {
         sellerRemoved: true,
     };
 
-    it('debería completar la operación y marcar el listing como vendido', async () => {
+    it('debería completar la operación de un sitio y marcar el listing como vendido', async () => {
         const op = createOperationInState('payment_received');
-        op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
+        op.declareRecipientIdentity('comprador@correo.com', BUYER_ID.toString());
 
         const listing = Listing.create({
             sellerId: new UniqueEntityID(),
-            assetStrategy: new YouTubeStrategy({
-                monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
-                subscribers: 10000,
-                growthFactor: 1.2,
-                isMonetized: true,
-            }),
+            assetStrategy: new WebStrategy({ monthlyRevenueUsd: Money.fromCents(50000, 'USD'), domain: 'ejemplo.com' }),
             askingPrice: Money.fromCents(1000000, 'USD'),
         });
         listing.submitForReview();
@@ -372,6 +367,34 @@ describe('CompleteOperationUseCase', () => {
         expect(op.status).toBe('completed');
         expect(listing.status).toBe('sold');
         expect(listingRepo.save).toHaveBeenCalledOnce();
+    });
+
+    it('un canal no se cierra a mano: se cierra solo con la recepción del comprador', async () => {
+        const op = createOperationInState('payment_received');
+        op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
+        const listing = Listing.create({
+            sellerId: new UniqueEntityID(),
+            assetStrategy: new YouTubeStrategy({
+                monthlyRevenueUsd: Money.fromCents(50000, 'USD'),
+                subscribers: 10000,
+                growthFactor: 1.2,
+                isMonetized: true,
+            }),
+            askingPrice: Money.fromCents(1000000, 'USD'),
+        });
+        listing.submitForReview();
+        listing.approve();
+        listing.markInOperation();
+        const operationRepo = createMockOperationRepo({ findById: vi.fn().mockResolvedValue(op) });
+        const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) });
+
+        await expect(
+            new CompleteOperationUseCase(operationRepo, listingRepo).execute(op.id.toString(), ENTREGA_OK, ADMIN),
+        ).rejects.toThrow('Un canal se cierra solo cuando el comprador confirma la recepción.');
+
+        expect(op.status).toBe('payment_received');
+        expect(listing.status).toBe('in_operation');
+        expect(operationRepo.save).not.toHaveBeenCalled();
     });
 
     it('debería fallar si el pago no fue confirmado', async () => {
@@ -441,7 +464,7 @@ describe('CompleteOperationUseCase', () => {
             expect(deliveryCheck.execute).not.toHaveBeenCalled();
         });
 
-        it('un canal sigue usando lo que declara el admin, sin consultar la entrega del dominio', async () => {
+        it('un canal se rechaza sin consultar la entrega del dominio', async () => {
             const op = createOperationInState('payment_received');
             op.declareRecipientIdentity('comprador@gmail.com', BUYER_ID.toString());
             const canal = Listing.create({
@@ -462,10 +485,12 @@ describe('CompleteOperationUseCase', () => {
                 deliveryCheck,
             );
 
-            await useCase.execute(op.id.toString(), ENTREGA_OK, ADMIN);
+            await expect(useCase.execute(op.id.toString(), ENTREGA_OK, ADMIN)).rejects.toThrow(
+                'Un canal se cierra solo cuando el comprador confirma la recepción.',
+            );
 
             expect(deliveryCheck.execute).not.toHaveBeenCalled();
-            expect(op.status).toBe('completed');
+            expect(op.status).toBe('payment_received');
         });
     });
 });

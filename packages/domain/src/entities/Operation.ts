@@ -1264,7 +1264,7 @@ export class Operation extends Entity<OperationProps> {
      * `recipientIdentity` declarada. Que lo aportara quien llama permitiría
      * entregar a un destino que el comprador nunca declaró.
      */
-    public complete(data: DeliveryVerificationInput): void {
+    public complete(data: DeliveryVerificationInput, at: Date = new Date()): void {
         if (this.props.status !== 'payment_received') {
             throw new InvalidStateError('El pago debe estar confirmado para completar la operación');
         }
@@ -1290,10 +1290,34 @@ export class Operation extends Entity<OperationProps> {
         this.props.deliveryVerification = {
             ...data,
             deliveredToIdentifier: this.props.recipientIdentity.identifier,
-            verifiedAt: new Date(),
+            verifiedAt: at,
         };
         this.props.status = 'completed';
-        this.props.completedAt = new Date();
+        this.props.completedAt = at;
+    }
+
+    /**
+     * El cierre de un canal: con la recepción del comprador (confirmada o dada
+     * por recibida), la plataforma cierra sola. La constancia sale de la
+     * entrega: el comprador es propietario principal desde `deliveredAt`, y lo
+     * demás lo confirmó él al recibir o no lo objetó en su plazo.
+     */
+    public closeOnReceipt(closedBy: UniqueEntityID, at: Date): void {
+        if (this.props.status === 'payment_received' && !this.props.milestones?.receivedAt) {
+            throw new InvalidStateError('La operación se cierra con la recepción del comprador.');
+        }
+        this.complete(
+            {
+                verifiedBy: closedBy,
+                buyerIsPrimaryOwner: !!this.props.milestones?.deliveredAt,
+                accessTransferred: true,
+                sellerRemoved: true,
+                notes: this.receivedBySilence
+                    ? 'Dada por recibida: el comprador no respondió en su plazo.'
+                    : 'Recepción confirmada por el comprador.',
+            },
+            at,
+        );
     }
 
 

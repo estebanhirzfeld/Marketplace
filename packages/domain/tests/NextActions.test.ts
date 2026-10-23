@@ -456,7 +456,7 @@ describe('NextActions — entrega y cierre', () => {
             expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['buyer'], deadline });
         });
 
-        it('recibido, la plataforma cierra', () => {
+        it('recibido, el cierre es automático: nadie tiene que hacer nada', () => {
             const { byRole, turn } = channel({
                 buyerInvitedAt: INVITED,
                 invitationAcceptedAt: ACCEPTED,
@@ -464,8 +464,42 @@ describe('NextActions — entrega y cierre', () => {
                 receivedAt: new Date(DELIVERED.getTime() + DAY),
             });
 
-            expect(turn).toEqual(['platform']);
-            expect(byRole.platform).toMatchObject({ kind: 'act', id: 'complete_operation' });
+            expect(turn).toEqual([]);
+            for (const role of ROLES) expect(byRole[role]).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+        });
+
+        it('con un reclamo abierto por la entrega, la plataforma lo resuelve y las partes esperan', () => {
+            const delivered = { buyerInvitedAt: INVITED, invitationAcceptedAt: ACCEPTED, deliveredAt: DELIVERED };
+            for (const milestones of [delivered, { ...delivered, receivedAt: new Date(DELIVERED.getTime() + DAY) }]) {
+                const { byRole, turn } = nextActions(
+                    input({
+                        status: 'payment_received',
+                        assetType: 'youtube',
+                        recipientDeclared: true,
+                        milestones: { signedAt: SIGNED, custodyAt: CUSTODY, paidAt: PAID, ...milestones },
+                        openDeliveryClaim: true,
+                    }),
+                );
+
+                expect(turn).toEqual(['platform']);
+                expect(byRole.platform).toEqual({ kind: 'act', id: 'resolve_claim', blocking: true });
+                expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+                expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+            }
+        });
+
+        it('un reclamo antes de la entrega no frena los pasos: todavía no hay nada que cerrar', () => {
+            const { byRole } = nextActions(
+                input({
+                    status: 'payment_received',
+                    assetType: 'youtube',
+                    recipientDeclared: true,
+                    milestones: { signedAt: SIGNED, custodyAt: CUSTODY, paidAt: PAID, buyerInvitedAt: INVITED },
+                    openDeliveryClaim: true,
+                }),
+            );
+
+            expect(byRole.buyer).toEqual({ kind: 'act', id: 'accept_invitation', blocking: true });
         });
 
         it('la entrega queda en la línea de tiempo con su fecha', () => {

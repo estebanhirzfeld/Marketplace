@@ -330,6 +330,8 @@ export default async function DetalleOperacion(props: {
                         recipientIdentifier={op.recipientIdentity?.identifier}
                     />
                 );
+            // La herramienta para resolver un reclamo es del panel del admin.
+            case 'resolve_claim':
             case 'enable_payment_method':
                 return null;
         }

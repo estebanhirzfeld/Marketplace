@@ -75,6 +75,8 @@ function doing(id: NextActionIdDto, kind: AssetKind): string {
             return 'hacer propietario principal al comprador';
         case 'confirm_receipt':
             return 'confirmar que recibió el canal';
+        case 'resolve_claim':
+            return 'resolver el reclamo por la entrega';
         case 'complete_operation':
             return 'cerrar la operación';
     }
@@ -208,6 +210,11 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
                 title: 'Confirmá que recibiste el canal',
                 body: 'Si no respondés antes del plazo, se dará por recibido.',
             };
+        case 'resolve_claim':
+            return {
+                title: 'Resolvé el reclamo por la entrega',
+                body: 'La operación se cerrará cuando el reclamo quede cerrado.',
+            };
         case 'complete_operation':
             return {
                 title: 'Cerrá la operación',
@@ -233,7 +240,10 @@ function waitCopy(step: Extract<NextStepDto, { kind: 'wait' }>, next: OperationN
         };
     }
 
-    // Nadie actúa: se espera a la plataforma sin una tarea (el contrato o un plazo de YouTube).
+    // Nadie actúa: se espera a la plataforma sin una tarea (el contrato, un plazo de YouTube o el cierre).
+    if (next.timeline.find((t) => t.state === 'current')?.key === 'delivery' && !step.deadline) {
+        return { title: 'Estamos cerrando la operación.' };
+    }
     if (step.deadline) {
         return {
             title: `La firma se habilita el ${fechaLarga(step.deadline)}.`,

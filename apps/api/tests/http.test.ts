@@ -4408,7 +4408,7 @@ describe('La entrega de un canal sobre HTTP', () => {
         expect(notificaciones.map((n) => n.type)).toEqual(['invitacion_enviada']);
     });
 
-    it('cumplidos los 7 días, la plataforma lo hace propietario y el comprador confirma la recepción', async () => {
+    it('cumplidos los 7 días, la plataforma lo hace propietario, el comprador confirma la recepción y la operación se cierra sola', async () => {
         const { id, buyerEmail, sellerEmail, adminEmail } = await pagada(8);
 
         expect((await como(buyerEmail, 'POST', `/admin/operations/${id}/delivery/owner`)).statusCode).toBe(403);
@@ -4424,11 +4424,50 @@ describe('La entrega de un canal sobre HTTP', () => {
 
         const recibida = (await como(adminEmail, 'GET', `/operations/${id}`)).json();
         expect(recibida.assetDelivery).toMatchObject({ receivedAt: expect.any(String), receivedBySilence: false });
-        expect(recibida.next.byRole.platform).toMatchObject({ kind: 'act', id: 'complete_operation' });
-        expect(recibida.status).toBe('payment_received');
+        expect(recibida.status).toBe('completed');
+        expect(recibida.next.byRole.platform).toEqual({ kind: 'done' });
 
         const tipos = (await prisma.notification.findMany({ where: { operationId: id } })).map((n) => n.type).sort();
-        expect(tipos).toEqual(['activo_recibido', 'activo_recibido', 'recepcion_pendiente']);
+        expect(tipos).toEqual([
+            'activo_recibido',
+            'activo_recibido',
+            'operacion_completada',
+            'operacion_completada',
+            'recepcion_pendiente',
+        ]);
+    });
+
+    it('con un reclamo abierto por la entrega, la recepción no cierra y le toca a la plataforma resolverlo', async () => {
+        const { id, buyerEmail, adminEmail } = await pagada(8);
+        expect((await como(adminEmail, 'POST', `/admin/operations/${id}/delivery/owner`)).statusCode).toBe(204);
+        const reclamo = await app.inject({
+            method: 'POST',
+            url: '/reports',
+            headers: { authorization: `Bearer ${await tokenDe(buyerEmail)}` },
+            payload: { operationId: id, reason: 'activo_no_entregado', detail: 'El vendedor sigue figurando en los permisos del canal.' },
+        });
+        expect(reclamo.statusCode).toBe(201);
+
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/delivery/received`)).statusCode).toBe(204);
+
+        const frenada = (await como(adminEmail, 'GET', `/operations/${id}`)).json();
+        expect(frenada.status).toBe('payment_received');
+        expect(frenada.next.byRole.platform).toEqual({ kind: 'act', id: 'resolve_claim', blocking: true });
+        expect(frenada.next.byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+    });
+
+    it('un canal no se cierra a mano: 409', async () => {
+        const { id, adminEmail } = await pagada(8);
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/operations/${id}/complete`,
+            headers: { authorization: `Bearer ${await tokenDe(adminEmail)}` },
+            payload: { buyerIsPrimaryOwner: true, accessTransferred: true, sellerRemoved: true },
+        });
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().message).toBe('Un canal se cierra solo cuando el comprador confirma la recepción.');
     });
 
     it('confirmar la recepción sin ser propietario principal es 409', async () => {

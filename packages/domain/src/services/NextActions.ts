@@ -38,6 +38,7 @@ export type NextActionId =
     | 'accept_invitation'
     | 'make_buyer_owner'
     | 'confirm_receipt'
+    | 'resolve_claim'
     | 'complete_operation';
 
 export type NextStep =
@@ -98,6 +99,8 @@ export interface NextActionsInput {
     payment?: PaymentAvailability;
     /** Los comprobantes de la transferencia, si el comprador ya subió alguno. */
     receipts?: ReceiptFacts;
+    /** Si hay un reclamo abierto porque el activo no se entregó: frena el cierre. */
+    openDeliveryClaim?: boolean;
     completedAt?: Date;
     deadlines: HandoverDeadlines;
     /**
@@ -238,12 +241,18 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
 
 /**
  * La entrega de un canal: la plataforma invita, el comprador acepta, todos
- * esperan los días de Google, la plataforma lo hace propietario principal, el
- * comprador confirma la recepción en su plazo, y la plataforma cierra.
+ * esperan los días de Google, la plataforma lo hace propietario principal, y
+ * el comprador confirma la recepción en su plazo. Con la recepción la
+ * operación se cierra sola; un reclamo abierto por la entrega lo frena hasta
+ * que la plataforma lo resuelva.
  */
 function channelDeliverySteps(input: NextActionsInput): Record<Role, NextStep> {
     const m = input.milestones;
-    if (m.receivedAt) return turnOf('platform', act('complete_operation'));
+    if (m.deliveredAt && input.openDeliveryClaim) return turnOf('platform', act('resolve_claim'));
+    if (m.receivedAt) {
+        const closing = wait(['platform']);
+        return { buyer: closing, seller: closing, platform: closing };
+    }
     if (m.deliveredAt) {
         const deadline = input.deadlines.buyerConfirmation(m.deliveredAt);
         return turnOf('buyer', act('confirm_receipt', deadline), deadline);

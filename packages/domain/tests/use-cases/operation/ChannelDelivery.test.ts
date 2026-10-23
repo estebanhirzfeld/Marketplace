@@ -241,6 +241,49 @@ describe('Operation.deemAssetReceived', () => {
     });
 });
 
+describe('Operation.closeOnReceipt', () => {
+    const PLATFORM = new UniqueEntityID('system');
+
+    it('con la recepción confirmada, cierra: la constancia sale de la entrega y la cuenta declarada', () => {
+        const op = entregada();
+        const at = new Date(DELIVERED.getTime() + DAY);
+        op.confirmAssetReceipt(BUYER.toString(), at);
+
+        op.closeOnReceipt(PLATFORM, at);
+
+        expect(op.status).toBe('completed');
+        expect(op.toSnapshot().props.completedAt).toEqual(at);
+        expect(op.deliveryCheck).toMatchObject({
+            verifiedBy: PLATFORM,
+            verifiedAt: at,
+            deliveredToIdentifier: 'comprador@gmail.com',
+            buyerIsPrimaryOwner: true,
+            accessTransferred: true,
+            sellerRemoved: true,
+        });
+    });
+
+    it('dada por recibida en silencio, también cierra', () => {
+        const op = entregada();
+        op.deemAssetReceived(RECEIPT_DEADLINE);
+
+        op.closeOnReceipt(PLATFORM, RECEIPT_DEADLINE);
+
+        expect(op.status).toBe('completed');
+        expect(op.receivedBySilence).toBe(true);
+    });
+
+    it('sin la recepción no cierra', () => {
+        const op = entregada();
+
+        expect(() => op.closeOnReceipt(PLATFORM, RECEIPT_DEADLINE)).toThrow(InvalidStateError);
+        expect(() => op.closeOnReceipt(PLATFORM, RECEIPT_DEADLINE)).toThrow(
+            'La operación se cierra con la recepción del comprador.',
+        );
+        expect(op.status).toBe('payment_received');
+    });
+});
+
 // ── Casos de uso ─────────────────────────────────────────
 
 function repoCon(...ops: Operation[]) {
@@ -403,51 +446,108 @@ describe('MakeBuyerOwnerUseCase', () => {
     });
 });
 
+/** Un canal en operación, para ver que el cierre lo marca vendido. */
+function canalEnOperacion() {
+    const listing = Listing.create({
+        sellerId: SELLER,
+        assetStrategy: new YouTubeStrategy({ monthlyRevenueUsd: Money.fromCents(50000, 'USD'), subscribers: 10000, isMonetized: true }),
+        askingPrice: Money.fromCents(1_000_000, 'USD'),
+    });
+    listing.submitForReview();
+    listing.approve();
+    listing.markInOperation();
+    const repo = listingRepoCon('youtube');
+    repo.findById = vi.fn().mockResolvedValue(listing);
+    return { listing, repo };
+}
+
 describe('ConfirmAssetReceiptUseCase', () => {
-    it('el comprador confirma: se guarda y se les avisa a las dos partes', async () => {
+    it('el comprador confirma: se cierra la operación, el canal queda vendido y se les avisa a las dos partes', async () => {
         const op = entregada();
         const repo = repoCon(op);
+        const canal = canalEnOperacion();
         const { avisos, notify } = avisosFalsos();
         const at = new Date(DELIVERED.getTime() + DAY);
 
-        await new ConfirmAssetReceiptUseCase(repo, avisos, () => at).execute(op.id.toString(), buyerActor);
+        await new ConfirmAssetReceiptUseCase(repo, canal.repo, reportsCon(), avisos, () => at).execute(op.id.toString(), buyerActor);
 
         expect(op.milestones.receivedAt).toEqual(at);
+        expect(op.status).toBe('completed');
+        expect(op.deliveryCheck?.verifiedBy.toString()).toBe('system');
         expect(repo.save).toHaveBeenCalledWith(op);
+        expect(canal.listing.status).toBe('sold');
+        expect(canal.repo.save).toHaveBeenCalledWith(canal.listing);
         expect(enviados(notify)).toEqual([
             { userId: BUYER.toString(), type: 'activo_recibido', occursAt: undefined },
             { userId: SELLER.toString(), type: 'activo_recibido', occursAt: undefined },
+            { userId: BUYER.toString(), type: 'operacion_completada', occursAt: undefined },
+            { userId: SELLER.toString(), type: 'operacion_completada', occursAt: undefined },
         ]);
+    });
+
+    it('con un reclamo abierto por la entrega, guarda la recepción pero no cierra', async () => {
+        const op = entregada();
+        const repo = repoCon(op);
+        const canal = canalEnOperacion();
+        const { avisos, notify } = avisosFalsos();
+        const at = new Date(DELIVERED.getTime() + DAY);
+
+        await new ConfirmAssetReceiptUseCase(repo, canal.repo, reportsCon(reclamo(op)), avisos, () => at).execute(
+            op.id.toString(),
+            buyerActor,
+        );
+
+        expect(op.milestones.receivedAt).toEqual(at);
+        expect(op.status).toBe('payment_received');
+        expect(canal.listing.status).toBe('in_operation');
+        expect(canal.repo.save).not.toHaveBeenCalled();
+        expect(enviados(notify).map((n) => n.type)).toEqual(['activo_recibido', 'activo_recibido']);
     });
 
     it('el vendedor no confirma por el comprador', async () => {
         const op = entregada();
-        await expect(new ConfirmAssetReceiptUseCase(repoCon(op)).execute(op.id.toString(), sellerActor)).rejects.toThrow(ForbiddenError);
+        await expect(
+            new ConfirmAssetReceiptUseCase(repoCon(op), listingRepoCon('youtube'), reportsCon()).execute(op.id.toString(), sellerActor),
+        ).rejects.toThrow(ForbiddenError);
     });
 });
 
 describe('DeemAssetReceivedUseCase — la corrida horaria', () => {
-    it('vencido el plazo sin respuesta, lo da por recibido y les avisa a las dos partes', async () => {
+    it('vencido el plazo sin respuesta, lo da por recibido, cierra y les avisa a las dos partes', async () => {
         const op = entregada();
         const repo = repoCon(op);
+        const canal = canalEnOperacion();
         const { avisos, notify } = avisosFalsos();
 
-        const summary = await new DeemAssetReceivedUseCase(repo, reportsCon(), avisos, () => RECEIPT_DEADLINE).execute();
+        const summary = await new DeemAssetReceivedUseCase(repo, canal.repo, reportsCon(), avisos, () => RECEIPT_DEADLINE).execute();
 
-        expect(summary).toEqual({ deemed: 1, frozen: 0, failed: 0 });
+        expect(summary).toEqual({ deemed: 1, completed: 1, frozen: 0, failed: 0 });
         expect(op.milestones.receivedAt).toEqual(RECEIPT_DEADLINE);
         expect(op.receivedBySilence).toBe(true);
+        expect(op.status).toBe('completed');
+        expect(canal.listing.status).toBe('sold');
         expect(repo.save).toHaveBeenCalledWith(op);
-        expect(enviados(notify).map((n) => n.type)).toEqual(['activo_recibido', 'activo_recibido']);
+        expect(enviados(notify).map((n) => n.type)).toEqual([
+            'activo_recibido',
+            'activo_recibido',
+            'operacion_completada',
+            'operacion_completada',
+        ]);
     });
 
     it('antes del plazo no toca nada', async () => {
         const op = entregada();
         const repo = repoCon(op);
 
-        const summary = await new DeemAssetReceivedUseCase(repo, reportsCon(), undefined, () => new Date(RECEIPT_DEADLINE.getTime() - 1)).execute();
+        const summary = await new DeemAssetReceivedUseCase(
+            repo,
+            listingRepoCon('youtube'),
+            reportsCon(),
+            undefined,
+            () => new Date(RECEIPT_DEADLINE.getTime() - 1),
+        ).execute();
 
-        expect(summary).toEqual({ deemed: 0, frozen: 0, failed: 0 });
+        expect(summary).toEqual({ deemed: 0, completed: 0, frozen: 0, failed: 0 });
         expect(repo.save).not.toHaveBeenCalled();
     });
 
@@ -455,10 +555,52 @@ describe('DeemAssetReceivedUseCase — la corrida horaria', () => {
         const op = entregada();
         const repo = repoCon(op);
 
-        const summary = await new DeemAssetReceivedUseCase(repo, reportsCon(reclamo(op)), undefined, () => RECEIPT_DEADLINE).execute();
+        const summary = await new DeemAssetReceivedUseCase(
+            repo,
+            listingRepoCon('youtube'),
+            reportsCon(reclamo(op)),
+            undefined,
+            () => RECEIPT_DEADLINE,
+        ).execute();
 
-        expect(summary).toEqual({ deemed: 0, frozen: 1, failed: 0 });
+        expect(summary).toEqual({ deemed: 0, completed: 0, frozen: 1, failed: 0 });
         expect(op.milestones.receivedAt).toBeUndefined();
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('una recepción frenada por un reclamo se cierra cuando el reclamo ya no está abierto', async () => {
+        const op = entregada();
+        op.confirmAssetReceipt(BUYER.toString(), DELIVERED);
+        const cerrado = reclamo(op);
+        cerrado.close('El comprador ya es propietario principal.');
+        const repo = repoCon(op);
+        const canal = canalEnOperacion();
+        const { avisos, notify } = avisosFalsos();
+        const now = new Date(DELIVERED.getTime() + DAY);
+
+        const summary = await new DeemAssetReceivedUseCase(repo, canal.repo, reportsCon(cerrado), avisos, () => now).execute();
+
+        expect(summary).toEqual({ deemed: 0, completed: 1, frozen: 0, failed: 0 });
+        expect(op.status).toBe('completed');
+        expect(op.toSnapshot().props.completedAt).toEqual(now);
+        expect(enviados(notify).map((n) => n.type)).toEqual(['operacion_completada', 'operacion_completada']);
+    });
+
+    it('una recepción con el reclamo todavía abierto sigue frenada', async () => {
+        const op = entregada();
+        op.confirmAssetReceipt(BUYER.toString(), DELIVERED);
+        const repo = repoCon(op);
+
+        const summary = await new DeemAssetReceivedUseCase(
+            repo,
+            listingRepoCon('youtube'),
+            reportsCon(reclamo(op)),
+            undefined,
+            () => new Date(DELIVERED.getTime() + DAY),
+        ).execute();
+
+        expect(summary).toEqual({ deemed: 0, completed: 0, frozen: 1, failed: 0 });
+        expect(op.status).toBe('payment_received');
         expect(repo.save).not.toHaveBeenCalled();
     });
 
@@ -471,26 +613,33 @@ describe('DeemAssetReceivedUseCase — la corrida horaria', () => {
 
         const summary = await new DeemAssetReceivedUseCase(
             repo,
+            listingRepoCon('youtube'),
             reportsCon(cerrado, reclamo(otroOp, 'metricas_falsas')),
             undefined,
             () => RECEIPT_DEADLINE,
         ).execute();
 
-        expect(summary).toEqual({ deemed: 2, frozen: 0, failed: 0 });
+        expect(summary).toEqual({ deemed: 2, completed: 2, frozen: 0, failed: 0 });
     });
 
-    it('vuelve a leer cada operación antes de decidir: si el comprador ya confirmó, no la pisa', async () => {
+    it('vuelve a leer cada operación antes de decidir: si el comprador ya confirmó, no la pisa con el silencio', async () => {
         const listada = entregada();
         const releida = Operation.reconstitute(listada.toSnapshot().props, listada.id, listada.createdAt);
         releida.confirmAssetReceipt(BUYER.toString(), DELIVERED);
         const repo = repoCon(listada);
         repo.findById = vi.fn(async () => releida);
 
-        const summary = await new DeemAssetReceivedUseCase(repo, reportsCon(), undefined, () => RECEIPT_DEADLINE).execute();
+        const summary = await new DeemAssetReceivedUseCase(
+            repo,
+            listingRepoCon('youtube'),
+            reportsCon(),
+            undefined,
+            () => RECEIPT_DEADLINE,
+        ).execute();
 
-        expect(summary).toEqual({ deemed: 0, frozen: 0, failed: 0 });
+        expect(summary).toEqual({ deemed: 0, completed: 1, frozen: 0, failed: 0 });
+        expect(releida.milestones.receivedAt).toEqual(DELIVERED);
         expect(releida.receivedBySilence).toBe(false);
-        expect(repo.save).not.toHaveBeenCalled();
     });
 
     it('una operación que falla no frena a las demás', async () => {
@@ -502,10 +651,17 @@ describe('DeemAssetReceivedUseCase — la corrida horaria', () => {
         });
         repo.save = save;
 
-        const summary = await new DeemAssetReceivedUseCase(repo, reportsCon(), undefined, () => RECEIPT_DEADLINE).execute();
+        const summary = await new DeemAssetReceivedUseCase(
+            repo,
+            listingRepoCon('youtube'),
+            reportsCon(),
+            undefined,
+            () => RECEIPT_DEADLINE,
+        ).execute();
 
-        expect(summary).toEqual({ deemed: 1, frozen: 0, failed: 1 });
+        expect(summary).toEqual({ deemed: 1, completed: 1, frozen: 0, failed: 1 });
         expect(sana.receivedBySilence).toBe(true);
+        expect(sana.status).toBe('completed');
     });
 });
 
@@ -561,6 +717,26 @@ describe('GetOperationDetailsUseCase — la entrega de un canal', () => {
         const vista = await detalle(entregada(), DELIVERED);
 
         expect(vista.assetDelivery).toMatchObject({ deliveredAt: DELIVERED, receiptDeadline: RECEIPT_DEADLINE });
+    });
+
+    it('con un reclamo abierto por la entrega, le toca a la plataforma resolverlo', async () => {
+        const op = entregada();
+        const vista = await new GetOperationDetailsUseCase(
+            repoCon(op),
+            contratos,
+            usuarios,
+            listingRepoCon('youtube'),
+            undefined,
+            undefined,
+            undefined,
+            new HandoverDeadlines(),
+            () => DELIVERED,
+            reportsCon(reclamo(op)),
+        ).execute(op.id.toString(), buyerActor);
+
+        expect(vista.next.turn).toEqual(['platform']);
+        expect(vista.next.byRole.platform).toEqual({ kind: 'act', id: 'resolve_claim', blocking: true });
+        expect(vista.next.byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['platform'] });
     });
 
     it('sin invitación, no hay datos de entrega', async () => {

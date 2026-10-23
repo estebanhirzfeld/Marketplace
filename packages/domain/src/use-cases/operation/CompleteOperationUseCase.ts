@@ -1,6 +1,6 @@
 import { IOperationRepository, IListingRepository } from '../../ports/Repositories';
 import { Actor, assertIsAdmin } from '../../ports/Actor';
-import { NotFoundError } from '../../errors/DomainError';
+import { InvalidStateError, NotFoundError } from '../../errors/DomainError';
 import { NegotiationNotifier } from '../../services/NegotiationNotifier';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { isWebListing } from '../../services/WebCustody';
@@ -21,6 +21,8 @@ export interface CompleteOperationInput {
 
 /**
  * Cierra la operación registrando la constancia de entrega, en un solo acto.
+ * Es el cierre de un sitio: un canal se cierra solo con la recepción del
+ * comprador (`ConfirmAssetReceiptUseCase`, `DeemAssetReceivedUseCase`).
  *
  * No hay un use case aparte de registro ni un cierre sin constancia: un segundo
  * camino al estado terminal se saltearía la constancia, que es el agujero que
@@ -48,6 +50,9 @@ export class CompleteOperationUseCase {
         }
 
         const listing = await this.listingRepo.findById(operation.listingId.toString());
+        if (listing && !isWebListing(listing)) {
+            throw new InvalidStateError('Un canal se cierra solo cuando el comprador confirma la recepción.');
+        }
 
         // Un error del registrador sube sin cerrar nada. Solo con el pago
         // confirmado: en otro estado decide la guarda de la entidad, con su

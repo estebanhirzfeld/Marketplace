@@ -3,6 +3,7 @@ import {
     ICustodyAccountRepository,
     IListingRepository,
     IOperationRepository,
+    IReportRepository,
     ITransferStepProgressRepository,
     IUserRepository,
 } from '../../ports/Repositories';
@@ -195,6 +196,8 @@ export class GetOperationDetailsUseCase {
         private readonly deadlines: HandoverDeadlines = new HandoverDeadlines(),
         /** El reloj: la espera de Google en la entrega de un canal termina en una fecha. */
         private readonly now: () => Date = () => new Date(),
+        /** Los reclamos: uno abierto por la entrega frena el cierre. Sin él, no se ven. */
+        private readonly reportRepo?: IReportRepository,
     ) {}
 
     /**
@@ -340,6 +343,7 @@ export class GetOperationDetailsUseCase {
             milestones: operation.milestones,
             payment: await this.paymentAvailability(operation, actor),
             receipts: receiptFacts(operation),
+            openDeliveryClaim: await this.hasOpenDeliveryClaim(operation),
             completedAt: props.completedAt,
             deadlines: this.deadlines,
             now: this.now(),
@@ -376,6 +380,12 @@ export class GetOperationDetailsUseCase {
         }
         if (m.receivedAt) view.receivedAt = m.receivedAt;
         return view;
+    }
+
+    private async hasOpenDeliveryClaim(operation: Operation): Promise<boolean> {
+        if (!this.reportRepo || operation.status !== 'payment_received') return false;
+        const reports = await this.reportRepo.findByOperation(operation.id.toString());
+        return reports.some((r) => r.status === 'open' && r.reason === 'activo_no_entregado');
     }
 
     private tripartiteFacts(contratos: Contract[]): NextActionsInput['contract'] {

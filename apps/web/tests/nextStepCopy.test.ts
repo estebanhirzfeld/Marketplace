@@ -77,6 +77,29 @@ describe('nextStepCopy', () => {
         expect(copy.title).toBe('La firma se habilita el 31 de octubre de 2026.');
     });
 
+    it('con la recepción hecha, todos leen que la operación se está cerrando, no lo del contrato', () => {
+        const all = wait('platform');
+        const n: OperationNextDto = {
+            byRole: { buyer: all, seller: all, platform: all },
+            turn: [],
+            timeline: [{ key: 'delivery', state: 'current' }],
+        };
+
+        for (const role of ['buyer', 'seller', 'platform'] as const) {
+            expect(nextStepCopy(n, role, 'youtube').title).toBe('Estamos cerrando la operación.');
+        }
+    });
+
+    it('con un reclamo por la entrega, la plataforma lo resuelve y las partes lo leen', () => {
+        const n = next(
+            { buyer: wait('platform'), seller: wait('platform'), platform: { kind: 'act', id: 'resolve_claim', blocking: true } },
+            ['platform'],
+        );
+
+        expect(nextStepCopy(n, 'platform', 'youtube').title).toBe('Resolvé el reclamo por la entrega');
+        expect(nextStepCopy(n, 'buyer', 'youtube').title).toBe('Le toca a la plataforma: resolver el reclamo por la entrega.');
+    });
+
     it('cerrada y cancelada tienen su texto', () => {
         const done: NextStepDto = { kind: 'done' };
         const cancelled: NextStepDto = { kind: 'cancelled' };
