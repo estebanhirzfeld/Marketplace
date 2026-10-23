@@ -1,0 +1,31 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-23T12:00:00Z" },
+  "title": "Pasos del traspaso de un canal",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 720, "h": 1080, "title": "Vendedor · firmar el acuerdo para publicar", "is_interactive": true },
+    "SellerKyc.dc.html": { "x": 800, "y": 0, "w": 720, "h": 1080, "title": "Vendedor · verificar la identidad (último paso)", "is_interactive": true },
+    "SellerAccess.dc.html": { "x": 1600, "y": 0, "w": 720, "h": 1080, "title": "Vendedor · traspaso inmediato (opcional)", "is_interactive": true },
+    "SellerAccept.dc.html": { "x": 0, "y": 1500, "w": 720, "h": 1000, "title": "Vendedor · aceptar la oferta", "is_interactive": true },
+    "OperationSeller.dc.html": { "x": 800, "y": 1500, "w": 720, "h": 1000, "title": "Vendedor · la operación, en custodia", "is_interactive": true },
+    "OperationBuyer.dc.html": { "x": 1600, "y": 1500, "w": 720, "h": 1000, "title": "Comprador · la operación, en la entrega", "is_interactive": true },
+    "PlatformQueue.dc.html": { "x": 0, "y": 2920, "w": 1280, "h": 900, "title": "Plataforma · lo que le toca hacer", "is_interactive": true }
+  },
+  "order": [
+    "Main.dc.html",
+    "SellerKyc.dc.html",
+    "SellerAccess.dc.html",
+    "SellerAccept.dc.html",
+    "OperationSeller.dc.html",
+    "OperationBuyer.dc.html",
+    "PlatformQueue.dc.html"
+  ],
+  "notes": {
+    "rowPublish": { "x": 0, "y": -300, "text": "Publicar un canal", "kind": "title1", "maxW": 2320 },
+    "rowOperation": { "x": 0, "y": 1200, "text": "Aceptar, custodia y entrega", "kind": "title1", "maxW": 2320 },
+    "rowPlatform": { "x": 0, "y": 2620, "text": "La plataforma", "kind": "title1", "maxW": 1280 }
+  },
+  "designSystems": []
+}

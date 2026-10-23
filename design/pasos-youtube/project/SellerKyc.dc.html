@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Verificar la identidad</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 720px; min-height: 1080px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <nav aria-label="Pasos" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="5">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="height: 3px; border-radius: 2px; background: {{ st.bar }}"></span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: {{ st.color }}">{{ st.label }}</span>
+      </div>
+    </sc-for>
+  </nav>
+
+  <sc-if value="{{ isForm }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #8c939c">PASO 5 DE 5 · ÚLTIMO</span>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700; line-height: 1.2">Verificá tu identidad</h1>
+        <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">Con la verificación, el canal se publica. Se realiza una sola vez y vale para todo lo que vendas o compres.</p>
+      </div>
+
+      <section style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+        <label style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 14px; font-weight: 500">Número de DNI</span>
+          <input type="text" inputmode="numeric" value="30123456" style="min-height: 48px; padding: 0 14px; border: 1px solid #2a2e35; border-radius: 3px; background: #0b0c0e; color: #e8e9ea; font-family: 'JetBrains Mono', monospace; font-size: 16px">
+        </label>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+          <sc-for list="{{ photos }}" as="ph" hint-placeholder-count="3">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <span style="font-size: 14px; font-weight: 500">{{ ph.label }}</span>
+              <sc-if value="{{ ph.done }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 120px; border-radius: 5px; background: #e8e9ea; display: flex; flex-direction: column; gap: 8px; padding: 14px; box-sizing: border-box" role="img" aria-label="Vista previa de la foto">
+                  <span style="height: 34px; width: 28px; background: #8c939c; border-radius: 3px"></span>
+                  <span style="height: 6px; width: 80%; background: #c9cdd2; border-radius: 2px"></span>
+                  <span style="height: 6px; width: 60%; background: #c9cdd2; border-radius: 2px"></span>
+                </div>
+              </sc-if>
+              <button type="button" onClick="{{ ph.attach }}" style="min-height: 44px; padding: 0 12px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 14px">{{ ph.cta }}</button>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size: 13px; line-height: 1.5; color: #838a94">Desde el teléfono, el botón abre la cámara. La selfie tiene que mostrar tu cara completa, sin anteojos de sol.</span>
+      </section>
+
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <button type="button" onClick="{{ send }}" disabled="{{ notReady }}" style="align-self: flex-start; min-height: 48px; padding: 0 24px; border: 0; border-radius: 3px; background: {{ sendBg }}; color: {{ sendColor }}; font: inherit; font-size: 15px; font-weight: 700">Verificar y publicar el canal</button>
+        <span style="font-size: 13px; line-height: 1.5; color: #838a94">La validación se realiza con los datos del <strong style="color: #e8e9ea; font-weight: 700">RENAPER</strong>. Las fotos solo las ve la plataforma.</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isChecking }}" hint-placeholder-val="{{ false }}">
+    <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 140px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; box-sizing: border-box">
+      <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+      <span style="font-size: 15px">Verificando tu identidad…</span>
+      <button type="button" onClick="{{ ok }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular verificada</button>
+      <button type="button" onClick="{{ fail }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular rechazo</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPublished }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">Tu canal está publicado</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1"><strong style="color: #e8e9ea; font-weight: 700">Pc Lover</strong> ya aparece en el mercado. Te avisaremos cuando llegue la primera oferta.</p>
+      <a href="SellerAccess.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 3px; background: #cff245; color: #0b0c0e; font-size: 15px; font-weight: 700; text-decoration: none">Ver el canal publicado</a>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isRejected }}" hint-placeholder-val="{{ false }}">
+    <div role="alert" style="display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid #f87171; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">No pudimos verificar tu identidad</span>
+      <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">La foto del frente del DNI no se lee. Sacala con buena luz, sin reflejos, y volvé a enviarla. El canal sigue en borrador.</p>
+      <button type="button" onClick="{{ retry }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Volver a enviar las fotos</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":1080}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'form', done: { front: false, back: false, selfie: false } };
+}
+renderVals() {
+const s = this.state;
+const labels = ['CONECTAR', 'COMPLETAR', 'PRECIO', 'ACUERDO', 'IDENTIDAD'];
+const current = s.view === 'published' ? 5 : 4;
+const items = [
+{ id: 'front', label: 'Frente del DNI' },
+{ id: 'back', label: 'Dorso del DNI' },
+{ id: 'selfie', label: 'Selfie' },
+];
+const ready = items.every((i) => s.done[i.id]);
+return {
+steps: labels.map((label, i) => ({
+label: (i + 1) + ' · ' + label,
+bar: i <= current ? '#cff245' : '#2a2e35',
+color: i === current ? '#e8e9ea' : i < current ? '#a3a9b1' : '#8c939c',
+})),
+photos: items.map((i) => ({
+label: i.label,
+done: s.done[i.id],
+cta: s.done[i.id] ? 'Cambiar la foto' : 'Adjuntar foto',
+attach: () => this.setState({ done: { ...s.done, [i.id]: true } }),
+})),
+isForm: s.view === 'form',
+isChecking: s.view === 'checking',
+isPublished: s.view === 'published',
+isRejected: s.view === 'rejected',
+notReady: !ready,
+sendBg: ready ? '#cff245' : '#2a2e35',
+sendColor: ready ? '#0b0c0e' : '#8c939c',
+send: () => { if (ready) this.setState({ view: 'checking' }); },
+ok: () => this.setState({ view: 'published' }),
+fail: () => this.setState({ view: 'rejected' }),
+retry: () => this.setState({ view: 'form', done: { ...s.done, front: false } }),
+};
+}
+}
+</script>
+</body>
+</html>
