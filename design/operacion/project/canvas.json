@@ -12,7 +12,7 @@
     "PaymentFlow.dc.html": { "x": 3110, "y": 0, "w": 720, "h": 980, "title": "Componente del pago (el mismo de la página)", "is_interactive": true },
     "SellerHandover.dc.html": { "x": 0, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · ceder el acceso", "is_interactive": true },
     "SellerClosed.dc.html": { "x": 840, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · operación cerrada", "is_interactive": true },
-    "PlatformOperation.dc.html": { "x": 0, "y": 3440, "w": 760, "h": 1000, "title": "Plataforma · confirmar la custodia", "is_interactive": true }
+    "PlatformOperation.dc.html": { "x": 0, "y": 3440, "w": 760, "h": 1000, "title": "Plataforma · quitar al vendedor", "is_interactive": true }
   },
   "order": [
     "Main.dc.html",

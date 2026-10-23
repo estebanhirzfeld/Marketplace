@@ -42,24 +42,11 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 
         <sc-if value="{{ isOwner }}" hint-placeholder-val="{{ true }}">
           <div style="display: flex; flex-direction: column; gap: 18px">
-            <span style="font-size: 14px; color: #a3a9b1">Paso 1 de 2</span>
             <h2 style="margin: 0; font-size: 24px; font-weight: 700">Hacé propietario principal a la plataforma</h2>
             <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
-              <button type="button" onClick="{{ toLeave }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Continuar</button>
+              <button type="button" onClick="{{ declare }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya hice el cambio</button>
               <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
-            </div>
-          </div>
-        </sc-if>
-
-        <sc-if value="{{ isLeave }}" hint-placeholder-val="{{ false }}">
-          <div style="display: flex; flex-direction: column; gap: 18px">
-            <span style="font-size: 14px; color: #a3a9b1">Paso 2 de 2</span>
-            <h2 style="margin: 0; font-size: 24px; font-weight: 700">Quitá tu acceso al canal</h2>
-            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Salí de la cuenta de marca y de los permisos de YouTube Studio.</p>
-            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
-              <button type="button" onClick="{{ declare }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya quité mi acceso</button>
-              <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir YouTube Studio</a>
             </div>
           </div>
         </sc-if>
@@ -67,15 +54,15 @@ a{color:#cff245}a:hover{color:#e4ff7a}
         <sc-if value="{{ isSending }}" hint-placeholder-val="{{ false }}">
           <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; min-height: 60px">
             <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
-            <span style="font-size: 16px">Registrando el traspaso…</span>
+            <span style="font-size: 16px">Registrando el cambio…</span>
             <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
           </div>
         </sc-if>
 
         <sc-if value="{{ isVerifying }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; flex-direction: column; gap: 10px">
-            <h2 style="margin: 0; font-size: 24px; font-weight: 700">Verificaremos el traspaso</h2>
-            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">La verificación es manual y puede demorar hasta <strong style="color: #e8e9ea; font-weight: 700">1 día hábil</strong>. Te avisaremos cuando esté confirmado.</p>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700">La plataforma confirmará el traspaso</h2>
+            <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">La confirmación puede demorar hasta <strong style="color: #e8e9ea; font-weight: 700">1 día hábil</strong>. Te avisaremos cuando esté confirmado.</p>
             <div style="display: flex; gap: 8px; flex-wrap: wrap">
               <button type="button" onClick="{{ reject }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular incompleto</button>
             </div>
@@ -86,7 +73,7 @@ a{color:#cff245}a:hover{color:#e4ff7a}
           <div role="alert" style="display: flex; flex-direction: column; gap: 12px">
             <h2 style="margin: 0; font-size: 24px; font-weight: 700">El traspaso no está completo</h2>
             <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1"><strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> todavía no es propietario principal. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
-            <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 52px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 16px">Volver al paso 1</button>
+            <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 52px; padding: 0 22px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 16px">Ver el paso</button>
           </div>
         </sc-if>
       </div>
@@ -128,11 +115,9 @@ const v = this.state.view;
 const go = (view) => () => this.setState({ view });
 return {
 isOwner: v === 'owner',
-isLeave: v === 'leave',
 isSending: v === 'sending',
 isVerifying: v === 'verifying',
 isRejected: v === 'rejected',
-toLeave: go('leave'),
 declare: go('sending'),
 sent: go('verifying'),
 reject: go('rejected'),

@@ -16,6 +16,9 @@ Antes de configurar nada conviene tener claro el techo, porque define qué tiene
 | Saber si el canal es Cuenta de Marca | **No** | Ningún campo lo expone |
 | Saber quiénes son los propietarios del canal | **No** | Ningún campo lo expone |
 | Probar que **la plataforma** tiene el ownership | **No** | Se atestigua a mano (`PlatformAccessRecord`) |
+| Probar que la plataforma **administra** el canal | Sí | OAuth de la **cuenta de custodia** (`channels.list?mine=true`, `IYouTubeCustodyAccessReader`) |
+| Enterarse de que la plataforma pasó a ser propietaria principal, o dejó de serlo | Sí, por mail | Google avisa al instante a la cuenta de custodia desde `google-my-business-noreply@google.com`: «<vendedor> te ha convertido en propietario principal de <cuenta de marca>.» y «Tu función ha cambiado a propietario de <cuenta de marca>.» (prueba con Pc Lover, 23/10/2026) |
+| Sacar al vendedor de la cuenta de marca | Sí, a mano | La cuenta de custodia, como propietaria principal, lo quita en el momento desde Administrar permisos. Es silencioso: no llega mail a ninguna de las dos cuentas |
 | Ingreso mensual | **No** | Solo en reportes de content owner (MCN certificado) |
 | Strikes y estado del canal | Quizás | `auditDetails`, scope restringido para MCNs |
 

@@ -37,23 +37,24 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 
         <sc-if value="{{ isCheck }}" hint-placeholder-val="{{ true }}">
           <div style="display: flex; flex-direction: column; gap: 18px">
-            <div style="display: flex; flex-direction: column; gap: 6px">
-              <h2 style="margin: 0; font-size: 24px; font-weight: 700">Confirmá la custodia</h2>
-              <p style="margin: 0; font-size: 16px; color: #a3a9b1">El vendedor declaró el traspaso el <strong style="color: #e8e9ea; font-weight: 700">23 de octubre</strong>.</p>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 4px">
-              <label style="display: flex; gap: 14px; align-items: center; min-height: 44px; cursor: pointer">
-                <input type="checkbox" checked="{{ c1 }}" onChange="{{ t1 }}" style="width: 20px; height: 20px; margin: 0; accent-color: #cff245; flex-shrink: 0">
-                <span style="font-size: 16px"><strong style="font-weight: 700">[CUENTA DE CUSTODIA]</strong> es propietario principal</span>
-              </label>
-              <label style="display: flex; gap: 14px; align-items: center; min-height: 44px; cursor: pointer">
-                <input type="checkbox" checked="{{ c2 }}" onChange="{{ t2 }}" style="width: 20px; height: 20px; margin: 0; accent-color: #cff245; flex-shrink: 0">
-                <span style="font-size: 16px">El vendedor no figura en los permisos</span>
-              </label>
-            </div>
-            <span style="font-size: 14px; color: #a3a9b1">Métricas tomadas al confirmar: <strong style="color: #e8e9ea; font-weight: 700">12.400 suscriptores</strong>.</span>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700">Quitá al vendedor de la cuenta de marca</h2>
+            <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px">
+              <li style="display: flex; gap: 12px; align-items: flex-start">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Propietario principal: <strong style="font-weight: 700">[CUENTA DE CUSTODIA]</strong> · aviso de Google del 23 de octubre</span>
+              </li>
+              <li style="display: flex; gap: 12px; align-items: flex-start">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Acceso al canal comprobado</span>
+              </li>
+              <li style="display: flex; gap: 12px; align-items: flex-start">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Métricas: <strong style="font-weight: 700">12.400 suscriptores</strong></span>
+              </li>
+            </ul>
+            <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
             <div style="display: flex; flex-wrap: wrap; gap: 12px">
-              <button type="button" onClick="{{ confirm }}" disabled="{{ notReady }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: {{ confirmBg }}; color: {{ confirmColor }}; font: inherit; font-size: 16px; font-weight: 700">Confirmar la custodia</button>
+              <button type="button" onClick="{{ confirm }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Ya quité al vendedor</button>
               <button type="button" onClick="{{ openReject }}" style="min-height: 52px; padding: 0 20px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 16px">El traspaso no está completo</button>
             </div>
           </div>
@@ -149,7 +150,7 @@ notReady: !ready,
 confirmBg: ready ? '#cff245' : '#2a2e35',
 confirmColor: ready ? '#0b0c0e' : '#8c939c',
 sendingText: s.outcome === 'rejected' ? 'Enviando el motivo…' : 'Registrando la custodia…',
-confirm: () => { if (ready) this.setState({ view: 'sending', outcome: 'confirmed' }); },
+confirm: () => this.setState({ view: 'sending', outcome: 'confirmed' }),
 openReject: () => this.setState({ view: 'reject' }),
 reject: () => this.setState({ view: 'sending', outcome: 'rejected' }),
 back: () => this.setState({ view: 'check' }),
