@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Operación cerrada</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+</style>
+</helmet>
+<div style="width: 760px; min-height: 1000px; box-sizing: border-box; padding: 56px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px">
+
+  <header style="display: flex; flex-direction: column; gap: 8px">
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; line-height: 1.15">Pc Lover</h1>
+    <p style="margin: 0; font-size: 16px; color: #a3a9b1">Recibiste <strong style="color: #e8e9ea; font-weight: 700">USD 11.400</strong></p>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 12px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+    <h2 style="margin: 0; font-size: 24px; font-weight: 700">Vendiste Pc Lover</h2>
+    <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Te enviaremos el contrato firmado a <strong style="color: #e8e9ea; font-weight: 700">ana@correo.com</strong>.</p>
+    <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 52px; padding: 0 24px; border-radius: 3px; background: #cff245; color: #0b0c0e; font-size: 16px; font-weight: 700; text-decoration: none">Publicar otro canal</a>
+  </section>
+
+  <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+    <sc-for list="{{ done }}" as="d" hint-placeholder-count="6">
+      <li style="display: flex; gap: 16px; padding: 12px 0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="flex: 1; font-size: 16px; color: #a3a9b1">{{ d.what }}</span>
+        <span style="font-size: 14px; color: #8c939c">{{ d.when }}</span>
+      </li>
+    </sc-for>
+  </ol>
+
+  <details style="border-top: 1px solid #2a2e35; padding-top: 16px">
+    <summary style="min-height: 44px; display: flex; align-items: center; font-size: 15px; color: #a3a9b1; cursor: pointer">Detalle de la operación</summary>
+    <dl style="margin: 12px 0 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); row-gap: 10px; font-size: 15px">
+      <dt style="color: #a3a9b1">Precio</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">USD 12.000</dd>
+      <dt style="color: #a3a9b1">Comisión</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">USD 600</dd>
+      <dt style="color: #a3a9b1">Cobraste en</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">ana.vendedora.mp</dd>
+      <dt style="color: #a3a9b1">Contrato</dt><dd style="margin: 0"><a href="#" style="text-decoration: none">Ver el contrato firmado</a></dd>
+    </dl>
+  </details>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {
+done: [
+{ what: 'Aceptaste la oferta', when: '18 de octubre' },
+{ what: 'Firmaron el contrato', when: '20 de octubre' },
+{ what: 'Pasaste el canal a la plataforma', when: '23 de octubre' },
+{ what: 'Cobraste tu venta', when: '25 de octubre' },
+{ what: 'El comprador recibió el canal', when: '7 de noviembre' },
+{ what: 'Cierre de la operación', when: '7 de noviembre' },
+],
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Operación: pagar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 760px; min-height: 1000px; box-sizing: border-box; padding: 56px 48px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 40px">
+
+  <header style="display: flex; flex-direction: column; gap: 8px">
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; line-height: 1.15">Pc Lover</h1>
+    <p style="margin: 0; font-size: 16px; color: #a3a9b1">Pagarás <strong style="color: #e8e9ea; font-weight: 700">USD 12.600</strong> · <a href="#" style="text-decoration: none">Ver la publicación</a></p>
+  </header>
+
+  <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0">
+    <li style="display: flex; gap: 16px; padding: 12px 0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+      <span style="flex: 1; font-size: 16px; color: #a3a9b1">Acordaron el precio</span>
+      <span style="font-size: 14px; color: #8c939c">18 de octubre</span>
+    </li>
+    <li style="display: flex; gap: 16px; padding: 12px 0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+      <span style="flex: 1; font-size: 16px; color: #a3a9b1">Firmaron el contrato</span>
+      <span style="font-size: 14px; color: #8c939c">20 de octubre</span>
+    </li>
+    <li style="display: flex; gap: 16px; padding: 12px 0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2.5" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M20 6 9 17l-5-5"></path></svg>
+      <span style="flex: 1; font-size: 16px; color: #a3a9b1">El canal está en custodia</span>
+      <span style="font-size: 14px; color: #8c939c">23 de octubre</span>
+    </li>
+
+    <li aria-current="step" style="display: flex; gap: 16px; padding: 16px 0">
+      <span style="width: 12px; height: 12px; margin: 5px 4px 0; border-radius: 50%; background: #cff245; flex-shrink: 0" aria-hidden="true"></span>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+        <sc-if value="{{ isChoose }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <h2 style="margin: 0; font-size: 24px; font-weight: 700">Pagá tu compra</h2>
+              <p style="margin: 0; font-size: 16px; color: #a3a9b1">Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">6 de noviembre</strong>.</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+              <button type="button" onClick="{{ pickMp }}" style="display: flex; flex-direction: column; gap: 10px; min-height: 120px; padding: 20px; border: 1px solid #2a2e35; border-radius: 8px; background: #0b0c0e; color: #e8e9ea; font: inherit; text-align: left">
+                <span style="font-size: 17px; font-weight: 700">Mercado Pago</span>
+                <span style="font-size: 14px; color: #a3a9b1">Tarjeta o dinero en cuenta. La acreditación es inmediata.</span>
+              </button>
+              <button type="button" onClick="{{ pickBank }}" style="display: flex; flex-direction: column; gap: 10px; min-height: 120px; padding: 20px; border: 1px solid #2a2e35; border-radius: 8px; background: #0b0c0e; color: #e8e9ea; font: inherit; text-align: left">
+                <span style="font-size: 17px; font-weight: 700">Transferencia bancaria</span>
+                <span style="font-size: 14px; color: #a3a9b1">Realizarás 2 transferencias. La confirmación es manual.</span>
+              </button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isRedirect }}" hint-placeholder-val="{{ false }}">
+          <div aria-busy="true" style="display: flex; align-items: center; gap: 14px; min-height: 80px">
+            <span class="spinner" style="width: 22px; height: 22px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+            <span style="font-size: 16px">Te redirigiremos a Mercado Pago para realizar el pago…</span>
+            <button type="button" onClick="{{ back }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a la muestra</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isBank }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <span style="font-size: 14px; color: #a3a9b1">Paso 1 de 2</span>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700">Transferí la comisión a la plataforma</h2>
+            <dl style="margin: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); row-gap: 10px; font-size: 16px">
+              <dt style="color: #a3a9b1">Transferir exactamente</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-weight: 500">USD 1.200</dd>
+              <dt style="color: #a3a9b1">Alias</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-weight: 500">[ALIAS DE LA PLATAFORMA]</dd>
+            </dl>
+            <button type="button" style="align-self: flex-start; min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">Adjuntar comprobante</button>
+            <button type="button" onClick="{{ back }}" style="align-self: flex-start; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: #a3a9b1; font: inherit; font-size: 15px">Elegir otro medio</button>
+          </div>
+        </sc-if>
+      </div>
+    </li>
+
+    <li style="display: flex; gap: 16px; padding: 12px 0">
+      <span style="width: 12px; height: 12px; margin: 5px 4px 0; border-radius: 50%; border: 2px solid #3a3f47; box-sizing: border-box; flex-shrink: 0" aria-hidden="true"></span>
+      <span style="flex: 1; font-size: 16px; color: #8c939c">Recibirás el canal</span>
+    </li>
+    <li style="display: flex; gap: 16px; padding: 12px 0">
+      <span style="width: 12px; height: 12px; margin: 5px 4px 0; border-radius: 50%; border: 2px solid #3a3f47; box-sizing: border-box; flex-shrink: 0" aria-hidden="true"></span>
+      <span style="flex: 1; font-size: 16px; color: #8c939c">Cierre de la operación</span>
+    </li>
+  </ol>
+
+  <details style="border-top: 1px solid #2a2e35; padding-top: 16px">
+    <summary style="min-height: 44px; display: flex; align-items: center; font-size: 15px; color: #a3a9b1; cursor: pointer">Detalle de la operación</summary>
+    <dl style="margin: 12px 0 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); row-gap: 10px; font-size: 15px">
+      <dt style="color: #a3a9b1">Precio</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">USD 12.000</dd>
+      <dt style="color: #a3a9b1">Comisión de la plataforma</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">USD 600</dd>
+      <dt style="color: #a3a9b1">Ofertas</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">USD 10.000 · 11.500 · 12.000</dd>
+      <dt style="color: #a3a9b1">Contrato</dt><dd style="margin: 0"><a href="#" style="text-decoration: none">Ver el contrato firmado</a></dd>
+    </dl>
+  </details>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1000}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'choose' };
+}
+renderVals() {
+const v = this.state.view;
+const go = (view) => () => this.setState({ view });
+return {
+isChoose: v === 'choose',
+isRedirect: v === 'redirect',
+isBank: v === 'bank',
+pickMp: go('redirect'),
+pickBank: go('bank'),
+back: go('choose'),
+};
+}
+}
+</script>
+</body>
+</html>
