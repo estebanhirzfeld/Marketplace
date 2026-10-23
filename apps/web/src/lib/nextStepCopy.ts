@@ -313,3 +313,25 @@ const STAGE_TEXT: Record<OperationNextDto['timeline'][number]['key'], { title: s
 export function stageCopy(key: OperationNextDto['timeline'][number]['key']): { title: string; text: string } {
     return STAGE_TEXT[key];
 }
+
+/**
+ * El nombre corto de una etapa, para la línea de etapas de la operación: una
+ * frase nominal que informa, sin narrar. Un sitio nunca lee «canal».
+ */
+export function stageLabel(key: OperationNextDto['timeline'][number]['key'], assetType?: string): string {
+    const asset = kindOf(assetType) === 'web' ? 'del sitio' : 'del canal';
+    switch (key) {
+        case 'negotiation':
+            return 'Precio acordado';
+        case 'contract':
+            return 'Contrato firmado';
+        case 'custody':
+            return 'Acceso cedido';
+        case 'payment':
+            return `Pago ${asset}`;
+        case 'delivery':
+            return `Entrega ${asset}`;
+        case 'closing':
+            return 'Cierre';
+    }
+}

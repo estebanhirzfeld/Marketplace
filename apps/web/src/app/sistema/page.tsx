@@ -64,8 +64,11 @@ import type {
     OperationStatusDto,
     PaymentOptionsDto,
     StepProgressDto,
+    TimelineStageDto,
     YouTubeConnectionDto,
 } from '@marketplace/api-contract';
+import { OperationStages } from '@/components/OperationStages';
+import { OperationHeadline, OperationSummary } from '@/components/OperationSummary';
 import {
     AdminDomainTransferPanel,
     DomainDeliveryStatus,
@@ -101,6 +104,23 @@ const ESTADOS: OperationStatusDto[] = [
     'offer_sent', 'negotiating', 'contract_pending', 'contract_signed',
     'transfer_in_progress', 'asset_in_custody', 'payment_received', 'completed', 'cancelled',
 ];
+
+/** Una operación de muestra con el activo en custodia y el pago en curso. */
+const SAMPLE_STAGES_PAYING: TimelineStageDto[] = [
+    { key: 'negotiation', state: 'done', at: '2026-10-18T12:00:00.000Z' },
+    { key: 'contract', state: 'done', at: '2026-10-20T12:00:00.000Z' },
+    { key: 'custody', state: 'done', at: '2026-10-23T12:00:00.000Z' },
+    { key: 'payment', state: 'current' },
+    { key: 'delivery', state: 'pending' },
+    { key: 'closing', state: 'pending' },
+];
+
+const SAMPLE_AMOUNTS = {
+    finalPrice: { cents: 150_000_000, currency: 'ARS' },
+    buyerPays: { cents: 157_500_000, currency: 'ARS' },
+    sellerReceives: { cents: 142_500_000, currency: 'ARS' },
+    platformEarns: { cents: 15_000_000, currency: 'ARS' },
+};
 
 function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
     return (
@@ -581,6 +601,73 @@ export default function Sistema() {
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SIN AVISOS</div>
                             <NotificationDropdown items={[]} unread={0} />
+                        </div>
+                    </div>
+                </Section>
+
+                <Section
+                    title="Etapas y resumen de una operación"
+                    note="Arriba de /operaciones/[id]: las seis etapas en una línea con sus fechas; las hechas se llenan una tras otra y la actual late. En el teléfono pasan a una barra con «Etapa N de 6» y la lista plegada (achicá la ventana para verla). Debajo, el resumen fijo de cada rol: sus montos, dónde recibe o cobra, el contrato y la publicación. Un sitio nunca lee «canal»."
+                >
+                    <div className="flex flex-col gap-12">
+                        <div className="flex flex-col gap-4">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">CANAL · PAGO DEL CANAL</div>
+                            <OperationStages
+                                stages={SAMPLE_STAGES_PAYING}
+                                assetType="youtube"
+                                currentDeadline="2026-11-06T12:00:00.000Z"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-4">
+                            <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">SITIO · ENTREGA DEL SITIO</div>
+                            <OperationStages
+                                stages={SAMPLE_STAGES_PAYING.map((s) =>
+                                    s.key === 'payment'
+                                        ? { ...s, state: 'done' as const, at: '2026-10-25T12:00:00.000Z' }
+                                        : s.key === 'delivery'
+                                          ? { ...s, state: 'current' as const }
+                                          : s,
+                                )}
+                                assetType="web"
+                            />
+                        </div>
+                        <div className="grid gap-6 lg:grid-cols-3">
+                            {(['buyer', 'seller', 'platform'] as const).map((role) => (
+                                <div key={role} className="flex flex-col gap-4">
+                                    <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
+                                        {role === 'buyer' ? 'COMPRADOR · CANAL' : role === 'seller' ? 'VENDEDOR · CANAL' : 'PLATAFORMA · CANAL'}
+                                    </div>
+                                    <OperationHeadline role={role} {...SAMPLE_AMOUNTS} buyerName="Juan Comprador" sellerName="Ana Vendedora" />
+                                    <OperationSummary
+                                        role={role}
+                                        assetType="youtube"
+                                        {...SAMPLE_AMOUNTS}
+                                        receivingAccount={role === 'seller' ? 'ana.vendedora.mp' : 'comprador@correo.com'}
+                                        contractHref="/sistema"
+                                        listingHref="/sistema"
+                                    />
+                                </div>
+                            ))}
+                            <div className="flex flex-col gap-4">
+                                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR · SITIO</div>
+                                <OperationSummary
+                                    role="buyer"
+                                    assetType="web"
+                                    {...SAMPLE_AMOUNTS}
+                                    receivingAccount="comprador@correo.com"
+                                    contractHref="/sistema"
+                                    listingHref="/sistema"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">COMPRADOR · NEGOCIANDO</div>
+                                <OperationSummary
+                                    role="buyer"
+                                    assetType="youtube"
+                                    currentOffer={{ cents: 140_000_000, currency: 'ARS' }}
+                                    listingHref="/sistema"
+                                />
+                            </div>
                         </div>
                     </div>
                 </Section>

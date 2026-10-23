@@ -5,8 +5,10 @@ import type { NextActionIdDto, OperationDetailDto, OperationRoleDto, PaymentOpti
 import { UserRole } from '@marketplace/shared-types';
 import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
+import type { ReactNode } from 'react';
 import { Reveal } from '@/components/Reveal';
-import { Timeline } from '@/components/Timeline';
+import { OperationStages } from '@/components/OperationStages';
+import { OperationHeadline, OperationSummary } from '@/components/OperationSummary';
 import { OperationAction } from '@/components/OperationAction';
 import { CustodyVerificationForm } from '@/components/CustodyVerificationForm';
 import { TransferInitiationForm } from '@/components/TransferInitiationForm';
@@ -16,11 +18,10 @@ import { ReportForm } from '@/components/ReportForm';
 import { DeliveryStep } from '@/components/DeliveryStep';
 import { CounterOfferForm } from '@/components/CounterOfferForm';
 import { PaymentChoice, SellerPaymentWait } from '@/components/PaymentChoice';
-import { NextStepCard } from '@/components/NextStep';
 import { RejectTransferForm } from '@/components/RejectTransferForm';
 import { ReceiptReviewForm } from '@/components/ReceiptForms';
-import { nextStepCopy, partyStatusLine } from '@/lib/nextStepCopy';
-import { Alert, Button, OperationStatusBadge, Panel, Heading } from '@/components/ui';
+import { nextStepCopy, partyStatusLine, type NextStepCopy } from '@/lib/nextStepCopy';
+import { Alert, Panel } from '@/components/ui';
 import { nicheLabel, money, exactMoney, fechaLarga } from '@/lib/format';
 import { assetTypeLabeller } from '@/lib/assetTypes';
 import {
@@ -116,6 +117,17 @@ export default async function DetalleOperacion(props: {
             sellerAccount = own?.alias ?? own?.cbu;
         } catch {
             sellerAccount = undefined;
+        }
+    }
+
+    // Dónde cobra el vendedor, para su resumen: la cuenta del destino o la suya en la moneda de la operación.
+    let sellerSummaryAccount = op.miParte === 'seller' ? sellerAccount : undefined;
+    if (op.miParte === 'seller' && !sellerSummaryAccount && op.finalPrice && op.status !== 'cancelled') {
+        try {
+            const own = (await api().bankAccounts()).find((a) => a.currency === op.finalPrice?.currency);
+            sellerSummaryAccount = own?.alias ?? own?.cbu;
+        } catch {
+            sellerSummaryAccount = undefined;
         }
     }
 
@@ -337,298 +349,60 @@ export default async function DetalleOperacion(props: {
         }
     };
 
+    // La fecha de la etapa actual es el plazo de quien mira, o el de la parte a la que espera.
+    const waitedStep = step?.kind === 'wait' ? op.next?.byRole[step.waitingOn[0]] : undefined;
+    const currentDeadline =
+        step?.kind === 'act' ? step.deadline : waitedStep?.kind === 'act' ? waitedStep.deadline : undefined;
+    const receivingAccount = role === 'seller' ? sellerSummaryAccount : op.recipientIdentity?.identifier;
+    const amounts = {
+        finalPrice: op.finalPrice,
+        buyerPays: op.buyerPays,
+        sellerReceives: op.sellerReceives,
+        platformEarns: op.platformEarns,
+    };
+    const hasDetail = !!(op.transferInitiation || op.custody || op.delivery || op.negotiations.length > 0);
+
+    /*
+     * Variante C: el activo y el monto de quien mira arriba; las seis etapas en
+     * una línea; debajo, la acción del rol a la izquierda y el resumen fijo a
+     * la derecha. En el teléfono las etapas pasan a una barra, y el resumen va
+     * debajo de la acción.
+     */
     return (
-        <div className="mx-auto max-w-[1400px] px-6 py-14 sm:px-12">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-7 px-4 py-6 sm:px-12 md:gap-9 md:py-12">
             <Reveal>
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <OperationStatusBadge state={op.status} />
-                        {op.miParte && (
-                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">
-                                SOS {op.miParte === 'buyer' ? 'EL COMPRADOR' : 'EL VENDEDOR'}
-                            </span>
-                        )}
-                        {isAdmin && !op.miParte && (
-                            <span className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-alerta)]">
-                                MIRÁS COMO PLATAFORMA
-                            </span>
-                        )}
-                        {/* Con quién se está negociando. Antes solo se veía el
-                            rol, así que las dos partes discutían un precio
-                            contra alguien sin nombre. */}
-                        <span className="text-[13px] text-[var(--color-tenue)]">
-                            {op.miParte
-                                ? `Con ${op.miParte === 'buyer' ? op.seller.fullName : op.buyer.fullName}`
-                                : `${op.buyer.fullName} · ${op.seller.fullName}`}
-                        </span>
-                    </div>
-
-                    <Heading sub={
-                            // Era los primeros ocho caracteres del UUID, que no le
-                            // dice nada a nadie. El rubro y el tipo son públicos:
-                            // nombran el activo sin revelar cuál es.
-                            op.assetName ?? (op.niche
+                <div className="flex flex-col gap-1.5 md:flex-row md:flex-wrap md:items-baseline md:justify-between md:gap-4">
+                    <h1 className="text-[28px] font-bold leading-tight tracking-[-0.02em] md:text-[36px]">
+                        {/* El rubro y el tipo son públicos: nombran el activo sin revelar cuál es. */}
+                        {op.assetName ??
+                            (op.niche
                                 ? `${nicheLabel(op.niche)}${op.assetType ? ` · ${nombreDeTipo(op.assetType)}` : ''}`
-                                : 'Activo en venta')
-                        }>
-                        {money(op.finalPrice ?? op.currentOfferPrice)}
-                    </Heading>
-
-                    <Link href={`/listings/${op.listingId}`} className="text-[14px] text-[var(--color-acento)]">
-                        Ver la publicación →
-                    </Link>
+                                : 'Activo en venta')}
+                    </h1>
+                    <OperationHeadline
+                        role={role}
+                        {...amounts}
+                        currentOffer={op.currentOfferPrice}
+                        buyerName={op.buyer.fullName}
+                        sellerName={op.seller.fullName}
+                    />
                 </div>
             </Reveal>
 
-            <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_1fr]">
+            {op.next && (
                 <Reveal>
-                    <Panel title="ETAPA DE LA OPERACIÓN">
-                        {op.next && <Timeline stages={op.next.timeline} cancelled={op.status === 'cancelled'} />}
-                    </Panel>
+                    <OperationStages
+                        stages={op.next.timeline}
+                        assetType={op.assetType}
+                        currentDeadline={currentDeadline}
+                        cancelled={op.status === 'cancelled'}
+                    />
                 </Reveal>
+            )}
 
-                <div className="flex flex-col gap-6">
-                    {/*
-                      * La declaración del vendedor se guardaba y no se mostraba en
-                      * ninguna parte, así que quien la hacía no veía aparecer nada y
-                      * el paso parecía no hacer nada. Se muestra a las dos partes por
-                      * el mismo motivo que la custodia: es lo que explica por qué la
-                      * operación avanzó.
-                      *
-                      * Cuando la cuenta que el vendedor declaró no es la que después
-                      * verificó la plataforma, la diferencia se nombra. No bloquea
-                      * nada —el acceso se pudo haber vuelto a registrar en el medio
-                      * por razones legítimas— pero tiene que ser visible: son dos
-                      * copias congeladas en momentos distintos y compararlas es el
-                      * único control que hay sobre ese tramo.
-                      */}
-                    {op.transferInitiation && (
-                        <Reveal>
-                            <Panel title="DECLARACIÓN DE CESIÓN DEL VENDEDOR">
-                                <div className="flex flex-col gap-3 text-[14px]">
-                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                        Declarada el {fechaLarga(op.transferInitiation.declaredAt)}.
-                                    </p>
-
-                                    {op.transferInitiation.controlCeded && (
-                                        <ul className="flex flex-col gap-1.5">
-                                            <CheckedItem text="El vendedor declaró haber cedido el control del activo" />
-                                        </ul>
-                                    )}
-
-                                    {/*
-                                      * Se nombra la cuenta como la reconoce una
-                                      * persona —el correo que invitó—, no por su
-                                      * identificador interno. Que la cuenta ya no
-                                      * esté en el padrón no es lo mismo que no
-                                      * haber registrado ninguna, y se dicen
-                                      * distinto.
-                                      */}
-                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
-                                        <span className="text-[var(--color-tenue)]">
-                                            Cuenta de custodia declarada
-                                        </span>
-                                        <span className="font-mono text-[13px]">
-                                            {op.transferInitiation.custodyAccountIdentifier ??
-                                                (op.transferInitiation.custodyAccountId
-                                                    ? 'cuenta dada de baja'
-                                                    : 'sin registrar')}
-                                        </span>
-                                    </div>
-
-                                    {op.custody?.custodyAccountId &&
-                                        op.transferInitiation.custodyAccountId &&
-                                        op.custody.custodyAccountId !==
-                                            op.transferInitiation.custodyAccountId && (
-                                            <p className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/50 bg-[var(--color-alerta)]/5 p-3 text-[13px] leading-relaxed">
-                                                La cuenta que verificamos al tomar la custodia
-                                                {op.custody.custodyAccountIdentifier ? (
-                                                    <>
-                                                        {' '}(
-                                                        <span className="font-mono">
-                                                            {op.custody.custodyAccountIdentifier}
-                                                        </span>
-                                                        ){' '}
-                                                    </>
-                                                ) : (
-                                                    ' '
-                                                )}
-                                                no es la misma que estaba registrada cuando el vendedor
-                                                declaró la cesión. El acceso se volvió a registrar en el
-                                                medio. Queda asentado acá; no impide que la operación siga.
-                                            </p>
-                                        )}
-
-                                    {op.transferInitiation.notes && (
-                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            {op.transferInitiation.notes}
-                                        </p>
-                                    )}
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    )}
-
-                    {/*
-                      * La constancia se muestra a las dos partes. Es lo que respalda
-                      * pedirle el pago al comprador: ocultársela sería al revés.
-                      */}
-                    {op.custody && (
-                        <Reveal>
-                            <Panel title="VERIFICACIÓN DE LA CUSTODIA">
-                                <div className="flex flex-col gap-3 text-[14px]">
-                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                        Verificada el{' '}
-                                        {new Date(op.custody.verifiedAt).toLocaleDateString('es-AR', {
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric',
-                                        })}
-                                        .
-                                    </p>
-
-                                    <ul className="flex flex-col gap-1.5">
-                                        <CheckedItem text="La plataforma es propietaria principal del activo" />
-                                        <CheckedItem text="Los accesos están asegurados" />
-                                    </ul>
-
-                                    {/*
-                                      * La cuenta que la plataforma verificó, al lado
-                                      * de la que el vendedor declaró en el panel de
-                                      * arriba. Sin este renglón las dos copias
-                                      * congeladas no se pueden comparar mirando la
-                                      * pantalla, que es para lo que se congelan.
-                                      */}
-                                    <div className="flex justify-between border-t border-[var(--color-borde)] pt-3">
-                                        <span className="text-[var(--color-tenue)]">
-                                            Cuenta de custodia verificada
-                                        </span>
-                                        <span className="font-mono text-[13px]">
-                                            {op.custody.custodyAccountIdentifier ??
-                                                (op.custody.custodyAccountId
-                                                    ? 'cuenta dada de baja'
-                                                    : 'sin registrar')}
-                                        </span>
-                                    </div>
-
-                                    {Object.entries(op.custody.metrics).length > 0 && (
-                                        <div className="flex flex-col gap-1.5 border-t border-[var(--color-borde)] pt-3">
-                                            {Object.entries(op.custody.metrics).map(([name, value]) => (
-                                                <div key={name} className="flex justify-between">
-                                                    <span className="text-[var(--color-tenue)]">{name}</span>
-                                                    <span className="font-mono">
-                                                        {value.toLocaleString('es-AR')}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {op.custody.notes && (
-                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            {op.custody.notes}
-                                        </p>
-                                    )}
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    )}
-
-                    {/*
-                      * La constancia de entrega, simétrica a la de custodia. Dice a
-                      * qué identidad se entregó el activo de verdad y qué se
-                      * atestiguó al cerrar.
-                      */}
-                    {op.delivery && (
-                        <Reveal>
-                            <Panel title="CONSTANCIA DE ENTREGA">
-                                <div className="flex flex-col gap-3 text-[14px]">
-                                    <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                        Entregado el{' '}
-                                        {new Date(op.delivery.verifiedAt).toLocaleDateString('es-AR', {
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric',
-                                        })}{' '}
-                                        a{' '}
-                                        <span className="font-mono">
-                                            {op.delivery.deliveredToIdentifier}
-                                        </span>
-                                        .
-                                    </p>
-                                    <ul className="flex flex-col gap-1.5">
-                                        <CheckedItem text="El comprador quedó como propietario principal" />
-                                        <CheckedItem text="Se cedieron los accesos" />
-                                        {op.delivery.sellerRemoved && (
-                                            <CheckedItem text="Se quitó al vendedor del activo" />
-                                        )}
-                                    </ul>
-                                    {op.delivery.notes && (
-                                        <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
-                                            {op.delivery.notes}
-                                        </p>
-                                    )}
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    )}
-
-                        {/* Reparto del dinero: solo existe una vez aceptada la oferta */}
-                    {op.finalPrice && (
-                        <Reveal>
-                            <Panel title="REPARTO DEL DINERO">
-                                <div className="flex flex-col gap-2.5 text-[14px]">
-                                    <div className="flex justify-between">
-                                        <span className="text-[var(--color-tenue)]">Precio acordado</span>
-                                        <span className="font-mono">{money(op.finalPrice)}</span>
-                                    </div>
-                                    {op.buyerPays && (
-                                        <div className="flex justify-between">
-                                            <span className="text-[var(--color-tenue)]">El comprador paga</span>
-                                            <span className="font-mono">{money(op.buyerPays)}</span>
-                                        </div>
-                                    )}
-                                    {op.sellerReceives && (
-                                        <div className="flex justify-between">
-                                            <span className="text-[var(--color-tenue)]">El vendedor recibe</span>
-                                            <span className="font-mono">{money(op.sellerReceives)}</span>
-                                        </div>
-                                    )}
-                                    {op.platformEarns && (
-                                        <div className="flex justify-between border-t border-[var(--color-borde)] pt-2.5">
-                                            <span className="text-[var(--color-tenue)]">Comisión de la plataforma</span>
-                                            <span className="font-mono text-[var(--color-acento)]">
-                                                {money(op.platformEarns)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    )}
-
-                    {/* Historial de la negociación */}
-                    {op.negotiations.length > 0 && (
-                        <Reveal delay={80}>
-                            <Panel title="HISTORIAL DE OFERTAS">
-                                <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
-                                    {op.negotiations.map((n, i) => (
-                                        <div key={i} className="flex items-center justify-between py-2.5 text-[13px]">
-                                            <span className="text-[var(--color-tenue)]">
-                                                {n.proposedBy === 'buyer' ? 'Comprador' : 'Vendedor'}
-                                            </span>
-                                            <span className="font-mono">
-                                                {money({ cents: n.amount, currency: n.currency })}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </Panel>
-                        </Reveal>
-                    )}
-
-                    {/* Lo que le toca a quien mira, y lo demás que puede hacer */}
-                    <Reveal delay={160}>
+            <div className="flex flex-wrap items-start gap-6 md:gap-12">
+                <section aria-label="Tu acción" className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
+                    <Reveal>
                         <div className="flex flex-col gap-6">
                             {query.pago === 'no-disponible' && (
                                 <Alert tono="alerta">
@@ -643,12 +417,12 @@ export default async function DetalleOperacion(props: {
                             )}
 
                             {copy && step && (
-                                <NextStepCard
+                                <ActionCard
                                     copy={copy}
                                     meanwhile={step.kind === 'act' && !step.blocking ? formFor(step.id, false) : undefined}
                                 >
                                     {step.kind === 'act' && step.blocking ? formFor(step.id, true) : null}
-                                </NextStepCard>
+                                </ActionCard>
                             )}
 
                             {/*
@@ -700,10 +474,6 @@ export default async function DetalleOperacion(props: {
                                 />
                             )}
 
-                            {/*
-                                Si el vendedor declaró una cesión que no llegó, la operación
-                                vuelve a «contrato firmado» con el motivo a su vista.
-                            */}
                             {/* El comprador espera la revisión: sabe en qué está y puede sumar el ID COELSA. Si le toca pagar, la revisión ya está en el pago. */}
                             {op.miParte === 'buyer' && reviewed && !(step?.kind === 'act' && step.id === 'pay') && (
                                 <Panel title="REVISIÓN DEL COMPROBANTE">
@@ -714,6 +484,10 @@ export default async function DetalleOperacion(props: {
                                 </Panel>
                             )}
 
+                            {/*
+                                Si el vendedor declaró una cesión que no llegó, la operación
+                                vuelve a «contrato firmado» con el motivo a su vista.
+                            */}
                             {isAdmin && op.status === 'transfer_in_progress' && (
                                 <Panel title="SI LA CESIÓN NO LLEGÓ">
                                     <RejectTransferForm action={rejectTransferAction.bind(null, id)} />
@@ -782,7 +556,36 @@ export default async function DetalleOperacion(props: {
                                         <ReportForm action={fileReport.bind(null, id)} />
                                     </div>
                                 )}
+
+                            {/*
+                                Las constancias y el historial, plegados: respaldan lo que
+                                pasó, pero no son lo que quien mira tiene que hacer.
+                            */}
+                            {hasDetail && (
+                                <details className="border-t border-[var(--color-borde)] pt-5">
+                                    <summary className="flex min-h-11 cursor-pointer items-center text-[15px] text-[var(--color-tenue)]">
+                                        Detalle de la operación
+                                    </summary>
+                                    <div className="mt-4 flex flex-col gap-6">
+                                        <OperationRecords op={op} />
+                                    </div>
+                                </details>
+                            )}
                         </div>
+                    </Reveal>
+                </section>
+
+                <div className="w-full md:max-w-[420px] md:flex-[1_1_320px]">
+                    <Reveal delay={80}>
+                        <OperationSummary
+                            role={role}
+                            assetType={op.assetType}
+                            {...amounts}
+                            currentOffer={op.currentOfferPrice}
+                            receivingAccount={receivingAccount}
+                            contractHref={tripartito?.isFullySigned ? `/contratos/${tripartito.id}` : undefined}
+                            listingHref={`/listings/${op.listingId}`}
+                        />
                     </Reveal>
                 </div>
             </div>
@@ -790,7 +593,177 @@ export default async function DetalleOperacion(props: {
     );
 }
 
-/** Un ítem verificado de la constancia de custodia. */
+/**
+ * La acción de quien mira: qué le toca, con el formulario debajo, o a quién
+ * espera y hasta cuándo. Si hay algo que puede adelantar mientras espera, va
+ * aparte, para que no se confunda con lo que traba la operación.
+ */
+function ActionCard({ copy, children, meanwhile }: { copy: NextStepCopy; children?: ReactNode; meanwhile?: ReactNode }) {
+    return (
+        <div className="flex flex-col gap-[18px] rounded-[var(--radius-grande)] border border-[var(--color-borde-fuerte)] bg-[var(--color-superficie)] p-5 md:p-8">
+            <div className="flex flex-col gap-2.5">
+                <h2 className="text-[22px] font-bold leading-tight md:text-[26px]">{copy.title}</h2>
+                {copy.body && <p className="text-[15px] leading-relaxed text-[var(--color-tenue)] md:text-[16px]">{copy.body}</p>}
+                {copy.deadline && <p className="text-[14px] text-[var(--color-alerta)]">{copy.deadline}</p>}
+            </div>
+            {children}
+            {copy.meanwhile && (
+                <div className="flex flex-col gap-3 border-t border-[var(--color-borde-fuerte)] pt-4">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[15px] font-medium">{copy.meanwhile.title}</span>
+                        <span className="text-[13px] leading-relaxed text-[var(--color-tenue)]">{copy.meanwhile.body}</span>
+                    </div>
+                    {meanwhile}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Las constancias de la operación: la declaración de cesión del vendedor, la
+ * verificación de la custodia, la entrega y el historial de ofertas. Se
+ * muestran a las dos partes: son lo que explica por qué la operación avanzó.
+ */
+function OperationRecords({ op }: { op: OperationDetailDto }) {
+    return (
+        <>
+            {/*
+              * Cuando la cuenta que el vendedor declaró no es la que después
+              * verificó la plataforma, la diferencia se nombra: son dos copias
+              * congeladas en momentos distintos y compararlas es el único control
+              * que hay sobre ese tramo.
+              */}
+            {op.transferInitiation && (
+                <Panel title="DECLARACIÓN DE CESIÓN DEL VENDEDOR">
+                    <div className="flex flex-col gap-3 text-[14px]">
+                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                            Declarada el {fechaLarga(op.transferInitiation.declaredAt)}.
+                        </p>
+
+                        {op.transferInitiation.controlCeded && (
+                            <ul className="flex flex-col gap-1.5">
+                                <CheckedItem text="El vendedor declaró haber cedido el control del activo" />
+                            </ul>
+                        )}
+
+                        <div className="flex justify-between gap-3 border-t border-[var(--color-borde)] pt-3">
+                            <span className="text-[var(--color-tenue)]">Cuenta de custodia declarada</span>
+                            <span className="break-all font-mono text-[13px]">
+                                {op.transferInitiation.custodyAccountIdentifier ??
+                                    (op.transferInitiation.custodyAccountId ? 'cuenta dada de baja' : 'sin registrar')}
+                            </span>
+                        </div>
+
+                        {op.custody?.custodyAccountId &&
+                            op.transferInitiation.custodyAccountId &&
+                            op.custody.custodyAccountId !== op.transferInitiation.custodyAccountId && (
+                                <p className="rounded-[var(--radius-chico)] border border-[var(--color-alerta)]/50 bg-[var(--color-alerta)]/5 p-3 text-[13px] leading-relaxed">
+                                    La cuenta que verificamos al tomar la custodia
+                                    {op.custody.custodyAccountIdentifier ? (
+                                        <>
+                                            {' '}(<span className="font-mono">{op.custody.custodyAccountIdentifier}</span>){' '}
+                                        </>
+                                    ) : (
+                                        ' '
+                                    )}
+                                    no es la misma que estaba registrada cuando el vendedor declaró la cesión. El
+                                    acceso se volvió a registrar en el medio. Queda asentado acá; no impide que la
+                                    operación siga.
+                                </p>
+                            )}
+
+                        {op.transferInitiation.notes && (
+                            <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                {op.transferInitiation.notes}
+                            </p>
+                        )}
+                    </div>
+                </Panel>
+            )}
+
+            {/* La constancia se muestra a las dos partes: es lo que respalda pedirle el pago al comprador. */}
+            {op.custody && (
+                <Panel title="VERIFICACIÓN DE LA CUSTODIA">
+                    <div className="flex flex-col gap-3 text-[14px]">
+                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                            Verificada el {fechaLarga(op.custody.verifiedAt)}.
+                        </p>
+
+                        <ul className="flex flex-col gap-1.5">
+                            <CheckedItem text="La plataforma es propietaria principal del activo" />
+                            <CheckedItem text="Los accesos están asegurados" />
+                        </ul>
+
+                        <div className="flex justify-between gap-3 border-t border-[var(--color-borde)] pt-3">
+                            <span className="text-[var(--color-tenue)]">Cuenta de custodia verificada</span>
+                            <span className="break-all font-mono text-[13px]">
+                                {op.custody.custodyAccountIdentifier ??
+                                    (op.custody.custodyAccountId ? 'cuenta dada de baja' : 'sin registrar')}
+                            </span>
+                        </div>
+
+                        {Object.entries(op.custody.metrics).length > 0 && (
+                            <div className="flex flex-col gap-1.5 border-t border-[var(--color-borde)] pt-3">
+                                {Object.entries(op.custody.metrics).map(([name, value]) => (
+                                    <div key={name} className="flex justify-between">
+                                        <span className="text-[var(--color-tenue)]">{name}</span>
+                                        <span className="font-mono">{value.toLocaleString('es-AR')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {op.custody.notes && (
+                            <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                {op.custody.notes}
+                            </p>
+                        )}
+                    </div>
+                </Panel>
+            )}
+
+            {/* La constancia de entrega, simétrica a la de custodia. */}
+            {op.delivery && (
+                <Panel title="CONSTANCIA DE ENTREGA">
+                    <div className="flex flex-col gap-3 text-[14px]">
+                        <p className="text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                            Entregado el {fechaLarga(op.delivery.verifiedAt)} a{' '}
+                            <span className="font-mono">{op.delivery.deliveredToIdentifier}</span>.
+                        </p>
+                        <ul className="flex flex-col gap-1.5">
+                            <CheckedItem text="El comprador quedó como propietario principal" />
+                            <CheckedItem text="Se cedieron los accesos" />
+                            {op.delivery.sellerRemoved && <CheckedItem text="Se quitó al vendedor del activo" />}
+                        </ul>
+                        {op.delivery.notes && (
+                            <p className="border-t border-[var(--color-borde)] pt-3 text-[13px] leading-relaxed text-[var(--color-tenue)]">
+                                {op.delivery.notes}
+                            </p>
+                        )}
+                    </div>
+                </Panel>
+            )}
+
+            {op.negotiations.length > 0 && (
+                <Panel title="HISTORIAL DE OFERTAS">
+                    <div className="flex flex-col divide-y divide-[var(--color-borde-sutil)]">
+                        {op.negotiations.map((n, i) => (
+                            <div key={i} className="flex items-center justify-between py-2.5 text-[13px]">
+                                <span className="text-[var(--color-tenue)]">
+                                    {n.proposedBy === 'buyer' ? 'Comprador' : 'Vendedor'}
+                                </span>
+                                <span className="font-mono">{money({ cents: n.amount, currency: n.currency })}</span>
+                            </div>
+                        ))}
+                    </div>
+                </Panel>
+            )}
+        </>
+    );
+}
+
+/** Un ítem verificado de una constancia. */
 function CheckedItem({ text }: { text: string }) {
     return (
         <li className="flex items-start gap-2 text-[13px] leading-relaxed">

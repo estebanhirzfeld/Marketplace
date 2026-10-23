@@ -137,13 +137,30 @@ body {
   animation: latir 2.4s ease-in-out infinite;
 }
 
+/* La línea de etapas de una operación: cada etapa hecha se llena después de la
+   anterior (el retraso lo pone el componente) y la actual, además, late. */
+.etapa,
+.etapa-actual {
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: trazar-linea 0.7s var(--ease-salida) both;
+}
+
+.etapa-actual {
+  animation:
+    trazar-linea 0.7s var(--ease-salida) both,
+    latir 2.4s ease-in-out infinite;
+}
+
 /* Quien pidió menos movimiento recibe menos movimiento. */
 @media (prefers-reduced-motion: reduce) {
   [data-revelar],
   [data-revelar][data-visible],
   [data-trazo],
   [data-trazo][data-visible],
-  .late {
+  .late,
+  .etapa,
+  .etapa-actual {
     animation: none !important;
     opacity: 1;
     transform: none;

@@ -117,7 +117,7 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
             COMPRADOR,
         );
 
-        expect(t).toContain('TU PRÓXIMO PASO');
+        expect(t).not.toContain('TU PRÓXIMO PASO');
         expect(t).toContain('Aceptá el dominio en Hostinger');
         expect(t).toContain('Te mandamos la invitación a comprador@correo.com');
         expect(t).not.toContain('PASOS DEL TRASPASO');
@@ -142,8 +142,8 @@ describe('/operaciones/[id] — traspaso de un sitio', () => {
     it('un canal no muestra nada del traspaso de un sitio, ni siquiera al admin', async () => {
         const t = await pagina(unaOperacion({ assetType: 'youtube' }), ADMIN);
 
-        // La página se armó: el estado de la operación está, lo del sitio no.
-        expect(t).toContain('VERIFICANDO');
+        // La página se armó: las herramientas del admin están, lo del sitio no.
+        expect(t).toContain('SI LA CESIÓN NO LLEGÓ');
         expect(t).not.toContain('PASOS DEL TRASPASO');
         expect(t).not.toContain('Comprobar el dominio en Hostinger');
     });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { NextActionIdDto, NextStepDto, OperationNextDto } from '@marketplace/api-contract';
-import { nextStepCopy } from '@/lib/nextStepCopy';
+import { nextStepCopy, stageCopy, stageLabel } from '@/lib/nextStepCopy';
 
 /*
  * «Tu próximo paso» le dice a cada parte qué le toca o a quién espera, en sus
@@ -180,5 +180,26 @@ describe('nextStepCopy', () => {
         const text = JSON.stringify([nextStepCopy(n, 'seller', 'youtube'), nextStepCopy(n, 'buyer', 'youtube')]);
 
         expect(text).not.toMatch(/Hostinger|dominio/i);
+    });
+});
+
+describe('stageLabel', () => {
+    it('nombra cada etapa con una frase nominal, según lo que se vende', () => {
+        const keys = ['negotiation', 'contract', 'custody', 'payment', 'delivery', 'closing'] as const;
+
+        expect(keys.map((k) => stageLabel(k, 'youtube'))).toEqual([
+            'Precio acordado',
+            'Contrato firmado',
+            'Acceso cedido',
+            'Pago del canal',
+            'Entrega del canal',
+            'Cierre',
+        ]);
+        expect(stageLabel('payment', 'web')).toBe('Pago del sitio');
+        expect(stageLabel('delivery', 'web')).toBe('Entrega del sitio');
+    });
+
+    it('el texto de la línea de tiempo vertical no cambia', () => {
+        expect(stageCopy('custody')).toEqual({ title: 'Custodia', text: 'El vendedor nos cede el activo y verificamos que lo tenemos.' });
     });
 });
