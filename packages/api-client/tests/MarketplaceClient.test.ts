@@ -391,3 +391,20 @@ describe('MarketplaceClient — traspaso de un sitio (admin)', () => {
         expect(JSON.parse(String(llamadas[0][1]?.body))).toEqual({ notes: 'Vi el panel' });
     });
 });
+
+describe('MarketplaceClient — la entrega de un canal', () => {
+    it.each([
+        ['markBuyerInvited', '/admin/operations/op-1/delivery/invited'],
+        ['acceptInvitation', '/operations/op-1/delivery/invitation-accepted'],
+        ['makeBuyerOwner', '/admin/operations/op-1/delivery/owner'],
+        ['confirmAssetReceipt', '/operations/op-1/delivery/received'],
+    ] as const)('%s hace POST a %s', async (method, path) => {
+        const { impl, llamadas } = fetchQueDevuelve(204);
+        const client = new MarketplaceClient({ baseUrl: 'http://api.test', getToken: () => 't', fetchImpl: impl });
+
+        await client[method]('op-1');
+
+        expect(llamadas[0][0]).toBe(`http://api.test${path}`);
+        expect(llamadas[0][1]?.method).toBe('POST');
+    });
+});

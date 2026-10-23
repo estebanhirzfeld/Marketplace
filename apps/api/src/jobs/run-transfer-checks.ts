@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { createContainer } from '../container';
-import { runReceiptReviewsJob, runTransferChecksJob } from './transferChecksJob';
+import { runAssetReceiptsJob, runReceiptReviewsJob, runTransferChecksJob } from './transferChecksJob';
 
 /**
  * Entrypoint del job periódico del traspaso. Lo dispara
  * `infra/systemd/marketplace-transfer-checks.timer`; corre una vez y termina.
  * Además de los pasos que se comprueban solos, vence las revisiones de
- * comprobantes: la misma corrida horaria, sin otra unidad que mantener.
+ * comprobantes y da por recibidos los canales cuyo comprador no respondió en
+ * su plazo: la misma corrida horaria, sin otra unidad que mantener.
  */
 async function main() {
     const container = createContainer();
@@ -16,7 +17,8 @@ async function main() {
     };
     const steps = await runTransferChecksJob(container.runTransferStepChecks, log);
     const reviews = await runReceiptReviewsJob(container.expireReceiptReviews, log);
-    process.exit(Math.max(steps, reviews));
+    const receipts = await runAssetReceiptsJob(container.deemAssetReceived, log);
+    process.exit(Math.max(steps, reviews, receipts));
 }
 
 main();

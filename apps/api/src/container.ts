@@ -115,6 +115,13 @@ import {
     ResolveReceiptReviewUseCase,
     GetSellerStatementFileUseCase,
 } from '@marketplace/domain/src/use-cases/operation/ReceiptReviewUseCases';
+import {
+    AcceptInvitationUseCase,
+    ConfirmAssetReceiptUseCase,
+    DeemAssetReceivedUseCase,
+    MakeBuyerOwnerUseCase,
+    MarkBuyerInvitedUseCase,
+} from '@marketplace/domain/src/use-cases/operation/AssetDeliveryUseCases';
 import { DiskFileStorage } from './adapters/DiskFileStorage';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -283,6 +290,13 @@ export interface Container {
     resolveReceiptReview: ResolveReceiptReviewUseCase;
     expireReceiptReviews: ExpireReceiptReviewsUseCase;
     getSellerStatementFile: GetSellerStatementFileUseCase;
+    /** La entrega de un canal: invitación, aceptación, propiedad principal y recepción. */
+    markBuyerInvited: MarkBuyerInvitedUseCase;
+    acceptInvitation: AcceptInvitationUseCase;
+    makeBuyerOwner: MakeBuyerOwnerUseCase;
+    confirmAssetReceipt: ConfirmAssetReceiptUseCase;
+    /** La corrida horaria que da por recibido un canal al vencer el plazo del comprador. */
+    deemAssetReceived: DeemAssetReceivedUseCase;
     /** Ausentes sin registrador: ver `domainRegistrar`. */
     startDomainDelivery?: StartDomainDeliveryUseCase;
     checkDomainDelivery?: CheckDomainDeliveryUseCase;
@@ -536,6 +550,11 @@ export function createContainer(
         resolveReceiptReview: new ResolveReceiptReviewUseCase(operationRepo, avisos),
         expireReceiptReviews: new ExpireReceiptReviewsUseCase(operationRepo, avisos),
         getSellerStatementFile: new GetSellerStatementFileUseCase(operationRepo, fileStorage),
+        markBuyerInvited: new MarkBuyerInvitedUseCase(operationRepo, listingRepo, avisos),
+        acceptInvitation: new AcceptInvitationUseCase(operationRepo),
+        makeBuyerOwner: new MakeBuyerOwnerUseCase(operationRepo, avisos),
+        confirmAssetReceipt: new ConfirmAssetReceiptUseCase(operationRepo, avisos),
+        deemAssetReceived: new DeemAssetReceivedUseCase(operationRepo, reportRepo, avisos),
         declareSellerBankAccount: new DeclareSellerBankAccountUseCase(bankAccountRepo, userRepo),
         getSellerBankAccounts: new GetSellerBankAccountsUseCase(bankAccountRepo),
         sellerPaymentAccounts: paymentAccountRepo,

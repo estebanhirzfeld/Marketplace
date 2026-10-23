@@ -78,6 +78,23 @@ describe('el comprador de un canal tiene sus pasos', () => {
 
         expect(buyer).toEqual(['buyer-pays', 'buyer-accepts', 'buyer-secures-access']);
     });
+
+    it('la entrega: la plataforma invita, el comprador acepta, la plataforma lo hace propietario y el comprador confirma', () => {
+        const [, youtube] = STRATEGIES[0];
+        const delivery = youtube.getTransferSteps().filter((s) => s.stage === 'delivery');
+
+        expect(delivery.map((s) => [s.key, s.requiredActor])).toEqual([
+            ['invite-buyer', 'platform'],
+            ['buyer-accepts', 'buyer'],
+            ['make-buyer-owner', 'platform'],
+            ['buyer-secures-access', 'buyer'],
+        ]);
+        const receipt = delivery[3];
+        expect(receipt.title).toBe('Confirmá la recepción');
+        expect(receipt.instruction).toBe(
+            'Comprobá que sos propietario principal, que el vendedor ya no figura en los permisos y que los mails y teléfonos de recuperación son tuyos.',
+        );
+    });
 });
 
 /*

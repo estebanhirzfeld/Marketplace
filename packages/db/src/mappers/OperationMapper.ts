@@ -466,7 +466,7 @@ function serializeTransferRejection(r?: TransferRejection) {
     return { reason: r.reason, rejectedBy: r.rejectedBy.toString(), rejectedAt: r.rejectedAt.toISOString() };
 }
 
-const MILESTONE_KEYS = ["signedAt", "deliveredAt"] as const;
+const MILESTONE_KEYS = ["signedAt", "buyerInvitedAt", "invitationAcceptedAt", "deliveredAt", "receivedAt"] as const;
 
 /** Lee la columna `milestones`. Una fila anterior a la columna no tiene hitos. */
 function parseMilestones(raw: unknown): StoredMilestones | undefined {
@@ -484,6 +484,13 @@ function parseMilestones(raw: unknown): StoredMilestones | undefined {
         }
         out[key] = new Date(value);
     }
+    const bySilence = m.receivedBySilence;
+    if (bySilence !== undefined && bySilence !== null) {
+        if (typeof bySilence !== "boolean") {
+            throw new Error("Columna `milestones` corrupta: `receivedBySilence` no es un booleano.");
+        }
+        out.receivedBySilence = bySilence;
+    }
     return out;
 }
 
@@ -493,11 +500,12 @@ function parseMilestones(raw: unknown): StoredMilestones | undefined {
  */
 function serializeMilestones(m?: StoredMilestones) {
     if (!m) return undefined;
-    const out: Record<string, string> = {};
+    const out: Record<string, string | boolean> = {};
     for (const key of MILESTONE_KEYS) {
         const value = m[key];
         if (value) out[key] = value.toISOString();
     }
+    if (m.receivedBySilence !== undefined) out.receivedBySilence = m.receivedBySilence;
     return out;
 }
 

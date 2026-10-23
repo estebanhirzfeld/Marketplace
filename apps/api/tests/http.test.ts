@@ -4328,3 +4328,115 @@ describe('/operations/:id/receipts', () => {
         expect(res.json().message).toBe('Solo se puede solicitar la revisión de un comprobante rechazado.');
     });
 });
+
+// ═════════════════════════════════════════════════════════
+// Entrega de un canal
+// ═════════════════════════════════════════════════════════
+
+describe('La entrega de un canal sobre HTTP', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    /** Un canal pagado con la cuenta del comprador declarada; `aceptadaHace` días si ya aceptó la invitación. */
+    async function pagada(aceptadaHace?: number) {
+        const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+        const buyerEmail = `buyer-entrega-${stamp}@test.com`;
+        const sellerEmail = `seller-entrega-${stamp}@test.com`;
+        const adminEmail = `admin-entrega-${stamp}@test.com`;
+        const buyer = await crearUsuario(buyerEmail, UserRole.BUYER);
+        const seller = await crearUsuario(sellerEmail, UserRole.SELLER);
+        const admin = await crearUsuario(adminEmail, UserRole.ADMIN);
+        const listing = await crearListingPublicado(seller.id);
+        const operation = Operation.create({
+            listingId: listing.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            offerPrice: Money.fromCents(1500000, 'USD'),
+        });
+        operation.acceptCurrentOffer('seller');
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: seller.id, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: admin.id, isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        operation.confirmBuyerPayment({
+            provider: 'transferencia',
+            method: 'transferencia_bancaria',
+            amountCents: operation.buyerPays!.getCents(),
+            currency: operation.buyerPays!.getCurrency(),
+        });
+        operation.declareRecipientIdentity('comprador@gmail.com', buyer.id.toString());
+        if (aceptadaHace !== undefined) {
+            const acceptedAt = new Date(Date.now() - aceptadaHace * DAY);
+            operation.markBuyerInvited(new Date(acceptedAt.getTime() - DAY));
+            operation.acceptInvitation(buyer.id.toString(), acceptedAt);
+        }
+        await new PrismaOperationRepository().save(operation);
+        return { id: operation.id.toString(), buyerEmail, sellerEmail, adminEmail };
+    }
+
+    async function como(email: string, method: 'POST' | 'GET', url: string) {
+        return app.inject({ method, url, headers: { authorization: `Bearer ${await tokenDe(email)}` } });
+    }
+
+    it('la invitación y su aceptación: cada una la hace quien corresponde, y el detalle lo muestra', async () => {
+        const { id, buyerEmail, sellerEmail, adminEmail } = await pagada();
+
+        expect((await como(buyerEmail, 'GET', `/operations/${id}`)).json().next.byRole.platform).toMatchObject({ kind: 'act', id: 'invite_buyer' });
+
+        expect((await como(buyerEmail, 'POST', `/admin/operations/${id}/delivery/invited`)).statusCode).toBe(403);
+        expect((await como(adminEmail, 'POST', `/admin/operations/${id}/delivery/invited`)).statusCode).toBe(204);
+        const repetida = await como(adminEmail, 'POST', `/admin/operations/${id}/delivery/invited`);
+        expect(repetida.statusCode).toBe(409);
+        expect(repetida.json().message).toBe('El comprador ya está invitado.');
+
+        const invitada = (await como(buyerEmail, 'GET', `/operations/${id}`)).json();
+        expect(invitada.next.byRole.buyer).toMatchObject({ kind: 'act', id: 'accept_invitation' });
+        expect(invitada.assetDelivery).toEqual({ buyerInvitedAt: expect.any(String), receivedBySilence: false });
+
+        expect((await como(sellerEmail, 'POST', `/operations/${id}/delivery/invitation-accepted`)).statusCode).toBe(403);
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/delivery/invitation-accepted`)).statusCode).toBe(204);
+
+        const aceptada = (await como(buyerEmail, 'GET', `/operations/${id}`)).json();
+        const acceptedAt = new Date(aceptada.assetDelivery.invitationAcceptedAt).getTime();
+        expect(new Date(aceptada.assetDelivery.ownerFrom).getTime()).toBe(acceptedAt + 7 * DAY);
+        expect(aceptada.next.byRole.buyer).toMatchObject({ kind: 'wait', waitingOn: ['platform'], deadline: aceptada.assetDelivery.ownerFrom });
+
+        // Antes de los 7 días, Google no lo permite.
+        const antes = await como(adminEmail, 'POST', `/admin/operations/${id}/delivery/owner`);
+        expect(antes.statusCode).toBe(409);
+        expect(antes.json().message).toMatch(/^Google permite hacer propietario principal al comprador desde el /);
+
+        const notificaciones = await prisma.notification.findMany({ where: { operationId: id } });
+        expect(notificaciones.map((n) => n.type)).toEqual(['invitacion_enviada']);
+    });
+
+    it('cumplidos los 7 días, la plataforma lo hace propietario y el comprador confirma la recepción', async () => {
+        const { id, buyerEmail, sellerEmail, adminEmail } = await pagada(8);
+
+        expect((await como(buyerEmail, 'POST', `/admin/operations/${id}/delivery/owner`)).statusCode).toBe(403);
+        expect((await como(adminEmail, 'POST', `/admin/operations/${id}/delivery/owner`)).statusCode).toBe(204);
+
+        const entregada = (await como(buyerEmail, 'GET', `/operations/${id}`)).json();
+        const deliveredAt = new Date(entregada.assetDelivery.deliveredAt).getTime();
+        expect(new Date(entregada.assetDelivery.receiptDeadline).getTime()).toBe(deliveredAt + 3 * DAY);
+        expect(entregada.next.byRole.buyer).toMatchObject({ kind: 'act', id: 'confirm_receipt', deadline: entregada.assetDelivery.receiptDeadline });
+
+        expect((await como(sellerEmail, 'POST', `/operations/${id}/delivery/received`)).statusCode).toBe(403);
+        expect((await como(buyerEmail, 'POST', `/operations/${id}/delivery/received`)).statusCode).toBe(204);
+
+        const recibida = (await como(adminEmail, 'GET', `/operations/${id}`)).json();
+        expect(recibida.assetDelivery).toMatchObject({ receivedAt: expect.any(String), receivedBySilence: false });
+        expect(recibida.next.byRole.platform).toMatchObject({ kind: 'act', id: 'complete_operation' });
+        expect(recibida.status).toBe('payment_received');
+
+        const tipos = (await prisma.notification.findMany({ where: { operationId: id } })).map((n) => n.type).sort();
+        expect(tipos).toEqual(['activo_recibido', 'activo_recibido', 'recepcion_pendiente']);
+    });
+
+    it('confirmar la recepción sin ser propietario principal es 409', async () => {
+        const { id, buyerEmail } = await pagada(1);
+
+        const res = await como(buyerEmail, 'POST', `/operations/${id}/delivery/received`);
+
+        expect(res.statusCode).toBe(409);
+        expect(res.json().message).toBe('Todavía no sos propietario principal del canal.');
+    });
+});

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createContainer } from '../src/container';
-import { runReceiptReviewsJob, runTransferChecksJob } from '../src/jobs/transferChecksJob';
+import { runAssetReceiptsJob, runReceiptReviewsJob, runTransferChecksJob } from '../src/jobs/transferChecksJob';
 import { RunTransferStepChecksUseCase } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import type { TransferStepChecksSummary } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 
@@ -100,5 +100,35 @@ describe('runReceiptReviewsJob', () => {
 
     it('el contenedor lo arma', () => {
         expect(createContainer().expireReceiptReviews).toBeDefined();
+    });
+});
+
+describe('runAssetReceiptsJob', () => {
+    it('registra cuántos canales se dieron por recibidos y cuántos frenó un reclamo, y sale con 0', async () => {
+        const { info, log } = aLog();
+        const useCase = { execute: vi.fn(async () => ({ deemed: 2, frozen: 1, failed: 0 })) };
+
+        expect(await runAssetReceiptsJob(useCase, log)).toBe(0);
+        expect(info.map((l) => JSON.parse(l))).toEqual([{ job: 'asset-receipts', deemed: 2, frozen: 1, failed: 0 }]);
+    });
+
+    it('con alguna operación fallida sale con 1, con el resumen igual en el log', async () => {
+        const { info, log } = aLog();
+        const useCase = { execute: vi.fn(async () => ({ deemed: 1, frozen: 0, failed: 1 })) };
+
+        expect(await runAssetReceiptsJob(useCase, log)).toBe(1);
+        expect(JSON.parse(info[0])).toEqual({ job: 'asset-receipts', deemed: 1, frozen: 0, failed: 1 });
+    });
+
+    it('si la corrida entera se cae, lo registra y sale con 1', async () => {
+        const { error, log } = aLog();
+        const useCase = { execute: vi.fn(async () => { throw new Error('sin base'); }) };
+
+        expect(await runAssetReceiptsJob(useCase, log)).toBe(1);
+        expect(JSON.parse(error[0])).toEqual({ job: 'asset-receipts', error: 'sin base' });
+    });
+
+    it('el contenedor lo arma', () => {
+        expect(createContainer().deemAssetReceived).toBeDefined();
     });
 });

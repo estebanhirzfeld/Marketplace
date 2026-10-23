@@ -394,8 +394,91 @@ describe('NextActions — entrega y cierre', () => {
         expect(byRole.platform).toMatchObject({ kind: 'act', id: 'complete_operation' });
     });
 
-    it('un canal pagado: la plataforma entrega', () => {
-        const { byRole, turn } = nextActions(input({ status: 'payment_received', assetType: 'youtube', recipientDeclared: true }));
+    describe('un canal pagado, paso a paso', () => {
+        const DAY = 24 * 60 * 60 * 1000;
+        const INVITED = new Date('2026-10-28T13:00:00Z');
+        const ACCEPTED = new Date('2026-10-29T12:00:00Z');
+        const OWNER_FROM = new Date(ACCEPTED.getTime() + 7 * DAY);
+        const DELIVERED = new Date(OWNER_FROM.getTime() + 60 * 60 * 1000);
+        const channel = (milestones: NextActionsInput['milestones'], now?: Date) =>
+            nextActions(
+                input({
+                    status: 'payment_received',
+                    assetType: 'youtube',
+                    recipientDeclared: true,
+                    milestones: { signedAt: SIGNED, custodyAt: CUSTODY, paidAt: PAID, ...milestones },
+                    now,
+                }),
+            );
+
+        it('sin la cuenta declarada, primero la declara el comprador', () => {
+            const { byRole, turn } = nextActions(input({ status: 'payment_received', assetType: 'youtube' }));
+
+            expect(turn).toEqual(['buyer']);
+            expect(byRole.buyer).toMatchObject({ kind: 'act', id: 'declare_recipient' });
+        });
+
+        it('la plataforma invita al comprador', () => {
+            const { byRole, turn } = channel({});
+
+            expect(turn).toEqual(['platform']);
+            expect(byRole.platform).toEqual({ kind: 'act', id: 'invite_buyer', blocking: true });
+            expect(byRole.buyer).toEqual({ kind: 'wait', waitingOn: ['platform'] });
+        });
+
+        it('invitado, el comprador acepta la invitación', () => {
+            const { byRole, turn } = channel({ buyerInvitedAt: INVITED });
+
+            expect(turn).toEqual(['buyer']);
+            expect(byRole.buyer).toEqual({ kind: 'act', id: 'accept_invitation', blocking: true });
+        });
+
+        it('aceptada, todos esperan los 7 días de Google, hasta la fecha', () => {
+            const { byRole, turn } = channel({ buyerInvitedAt: INVITED, invitationAcceptedAt: ACCEPTED }, new Date(OWNER_FROM.getTime() - 1));
+
+            expect(turn).toEqual([]);
+            for (const role of ROLES) expect(byRole[role]).toEqual({ kind: 'wait', waitingOn: ['platform'], deadline: OWNER_FROM });
+        });
+
+        it('cumplidos los 7 días, la plataforma lo hace propietario principal', () => {
+            const { byRole, turn } = channel({ buyerInvitedAt: INVITED, invitationAcceptedAt: ACCEPTED }, OWNER_FROM);
+
+            expect(turn).toEqual(['platform']);
+            expect(byRole.platform).toEqual({ kind: 'act', id: 'make_buyer_owner', blocking: true });
+        });
+
+        it('entregado, el comprador confirma la recepción en sus 3 días', () => {
+            const deadline = new Date(DELIVERED.getTime() + 3 * DAY);
+            const { byRole, turn } = channel({ buyerInvitedAt: INVITED, invitationAcceptedAt: ACCEPTED, deliveredAt: DELIVERED });
+
+            expect(turn).toEqual(['buyer']);
+            expect(byRole.buyer).toEqual({ kind: 'act', id: 'confirm_receipt', blocking: true, deadline });
+            expect(byRole.seller).toEqual({ kind: 'wait', waitingOn: ['buyer'], deadline });
+        });
+
+        it('recibido, la plataforma cierra', () => {
+            const { byRole, turn } = channel({
+                buyerInvitedAt: INVITED,
+                invitationAcceptedAt: ACCEPTED,
+                deliveredAt: DELIVERED,
+                receivedAt: new Date(DELIVERED.getTime() + DAY),
+            });
+
+            expect(turn).toEqual(['platform']);
+            expect(byRole.platform).toMatchObject({ kind: 'act', id: 'complete_operation' });
+        });
+
+        it('la entrega queda en la línea de tiempo con su fecha', () => {
+            const { timeline } = channel({ buyerInvitedAt: INVITED, invitationAcceptedAt: ACCEPTED, deliveredAt: DELIVERED });
+
+            expect(timeline.find((t) => t.key === 'delivery')).toEqual({ key: 'delivery', state: 'current' });
+        });
+    });
+
+    it('un sitio pagado sigue con la entrega del dominio aunque tenga hitos de canal', () => {
+        const { byRole, turn } = nextActions(
+            input({ status: 'payment_received', recipientDeclared: true, milestones: { buyerInvitedAt: new Date('2026-10-28T13:00:00Z') } }),
+        );
 
         expect(turn).toEqual(['platform']);
         expect(byRole.platform).toMatchObject({ kind: 'act', id: 'deliver_asset' });

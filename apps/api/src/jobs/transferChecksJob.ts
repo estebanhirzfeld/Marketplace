@@ -3,6 +3,7 @@ import type {
     TransferStepChecksSummary,
 } from '@marketplace/domain/src/use-cases/operation/RunTransferStepChecksUseCase';
 import type { ExpireReceiptReviewsUseCase } from '@marketplace/domain/src/use-cases/operation/ReceiptReviewUseCases';
+import type { DeemAssetReceivedUseCase } from '@marketplace/domain/src/use-cases/operation/AssetDeliveryUseCases';
 
 export interface JobLog {
     info(line: string): void;
@@ -48,6 +49,22 @@ export async function runReceiptReviewsJob(useCase: Pick<ExpireReceiptReviewsUse
         return 0;
     } catch (error) {
         log.error(JSON.stringify({ job: 'receipt-reviews', error: error instanceof Error ? error.message : String(error) }));
+        return 1;
+    }
+}
+
+/**
+ * Una corrida de las recepciones vencidas: los canales dados por recibidos y
+ * los frenados por un reclamo. Sale con 1 si alguna operación falló, para que
+ * systemd lo marque; las demás se procesaron igual.
+ */
+export async function runAssetReceiptsJob(useCase: Pick<DeemAssetReceivedUseCase, 'execute'>, log: JobLog): Promise<number> {
+    try {
+        const summary = await useCase.execute();
+        log.info(JSON.stringify({ job: 'asset-receipts', ...summary }));
+        return summary.failed > 0 ? 1 : 0;
+    } catch (error) {
+        log.error(JSON.stringify({ job: 'asset-receipts', error: error instanceof Error ? error.message : String(error) }));
         return 1;
     }
 }

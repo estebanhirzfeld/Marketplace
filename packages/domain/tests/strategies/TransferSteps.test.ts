@@ -132,7 +132,7 @@ describe('YouTubeStrategy.getTransferSteps: avisos de la prueba real', () => {
     it('los id siguen siendo correlativos con el paso nuevo', () => {
         const pasos = youtube().getTransferSteps();
 
-        expect(pasos).toHaveLength(12);
+        expect(pasos).toHaveLength(13);
         expect(pasos.map((p) => p.id)).toEqual(pasos.map((_, i) => String(i + 1)));
     });
 });

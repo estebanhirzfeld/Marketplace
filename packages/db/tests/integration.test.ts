@@ -1142,6 +1142,78 @@ describe("PrismaOperationRepository — hitos", () => {
         expect(retrieved!.milestones.signedAt).toEqual(at);
     });
 
+    it("guarda los hitos de la entrega de un canal y si la recepción fue por silencio", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-entrega");
+        const { buyerId, sellerId } = operation.toSnapshot().props;
+        const admin = await createPersistedUser({ email: "admin-hito-entrega@test.com", role: UserRole.ADMIN });
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: sellerId, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: admin.id, isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        operation.confirmBuyerPayment({
+            provider: "transferencia",
+            method: "transferencia_bancaria",
+            amountCents: operation.buyerPays!.getCents(),
+            currency: operation.buyerPays!.getCurrency(),
+        });
+        operation.declareRecipientIdentity("comprador@gmail.com", buyerId.toString());
+        const invited = new Date("2026-10-28T12:00:00.000Z");
+        const accepted = new Date("2026-10-29T12:00:00.000Z");
+        const delivered = new Date("2026-11-05T13:00:00.000Z");
+        const deemed = new Date("2026-11-08T13:00:00.000Z");
+        operation.markBuyerInvited(invited);
+        operation.acceptInvitation(buyerId.toString(), accepted);
+        operation.makeBuyerOwner(delivered);
+        operation.deemAssetReceived(deemed);
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved!.milestones).toMatchObject({
+            buyerInvitedAt: invited,
+            invitationAcceptedAt: accepted,
+            deliveredAt: delivered,
+            receivedAt: deemed,
+        });
+        expect(retrieved!.receivedBySilence).toBe(true);
+    });
+
+    it("una recepción confirmada por el comprador no queda como silencio", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-recibido");
+        const { buyerId, sellerId } = operation.toSnapshot().props;
+        const admin = await createPersistedUser({ email: "admin-hito-recibido@test.com", role: UserRole.ADMIN });
+        operation.signContract();
+        operation.initiateTransfer({ declaredBy: sellerId, controlCeded: true });
+        operation.confirmAssetCustody({ verifiedBy: admin.id, isPrimaryOwner: true, accessSecured: true, metrics: {} });
+        operation.confirmBuyerPayment({
+            provider: "transferencia",
+            method: "transferencia_bancaria",
+            amountCents: operation.buyerPays!.getCents(),
+            currency: operation.buyerPays!.getCurrency(),
+        });
+        operation.declareRecipientIdentity("comprador@gmail.com", buyerId.toString());
+        operation.markBuyerInvited(new Date("2026-10-28T12:00:00.000Z"));
+        operation.acceptInvitation(buyerId.toString(), new Date("2026-10-29T12:00:00.000Z"));
+        operation.makeBuyerOwner(new Date("2026-11-05T13:00:00.000Z"));
+        operation.confirmAssetReceipt(buyerId.toString(), new Date("2026-11-06T13:00:00.000Z"));
+
+        await operationRepo.save(operation);
+        const retrieved = await operationRepo.findById(operation.id.toString());
+
+        expect(retrieved!.milestones.receivedAt).toEqual(new Date("2026-11-06T13:00:00.000Z"));
+        expect(retrieved!.receivedBySilence).toBe(false);
+    });
+
+    it("rechaza un `receivedBySilence` que no es un booleano", async () => {
+        const operation = await unaOperacionPendienteDeFirma("hito-silencio-cor");
+        await operationRepo.save(operation);
+        await prisma.operation.update({
+            where: { id: operation.id.toString() },
+            data: { milestones: { receivedBySilence: "sí" } },
+        });
+
+        await expect(operationRepo.findById(operation.id.toString())).rejects.toThrow(/corrupta/);
+    });
+
     it("una operación sin hitos se lee sin hitos y guardarla de nuevo no los inventa", async () => {
         const operation = await unaOperacionPendienteDeFirma("hito-sin");
 

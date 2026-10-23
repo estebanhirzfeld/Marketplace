@@ -789,6 +789,10 @@ export type NextActionIdDto =
     | 'resolve_receipt_review'
     | 'deliver_asset'
     | 'accept_delivery'
+    | 'invite_buyer'
+    | 'accept_invitation'
+    | 'make_buyer_owner'
+    | 'confirm_receipt'
     | 'complete_operation';
 
 /**
@@ -859,6 +863,8 @@ export interface OperationDetailDto {
     recipientIdentity?: RecipientIdentityDto;
     /** Constancia de entrega, una vez cerrada la operación. */
     delivery?: DeliveryVerificationDto;
+    /** La entrega de un canal, desde que la plataforma invitó al comprador. */
+    assetDelivery?: AssetDeliveryDto;
     /** La declaración del vendedor de haber cedido el control del activo. */
     transferInitiation?: TransferInitiationDto;
     /** Presente mientras la última declaración de cesión esté rechazada. */
@@ -888,6 +894,22 @@ export interface StepProgressDto {
     /** ISO. Hasta cuándo vale la invitación de Hostinger, si el paso tiene una. */
     deadlineAt?: string;
     attested: boolean;
+}
+
+/**
+ * La entrega de un canal, en fechas ISO: la invitación, su aceptación, desde
+ * cuándo se lo puede hacer propietario principal, la entrega, el plazo para
+ * confirmar la recepción y la recepción.
+ */
+export interface AssetDeliveryDto {
+    buyerInvitedAt?: string;
+    invitationAcceptedAt?: string;
+    ownerFrom?: string;
+    deliveredAt?: string;
+    receiptDeadline?: string;
+    receivedAt?: string;
+    /** La recepción se dio por confirmada al vencer el plazo, sin respuesta del comprador. */
+    receivedBySilence: boolean;
 }
 
 /** Dónde el comprador quiere recibir el activo. */
@@ -1281,7 +1303,10 @@ export type NotificationTypeDto =
     /** A las dos partes: la plataforma resolvió la revisión del pago. */
     | 'revision_resuelta'
     /** Al comprador: su comprobante pasó a la revisión de la plataforma. */
-    | 'revision_en_curso';
+    | 'revision_en_curso'
+    | 'invitacion_enviada'
+    | 'recepcion_pendiente'
+    | 'activo_recibido';
 
 /**
  * El texto no viaja: el cliente lo redacta a partir del tipo. Así se cambia

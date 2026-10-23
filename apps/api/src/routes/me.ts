@@ -571,7 +571,7 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
         { preHandler: [authenticate] },
         async (request, reply) => {
             const vista = await c.detalleOperacion.execute(request.params.id, actorOf(request));
-            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, stepProgress, custodyAccountNames, next } = vista;
+            const { operation, asset, miParte, contratos, buyer, seller, handoverSteps, stepProgress, custodyAccountNames, next, assetDelivery } = vista;
             const { id, createdAt, props } = operation.toSnapshot();
 
             const dinero = (m?: { getCents(): number; getCurrency(): string }) =>
@@ -625,6 +625,15 @@ export function registerMeRoutes(app: FastifyInstance, c: Container): void {
                     ...operation.deliveryCheck,
                     verifiedBy: operation.deliveryCheck.verifiedBy.toString(),
                     verifiedAt: operation.deliveryCheck.verifiedAt.toISOString(),
+                },
+                assetDelivery: assetDelivery && {
+                    buyerInvitedAt: assetDelivery.buyerInvitedAt?.toISOString(),
+                    invitationAcceptedAt: assetDelivery.invitationAcceptedAt?.toISOString(),
+                    ownerFrom: assetDelivery.ownerFrom?.toISOString(),
+                    deliveredAt: assetDelivery.deliveredAt?.toISOString(),
+                    receiptDeadline: assetDelivery.receiptDeadline?.toISOString(),
+                    receivedAt: assetDelivery.receivedAt?.toISOString(),
+                    receivedBySilence: assetDelivery.receivedBySilence,
                 },
                 // declaredBy no viaja al DTO a propósito: asimetría
                 // documentada respecto de CustodyVerificationDto.verifiedBy.

@@ -67,6 +67,14 @@ function doing(id: NextActionIdDto, kind: AssetKind): string {
             return kind === 'web' ? 'entregarle el dominio al comprador' : 'entregarle el canal al comprador';
         case 'accept_delivery':
             return 'aceptar el dominio desde el mail de Hostinger';
+        case 'invite_buyer':
+            return 'invitar al comprador al canal';
+        case 'accept_invitation':
+            return 'aceptar la invitación al canal';
+        case 'make_buyer_owner':
+            return 'hacer propietario principal al comprador';
+        case 'confirm_receipt':
+            return 'confirmar que recibió el canal';
         case 'complete_operation':
             return 'cerrar la operación';
     }
@@ -179,6 +187,26 @@ function actCopy(id: NextActionIdDto, kind: AssetKind): { title: string; body: s
             return {
                 title: 'Aceptá el dominio en Hostinger',
                 body: 'Te mandamos la invitación a tu cuenta de Hostinger. Aceptala desde el mail que te llegó.',
+            };
+        case 'invite_buyer':
+            return {
+                title: 'Invitá al comprador al canal',
+                body: 'Agregalo como administrador de la cuenta de marca, al mail que declaró.',
+            };
+        case 'accept_invitation':
+            return {
+                title: 'Aceptá la invitación al canal',
+                body: 'La enviamos al mail que declaraste. Luego de aceptarla, serás propietario principal en 7 días.',
+            };
+        case 'make_buyer_owner':
+            return {
+                title: 'Hacé propietario principal al comprador',
+                body: 'Ya pasaron los 7 días que exige Google desde que aceptó la invitación.',
+            };
+        case 'confirm_receipt':
+            return {
+                title: 'Confirmá que recibiste el canal',
+                body: 'Si no respondés antes del plazo, se dará por recibido.',
             };
         case 'complete_operation':
             return {

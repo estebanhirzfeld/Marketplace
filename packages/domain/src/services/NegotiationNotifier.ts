@@ -279,6 +279,38 @@ export class NegotiationNotifier {
         ]);
     }
 
+    /** Al comprador de un canal: lo invitamos a la cuenta de marca y le toca aceptar. */
+    async buyerInvited(operation: Operation): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'invitacion_enviada',
+                operationId: operation.id,
+                listingId: props.listingId,
+            }),
+        ]);
+    }
+
+    /** Al comprador: ya es propietario principal y tiene hasta `deadline` para confirmar la recepción. */
+    async buyerMadeOwner(operation: Operation, deadline: Date): Promise<void> {
+        const { props } = operation.toSnapshot();
+        await this.enviar([
+            Notification.create({
+                userId: props.buyerId,
+                type: 'recepcion_pendiente',
+                operationId: operation.id,
+                listingId: props.listingId,
+                occursAt: deadline,
+            }),
+        ]);
+    }
+
+    /** A las dos partes: la recepción quedó confirmada, por el comprador o por su silencio. */
+    async assetReceived(operation: Operation): Promise<void> {
+        await this.toBothParties(operation, 'activo_recibido');
+    }
+
     async operationCompleted(operation: Operation): Promise<void> {
         await this.toBothParties(operation, 'operacion_completada');
     }

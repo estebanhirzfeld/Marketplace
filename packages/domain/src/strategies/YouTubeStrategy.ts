@@ -468,19 +468,30 @@ export class YouTubeStrategy implements IAssetStrategy {
       {
         stage: 'delivery',
         gate: 'receipt',
-        description: 'El comprador acepta la invitación e inicia su propia espera de 7 días',
+        description: 'El comprador acepta la invitación; desde ahí corren los 7 días que exige Google',
         title: 'Aceptá la invitación al canal',
-        instruction: 'Aceptá la invitación que te llega por mail a la cuenta de Google que nos indicaste: desde ahí corren tus 7 días.',
+        instruction: 'Aceptá la invitación que recibirás por mail en la cuenta de Google que declaraste.',
         requiredActor: 'buyer',
         key: 'buyer-accepts',
         check: 'declared',
       },
       {
+        // Es la entrega: ancla el plazo del comprador para confirmar la recepción.
         stage: 'delivery',
         gate: 'receipt',
-        description: 'El comprador se convierte en propietario principal y asegura sus accesos (correos, teléfonos, AdSense)',
-        title: 'Asegurá tus accesos',
-        instruction: 'Cuando seas propietario principal, cambiá los correos y teléfonos de recuperación y vinculá tu cuenta de AdSense.',
+        description: 'Cumplidos los 7 días desde la aceptación, la plataforma hace propietario principal al comprador',
+        requiredActor: 'platform',
+        key: 'make-buyer-owner',
+        check: 'admin',
+      },
+      {
+        // La clave es la de antes («asegurá tus accesos»): puede haber progreso
+        // guardado con ella, y asegurar los accesos es parte de lo que se confirma.
+        stage: 'delivery',
+        gate: 'receipt',
+        description: 'El comprador confirma la recepción: es propietario principal, el vendedor ya no figura en los permisos y los accesos de recuperación son suyos',
+        title: 'Confirmá la recepción',
+        instruction: 'Comprobá que sos propietario principal, que el vendedor ya no figura en los permisos y que los mails y teléfonos de recuperación son tuyos.',
         requiredActor: 'buyer',
         key: 'buyer-secures-access',
         check: 'declared',

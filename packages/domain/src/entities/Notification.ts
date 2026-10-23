@@ -66,7 +66,13 @@ export type NotificationType =
     /** A las dos partes: la plataforma resolvió la revisión del pago. */
     | 'revision_resuelta'
     /** Al comprador: su comprobante pasó a la revisión de la plataforma. */
-    | 'revision_en_curso';
+    | 'revision_en_curso'
+    /** Al comprador de un canal: la plataforma lo invitó a la cuenta de marca; tiene que aceptar la invitación. */
+    | 'invitacion_enviada'
+    /** Al comprador de un canal: ya es propietario principal; `occursAt` es su plazo para confirmar la recepción. */
+    | 'recepcion_pendiente'
+    /** A las dos partes: el comprador confirmó la recepción del canal, o se dio por recibida al vencer su plazo. */
+    | 'activo_recibido';
 
 export interface NotificationProps {
     /** A quién se le avisa. */

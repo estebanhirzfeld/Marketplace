@@ -274,6 +274,47 @@ export function registerOperationRoutes(app: FastifyInstance, c: Container): voi
     );
 
     /*
+     * La entrega de un canal: la plataforma invita y hace propietario
+     * principal al comprador; el comprador acepta la invitación y confirma la
+     * recepción. Sin cuerpo; la autorización vive en los casos de uso.
+     */
+    app.post<{ Params: IdParams }>(
+        '/admin/operations/:id/delivery/invited',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.markBuyerInvited.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/operations/:id/delivery/invitation-accepted',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.acceptInvitation.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/admin/operations/:id/delivery/owner',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.makeBuyerOwner.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    app.post<{ Params: IdParams }>(
+        '/operations/:id/delivery/received',
+        { preHandler: [authenticate] },
+        async (request, reply) => {
+            await c.confirmAssetReceipt.execute(request.params.id, actorOf(request));
+            return reply.code(204).send();
+        },
+    );
+
+    /*
      * La revisión de un comprobante rechazado: la pide el comprador, la
      * coherencia y la resolución son de la plataforma, y el vendedor puede
      * sumar los movimientos de su cuenta. La autorización vive en los casos de uso.

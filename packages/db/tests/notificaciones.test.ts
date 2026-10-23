@@ -64,6 +64,20 @@ describe("PrismaNotificationRepository", () => {
         expect(recuperado!.type).toBe("acceso_solicitado");
     });
 
+    it.each(["invitacion_enviada", "recepcion_pendiente", "activo_recibido"] as const)(
+        "persiste y recupera el aviso de la entrega de un canal %s",
+        async (type) => {
+            const user = await crearUsuario(`comprador-${type}@test.com`);
+            const occursAt = new Date("2026-11-08T13:00:00.000Z");
+            const aviso = Notification.create({ userId: user.id, type, operationId: new UniqueEntityID(), occursAt });
+            await repo.save(aviso);
+
+            const recuperado = await repo.findById(aviso.id.toString());
+            expect(recuperado!.type).toBe(type);
+            expect(recuperado!.toSnapshot().props.occursAt).toEqual(occursAt);
+        },
+    );
+
     it("persiste y recupera el aviso de acceso confirmado con su fecha", async () => {
         const user = await crearUsuario("vendedor-acceso@test.com");
         const occursAt = new Date("2026-10-19T12:00:00.000Z");

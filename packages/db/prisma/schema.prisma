@@ -95,6 +95,11 @@ enum NotificationType {
   revision_resuelta
   // Al comprador: su comprobante, rechazado dos veces, pasó a la revisión de la plataforma.
   revision_en_curso
+  // La entrega de un canal: al comprador, la invitación a la cuenta de marca y
+  // su plazo para confirmar la recepción; a las dos partes, la recepción.
+  invitacion_enviada
+  recepcion_pendiente
+  activo_recibido
 }
 
 enum ContractType {

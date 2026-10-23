@@ -34,6 +34,10 @@ export type NextActionId =
     | 'resolve_receipt_review'
     | 'deliver_asset'
     | 'accept_delivery'
+    | 'invite_buyer'
+    | 'accept_invitation'
+    | 'make_buyer_owner'
+    | 'confirm_receipt'
     | 'complete_operation';
 
 export type NextStep =
@@ -96,6 +100,11 @@ export interface NextActionsInput {
     receipts?: ReceiptFacts;
     completedAt?: Date;
     deadlines: HandoverDeadlines;
+    /**
+     * El momento de la consulta: la espera de Google en la entrega de un
+     * canal termina en una fecha, no en un hito. Sin él, el reloj del sistema.
+     */
+    now?: Date;
 }
 
 export interface NextActionsResult {
@@ -206,7 +215,7 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
 
         case 'payment_received': {
             if (!input.recipientDeclared) return turnOf('buyer', act('declare_recipient'));
-            if (!isWeb) return turnOf('platform', act('deliver_asset'));
+            if (!isWeb) return channelDeliverySteps(input);
             const domain = progressOf(input, DOMAIN_TO_BUYER);
             if (domain?.status === 'done') return turnOf('platform', act('complete_operation'));
             if (domain?.status === 'waiting') {
@@ -225,6 +234,29 @@ function stepsByRole(input: NextActionsInput): Record<Role, NextStep> {
             return { buyer: cancelled, seller: cancelled, platform: cancelled };
         }
     }
+}
+
+/**
+ * La entrega de un canal: la plataforma invita, el comprador acepta, todos
+ * esperan los días de Google, la plataforma lo hace propietario principal, el
+ * comprador confirma la recepción en su plazo, y la plataforma cierra.
+ */
+function channelDeliverySteps(input: NextActionsInput): Record<Role, NextStep> {
+    const m = input.milestones;
+    if (m.receivedAt) return turnOf('platform', act('complete_operation'));
+    if (m.deliveredAt) {
+        const deadline = input.deadlines.buyerConfirmation(m.deliveredAt);
+        return turnOf('buyer', act('confirm_receipt', deadline), deadline);
+    }
+    if (m.invitationAcceptedAt) {
+        const ownerFrom = input.deadlines.buyerOwnership(m.invitationAcceptedAt);
+        const now = input.now ?? new Date();
+        if (now.getTime() >= ownerFrom.getTime()) return turnOf('platform', act('make_buyer_owner'));
+        const all = wait(['platform'], ownerFrom);
+        return { buyer: all, seller: all, platform: all };
+    }
+    if (m.buyerInvitedAt) return turnOf('buyer', act('accept_invitation'));
+    return turnOf('platform', act('invite_buyer'));
 }
 
 /**

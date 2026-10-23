@@ -2,6 +2,7 @@ import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Money } from '../value-objects/Money';
 import { SettlementQuote } from '../value-objects/SettlementQuote';
+import { HandoverDeadlines } from '../value-objects/HandoverDeadlines';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
 export type OperationStatus =
@@ -296,12 +297,21 @@ export interface TransferRejection {
 
 /**
  * Los hitos que se guardan: la firma no queda registrada en ningún otro lado,
- * y la entrega de lo que no se comprueba solo la declara el vendedor.
+ * y los de la entrega de un canal tampoco: la invitación, su aceptación, la
+ * entrega (el comprador ya es propietario principal) y la recepción.
  */
 export interface StoredMilestones {
     signedAt?: Date;
+    buyerInvitedAt?: Date;
+    invitationAcceptedAt?: Date;
     deliveredAt?: Date;
+    receivedAt?: Date;
+    /** La recepción se dio por confirmada porque el comprador no respondió en su plazo. */
+    receivedBySilence?: boolean;
 }
+
+/** La hora de Argentina, para nombrar fechas en los mensajes. */
+const AR_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
 /**
  * Las anclas de los plazos. La custodia y el pago se leen de sus constancias,
@@ -311,7 +321,10 @@ export interface OperationMilestones {
     signedAt?: Date;
     custodyAt?: Date;
     paidAt?: Date;
+    buyerInvitedAt?: Date;
+    invitationAcceptedAt?: Date;
     deliveredAt?: Date;
+    receivedAt?: Date;
 }
 
 export class Operation extends Entity<OperationProps> {
@@ -626,8 +639,116 @@ export class Operation extends Entity<OperationProps> {
         if (this.props.milestones?.signedAt) m.signedAt = this.props.milestones.signedAt;
         if (this.props.custodyVerification) m.custodyAt = this.props.custodyVerification.verifiedAt;
         if (this.props.payment) m.paidAt = this.props.payment.confirmedAt;
+        if (this.props.milestones?.buyerInvitedAt) m.buyerInvitedAt = this.props.milestones.buyerInvitedAt;
+        if (this.props.milestones?.invitationAcceptedAt) m.invitationAcceptedAt = this.props.milestones.invitationAcceptedAt;
         if (this.props.milestones?.deliveredAt) m.deliveredAt = this.props.milestones.deliveredAt;
+        if (this.props.milestones?.receivedAt) m.receivedAt = this.props.milestones.receivedAt;
         return m;
+    }
+
+    // ── Entrega de un canal ──────────────────────────────────
+    //
+    // Con el pago confirmado, la plataforma invita al comprador a la cuenta de
+    // marca; el comprador acepta y desde ahí corren los días que exige Google;
+    // cumplidos, la plataforma lo hace propietario principal, que es la
+    // entrega; y el comprador confirma la recepción o, sin respuesta en su
+    // plazo, se da por recibida.
+
+    /** Si la recepción se dio por confirmada porque el comprador no respondió. */
+    public get receivedBySilence(): boolean {
+        return this.props.milestones?.receivedBySilence === true;
+    }
+
+    /** La plataforma invitó al comprador a la cuenta de marca, en la cuenta que declaró. */
+    public markBuyerInvited(at: Date): void {
+        if (this.props.status !== 'payment_received') {
+            throw new InvalidStateError('La invitación al comprador es con el pago confirmado.');
+        }
+        if (!this.props.recipientIdentity) {
+            throw new InvalidStateError('El comprador todavía no declaró la cuenta de Google donde quiere recibir el canal.');
+        }
+        if (this.props.milestones?.buyerInvitedAt) {
+            throw new InvalidStateError('El comprador ya está invitado.');
+        }
+        this.props.milestones = { ...this.props.milestones, buyerInvitedAt: at };
+    }
+
+    /** El comprador declara que aceptó la invitación: desde ahí corren los días de Google. */
+    public acceptInvitation(by: string, at: Date): void {
+        this.assertIsBuyer(by);
+        this.assertDeliveryOpen();
+        if (!this.props.milestones?.buyerInvitedAt) {
+            throw new InvalidStateError('Todavía no te invitamos al canal.');
+        }
+        if (this.props.milestones.invitationAcceptedAt) {
+            throw new InvalidStateError('Ya aceptaste la invitación.');
+        }
+        this.props.milestones = { ...this.props.milestones, invitationAcceptedAt: at };
+    }
+
+    /** Desde cuándo se puede hacer propietario principal al comprador. Sin invitación aceptada, no hay fecha. */
+    public buyerOwnershipFrom(deadlines: HandoverDeadlines = new HandoverDeadlines()): Date | undefined {
+        const acceptedAt = this.props.milestones?.invitationAcceptedAt;
+        return acceptedAt ? deadlines.buyerOwnership(acceptedAt) : undefined;
+    }
+
+    /**
+     * La plataforma hizo propietario principal al comprador: es la entrega, y
+     * ancla el plazo del comprador para confirmar la recepción.
+     */
+    public makeBuyerOwner(at: Date, deadlines: HandoverDeadlines = new HandoverDeadlines()): void {
+        this.assertDeliveryOpen();
+        const ownerFrom = this.buyerOwnershipFrom(deadlines);
+        if (!ownerFrom) {
+            throw new InvalidStateError('El comprador todavía no aceptó la invitación.');
+        }
+        if (this.props.milestones?.deliveredAt) {
+            throw new InvalidStateError('El comprador ya es propietario principal.');
+        }
+        if (at.getTime() < ownerFrom.getTime()) {
+            throw new InvalidStateError(
+                `Google permite hacer propietario principal al comprador desde el ${ownerFrom.toLocaleDateString('es-AR', { timeZone: AR_TIME_ZONE })}.`,
+            );
+        }
+        this.props.milestones = { ...this.props.milestones, deliveredAt: at };
+    }
+
+    /** Hasta cuándo tiene el comprador para confirmar la recepción. Sin entrega, no hay plazo. */
+    public assetReceiptDeadline(deadlines: HandoverDeadlines = new HandoverDeadlines()): Date | undefined {
+        const deliveredAt = this.props.milestones?.deliveredAt;
+        return deliveredAt ? deadlines.buyerConfirmation(deliveredAt) : undefined;
+    }
+
+    /** El comprador confirma que recibió el canal. */
+    public confirmAssetReceipt(by: string, at: Date): void {
+        this.assertIsBuyer(by);
+        this.assertDeliveryOpen();
+        if (!this.props.milestones?.deliveredAt) {
+            throw new InvalidStateError('Todavía no sos propietario principal del canal.');
+        }
+        if (this.props.milestones.receivedAt) {
+            throw new InvalidStateError('La recepción ya está confirmada.');
+        }
+        this.props.milestones = { ...this.props.milestones, receivedAt: at, receivedBySilence: false };
+    }
+
+    /**
+     * Vencido el plazo del comprador sin respuesta, la recepción se da por
+     * confirmada. Devuelve si cambió algo. Un reclamo abierto lo frena, pero
+     * eso lo decide quien carga los reclamos, no la operación.
+     */
+    public deemAssetReceived(at: Date, deadlines: HandoverDeadlines = new HandoverDeadlines()): boolean {
+        if (this.props.status !== 'payment_received' || this.props.milestones?.receivedAt) return false;
+        const deadline = this.assetReceiptDeadline(deadlines);
+        if (!deadline || at.getTime() < deadline.getTime()) return false;
+        this.props.milestones = { ...this.props.milestones, receivedAt: at, receivedBySilence: true };
+        return true;
+    }
+
+    private assertDeliveryOpen(): void {
+        if (this.props.status !== 'payment_received') {
+            throw new InvalidStateError('La entrega del canal es con el pago confirmado y la operación abierta.');
+        }
     }
 
     /**

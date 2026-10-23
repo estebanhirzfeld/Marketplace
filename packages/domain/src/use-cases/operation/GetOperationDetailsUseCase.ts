@@ -105,6 +105,21 @@ export interface StepProgressView {
     attested: boolean;
 }
 
+/**
+ * La entrega de un canal: cuándo se invitó al comprador, cuándo aceptó, desde
+ * cuándo se lo puede hacer propietario principal, cuándo lo fue (la entrega),
+ * hasta cuándo confirma, y cuándo recibió.
+ */
+export interface AssetDeliveryView {
+    buyerInvitedAt?: Date;
+    invitationAcceptedAt?: Date;
+    ownerFrom?: Date;
+    deliveredAt?: Date;
+    receiptDeadline?: Date;
+    receivedAt?: Date;
+    receivedBySilence: boolean;
+}
+
 export interface OperationDetailView {
     operation: Operation;
     /** Ausente si el activo ya no está; la operación sigue siendo válida. */
@@ -118,6 +133,8 @@ export interface OperationDetailView {
     recipientIdentity?: RecipientIdentity;
     /** La constancia de entrega, una vez cerrada la operación. */
     deliveryCheck?: DeliveryVerification;
+    /** La entrega de un canal, desde que se invitó al comprador. */
+    assetDelivery?: AssetDeliveryView;
     /**
      * Lo que le falta al vendedor ceder DESPUÉS de la firma —promovernos a
      * propietario principal en YouTube, o lo que enumere su estrategia—.
@@ -176,6 +193,8 @@ export class GetOperationDetailsUseCase {
          */
         private readonly paymentOptions?: GetPaymentOptionsUseCase,
         private readonly deadlines: HandoverDeadlines = new HandoverDeadlines(),
+        /** El reloj: la espera de Google en la entrega de un canal termina en una fecha. */
+        private readonly now: () => Date = () => new Date(),
     ) {}
 
     /**
@@ -323,6 +342,7 @@ export class GetOperationDetailsUseCase {
             receipts: receiptFacts(operation),
             completedAt: props.completedAt,
             deadlines: this.deadlines,
+            now: this.now(),
         });
 
         return {
@@ -334,11 +354,28 @@ export class GetOperationDetailsUseCase {
             seller,
             recipientIdentity: operation.recipientIdentity,
             deliveryCheck: operation.deliveryCheck,
+            assetDelivery: this.assetDelivery(operation),
             handoverSteps,
             stepProgress,
             custodyAccountNames,
             next,
         };
+    }
+
+    private assetDelivery(operation: Operation): AssetDeliveryView | undefined {
+        const m = operation.milestones;
+        if (!m.buyerInvitedAt) return undefined;
+        const view: AssetDeliveryView = { buyerInvitedAt: m.buyerInvitedAt, receivedBySilence: operation.receivedBySilence };
+        if (m.invitationAcceptedAt) {
+            view.invitationAcceptedAt = m.invitationAcceptedAt;
+            view.ownerFrom = operation.buyerOwnershipFrom(this.deadlines);
+        }
+        if (m.deliveredAt) {
+            view.deliveredAt = m.deliveredAt;
+            view.receiptDeadline = operation.assetReceiptDeadline(this.deadlines);
+        }
+        if (m.receivedAt) view.receivedAt = m.receivedAt;
+        return view;
     }
 
     private tripartiteFacts(contratos: Contract[]): NextActionsInput['contract'] {

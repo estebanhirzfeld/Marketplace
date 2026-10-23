@@ -484,6 +484,26 @@ export class MarketplaceClient {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/${recipient}/review/resolution`, { body });
     }
 
+    /** Admin: la plataforma ya invitó al comprador a la cuenta de marca del canal. */
+    markBuyerInvited(operationId: string): Promise<void> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/delivery/invited`);
+    }
+
+    /** El comprador ya aceptó la invitación a la cuenta de marca. */
+    acceptInvitation(operationId: string): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/delivery/invitation-accepted`);
+    }
+
+    /** Admin: la plataforma ya hizo propietario principal al comprador. */
+    makeBuyerOwner(operationId: string): Promise<void> {
+        return this.request('POST', `/admin/operations/${encodeURIComponent(operationId)}/delivery/owner`);
+    }
+
+    /** El comprador confirma la recepción del canal. */
+    confirmAssetReceipt(operationId: string): Promise<void> {
+        return this.request('POST', `/operations/${encodeURIComponent(operationId)}/delivery/received`);
+    }
+
     /** El vendedor adjunta los movimientos de su cuenta a la revisión. */
     attachSellerStatement(operationId: string, bytes: Uint8Array): Promise<void> {
         return this.request('POST', `/operations/${encodeURIComponent(operationId)}/receipts/seller/review/statement`, {

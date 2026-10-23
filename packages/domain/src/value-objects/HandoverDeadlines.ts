@@ -17,6 +17,11 @@ export interface HandoverDeadlineConfig {
     buyerConfirmationDays: number;
     /** Días hábiles para que el vendedor confirme que le llegó su transferencia. */
     sellerTransferConfirmationBusinessDays: number;
+    /**
+     * Días que Google exige entre que el comprador acepta la invitación a la
+     * cuenta de marca y que se lo puede hacer propietario principal.
+     */
+    brandAccountOwnershipDays: number;
 }
 
 /** Los plazos decididos el 21/10/2026. */
@@ -26,6 +31,7 @@ export const DEFAULT_HANDOVER_DEADLINES: HandoverDeadlineConfig = {
     sellerDeliveryDays: 5,
     buyerConfirmationDays: 3,
     sellerTransferConfirmationBusinessDays: 2,
+    brandAccountOwnershipDays: 7,
 };
 
 /** La fecha de calendario en Argentina de un instante, como `YYYY-MM-DD`. */
@@ -98,6 +104,11 @@ export class HandoverDeadlines {
 
     public sellerTransferConfirmation(receiptUploadedAt: Date): Date {
         return this.calendar.endOfBusinessDays(receiptUploadedAt, this.config.sellerTransferConfirmationBusinessDays);
+    }
+
+    /** Desde cuándo se puede hacer propietario principal al comprador de un canal. */
+    public buyerOwnership(invitationAcceptedAt: Date): Date {
+        return this.addDays(invitationAcceptedAt, this.config.brandAccountOwnershipDays);
     }
 
     private addDays(from: Date, days: number): Date {

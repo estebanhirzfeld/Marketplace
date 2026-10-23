@@ -59,6 +59,7 @@ describe('HandoverDeadlines', () => {
             sellerDeliveryDays: 5,
             buyerConfirmationDays: 3,
             sellerTransferConfirmationBusinessDays: 2,
+            brandAccountOwnershipDays: 7,
         });
     });
 
@@ -84,6 +85,12 @@ describe('HandoverDeadlines', () => {
         const deliveredAt = new Date('2026-10-21T12:00:00Z');
 
         expect(deadlines.buyerConfirmation(deliveredAt)).toEqual(new Date(deliveredAt.getTime() + 3 * DAY));
+    });
+
+    it('al comprador de un canal se lo hace propietario principal 7 días después de aceptar la invitación', () => {
+        const acceptedAt = new Date('2026-10-29T12:00:00Z');
+
+        expect(deadlines.buyerOwnership(acceptedAt)).toEqual(new Date(acceptedAt.getTime() + 7 * DAY));
     });
 
     it('el vendedor tiene 2 días hábiles para confirmar que le llegó su transferencia', () => {
