@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { currentActor } from '@/lib/session';
 import { requireCounterparty } from '@/lib/guards';
 import { isMissingMercadoPagoLink } from '@/lib/publishErrors';
+import { sellableAssetTypes } from '@/lib/assetAvailability';
 import {
     YOUTUBE_STATE_COOKIE,
     YOUTUBE_STATE_COOKIE_OPTIONS,
@@ -43,6 +44,9 @@ export async function publishListing(
     await requireCounterparty();
 
     const assetType = String(form.get('assetType') ?? 'youtube');
+    if (!(sellableAssetTypes() as string[]).includes(assetType)) {
+        return { error: 'Habilitaremos la venta de sitios web próximamente.' };
+    }
     const price = Number(form.get('precio'));
 
     // Se acota a lo que el formulario ofrece: una moneda cualquiera llegaría

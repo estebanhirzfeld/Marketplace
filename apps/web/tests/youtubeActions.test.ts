@@ -170,7 +170,7 @@ describe('publishListing (formulario manual)', () => {
         const destino = await redirigeA(
             publishListing(
                 {},
-                form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com' }),
+                form({ assetType: 'youtube', precio: '100', moneda: 'USD', nombre: 'Canal', identidad: 'UCabc' }),
             ),
         );
 
@@ -183,9 +183,19 @@ describe('publishListing (formulario manual)', () => {
 
         const estado = await publishListing(
             {},
-            form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com' }),
+            form({ assetType: 'youtube', precio: '100', moneda: 'USD', nombre: 'Canal', identidad: 'UCabc' }),
         );
 
         expect(estado.error).toBe('Dato inválido.');
+    });
+
+    it('con la venta de sitios en pausa, un sitio no llega a la API', async () => {
+        const estado = await publishListing(
+            {},
+            form({ assetType: 'web', precio: '100', moneda: 'USD', nombre: 'Sitio', identidad: 'a.com' }),
+        );
+
+        expect(estado.error).toBe('Habilitaremos la venta de sitios web próximamente.');
+        expect(createListing).not.toHaveBeenCalled();
     });
 });

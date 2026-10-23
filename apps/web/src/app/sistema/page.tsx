@@ -863,6 +863,13 @@ export default function Sistema() {
                             cta="Cargar sitio →"
                             href="/sistema"
                         />
+                        <AssetTypeCard
+                            logo={<WebLogo />}
+                            title="Sitio web"
+                            description="Habilitaremos la venta de sitios web próximamente."
+                            cta="Próximamente"
+                            disabled
+                        />
                         <div className="flex flex-col gap-3">
                             <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--color-apagado)]">PASOS — CANAL DE YOUTUBE, COMPLETANDO</div>
                             <SellSteps labels={['1 · CONECTAR', '2 · COMPLETAR', '3 · PRECIO']} current={1} />

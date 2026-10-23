@@ -16,6 +16,7 @@ export function AssetTypeCard({
     cta,
     href,
     action,
+    disabled = false,
 }: {
     logo: React.ReactNode;
     title: string;
@@ -23,6 +24,8 @@ export function AssetTypeCard({
     cta: string;
     href?: string;
     action?: () => Promise<void>;
+    /** Un tipo que todavía no se vende: se muestra, pero no lleva a ningún lado. */
+    disabled?: boolean;
 }) {
     const content = (
         <>
@@ -31,11 +34,24 @@ export function AssetTypeCard({
                 <span className="text-[22px] font-bold sm:text-[26px]">{title}</span>
                 <span className="text-[15px] leading-relaxed text-[var(--color-tenue)]">{description}</span>
             </span>
-            <span className="mt-auto flex justify-end border-t border-[var(--color-borde)] pt-4 text-[15px] font-medium text-[var(--color-acento)]">
+            <span
+                className={`mt-auto flex justify-end border-t border-[var(--color-borde)] pt-4 text-[15px] font-medium ${disabled ? 'text-[var(--color-apagado)]' : 'text-[var(--color-acento)]'}`}
+            >
                 {cta}
             </span>
         </>
     );
+
+    if (disabled) {
+        return (
+            <div
+                aria-disabled="true"
+                className="flex min-h-[260px] w-full flex-col items-stretch gap-5 rounded-[var(--radius-grande)] border border-[var(--color-borde)] bg-[var(--color-superficie)] p-7 text-left text-[var(--color-tinta)] opacity-60 sm:min-h-[320px] sm:p-8"
+            >
+                {content}
+            </div>
+        );
+    }
 
     if (action) {
         return (

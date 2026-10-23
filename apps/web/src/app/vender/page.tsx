@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import type { YouTubeConnectionDto } from '@marketplace/api-contract';
 import { api } from '@/lib/api';
 import { requireCounterparty } from '@/lib/guards';
@@ -15,6 +16,7 @@ import { Panel, Heading } from '@/components/ui';
 import { subscribersLabel } from '@/lib/format';
 import { ChannelAvatar } from '@/components/ChannelAvatar';
 import { planYouTubeSell } from '@/lib/sellChannels';
+import { WEBSITE_SALES_ENABLED, sellableAssetTypes } from '@/lib/assetAvailability';
 import {
     chooseSellView,
     connectionsFromReadError,
@@ -90,6 +92,8 @@ export default async function Publicar(props: {
     await requireCounterparty();
     const params = await props.searchParams;
 
+    // Con la venta de sitios en pausa, un enlace viejo a `?tipo=web` vuelve a elegir el tipo.
+    if (params.tipo === 'web' && !WEBSITE_SALES_ENABLED) redirect('/vender');
     const wantsWeb = params.tipo === 'web';
     const connections = wantsWeb ? [] : await loadConnections();
 
@@ -146,13 +150,23 @@ export default async function Publicar(props: {
                                 ? { href: '/vender?tipo=youtube' }
                                 : { action: startYouTubeConnection })}
                         />
-                        <AssetTypeCard
-                            logo={<WebLogo />}
-                            title="Sitio web"
-                            description="Cargás los datos del sitio y comprobás que es tuyo con un registro en tu DNS."
-                            cta="Cargar sitio →"
-                            href="/vender?tipo=web"
-                        />
+                        {WEBSITE_SALES_ENABLED ? (
+                            <AssetTypeCard
+                                logo={<WebLogo />}
+                                title="Sitio web"
+                                description="Cargás los datos del sitio y comprobás que es tuyo con un registro en tu DNS."
+                                cta="Cargar sitio →"
+                                href="/vender?tipo=web"
+                            />
+                        ) : (
+                            <AssetTypeCard
+                                logo={<WebLogo />}
+                                title="Sitio web"
+                                description="Habilitaremos la venta de sitios web próximamente."
+                                cta="Próximamente"
+                                disabled
+                            />
+                        )}
                     </div>
                     <p className="mt-6 text-[14px] text-[var(--color-apagado)]">
                         Próximamente: cuentas de redes sociales.
@@ -242,7 +256,7 @@ export default async function Publicar(props: {
                                 <PublishListingForm
                                     action={publishListing}
                                     estimate={estimateListingPrice}
-                                    types={wantsWeb ? ['web'] : ['youtube', 'web']}
+                                    types={wantsWeb ? ['web'] : sellableAssetTypes()}
                                 />
                             </Panel>
                         </Reveal>
