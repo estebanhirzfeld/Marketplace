@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from '../value-objects/UniqueEntityID';
 import { Email } from '../value-objects/Email';
+import { Cuit } from '../value-objects/Cuit';
 import { UserRole } from '@marketplace/shared-types';
 import { ForbiddenError, InvalidStateError, ValidationError } from '../errors/DomainError';
 
@@ -102,6 +103,19 @@ export class User extends Entity<UserProps> {
         if (data.country) this.props.country = data.country;
 
         this.verifyKyc();
+    }
+
+    /**
+     * Una cuenta donde cobra tiene que estar a su nombre: el CUIT del titular
+     * contiene el DNI de su identidad verificada. El DNI cargado al registrarse
+     * no cuenta, porque es libre y se puede pisar.
+     */
+    public assertHoldsTaxId(taxId: string): void {
+        const dni = this.props.isKycVerified ? this.props.dni : undefined;
+        if (!dni) throw new ValidationError('Verificá tu identidad antes de declarar la cuenta donde cobrás.');
+        if (!Cuit.create(taxId).belongsTo(dni)) {
+            throw new ValidationError('La cuenta tiene que estar a tu nombre: el CUIT no corresponde a tu identidad verificada.');
+        }
     }
 
     // NOTE: Ya que estamos en DDD, esto se puede hacer con una api o de forma manual

@@ -352,12 +352,12 @@ describe('casos de uso de la revisión', () => {
         const { expire, enviadas, clock, repo } = armar(op);
 
         clock.now = new Date(SELLER_DEADLINE.getTime() - 12 * 3600_000);
-        expect(await expire.execute()).toEqual({ reminded: 1, confirmed: 0 });
+        expect(await expire.execute()).toEqual({ reminded: 1, confirmed: 0, failed: 0 });
         expect(enviadas.map((n) => n.type)).toEqual(['revision_pendiente_vendedor']);
 
         enviadas.length = 0;
         clock.now = AFTER_DEADLINE;
-        expect(await expire.execute()).toEqual({ reminded: 0, confirmed: 1 });
+        expect(await expire.execute()).toEqual({ reminded: 0, confirmed: 1, failed: 0 });
         expect(op.status).toBe('payment_received');
         expect(enviadas.map((n) => n.type).sort()).toEqual(['pago_confirmado', 'revision_resuelta', 'revision_resuelta']);
         expect(repo.save).toHaveBeenCalledTimes(2);
@@ -401,5 +401,70 @@ describe('casos de uso de la revisión', () => {
         await addReference.execute(op.id.toString(), 'seller', 'XYZ', actor(BUYER, UserRole.BUYER));
 
         expect(seller(op).review?.bankReference).toBe('XYZ');
+    });
+});
+
+describe('juicio doble — reglas que no se podían saltear', () => {
+    function coherente(): Operation {
+        const op = rechazado();
+        op.requestReceiptReview('seller', {}, LATER);
+        op.resolveReceiptCoherence('seller', { coherent: true }, ADMIN, SELLER_DEADLINE, LATER);
+        return op;
+    }
+
+    it('J2: en revisión, solo el vendedor reconoce el pago; la plataforma resuelve por el rastreo', () => {
+        const op = coherente();
+
+        expect(() => op.decideReceipt('seller', { confirm: true }, ADMIN, LATER)).toThrow(
+            new InvalidStateError('Un comprobante en revisión se resuelve con el rastreo bancario.'),
+        );
+        expect(seller(op).status).toBe('in_review');
+        op.decideReceipt('seller', { confirm: true }, SELLER, LATER);
+        expect(op.status).toBe('payment_received');
+    });
+
+    it('J3: vencido el plazo, el vendedor ya no adjunta movimientos y su silencio cuenta', () => {
+        const op = coherente();
+
+        expect(() => op.attachSellerStatement('seller', statement, AFTER_DEADLINE)).toThrow(
+            new InvalidStateError('Venció el plazo para responder la revisión.'),
+        );
+        expect(op.expireReceiptReviews(AFTER_DEADLINE)).toEqual(['seller']);
+    });
+
+    it('J4: la corrida lee cada operación de nuevo antes de guardarla', async () => {
+        const stale = coherente();
+        const fresh = coherente();
+        fresh.attachSellerStatement('seller', statement, LATER);
+        const repo: IOperationRepository = {
+            findById: vi.fn().mockResolvedValue(fresh),
+            findByListing: vi.fn(),
+            findByParty: vi.fn(),
+            findByStatuses: vi.fn().mockResolvedValue([stale]),
+            save: vi.fn().mockResolvedValue(undefined),
+        };
+
+        const summary = await new ExpireReceiptReviewsUseCase(repo, undefined, () => AFTER_DEADLINE).execute();
+
+        expect(summary.confirmed).toBe(0);
+        expect(repo.save).not.toHaveBeenCalled();
+        expect(seller(fresh).status).toBe('in_review');
+    });
+
+    it('J4: una operación que falla no corta las demás', async () => {
+        const broken = coherente();
+        const ok = coherente();
+        const repo: IOperationRepository = {
+            findById: vi.fn(async (id: string) => (id === broken.id.toString() ? Promise.reject(new Error('base caída')) : ok)),
+            findByListing: vi.fn(),
+            findByParty: vi.fn(),
+            findByStatuses: vi.fn().mockResolvedValue([broken, ok]),
+            save: vi.fn().mockResolvedValue(undefined),
+        };
+
+        const summary = await new ExpireReceiptReviewsUseCase(repo, undefined, () => AFTER_DEADLINE).execute();
+
+        expect(summary).toMatchObject({ confirmed: 1, failed: 1 });
+        expect(repo.save).toHaveBeenCalledWith(ok);
     });
 });

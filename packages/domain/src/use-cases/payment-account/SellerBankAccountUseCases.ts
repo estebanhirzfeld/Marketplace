@@ -2,7 +2,6 @@ import { ISellerBankAccountRepository, IUserRepository } from '../../ports/Repos
 import { Actor } from '../../ports/Actor';
 import { SellerBankAccount } from '../../entities/SellerBankAccount';
 import { BankDestination } from '../../value-objects/BankDestination';
-import { Cuit } from '../../value-objects/Cuit';
 import { UniqueEntityID } from '../../value-objects/UniqueEntityID';
 import { ForbiddenError, ValidationError } from '../../errors/DomainError';
 import { UserRole } from '@marketplace/shared-types';
@@ -39,13 +38,9 @@ export class DeclareSellerBankAccountUseCase {
         if (!input.holderTaxId?.trim()) throw new ValidationError('Decinos el CUIT o CUIL del titular de la cuenta.');
         const destination = BankDestination.create(input);
 
-        // El DNI cuenta solo si pasó el KYC: el que se carga al registrarse es libre y se puede pisar.
-        const user = (await this.users.findById(actor.id))?.toSnapshot().props;
-        const dni = user?.isKycVerified ? user.dni : undefined;
-        if (!dni) throw new ValidationError('Verificá tu identidad antes de declarar la cuenta donde cobrás.');
-        if (!Cuit.create(input.holderTaxId).belongsTo(dni)) {
-            throw new ValidationError('La cuenta tiene que estar a tu nombre: el CUIT no corresponde a tu identidad verificada.');
-        }
+        const user = await this.users.findById(actor.id);
+        if (!user) throw new ValidationError('Verificá tu identidad antes de declarar la cuenta donde cobrás.');
+        user.assertHoldsTaxId(input.holderTaxId);
 
         const existing = await this.repo.findByUserAndCurrency(actor.id, destination.currency);
         const account = existing ?? SellerBankAccount.declare({ userId: new UniqueEntityID(actor.id), destination });

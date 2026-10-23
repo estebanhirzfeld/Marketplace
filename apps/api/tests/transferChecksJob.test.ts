@@ -84,10 +84,10 @@ describe('runTransferChecksJob', () => {
 describe('runReceiptReviewsJob', () => {
     it('registra cuántos recordatorios y pagos dados por acreditados hubo, y sale con 0', async () => {
         const { info, log } = aLog();
-        const useCase = { execute: vi.fn(async () => ({ reminded: 1, confirmed: 2 })) };
+        const useCase = { execute: vi.fn(async () => ({ reminded: 1, confirmed: 2, failed: 1 })) };
 
         expect(await runReceiptReviewsJob(useCase, log)).toBe(0);
-        expect(info.map((l) => JSON.parse(l))).toEqual([{ job: 'receipt-reviews', reminded: 1, confirmed: 2 }]);
+        expect(info.map((l) => JSON.parse(l))).toEqual([{ job: 'receipt-reviews', reminded: 1, confirmed: 2, failed: 1 }]);
     });
 
     it('si falla, lo registra y sale con 1 para que systemd lo marque', async () => {

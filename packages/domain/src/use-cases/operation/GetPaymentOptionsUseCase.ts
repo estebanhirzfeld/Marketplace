@@ -122,7 +122,8 @@ export class GetPaymentOptionsUseCase {
             instructions !== undefined && (currency === 'ARS' || currency === 'USD')
                 ? await this.deps.bankAccounts?.findByUserAndCurrency(operation.sellerId.toString(), currency)
                 : null;
-        const transferAvailable = instructions !== undefined && !!sellerBank;
+        // Una cuenta declarada antes de pedir el CUIT no se ofrece: sin él no se sabe si es del vendedor.
+        const transferAvailable = instructions !== undefined && !!sellerBank?.destination.holderTaxId;
         // El vendedor ni paga ni confirma: se entera de que la transferencia
         // existe, pero los datos bancarios de la plataforma son del comprador y
         // del admin.
@@ -139,7 +140,7 @@ export class GetPaymentOptionsUseCase {
             },
             transfer: {
                 available: transferAvailable,
-                ...(instructions !== undefined && !sellerBank ? { reason: 'seller_bank_missing' as const } : {}),
+                ...(instructions !== undefined && !transferAvailable ? { reason: 'seller_bank_missing' as const } : {}),
                 ...(instructions !== undefined && canSeeInstructions ? { instructions } : {}),
                 reference: operation.id.toString(),
                 ...(transferAvailable && sellerBank && canSeeInstructions

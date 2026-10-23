@@ -416,6 +416,11 @@ export class Operation extends Entity<OperationProps> {
         return this.props.platformEarns;
     }
 
+    /** El comprador de la operación. */
+    public get buyerId(): UniqueEntityID {
+        return this.props.buyerId;
+    }
+
     /** El vendedor de la operación: a quien se le cobra por cuenta propia en el split. */
     public get sellerId(): UniqueEntityID {
         return this.props.sellerId;
@@ -768,6 +773,10 @@ export class Operation extends Entity<OperationProps> {
         if (!receipt || (receipt.status !== 'pending' && !confirmingInReview)) {
             throw new InvalidStateError('No hay un comprobante esperando confirmación.');
         }
+        // En revisión, reconocer el pago es de quien lo recibió; la plataforma decide por el rastreo.
+        if (confirmingInReview && (recipient !== 'seller' || !by.equals(this.props.sellerId))) {
+            throw new InvalidStateError('Un comprobante en revisión se resuelve con el rastreo bancario.');
+        }
         if (decision.confirm) {
             this.confirmReceipt(receipt, by, at);
             return;
@@ -904,6 +913,10 @@ export class Operation extends Entity<OperationProps> {
         at: Date = new Date(),
     ): void {
         const receipt = this.receiptInReview(recipient, 'awaiting_seller');
+        // Vencido el plazo, su silencio ya cuenta: unos movimientos tardíos no lo pueden frenar.
+        if (receipt.review.sellerDeadline && at > receipt.review.sellerDeadline) {
+            throw new InvalidStateError('Venció el plazo para responder la revisión.');
+        }
         receipt.review.sellerStatement = { ...file, uploadedAt: at };
     }
 

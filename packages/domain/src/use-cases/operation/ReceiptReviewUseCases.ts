@@ -25,7 +25,7 @@ async function loadOperation(repo: IOperationRepository, operationId: string): P
 }
 
 function assertIsBuyer(operation: Operation, actor: Actor): void {
-    if (operation.toSnapshot().props.buyerId.toString() !== actor.id) {
+    if (operation.buyerId.toString() !== actor.id) {
         throw new ForbiddenError('La revisión de un comprobante la solicita el comprador.');
     }
 }
@@ -137,6 +137,8 @@ export class ResolveReceiptReviewUseCase {
 export interface ReceiptReviewsSummary {
     reminded: number;
     confirmed: number;
+    /** Operaciones que fallaron en esta corrida; la próxima las vuelve a intentar. */
+    failed: number;
 }
 
 /**
@@ -152,28 +154,40 @@ export class ExpireReceiptReviewsUseCase {
 
     async execute(): Promise<ReceiptReviewsSummary> {
         const now = this.now();
-        const summary: ReceiptReviewsSummary = { reminded: 0, confirmed: 0 };
+        const summary: ReceiptReviewsSummary = { reminded: 0, confirmed: 0, failed: 0 };
 
-        for (const operation of await this.operationRepo.findByStatuses(['asset_in_custody'])) {
-            if (!operation.hasOpenReceiptReview) continue;
-            const reminded = operation.remindReceiptReviews(now);
-            const confirmed = operation.expireReceiptReviews(now);
-            if (reminded.length === 0 && confirmed.length === 0) continue;
-
-            await this.operationRepo.save(operation);
-            summary.reminded += reminded.length;
-            summary.confirmed += confirmed.length;
-
-            for (const _ of reminded) {
-                const deadline = operation.paymentReceipts.find((r) => r.recipient === 'seller')?.review?.sellerDeadline;
-                if (deadline) await this.avisos?.receiptReviewAwaitingSeller(operation, deadline);
-            }
-            if (confirmed.length > 0) {
-                await this.avisos?.receiptReviewResolved(operation);
-                if (operation.status === 'payment_received') await this.avisos?.paymentConfirmed(operation);
+        for (const listed of await this.operationRepo.findByStatuses(['asset_in_custody'])) {
+            if (!listed.hasOpenReceiptReview) continue;
+            try {
+                await this.process(listed.id.toString(), now, summary);
+            } catch {
+                // Una operación que falla no deja sin recordatorio ni vencimiento a las demás; la próxima corrida la reintenta.
+                summary.failed += 1;
             }
         }
         return summary;
+    }
+
+    private async process(operationId: string, now: Date, summary: ReceiptReviewsSummary): Promise<void> {
+        // Se vuelve a leer justo antes de decidir: entre el listado y acá el vendedor pudo haber respondido.
+        const operation = await this.operationRepo.findById(operationId);
+        if (!operation || !operation.hasOpenReceiptReview) return;
+        const reminded = operation.remindReceiptReviews(now);
+        const confirmed = operation.expireReceiptReviews(now);
+        if (reminded.length === 0 && confirmed.length === 0) return;
+
+        await this.operationRepo.save(operation);
+        summary.reminded += reminded.length;
+        summary.confirmed += confirmed.length;
+
+        for (const _ of reminded) {
+            const deadline = operation.paymentReceipts.find((r) => r.recipient === 'seller')?.review?.sellerDeadline;
+            if (deadline) await this.avisos?.receiptReviewAwaitingSeller(operation, deadline);
+        }
+        if (confirmed.length > 0) {
+            await this.avisos?.receiptReviewResolved(operation);
+            if (operation.status === 'payment_received') await this.avisos?.paymentConfirmed(operation);
+        }
     }
 }
 

@@ -78,11 +78,16 @@ function unRepoDeCuentas(linked: boolean): ISellerPaymentAccountRepository {
 }
 
 /** Las cuentas bancarias que declaró el vendedor, por moneda. */
-function unRepoDeBancos(monedas: ('ARS' | 'USD')[]): ISellerBankAccountRepository {
+function unRepoDeBancos(monedas: ('ARS' | 'USD')[], conCuit = true): ISellerBankAccountRepository {
     const cuenta = (currency: 'ARS' | 'USD') =>
         SellerBankAccount.declare({
             userId: SELLER_ID,
-            destination: BankDestination.create({ alias: `delia.${currency.toLowerCase()}x`, holder: 'Delia Orrego', currency }),
+            destination: BankDestination.create({
+                alias: `delia.${currency.toLowerCase()}x`,
+                holder: 'Delia Orrego',
+                currency,
+                ...(conCuit ? { holderTaxId: '20123456786' } : {}),
+            }),
         });
     return {
         findByUser: vi.fn().mockResolvedValue(monedas.map(cuenta)),
@@ -321,7 +326,7 @@ describe('GetPaymentOptionsUseCase', () => {
                 {
                     recipient: 'seller',
                     amount: { cents: op.sellerReceives!.getCents(), currency: 'ARS' },
-                    bankAccount: { alias: 'delia.arsx', holder: 'Delia Orrego' },
+                    bankAccount: { alias: 'delia.arsx', holder: 'Delia Orrego', holderTaxId: '20123456786' },
                 },
                 {
                     recipient: 'platform',
@@ -333,6 +338,16 @@ describe('GetPaymentOptionsUseCase', () => {
 
         it('sin la cuenta del vendedor en la moneda de la operación, no hay transferencia', async () => {
             const { uso } = armar(unaOperacion('asset_in_custody', 'USD'), { bankAccounts: unRepoDeBancos(['ARS']) });
+
+            const { transfer } = await uso.execute('op-1', BUYER);
+
+            expect(transfer.available).toBe(false);
+            expect(transfer.reason).toBe('seller_bank_missing');
+            expect(transfer.destinations).toBeUndefined();
+        });
+
+        it('una cuenta declarada antes de pedir el CUIT no se ofrece: el vendedor tiene que actualizarla', async () => {
+            const { uso } = armar(unaOperacion(), { bankAccounts: unRepoDeBancos(['ARS', 'USD'], false) });
 
             const { transfer } = await uso.execute('op-1', BUYER);
 
