@@ -15,6 +15,11 @@ body{margin:0;background:#0b0c0e}
 a{color:#cff245}a:hover{color:#e4ff7a}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+@keyframes trazar-linea{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+.etapa{transform:scaleX(0);transform-origin:left;animation:trazar-linea .7s cubic-bezier(.16,1,.3,1) both}
+.etapa-actual{transform:scaleX(0);transform-origin:left;animation:trazar-linea .7s cubic-bezier(.16,1,.3,1) both,latir 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.etapa,.etapa-actual{animation:none!important;transform:none}}
 </style>
 </helmet>
 <div style="min-height: 1000px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column">
@@ -49,7 +54,9 @@ a{color:#cff245}a:hover{color:#e4ff7a}
 
     <ol aria-label="Etapas de la operación" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px">
       <sc-for list="{{ stages }}" as="st" hint-placeholder-count="6">
-        <li aria-current="{{ st.current }}" style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 3px solid {{ st.bar }}">
+        <li aria-current="{{ st.current }}" style="position: relative; display: flex; flex-direction: column; gap: 10px; padding-top: 14px">
+          <span aria-hidden="true" style="position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: #2a2e35"></span>
+          <span aria-hidden="true" class="{{ st.cls }}" style="position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: {{ st.bar }}; animation-delay: {{ st.delay }}"></span>
           <span style="font-size: 15px; font-weight: {{ st.weight }}; color: {{ st.color }}">{{ st.label }}</span>
           <span style="font-size: 13px; color: #8c939c">{{ st.when }}</span>
         </li>
@@ -64,6 +71,7 @@ a{color:#cff245}a:hover{color:#e4ff7a}
             <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #a3a9b1">Cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
               <button type="button" onClick="{{ declare }}" disabled="{{ busy }}" aria-busy="{{ busy }}" style="min-height: 52px; padding: 0 24px; border: 0; border-radius: 3px; background: {{ btnBg }}; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">{{ ctaLabel }}</button>
+              <button type="button" style="min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px">Ver cómo hacerlo</button>
               <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
             </div>
           </div>
@@ -116,11 +124,13 @@ const list = [
 { label: 'Cierre', when: '', state: 'pending' },
 ];
 return {
-stages: list.map((s) => ({
+stages: list.map((s, i) => ({
+cls: s.state === 'done' ? 'etapa' : s.state === 'current' ? 'etapa-actual' : '',
+delay: s.state === 'current' ? (i * 220) + 'ms, ' + (i * 220 + 700) + 'ms' : (i * 220) + 'ms',
 label: s.label,
 when: s.when,
 current: s.state === 'current' ? 'step' : 'false',
-bar: s.state === 'done' ? '#5eead4' : s.state === 'current' ? '#cff245' : '#2a2e35',
+bar: s.state === 'pending' ? 'transparent' : '#cff245',
 color: s.state === 'pending' ? '#8c939c' : s.state === 'current' ? '#e8e9ea' : '#a3a9b1',
 weight: s.state === 'current' ? '700' : '400',
 })),

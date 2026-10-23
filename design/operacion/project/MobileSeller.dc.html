@@ -13,6 +13,11 @@
 <style>
 body{margin:0;background:#0b0c0e}
 a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes trazar-linea{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+.etapa{transform:scaleX(0);transform-origin:left;animation:trazar-linea .7s cubic-bezier(.16,1,.3,1) both}
+.etapa-actual{transform:scaleX(0);transform-origin:left;animation:trazar-linea .7s cubic-bezier(.16,1,.3,1) both,latir 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.etapa,.etapa-actual{animation:none!important;transform:none}}
 </style>
 </helmet>
 <div style="width: 390px; min-height: 1300px; box-sizing: border-box; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column">
@@ -38,9 +43,9 @@ a{color:#cff245}a:hover{color:#e4ff7a}
     <details>
       <summary style="list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 44px">
         <div role="progressbar" aria-label="Etapa de la operación" aria-valuemin="1" aria-valuemax="6" aria-valuenow="3" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px">
-          <span style="height: 4px; border-radius: 2px; background: #5eead4"></span>
-          <span style="height: 4px; border-radius: 2px; background: #5eead4"></span>
-          <span style="height: 4px; border-radius: 2px; background: #cff245"></span>
+          <span style="position: relative; height: 4px; border-radius: 2px; background: #2a2e35"><span aria-hidden="true" class="etapa" style="position: absolute; inset: 0; border-radius: 2px; background: #cff245; animation-delay: 0ms"></span></span>
+          <span style="position: relative; height: 4px; border-radius: 2px; background: #2a2e35"><span aria-hidden="true" class="etapa" style="position: absolute; inset: 0; border-radius: 2px; background: #cff245; animation-delay: 220ms"></span></span>
+          <span style="position: relative; height: 4px; border-radius: 2px; background: #2a2e35"><span aria-hidden="true" class="etapa-actual" style="position: absolute; inset: 0; border-radius: 2px; background: #cff245; animation-delay: 440ms, 1140ms"></span></span>
           <span style="height: 4px; border-radius: 2px; background: #2a2e35"></span>
           <span style="height: 4px; border-radius: 2px; background: #2a2e35"></span>
           <span style="height: 4px; border-radius: 2px; background: #2a2e35"></span>
@@ -63,6 +68,7 @@ a{color:#cff245}a:hover{color:#e4ff7a}
           <h2 style="margin: 0; font-size: 22px; font-weight: 700">Hacé propietario principal a la plataforma</h2>
           <p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a3a9b1">Cambiá el rol de <strong style="color: #e8e9ea; font-weight: 700">[CUENTA DE CUSTODIA]</strong> a <strong style="color: #e8e9ea; font-weight: 700">Propietario principal</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">9 de noviembre</strong>.</p>
           <button type="button" onClick="{{ declare }}" disabled="{{ busy }}" aria-busy="{{ busy }}" style="min-height: 52px; padding: 0 20px; border: 0; border-radius: 3px; background: {{ btnBg }}; color: #0b0c0e; font: inherit; font-size: 16px; font-weight: 700">{{ ctaLabel }}</button>
+          <button type="button" style="min-height: 44px; padding: 0 16px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 15px; width: 100%">Ver cómo hacerlo</button>
           <a href="#" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; font-size: 15px; text-decoration: none">Abrir los permisos de la cuenta de marca</a>
         </div>
       </sc-if>
