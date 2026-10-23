@@ -8,9 +8,15 @@
     { "id": "pasos", "name": "Pasos por rol" }
   ],
   "boards": {
-    "PageBuyer.dc.html": { "page": "vista", "x": 0, "y": 0, "w": 1440, "h": 1700, "expand": "fill", "title": "Comprador · pagar (página completa)", "is_interactive": true },
-    "PageSeller.dc.html": { "page": "vista", "x": 1520, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "Vendedor · ceder el acceso (página completa)", "is_interactive": true },
-    "PagePlatform.dc.html": { "page": "vista", "x": 3040, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "Plataforma · quitar al vendedor (página completa)", "is_interactive": true },
+    "PageBuyer.dc.html": { "page": "vista", "x": 0, "y": 0, "w": 1440, "h": 1700, "expand": "fill", "title": "A · Comprador · pagar", "is_interactive": true },
+    "PageSeller.dc.html": { "page": "vista", "x": 1520, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "A · Vendedor · ceder el acceso", "is_interactive": true },
+    "PagePlatform.dc.html": { "page": "vista", "x": 3040, "y": 0, "w": 1440, "h": 1200, "expand": "fill", "title": "A · Plataforma · quitar al vendedor", "is_interactive": true },
+    "FocusBuyer.dc.html": { "page": "vista", "x": 0, "y": 2120, "w": 1440, "h": 1600, "expand": "fill", "title": "B · Comprador · pagar", "is_interactive": true },
+    "FocusSeller.dc.html": { "page": "vista", "x": 1520, "y": 2120, "w": 1440, "h": 1000, "expand": "fill", "title": "B · Vendedor · ceder el acceso", "is_interactive": true },
+    "FocusPlatform.dc.html": { "page": "vista", "x": 3040, "y": 2120, "w": 1440, "h": 1000, "expand": "fill", "title": "B · Plataforma · quitar al vendedor", "is_interactive": true },
+    "StagesBuyer.dc.html": { "page": "vista", "x": 0, "y": 4140, "w": 1440, "h": 1500, "expand": "fill", "title": "C · Comprador · pagar", "is_interactive": true },
+    "StagesSeller.dc.html": { "page": "vista", "x": 1520, "y": 4140, "w": 1440, "h": 1000, "expand": "fill", "title": "C · Vendedor · ceder el acceso", "is_interactive": true },
+    "StagesPlatform.dc.html": { "page": "vista", "x": 3040, "y": 4140, "w": 1440, "h": 1000, "expand": "fill", "title": "C · Plataforma · quitar al vendedor", "is_interactive": true },
     "Main.dc.html": { "page": "pasos", "x": 0, "y": 0, "w": 880, "h": 1600, "title": "Comprador · pagar", "is_interactive": true },
     "BuyerWaiting.dc.html": { "page": "pasos", "x": 960, "y": 0, "w": 760, "h": 1000, "title": "Comprador · esperar al vendedor", "is_interactive": true },
     "BuyerReceive.dc.html": { "page": "pasos", "x": 1800, "y": 0, "w": 760, "h": 1000, "title": "Comprador · recibir el canal", "is_interactive": true },
@@ -24,6 +30,12 @@
     "PageBuyer.dc.html",
     "PageSeller.dc.html",
     "PagePlatform.dc.html",
+    "FocusBuyer.dc.html",
+    "FocusSeller.dc.html",
+    "FocusPlatform.dc.html",
+    "StagesBuyer.dc.html",
+    "StagesSeller.dc.html",
+    "StagesPlatform.dc.html",
     "Main.dc.html",
     "BuyerWaiting.dc.html",
     "BuyerReceive.dc.html",
@@ -34,7 +46,9 @@
     "PlatformOperation.dc.html"
   ],
   "notes": {
-    "rowPages": { "page": "vista", "x": 0, "y": -300, "text": "La página de la operación, por rol", "kind": "title1", "maxW": 4480 },
+    "rowPages": { "page": "vista", "x": 0, "y": -300, "text": "A · Paso a paso con resumen al costado", "kind": "title1", "maxW": 4480 },
+    "rowFocus": { "page": "vista", "x": 0, "y": 1820, "text": "B · Foco en la acción", "kind": "title1", "maxW": 4480 },
+    "rowStages": { "page": "vista", "x": 0, "y": 3840, "text": "C · Etapas arriba", "kind": "title1", "maxW": 4480 },
     "rowBuyer": { "page": "pasos", "x": 0, "y": -300, "text": "Comprador", "kind": "title1", "maxW": 3830 },
     "rowSeller": { "page": "pasos", "x": 0, "y": 1720, "text": "Vendedor", "kind": "title1", "maxW": 1600 },
     "rowPlatform": { "page": "pasos", "x": 0, "y": 3140, "text": "Plataforma", "kind": "title1", "maxW": 760 }

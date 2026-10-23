@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Variante C: comprador</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+</style>
+</helmet>
+<div style="min-height: 1500px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="border-bottom: 1px solid #2a2e35">
+    <nav aria-label="Principal" style="max-width: 1400px; margin: 0 auto; padding: 16px 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 40px">
+        <a href="#" style="display: flex; align-items: center; gap: 10px; color: #e8e9ea; text-decoration: none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cff245" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18l6-7 4 4 6-9"></path></svg>
+          <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.02em">TRASPASO</span>
+        </a>
+        <div style="display: flex; flex-wrap: wrap; gap: 24px; font-size: 14px">
+          <a href="#" style="color: #a3a9b1; text-decoration: none">Mercado</a>
+          <a href="#" style="color: #a3a9b1; text-decoration: none">Cómo funciona</a>
+          <a href="#" style="color: #a3a9b1; text-decoration: none">Mis activos</a>
+          <a href="#" aria-current="page" style="color: #e8e9ea; text-decoration: none">Mis compras</a>
+          <a href="#" style="color: #a3a9b1; text-decoration: none">Reclamos</a>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px">
+        <a href="#" style="font-size: 13px; color: #e8e9ea; text-decoration: none">Juan Comprador</a>
+        <button type="button" style="min-height: 36px; padding: 0 16px; border: 1px solid #3a3f47; border-radius: 3px; background: transparent; color: #a3a9b1; font: inherit; font-size: 13px">Salir</button>
+      </div>
+    </nav>
+  </header>
+
+  <main style="width: 100%; max-width: 1400px; margin: 0 auto; padding: 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 36px">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 16px">
+      <h1 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.02em">Pc Lover</h1>
+      <span style="font-size: 16px; color: #a3a9b1">Pagarás <strong style="color: #e8e9ea; font-weight: 700">AR$ 1.575.000</strong></span>
+    </div>
+
+    <ol aria-label="Etapas de la operación" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{ stages }}" as="st" hint-placeholder-count="6">
+        <li aria-current="{{ st.current }}" style="display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 3px solid {{ st.bar }}">
+          <span style="font-size: 15px; font-weight: {{ st.weight }}; color: {{ st.color }}">{{ st.label }}</span>
+          <span style="font-size: 13px; color: #8c939c">{{ st.when }}</span>
+        </li>
+      </sc-for>
+    </ol>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start">
+      <section aria-label="Tu acción" style="flex: 999 1 560px; min-width: 0">
+        <dc-import name="PaymentFlow" hint-size="720px,980px"></dc-import>
+      </section>
+      <aside aria-label="Resumen de la operación" style="flex: 1 1 320px; max-width: 420px; display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+        <dl style="margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 12px; font-size: 15px">
+          <dt style="color: #a3a9b1">Precio</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">AR$ 1.500.000</dd>
+          <dt style="color: #a3a9b1">Comisión</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">AR$ 75.000</dd>
+          <dt style="font-weight: 700">Pagarás</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace; font-weight: 700">AR$ 1.575.000</dd>
+        </dl>
+        <dl style="margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 6px; font-size: 14px; border-top: 1px solid #2a2e35; padding-top: 16px">
+          <dt style="color: #a3a9b1">Recibirás el canal en</dt><dd style="margin: 0; font-family: 'JetBrains Mono', monospace">comprador@correo.com</dd>
+        </dl>
+        <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #2a2e35; padding-top: 10px">
+          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Ver el contrato firmado</a>
+          <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; text-decoration: none">Ver la publicación</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer style="margin-top: auto; border-top: 1px solid #2a2e35">
+    <div style="max-width: 1400px; margin: 0 auto; padding: 24px 48px; font-size: 13px; color: #8c939c">TRASPASO</div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() {
+const list = [
+{ label: 'Precio acordado', when: '18 de octubre', state: 'done' },
+{ label: 'Contrato firmado', when: '20 de octubre', state: 'done' },
+{ label: 'Acceso cedido', when: '23 de octubre', state: 'done' },
+{ label: 'Pago del canal', when: 'Hasta el 6 de noviembre', state: 'current' },
+{ label: 'Entrega del canal', when: '', state: 'pending' },
+{ label: 'Cierre', when: '', state: 'pending' },
+];
+return {
+stages: list.map((s) => ({
+label: s.label,
+when: s.when,
+current: s.state === 'current' ? 'step' : 'false',
+bar: s.state === 'done' ? '#5eead4' : s.state === 'current' ? '#cff245' : '#2a2e35',
+color: s.state === 'pending' ? '#8c939c' : s.state === 'current' ? '#e8e9ea' : '#a3a9b1',
+weight: s.state === 'current' ? '700' : '400',
+})),
+};
+}
+}
+</script>
+</body>
+</html>
