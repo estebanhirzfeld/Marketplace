@@ -7,6 +7,7 @@ import { createAssetStrategy } from '../../strategies/AssetStrategyFactory';
 import { DomainName } from '../../value-objects/DomainName';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../errors/DomainError';
 import { AssetType, UserRole } from '@marketplace/shared-types';
+import { assertSalesOpen } from '../../services/AssetSalesPause';
 
 export interface CreateListingInput {
     assetType: string;
@@ -29,6 +30,8 @@ export class CreateListingUseCase {
     constructor(
         private readonly listingRepo: IListingRepository,
         private readonly userRepo: IUserRepository,
+        /** Tipos cuya venta está en pausa: no se crean. */
+        private readonly pausedAssetTypes: ReadonlySet<string> = new Set(),
     ) {}
 
     async execute(input: CreateListingInput, actor: Actor): Promise<Listing> {
@@ -56,6 +59,8 @@ export class CreateListingUseCase {
                 );
             }
         }
+
+        assertSalesOpen(input.assetType, this.pausedAssetTypes);
 
         // Lanza ValidationError si el tipo o los campos del activo no cierran.
         const assetStrategy = createAssetStrategy(input.assetType, input.assetData);

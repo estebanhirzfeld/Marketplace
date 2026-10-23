@@ -1,3 +1,4 @@
+import { AssetType } from '@marketplace/shared-types';
 import {
     PrismaUserRepository,
     PrismaListingRepository,
@@ -306,6 +307,17 @@ export interface Container {
     listarCuentasCustodia: ListCustodyAccountsUseCase;
 }
 
+/**
+ * Los tipos de activo cuya venta está en pausa. Los sitios web están en pausa
+ * desde el 22/10/2026 (`odd/tasks/entrega-de-un-sitio.md`): solo
+ * `WEBSITE_SALES_ENABLED=1` o `true` los vuelve a habilitar. La web tiene su
+ * propia constante para la pantalla; esta es la que frena la API.
+ */
+export function pausedAssetTypesFromEnv(env: NodeJS.ProcessEnv = process.env): ReadonlySet<string> {
+    const flag = env.WEBSITE_SALES_ENABLED?.trim();
+    return flag === '1' || flag === 'true' ? new Set() : new Set([AssetType.WEB]);
+}
+
 export function createContainer(
     hasher: IPasswordHasher = new BcryptPasswordHasher(),
     /** Solo para tests: un registrador fake en lugar del que arma el entorno. */
@@ -388,6 +400,8 @@ export function createContainer(
     // enciende): cambia a nombre de quién se cobra. Necesita el OAuth del
     // vendedor y la clave de cifrado; sin ellos no hay token con el que cobrar,
     // así que se frena el arranque en vez de cobrar a medias.
+    const pausedAssetTypes = pausedAssetTypesFromEnv();
+
     const splitFlag = process.env.MERCADOPAGO_SPLIT_ENABLED?.trim();
     const splitEnabled = splitFlag === '1' || splitFlag === 'true';
     if (splitEnabled && !paymentAccountWiring) {
@@ -564,18 +578,20 @@ export function createContainer(
         marcarAvisoLeido: new MarkNotificationReadUseCase(notificationRepo),
         verifyIdentity: new VerifyIdentityUseCase(userRepo),
 
-        createListing: new CreateListingUseCase(listingRepo, userRepo),
+        createListing: new CreateListingUseCase(listingRepo, userRepo, pausedAssetTypes),
         estimateListingPrice: new EstimateListingPriceUseCase(),
         submitListing: new SubmitListingForReviewUseCase(
             listingRepo,
             userRepo,
             avisosDePlataforma,
             requireMpLink ? paymentAccountRepo : undefined,
+            pausedAssetTypes,
         ),
         publishListing: new PublishListingUseCase(
             listingRepo,
             userRepo,
             requireMpLink ? paymentAccountRepo : undefined,
+            pausedAssetTypes,
         ),
         editListing: new EditListingUseCase(listingRepo),
         requestPlatformAccess: new RequestPlatformAccessUseCase(listingRepo, avisosDePlataforma),

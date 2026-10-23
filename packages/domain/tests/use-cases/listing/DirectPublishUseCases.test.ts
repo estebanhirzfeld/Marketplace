@@ -15,8 +15,8 @@ import { Email } from '../../../src/value-objects/Email';
 import { Money } from '../../../src/value-objects/Money';
 import { UniqueEntityID } from '../../../src/value-objects/UniqueEntityID';
 import { YouTubeStrategy } from '../../../src/strategies/YouTubeStrategy';
-import { ForbiddenError, InvalidStateError, NotFoundError } from '../../../src/errors/DomainError';
-import { AssetNiche, UserRole } from '@marketplace/shared-types';
+import { ForbiddenError, InvalidStateError, NotFoundError, ValidationError } from '../../../src/errors/DomainError';
+import { AssetNiche, AssetType, UserRole } from '@marketplace/shared-types';
 
 const SELLER_ID = new UniqueEntityID();
 const SELLER: Actor = { id: SELLER_ID.toString(), role: UserRole.SELLER };
@@ -86,6 +86,17 @@ function cuentasDe(vinculada: boolean): ISellerPaymentAccountRepository {
 }
 
 describe('PublishListingUseCase', () => {
+    it('no publica un activo de un tipo en pausa, aunque sea un borrador ya cargado', async () => {
+        const listing = unCanal();
+        const repo = repoDe(listing);
+
+        await expect(
+            new PublishListingUseCase(repo, usersDe(usuario(true)), undefined, new Set([AssetType.YOUTUBE])).execute(listing.id.toString(), SELLER),
+        ).rejects.toThrow(ValidationError);
+        expect(listing.status).toBe('draft');
+        expect(repo.save).not.toHaveBeenCalled();
+    });
+
     it('publica directo un canal con la titularidad comprobada', async () => {
         const listing = unCanal();
         const repo = repoDe(listing);

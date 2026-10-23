@@ -6,6 +6,7 @@ import {
 import { Actor } from '../../ports/Actor';
 import { PublishingRequirements } from '../../services/PublishingRequirements';
 import { NotFoundError } from '../../errors/DomainError';
+import { assertSalesOpen } from '../../services/AssetSalesPause';
 
 /**
  * Publica sin revisión un activo cuya titularidad ya comprobó la fuente.
@@ -21,6 +22,8 @@ export class PublishListingUseCase {
         private readonly listingRepo: IListingRepository,
         userRepo: IUserRepository,
         paymentAccounts?: ISellerPaymentAccountRepository,
+        /** Tipos cuya venta está en pausa: un borrador ya cargado tampoco se publica. */
+        private readonly pausedAssetTypes: ReadonlySet<string> = new Set(),
     ) {
         this.requirements = new PublishingRequirements(userRepo, paymentAccounts);
     }
@@ -32,6 +35,7 @@ export class PublishListingUseCase {
         }
 
         listing.assertOwnedBy(actor.id);
+        assertSalesOpen(listing.assetDataFor(true).assetType, this.pausedAssetTypes);
         await this.requirements.assertMetBy(actor);
 
         listing.publish();

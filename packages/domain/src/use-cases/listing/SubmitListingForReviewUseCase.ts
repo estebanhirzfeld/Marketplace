@@ -7,6 +7,7 @@ import { Actor } from '../../ports/Actor';
 import { PlatformNotifier } from '../../services/PlatformNotifier';
 import { PublishingRequirements } from '../../services/PublishingRequirements';
 import { NotFoundError } from '../../errors/DomainError';
+import { assertSalesOpen } from '../../services/AssetSalesPause';
 
 /**
  * Publicar es un acto con valor legal: expone el activo de una persona real al
@@ -24,6 +25,8 @@ export class SubmitListingForReviewUseCase {
         private readonly avisosDePlataforma?: PlatformNotifier,
         /** Si se provee, publicar exige Mercado Pago vinculado. Ver `PublishingRequirements`. */
         paymentAccounts?: ISellerPaymentAccountRepository,
+        /** Tipos cuya venta está en pausa: un borrador ya cargado tampoco se envía. */
+        private readonly pausedAssetTypes: ReadonlySet<string> = new Set(),
     ) {
         this.requirements = new PublishingRequirements(userRepo, paymentAccounts);
     }
@@ -35,6 +38,7 @@ export class SubmitListingForReviewUseCase {
         }
 
         listing.assertOwnedBy(actor.id);
+        assertSalesOpen(listing.assetDataFor(true).assetType, this.pausedAssetTypes);
 
         await this.requirements.assertMetBy(actor);
 

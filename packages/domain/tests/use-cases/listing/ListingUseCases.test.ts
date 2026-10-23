@@ -186,6 +186,47 @@ describe('CreateListingUseCase — dominios .ar', () => {
 // SubmitListingForReviewUseCase
 // ═════════════════════════════════════════════════════════
 
+describe('venta de un tipo de activo en pausa', () => {
+    it('crear un sitio con la venta de sitios en pausa se rechaza y no se guarda', async () => {
+        const seller = createTestSeller();
+        const listingRepo = createMockListingRepo();
+        const useCase = new CreateListingUseCase(
+            listingRepo,
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(seller) }),
+            new Set([AssetType.WEB]),
+        );
+
+        await expect(
+            useCase.execute(
+                {
+                    assetType: AssetType.WEB,
+                    assetData: { monthlyRevenueUsdCents: 25000, domain: 'mi-sitio.com', niche: AssetNiche.LIFESTYLE, name: 'Sitio' },
+                    askingPrice: { cents: 1000000, currency: 'USD' },
+                },
+                actorDe(seller.id),
+            ),
+        ).rejects.toThrow(new ValidationError('Habilitaremos la venta de sitios web próximamente.'));
+        expect(listingRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('enviar a revisión un activo de un tipo en pausa se rechaza', async () => {
+        const sellerId = new UniqueEntityID();
+        const listing = Listing.create({ sellerId, assetStrategy: createTestStrategy(), askingPrice: Money.fromCents(1000000, 'USD') });
+        const listingRepo = createMockListingRepo({ findById: vi.fn().mockResolvedValue(listing) });
+        const useCase = new SubmitListingForReviewUseCase(
+            listingRepo,
+            createMockUserRepo({ findById: vi.fn().mockResolvedValue(createVerifiedUser()) }),
+            undefined,
+            undefined,
+            new Set([AssetType.YOUTUBE]),
+        );
+
+        await expect(useCase.execute(listing.id.toString(), actorDe(sellerId))).rejects.toThrow(ValidationError);
+        expect(listing.status).toBe('draft');
+        expect(listingRepo.save).not.toHaveBeenCalled();
+    });
+});
+
 describe('SubmitListingForReviewUseCase', () => {
     it('debería transicionar un listing de draft a under_review', async () => {
         const sellerId = new UniqueEntityID();
