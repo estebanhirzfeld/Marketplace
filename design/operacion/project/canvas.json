@@ -5,27 +5,29 @@
   "launch": { "view": "canvas" },
   "pages": [],
   "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 760, "h": 1000, "title": "Comprador · pagar", "is_interactive": true },
-    "BuyerWaiting.dc.html": { "x": 840, "y": 0, "w": 760, "h": 1000, "title": "Comprador · esperar al vendedor", "is_interactive": true },
-    "BuyerReceive.dc.html": { "x": 1680, "y": 0, "w": 760, "h": 1000, "title": "Comprador · recibir el canal", "is_interactive": true },
-    "BuyerMobile.dc.html": { "x": 2520, "y": 0, "w": 390, "h": 1000, "title": "Comprador · pagar, en el teléfono", "is_interactive": true },
-    "SellerHandover.dc.html": { "x": 0, "y": 1420, "w": 760, "h": 1000, "title": "Vendedor · pasar el canal", "is_interactive": true },
-    "SellerClosed.dc.html": { "x": 840, "y": 1420, "w": 760, "h": 1000, "title": "Vendedor · operación cerrada", "is_interactive": true },
-    "PlatformOperation.dc.html": { "x": 0, "y": 2840, "w": 760, "h": 1000, "title": "Plataforma · confirmar la custodia", "is_interactive": true }
+    "Main.dc.html": { "x": 0, "y": 0, "w": 880, "h": 1600, "title": "Comprador · pagar", "is_interactive": true },
+    "BuyerWaiting.dc.html": { "x": 960, "y": 0, "w": 760, "h": 1000, "title": "Comprador · esperar al vendedor", "is_interactive": true },
+    "BuyerReceive.dc.html": { "x": 1800, "y": 0, "w": 760, "h": 1000, "title": "Comprador · recibir el canal", "is_interactive": true },
+    "QrUpload.dc.html": { "x": 2640, "y": 0, "w": 390, "h": 844, "title": "Comprador · subir el comprobante desde el teléfono", "is_interactive": true },
+    "PaymentFlow.dc.html": { "x": 3110, "y": 0, "w": 720, "h": 980, "title": "Componente del pago (el mismo de la página)", "is_interactive": true },
+    "SellerHandover.dc.html": { "x": 0, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · ceder el acceso", "is_interactive": true },
+    "SellerClosed.dc.html": { "x": 840, "y": 2020, "w": 760, "h": 1000, "title": "Vendedor · operación cerrada", "is_interactive": true },
+    "PlatformOperation.dc.html": { "x": 0, "y": 3440, "w": 760, "h": 1000, "title": "Plataforma · confirmar la custodia", "is_interactive": true }
   },
   "order": [
     "Main.dc.html",
     "BuyerWaiting.dc.html",
     "BuyerReceive.dc.html",
-    "BuyerMobile.dc.html",
+    "QrUpload.dc.html",
+    "PaymentFlow.dc.html",
     "SellerHandover.dc.html",
     "SellerClosed.dc.html",
     "PlatformOperation.dc.html"
   ],
   "notes": {
-    "rowBuyer": { "x": 0, "y": -300, "text": "Comprador", "kind": "title1", "maxW": 2910 },
-    "rowSeller": { "x": 0, "y": 1120, "text": "Vendedor", "kind": "title1", "maxW": 1600 },
-    "rowPlatform": { "x": 0, "y": 2540, "text": "Plataforma", "kind": "title1", "maxW": 760 }
+    "rowBuyer": { "x": 0, "y": -300, "text": "Comprador", "kind": "title1", "maxW": 3830 },
+    "rowSeller": { "x": 0, "y": 1720, "text": "Vendedor", "kind": "title1", "maxW": 1600 },
+    "rowPlatform": { "x": 0, "y": 3140, "text": "Plataforma", "kind": "title1", "maxW": 760 }
   },
   "designSystems": []
 }

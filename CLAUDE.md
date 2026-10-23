@@ -108,6 +108,8 @@ Every user-facing string (screens, notifications, emails) follows this register.
 - **Labels use the infinitive** ("Transferir exactamente"); buttons say the action ("Confirmar la acreditación", "Adjuntar comprobante").
 - **Spelling is correct**, accents included ("Transferir", "realizará").
 - **Every state is drawn:** loading ("Registrando tu confirmación…"), success saying what happens next and who is told, and the unhappy path. Waits end with what we will do: "te avisaremos cuando…".
+- **Timeline and status lines are short noun phrases that inform, never narrations:** "Precio acordado", "Contrato firmado", "Pago del canal", "Entrega del canal". A waiting state says what is happening without revealing the business rule behind it ("El vendedor cede acceso a la plataforma", not "El vendedor pasará el canal a la plataforma"), and a consequence is stated impersonally ("Cumplido el plazo, la operación se cancelará.", not "Si no lo pasa a tiempo…").
+- **Reuse the components already built** (`PaymentFlow`, `FileAttach`, the receipt forms and review, the QR page, `Reveal` and the loaders): a new layout mounts them unchanged, and a design canvas imports their artboards instead of redrawing them.
 - **Flows go one decision per step:** choose the method with two cards (the `/vender` pattern), then numbered steps ("Paso 1 de 2"). One attach button (the phone offers gallery or camera), always with a preview.
 
 Skills to load before designing or writing a screen (user-level, in `~/.claude/skills/`):

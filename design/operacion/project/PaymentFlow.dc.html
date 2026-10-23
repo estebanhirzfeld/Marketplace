@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pago: Comprador: pagar la compra</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0c0e}
+a{color:#cff245}a:hover{color:#e4ff7a}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spinner{animation:none!important}}
+</style>
+</helmet>
+<div style="width: 720px; min-height: 980px; box-sizing: border-box; padding: 48px 40px; background: #0b0c0e; color: #e8e9ea; font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h1 style="margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2">Pagá tu compra</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c"><strong style="color: #e8e9ea; font-weight: 700">AR$ 1.575.000</strong>. Tenés tiempo hasta el <strong style="color: #e8e9ea; font-weight: 700">29 de octubre</strong>.</p>
+  </div>
+
+  <sc-if value="{{ isChoose }}" hint-placeholder-val="{{ true }}">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+      <button type="button" onClick="{{ pickMp }}" style="display: flex; flex-direction: column; gap: 18px; min-height: 280px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; color: #e8e9ea; font: inherit; text-align: left; cursor: pointer">
+        <span role="img" aria-label="Mercado Pago" style="display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 52px; border-radius: 13px; background: #00b1ea; color: #ffffff; font-size: 12px; font-weight: 700; line-height: 1.05; text-align: center">mercado<br>pago</span>
+        <span style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 22px; font-weight: 700">Mercado Pago</span>
+          <span style="font-size: 15px; line-height: 1.5; color: #8c939c">Un solo pago, con tarjeta o dinero en cuenta. La acreditación es inmediata.</span>
+        </span>
+        <span style="margin-top: auto; display: flex; justify-content: flex-end; border-top: 1px solid #1e2126; padding-top: 14px; font-size: 15px; font-weight: 500; color: #cff245">Pagar con Mercado Pago</span>
+      </button>
+      <button type="button" onClick="{{ pickTransfer }}" style="display: flex; flex-direction: column; gap: 18px; min-height: 280px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619; color: #e8e9ea; font: inherit; text-align: left; cursor: pointer">
+        <svg width="72" height="52" viewBox="0 0 72 52" role="img" aria-label="Transferencia bancaria">
+          <rect width="72" height="52" rx="13" fill="#e8e9ea"></rect>
+          <path d="M36 11 18 20h36z" fill="#0b0c0e"></path>
+          <rect x="21" y="23" width="5" height="13" fill="#0b0c0e"></rect>
+          <rect x="33.5" y="23" width="5" height="13" fill="#0b0c0e"></rect>
+          <rect x="46" y="23" width="5" height="13" fill="#0b0c0e"></rect>
+          <rect x="17" y="38" width="38" height="4" rx="1" fill="#0b0c0e"></rect>
+        </svg>
+        <span style="display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 22px; font-weight: 700">Transferencia</span>
+          <span style="font-size: 15px; line-height: 1.5; color: #8c939c">Desde tu banco, en dos transferencias. La confirmación es manual.</span>
+        </span>
+        <span style="margin-top: auto; display: flex; justify-content: flex-end; border-top: 1px solid #1e2126; padding-top: 14px; font-size: 15px; font-weight: 500; color: #cff245">Pagar por transferencia</span>
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isMp }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">Pago con Mercado Pago</span>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Te redirigiremos a Mercado Pago para realizar el pago. Luego de la acreditación, se realizará la entrega del canal.</p>
+      <button type="button" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Ir a Mercado Pago</button>
+      <button type="button" onClick="{{ back }}" style="align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Elegir otro medio</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isIntro }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 18px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <span style="font-size: 20px; font-weight: 700">Realizarás 2 transferencias</span>
+      <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5">
+        <li>La comisión, a la plataforma: <span style="font-family: 'JetBrains Mono', monospace">AR$ 150.000</span></li>
+        <li>El pago, al vendedor: <span style="font-family: 'JetBrains Mono', monospace">AR$ 1.425.000</span></li>
+      </ol>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Deberás adjuntar el comprobante. La revisión es manual y puede demorar: te avisaremos cuando estén confirmados.</p>
+      <button type="button" onClick="{{ start }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Empezar</button>
+      <button type="button" onClick="{{ back }}" style="align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; color: #8c939c; font: inherit; font-size: 14px">Elegir otro medio</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isStep }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 20px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8c939c">PASO {{ stepNumber }} DE 2</span>
+        <div style="display: flex; gap: 6px" aria-hidden="true">
+          <div style="flex: 1; height: 4px; border-radius: 2px; background: #cff245"></div>
+          <div style="flex: 1; height: 4px; border-radius: 2px; background: {{ secondBar }}"></div>
+        </div>
+        <span style="font-size: 20px; font-weight: 700">{{ stepTitle }}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; color: #838a94">Transferir exactamente</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 30px">{{ amount }}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; border: 1px solid #1e2126; border-radius: 5px">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1e2126">
+          <span style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 12px; color: #838a94">{{ keyLabel }}</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 15px">{{ keyValue }}</span>
+          </span>
+          <button type="button" style="min-height: 44px; padding: 0 14px; border: 1px solid #2a2e35; border-radius: 3px; background: transparent; color: #e8e9ea; font: inherit; font-size: 13px">Copiar</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px">
+          <span style="font-size: 12px; color: #838a94">A nombre de</span>
+          <span style="font-size: 15px">{{ holder }}</span>
+        </div>
+      </div>
+
+      <sc-if value="{{ noFile }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+          <button type="button" onClick="{{ attach }}" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Adjuntar comprobante</button>
+          <span style="font-size: 13px; color: #838a94">Una captura o un PDF.</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; border-top: 1px solid #1e2126; padding-top: 18px">
+          <div role="img" aria-label="Código QR para subir el comprobante desde el teléfono" style="width: 88px; height: 88px; flex-shrink: 0; border-radius: 5px; background: #e8e9ea; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 8px; box-sizing: border-box">
+            <div style="background:#0b0c0e"></div><div></div><div style="background:#0b0c0e"></div><div style="background:#0b0c0e"></div><div style="background:#0b0c0e"></div>
+            <div></div><div style="background:#0b0c0e"></div><div></div><div style="background:#0b0c0e"></div><div></div>
+            <div style="background:#0b0c0e"></div><div style="background:#0b0c0e"></div><div></div><div></div><div style="background:#0b0c0e"></div>
+            <div></div><div style="background:#0b0c0e"></div><div style="background:#0b0c0e"></div><div></div><div style="background:#0b0c0e"></div>
+            <div style="background:#0b0c0e"></div><div></div><div style="background:#0b0c0e"></div><div style="background:#0b0c0e"></div><div></div>
+          </div>
+          <span style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 15px; font-weight: 500">¿Tenés el comprobante en tu teléfono?</span>
+            <span style="font-size: 14px; line-height: 1.5; color: #8c939c">Escaneá el código con la cámara y adjuntá el comprobante desde el teléfono.</span>
+          </span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasFile }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; gap: 16px; align-items: center; border: 1px solid #1e2126; border-radius: 5px; padding: 12px">
+            <div style="width: 72px; height: 96px; flex-shrink: 0; border-radius: 3px; background: #e8e9ea; display: flex; flex-direction: column; gap: 6px; padding: 10px 8px; box-sizing: border-box" aria-hidden="true">
+              <div style="height: 6px; width: 70%; background: #8c939c; border-radius: 1px"></div>
+              <div style="height: 4px; width: 90%; background: #c9cdd2; border-radius: 1px"></div>
+              <div style="height: 4px; width: 80%; background: #c9cdd2; border-radius: 1px"></div>
+              <div style="height: 8px; width: 60%; margin-top: 8px; background: #0b0c0e; border-radius: 1px"></div>
+            </div>
+            <span style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+              <span style="font-size: 15px">comprobante-transferencia.png</span>
+              <span style="font-size: 13px; color: #838a94">Verificá que el monto y la fecha sean legibles.</span>
+              <button type="button" onClick="{{ clear }}" style="align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: transparent; color: #cff245; font: inherit; font-size: 14px">Cambiar el archivo</button>
+            </span>
+          </div>
+          <sc-if value="{{ notSending }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ send }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Enviar comprobante</button>
+          </sc-if>
+          <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}">
+            <div aria-busy="true" style="display: flex; align-items: center; gap: 12px; min-height: 48px">
+              <span class="spinner" style="width: 20px; height: 20px; border: 2px solid #2a2e35; border-top-color: #cff245; border-radius: 50%; animation: spin 0.8s linear infinite"></span>
+              <span style="font-size: 15px">Enviando el comprobante…</span>
+              <button type="button" onClick="{{ sent }}" style="min-height: 44px; padding: 0 12px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Simular fin</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isBetween }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">Recibimos el comprobante de la comisión</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">Resta una transferencia: el pago al vendedor.</p>
+      <button type="button" onClick="{{ next }}" style="align-self: flex-start; min-height: 48px; padding: 0 22px; border: 0; border-radius: 3px; background: #cff245; color: #0b0c0e; font: inherit; font-size: 15px; font-weight: 700">Seguir con el pago al vendedor</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; gap: 16px; padding: 28px; border: 1px solid #2a2e35; border-radius: 8px; background: #141619">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 20px; font-weight: 700">Recibimos los dos comprobantes</span>
+      </div>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #8c939c">La revisión es manual y puede demorar: te avisaremos cuando el pago esté confirmado. Luego se realizará la entrega del canal.</p>
+      <button type="button" onClick="{{ restart }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; border: 1px dashed #2a2e35; border-radius: 3px; background: transparent; color: #838a94; font: inherit; font-size: 12px">Volver a empezar la muestra</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":720,"height":980}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { view: 'choose', step: 1, file: false, sending: false };
+}
+renderVals() {
+const s = this.state;
+const platform = s.step === 1;
+return {
+isChoose: s.view === 'choose',
+isMp: s.view === 'mp',
+isIntro: s.view === 'intro',
+isStep: s.view === 'step',
+isBetween: s.view === 'between',
+isDone: s.view === 'done',
+stepNumber: s.step,
+secondBar: platform ? '#2a2e35' : '#cff245',
+stepTitle: platform ? 'La comisión, a la plataforma' : 'El pago, al vendedor',
+amount: platform ? 'AR$ 150.000' : 'AR$ 1.425.000',
+keyLabel: platform ? 'CBU' : 'Alias',
+keyValue: platform ? '[CBU DE LA PLATAFORMA]' : 'ana.vendedora.mp',
+holder: platform ? '[RAZÓN SOCIAL DE LA PLATAFORMA]' : 'Ana Vendedora',
+noFile: !s.file,
+hasFile: s.file,
+sending: s.sending,
+notSending: !s.sending,
+pickMp: () => this.setState({ view: 'mp' }),
+pickTransfer: () => this.setState({ view: 'intro' }),
+back: () => this.setState({ view: 'choose' }),
+start: () => this.setState({ view: 'step', step: 1, file: false, sending: false }),
+attach: () => this.setState({ file: true }),
+clear: () => this.setState({ file: false }),
+send: () => this.setState({ sending: true }),
+sent: () => this.setState(platform ? { view: 'between', file: false, sending: false } : { view: 'done', file: false, sending: false }),
+next: () => this.setState({ view: 'step', step: 2, file: false, sending: false }),
+restart: () => this.setState({ view: 'choose', step: 1, file: false, sending: false }),
+};
+}
+}
+</script>
+</body>
+</html>
